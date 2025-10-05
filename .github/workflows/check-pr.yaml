@@ -20,7 +20,7 @@ jobs:
     steps:
     - name: format
       if: always()
-      uses: taskmedia/action-conventional-commits@v1.1.20
+      uses: taskmedia/action-conventional-commits@v1.1.22
       with:
         types: "build|ci|docs|feat|fix|perf|refactor|style|test|revert|gomod"
 
