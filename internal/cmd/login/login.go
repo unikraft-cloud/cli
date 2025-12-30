@@ -20,10 +20,10 @@ import (
 )
 
 type LoginCmd struct {
-	Timeout       time.Duration `short:"t" long:"timeout" default:"5m" help:"Timeout for the login request."`
-	Controlplane  string        `long:"controlplane" default:"https://controlplane.unikraft.cloud" help:"Control plane URL to use for login."`
 	AllowInsecure bool          `long:"allow-insecure" short:"k" help:"Allow insecure server connections when using SSL."`
+	Controlplane  string        `long:"controlplane" default:"https://controlplane.unikraft.cloud" help:"Control plane URL to use for login."`
 	NoBrowser     bool          `long:"no-browser" help:"Do not open the browser automatically for login."`
+	Timeout       time.Duration `short:"t" long:"timeout" default:"5m" help:"Timeout for the login request."`
 }
 
 func (cmd *LoginCmd) Run(cfg *config.Config) error {
