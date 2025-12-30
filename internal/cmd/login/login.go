@@ -22,6 +22,7 @@ import (
 type LoginCmd struct {
 	AllowInsecure bool          `long:"allow-insecure" short:"k" help:"Allow insecure server connections when using SSL."`
 	Controlplane  string        `long:"controlplane" default:"https://controlplane.unikraft.cloud" help:"Control plane URL to use for login."`
+	Force         bool          `long:"force" short:"f" help:"Force re-authentication even if an existing token is present."`
 	NoBrowser     bool          `long:"no-browser" help:"Do not open the browser automatically for login."`
 	Timeout       time.Duration `short:"t" long:"timeout" default:"5m" help:"Timeout for the login request."`
 }
@@ -48,12 +49,12 @@ func (cmd *LoginCmd) Run(cfg *config.Config) error {
 		return jujuerrors.Annotate(err, "getting current profile")
 	}
 
-	if profile.Token != "" {
+	if !cmd.Force && profile.Token != "" {
 		log.G(ctx).Info().
 			Msg("existing authentication token found, re-authenticating")
 	}
 
-	if token := os.Getenv("UKC_TOKEN"); token != "" {
+	if token := os.Getenv("UKC_TOKEN"); !cmd.Force && token != "" {
 		// TODO: validate token
 		log.G(ctx).Info().
 			Msg("using authentication token from UKC_TOKEN environment variable")
