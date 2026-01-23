@@ -1,7 +1,7 @@
 $ unikraft certificate list
 
 stdout:
-	METRO  NAME  COMMON-NAME  STATE  NOT-AFTER
+	METRO  NAME  COMMON-NAME  STATE
 
 $ unikraft certificate create --set name=test-$UNIQ_CERT_A --set cn=$CERT_A_CN --set chain=$CERT_A_CHAIN --set pkey=$CERT_A_KEY --set metro=test
 
@@ -14,9 +14,6 @@ stdout:
 	issuer:        CN=<CERT_A_CN>
 	serial-number: 01
 	state:         valid
-	timestamps:
-	  not-before:  YYYY-MM-DD HH:MM:SS +0000 UTC
-	  not-after:   YYYY-MM-DD HH:MM:SS +0000 UTC
 
 $ unikraft certificate create --set name=test-$UNIQ_CERT_B --set cn=$CERT_B_CN --set chain=$CERT_B_CHAIN --set pkey=$CERT_B_KEY --set metro=test
 
@@ -29,16 +26,13 @@ stdout:
 	issuer:        CN=<CERT_B_CN>
 	serial-number: 01
 	state:         valid
-	timestamps:
-	  not-before:  YYYY-MM-DD HH:MM:SS +0000 UTC
-	  not-after:   YYYY-MM-DD HH:MM:SS +0000 UTC
 
 $ unikraft certificate list
 
 stdout:
-	METRO  NAME               COMMON-NAME                                STATE  NOT-AFTER
-	test   test-<CERT_B>  <CERT_B_CN>  valid  YYYY-MM-DD HH:MM:SS +0000 UTC
-	test   test-<CERT_A>  <CERT_A_CN>  valid  YYYY-MM-DD HH:MM:SS +0000 UTC
+	METRO  NAME               COMMON-NAME                                STATE
+	test   test-<CERT_B>  <CERT_B_CN>  valid
+	test   test-<CERT_A>  <CERT_A_CN>  valid
 
 $ unikraft certificate inspect test-$UNIQ_CERT_A test-$UNIQ_CERT_B
 
@@ -51,9 +45,6 @@ stdout:
 	issuer:        CN=<CERT_A_CN>
 	serial-number: 01
 	state:         valid
-	timestamps:
-	  not-before:  YYYY-MM-DD HH:MM:SS +0000 UTC
-	  not-after:   YYYY-MM-DD HH:MM:SS +0000 UTC
 
 	metro:         test
 	name:          test-<CERT_B>
@@ -63,8 +54,5 @@ stdout:
 	issuer:        CN=<CERT_B_CN>
 	serial-number: 01
 	state:         valid
-	timestamps:
-	  not-before:  YYYY-MM-DD HH:MM:SS +0000 UTC
-	  not-after:   YYYY-MM-DD HH:MM:SS +0000 UTC
 
 $ unikraft certificate delete test-$UNIQ_CERT_A test-$UNIQ_CERT_B

@@ -47,8 +47,8 @@ type Certificate struct {
 
 	Timestamps struct {
 		CreatedAt time.Time `mirror:"certificate.created_at"`
-		NotBefore time.Time `mirror:"certificate.not_before" field:",long"`
-		NotAfter  time.Time `mirror:"certificate.not_after" field:",short"`
+		NotBefore time.Time `mirror:"certificate.not_before"`
+		NotAfter  time.Time `mirror:"certificate.not_after"`
 	}
 
 	Certificate platform.Certificate `field:"-" json:"certificate"`
