@@ -146,10 +146,7 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 
 	// Save the profile
 	cfg.DefaultProfile = profile.Name
-	if cfg.Profiles == nil {
-		cfg.Profiles = make(map[string]config.Profile)
-	}
-	cfg.Profiles[profile.Name] = *profile
+	cfg.AddProfile(*profile)
 
 	if err := cfg.Save(); err != nil {
 		return jujuerrors.Annotate(err, "saving profile")

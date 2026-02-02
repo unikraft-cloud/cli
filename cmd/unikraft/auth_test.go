@@ -16,9 +16,8 @@ func authTests(t *testing.T, r *testRunner) {
 			{args: []string{unikraftCmd, "profile", "get", "--help"}},
 			{args: []string{unikraftCmd, "profile", "list", "--help"}},
 			{args: []string{unikraftCmd, "profile", "use", "--help"}},
-			{args: []string{unikraftCmd, "metro", "--help"}},
-			{args: []string{unikraftCmd, "metro", "get", "--help"}},
-			{args: []string{unikraftCmd, "metro", "list", "--help"}},
+			{args: []string{unikraftCmd, "profile", "create", "--help"}},
+			{args: []string{unikraftCmd, "profile", "delete", "--help"}},
 		})
 	})
 	t.Run("flow", func(t *testing.T) {
@@ -31,6 +30,63 @@ func authTests(t *testing.T, r *testRunner) {
 				{args: []string{unikraftCmd, "logout"}},
 				{args: []string{unikraftCmd, "profile", "list"}, allowErr: true},
 				{args: []string{unikraftCmd, "metro", "list"}, allowErr: true},
+			})
+	})
+
+	t.Run("profile-create", func(t *testing.T) {
+		r.
+			online().
+			run(t, []command{
+				{args: []string{unikraftCmd, "profile", "list"}},
+				{args: []string{
+					unikraftCmd, "profile", "create",
+					"--name", "test-profile",
+					"--token", "test-token",
+					"--organization", "test-org",
+				}},
+				{args: []string{unikraftCmd, "profile", "list"}},
+				{args: []string{unikraftCmd, "profile", "get", "test-profile"}},
+			})
+	})
+	t.Run("profile-create-duplicate", func(t *testing.T) {
+		r.
+			online().
+			run(t, []command{
+				{args: []string{
+					unikraftCmd, "profile", "create",
+					"--name", "dup-profile",
+					"--token", "test-token",
+				}},
+				{args: []string{
+					unikraftCmd, "profile", "create",
+					"--name", "dup-profile",
+					"--token", "test-token-2",
+				}, allowErr: true},
+			})
+	})
+	t.Run("profile-delete", func(t *testing.T) {
+		r.
+			online().
+			run(t, []command{
+				{args: []string{
+					unikraftCmd, "profile", "create",
+					"--name", "to-delete",
+					"--token", "test-token",
+				}},
+				{args: []string{unikraftCmd, "profile", "list"}},
+				{args: []string{unikraftCmd, "profile", "delete", "to-delete"}},
+				{args: []string{unikraftCmd, "profile", "list"}},
+			})
+	})
+	t.Run("profile-delete-active", func(t *testing.T) {
+		r.
+			online().
+			run(t, []command{
+				// The default profile from the online config is active;
+				// deleting it should fail.
+				{args: []string{unikraftCmd, "profile", "list"}},
+				{args: []string{unikraftCmd, "profile", "delete", "default"}, allowErr: true},
+				{args: []string{unikraftCmd, "profile", "list"}},
 			})
 	})
 }

@@ -225,3 +225,10 @@ func (config *Config) OverriddenCurrentProfile() (string, bool) {
 	}
 	return config.selectedProfile, true
 }
+
+func (config *Config) AddProfile(profile Profile) {
+	if config.Profiles == nil {
+		config.Profiles = make(map[string]Profile)
+	}
+	config.Profiles[profile.Name] = profile
+}

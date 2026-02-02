@@ -7,10 +7,14 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
+
+	"github.com/alecthomas/kong"
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/httpclient"
@@ -28,12 +32,47 @@ type MetrosCmd struct {
 	cmd.ResourceCmd[Metro]
 	cmd.GettableResourceCmd[Metro]
 	cmd.ListableResourceCmd[Metro]
+	cmd.DeletableResourceCmd[Metro]
+
+	Create MetroCreateCmd `cmd:"" help:"Create a metro."`
+	Edit   MetroEditCmd   `cmd:"" help:"Edit a metro."`
+}
+
+// MetroCreateCmd extends the generic create command with shortcut flags.
+type MetroCreateCmd struct {
+	cmd.ResourceCreateCmd[Metro]
+
+	Name     string `group:"flag-create" shortcut:"name" short:"n" help:"Metro name." placeholder:"name" example:"fra,sfo,nyc"`
+	Endpoint string `group:"flag-create" shortcut:"endpoint" help:"Metro endpoint URL." placeholder:"url" example:"https://api.fra.unikraft.cloud"`
+	Country  string `group:"flag-create" shortcut:"country" help:"Country code." placeholder:"code" example:"de,us,gb"`
+}
+
+func (c *MetroCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
+		return err
+	}
+	return c.ResourceCreateCmd.Run(ctx, stdio, sandbox)
+}
+
+// MetroEditCmd extends the generic edit command with shortcut flags.
+type MetroEditCmd struct {
+	cmd.ResourceEditCmd[Metro]
+
+	Endpoint string `group:"flag-edit" shortcut:"endpoint" help:"Metro endpoint URL." placeholder:"url" example:"https://api.fra.unikraft.cloud"`
+	Country  string `group:"flag-edit" shortcut:"country" help:"Country code." placeholder:"code" example:"de,us,gb"`
+}
+
+func (c *MetroEditCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
+		return err
+	}
+	return c.ResourceEditCmd.Run(ctx, stdio, sandbox)
 }
 
 type Metro struct {
-	Name     string `field:",short" json:"name"`
-	Country  string `field:",short" json:"country"`
-	Endpoint string `field:",short" json:"endpoint"`
+	Name     string `field:",short" json:"name" create:"set,required"`
+	Country  string `field:",short" json:"country" create:"set" edit:"set"`
+	Endpoint string `field:",short" json:"endpoint" create:"set,required" edit:"set"`
 	Insecure *bool  `field:",long" json:"insecure"`
 }
 
@@ -232,6 +271,111 @@ func (Metro) Get(ctx context.Context, keys []string) ([]resource.Resource, error
 	return getFromListable(ctx, Metro{}, keys)
 }
 
+func (Metro) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+	cfg := config.FromContextOrDefault(ctx)
+	profile, err := cfg.CurrentProfile()
+	if err != nil {
+		return nil, err
+	}
+
+	var metro config.Metro
+	for key, field := range resource.IterFields(fields) {
+		if field.Create == nil || field.Create.Set == nil {
+			continue
+		}
+		switch key.String() {
+		case "name":
+			metro.Name = field.Create.Set.(string)
+		case "country":
+			metro.Country = field.Create.Set.(string)
+		case "endpoint":
+			metro.Endpoint = field.Create.Set.(string)
+		}
+	}
+
+	for _, existing := range profile.Metros {
+		if existing.Name == metro.Name {
+			return nil, fmt.Errorf("metro already exists: %s", metro.Name)
+		}
+	}
+
+	updated := *profile
+	updated.Metros = append(slices.Clone(updated.Metros), metro)
+	cfg.AddProfile(updated)
+	if err := cfg.Save(); err != nil {
+		return nil, err
+	}
+
+	return []resource.Resource{Metro{
+		Name:     metro.Name,
+		Country:  metro.Country,
+		Endpoint: metro.Endpoint,
+	}}, nil
+}
+
+func (Metro) Edit(ctx context.Context, target resource.Resource, fields []resource.Field) (resource.Resource, error) {
+	cfg := config.FromContextOrDefault(ctx)
+	profile, err := cfg.CurrentProfile()
+	if err != nil {
+		return nil, err
+	}
+
+	metro := target.(Metro)
+	updated := *profile
+	for i := range updated.Metros {
+		if updated.Metros[i].Name != metro.Name {
+			continue
+		}
+		for key, field := range resource.IterFields(fields) {
+			if field.Edit == nil || field.Edit.Set == nil {
+				continue
+			}
+			switch key.String() {
+			case "country":
+				updated.Metros[i].Country = field.Edit.Set.(string)
+			case "endpoint":
+				updated.Metros[i].Endpoint = field.Edit.Set.(string)
+			}
+		}
+
+		cfg.AddProfile(updated)
+		if err := cfg.Save(); err != nil {
+			return nil, err
+		}
+
+		return Metro{
+			Name:     updated.Metros[i].Name,
+			Country:  updated.Metros[i].Country,
+			Endpoint: updated.Metros[i].Endpoint,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("metro not found: %s", metro.Name)
+}
+
+func (Metro) Delete(ctx context.Context, targets []resource.Resource) error {
+	cfg := config.FromContextOrDefault(ctx)
+	profile, err := cfg.CurrentProfile()
+	if err != nil {
+		return err
+	}
+
+	remove := make(map[string]struct{}, len(targets))
+	for _, target := range targets {
+		metro := target.(Metro)
+		remove[metro.Name] = struct{}{}
+	}
+
+	updated := *profile
+	updated.Metros = slices.DeleteFunc(slices.Clone(updated.Metros), func(metro config.Metro) bool {
+		_, ok := remove[metro.Name]
+		return ok
+	})
+
+	cfg.AddProfile(updated)
+	return cfg.Save()
+}
+
 func (Metro) Examples() map[cmd.CmdType][]kingkong.Example {
 	return map[cmd.CmdType][]kingkong.Example{
 		cmd.CmdTypeGet: {
@@ -252,6 +396,29 @@ func (Metro) Examples() map[cmd.CmdType][]kingkong.Example {
 			{
 				Description: "List metros with quota usage",
 				Commands:    []string{"unikraft metro list -f +quotas"},
+			},
+		},
+		cmd.CmdTypeCreate: {
+			{
+				Description: "Create a new metro",
+				Commands: []string{
+					`unikraft metro create \
+  --name fra \
+  --endpoint https://api.fra.unikraft.cloud \
+  --country de`,
+				},
+			},
+		},
+		cmd.CmdTypeEdit: {
+			{
+				Description: "Update a metro endpoint",
+				Commands:    []string{"unikraft metro edit fra --endpoint https://api.fra.unikraft.cloud"},
+			},
+		},
+		cmd.CmdTypeDelete: {
+			{
+				Description: "Delete a metro",
+				Commands:    []string{"unikraft metro delete fra"},
 			},
 		},
 	}

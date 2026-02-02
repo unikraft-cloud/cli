@@ -6,8 +6,8 @@ stderr:
 $ unikraft profile list
 
 stdout:
-	NAME     ACTIVE  METROS
-	default  true    ["test"]
+	NAME     ACTIVE  ORGANIZATION  METROS
+	default  true    test        ["test"]
 
 $ unikraft metro list
 
@@ -23,7 +23,7 @@ stderr:
 $ unikraft profile list
 
 stdout:
-	NAME  ACTIVE  METROS
+	NAME  ACTIVE  ORGANIZATION  METROS
 
 $ unikraft metro list
 

@@ -1,0 +1,33 @@
+$ unikraft metro create --set name=example --set endpoint=https://api.example.unikraft.cloud --set country=se
+
+stderr:
+	│  
+	│ error:
+	│   resolving quotas.instances.active: error performing the request: Get "https://api.example.unikraft.cloud/v1/users/quotas": dial tcp: lookup api.example.unikraft.cloud: no such host
+	│
+
+exit code: 1
+
+$ unikraft metro get example -f name,country,endpoint
+
+stdout:
+	name:     example
+	country:  se
+	endpoint: https://api.example.unikraft.cloud
+
+$ unikraft metro edit example --set endpoint=https://api.example2.unikraft.cloud
+
+stderr:
+	│  
+	│ error:
+	│   resolving quotas.instances.active.used: error performing the request: Get "https://api.example.unikraft.cloud/v1/users/quotas": dial tcp: lookup api.example.unikraft.cloud: no such host
+	│
+
+exit code: 1
+
+$ unikraft metro get example -f name,country,endpoint
+
+stdout:
+	name:     example
+	country:  se
+	endpoint: https://api.example2.unikraft.cloud

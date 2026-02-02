@@ -1,0 +1,22 @@
+$ unikraft profile create --name to-delete --token test-token
+
+stdout:
+	name: to-delete
+
+$ unikraft profile list
+
+stdout:
+	NAME       ACTIVE  ORGANIZATION  METROS
+	default    true    test        ["test"]
+	to-delete  false
+
+$ unikraft profile delete to-delete
+
+stdout:
+	to-delete
+
+$ unikraft profile list
+
+stdout:
+	NAME     ACTIVE  ORGANIZATION  METROS
+	default  true    test        ["test"]

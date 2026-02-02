@@ -1,0 +1,9 @@
+$ unikraft metro delete nonexistent
+
+stderr:
+	│  
+	│ error:
+	│   metro not found: [nonexistent]
+	│
+
+exit code: 1

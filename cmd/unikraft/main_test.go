@@ -109,6 +109,7 @@ func TestGolden(t *testing.T) {
 	}{
 		{"help", helpTests},
 		{"auth", authTests},
+		{"metro", metroTests},
 		{"instances", instancesTests},
 		{"instance-templates", instanceTemplatesTests},
 		{"volumes", volumesTests},

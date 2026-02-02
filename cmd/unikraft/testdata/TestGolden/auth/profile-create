@@ -1,0 +1,25 @@
+$ unikraft profile list
+
+stdout:
+	NAME     ACTIVE  ORGANIZATION  METROS
+	default  true    test        ["test"]
+
+$ unikraft profile create --name test-profile --token test-token --organization test-org
+
+stdout:
+	name: test-profile
+
+$ unikraft profile list
+
+stdout:
+	NAME          ACTIVE  ORGANIZATION  METROS
+	default       true    test        ["test"]
+	test-profile  false   test-org
+
+$ unikraft profile get test-profile
+
+stdout:
+	name:         test-profile
+	organization: test-org
+	insecure:     false
+	metros:
