@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unikraft.com/cli/internal/kraftfile/kraftfile",
+  "$defs": {
+    "Command": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "Library": {
+      "oneOf": [
+        {
+          "properties": {
+            "source": {
+              "type": "string"
+            },
+            "version": true,
+            "kconfig": {
+              "$ref": "#/$defs/Map"
+            }
+          },
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "Map": {
+      "oneOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "MapPair": {
+      "properties": {
+        "Key": {
+          "type": "string"
+        },
+        "Value": true
+      },
+      "type": "object",
+      "required": [
+        "Key",
+        "Value"
+      ]
+    },
+    "Rootfs": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true,
+          "type": "object",
+          "required": [
+            "source"
+          ]
+        }
+      ]
+    },
+    "Target": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "properties": {
+            "arch": {
+              "type": "string"
+            },
+            "plat": {
+              "type": "string"
+            },
+            "kconfig": {
+              "$ref": "#/$defs/Map"
+            },
+            "architecture": {
+              "type": "string"
+            },
+            "platform": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true,
+          "type": "object"
+        }
+      ]
+    },
+    "Template": {
+      "oneOf": [
+        {
+          "properties": {
+            "source": {
+              "type": "string"
+            },
+            "version": true
+          },
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "Unikraft": {
+      "oneOf": [
+        {
+          "properties": {
+            "source": {
+              "type": "string"
+            },
+            "version": true,
+            "kconfig": {
+              "$ref": "#/$defs/Map"
+            }
+          },
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "Volume": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "properties": {
+            "driver": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "destination": {
+              "type": "string"
+            },
+            "mode": true,
+            "readonly": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true,
+          "type": "object"
+        }
+      ]
+    },
+    "Volumes": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/Volume"
+          },
+          "type": "array"
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "not": {
+        "required": [
+          "specification"
+        ]
+      },
+      "required": [
+        "spec"
+      ]
+    },
+    {
+      "not": {
+        "required": [
+          "spec"
+        ]
+      },
+      "required": [
+        "specification"
+      ]
+    }
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "targets": {
+      "items": {
+        "$ref": "#/$defs/Target"
+      },
+      "type": "array"
+    },
+    "cmd": {
+      "$ref": "#/$defs/Command"
+    },
+    "env": {
+      "$ref": "#/$defs/Map"
+    },
+    "labels": {
+      "oneOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "patternProperties": {
+            "^[a-zA-Z0-9._/-]+$": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object"
+        }
+      ]
+    },
+    "rootfs": {
+      "$ref": "#/$defs/Rootfs"
+    },
+    "unikraft": {
+      "$ref": "#/$defs/Unikraft"
+    },
+    "roms": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "volumes": {
+      "$ref": "#/$defs/Volumes"
+    },
+    "runtime": {
+      "type": "string"
+    },
+    "template": {
+      "$ref": "#/$defs/Template"
+    },
+    "libraries": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Library"
+      },
+      "type": "object"
+    },
+    "outdir": {
+      "type": "string"
+    },
+    "spec": {
+      "type": "string",
+      "pattern": "^v?0\\.7(?:\\.0)?$"
+    },
+    "specification": {
+      "type": "string",
+      "pattern": "^v?0\\.7(?:\\.0)?$"
+    }
+  },
+  "additionalProperties": true,
+  "type": "object"
+}

@@ -1,0 +1,22 @@
+breaking changes:
+- no more component inference. also libraries.
+  - Previously.
+  - unikraft: stable
+  - if `stable` exists as a file, this behavior changes.
+  - as a standalone value, this *always* refers to a version *never* to a remote
+
+- outdir is deprecated
+
+kraftkit:
+- `kernel://` runtimes are removed. i cannot see that these were used anywhere.
+- runtime is *only* ever a string. no source + version + kconfig.
+- templates only have source + version. no more weird kconfig.
+- targets only support plat + arch + kconfig. no more names, no more output and kernel.
+
+todo:
+- template loading
+- xtensions
+- compose style interpolation?
+
+unknown:
+- normalization?
