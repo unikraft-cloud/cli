@@ -47,6 +47,10 @@ tasks:
     cmds:
     - task: go:test
 
+  generate:
+    cmds:
+    - go generate ./...
+
   integration:
     desc: Run integration tests.
     silent: true
