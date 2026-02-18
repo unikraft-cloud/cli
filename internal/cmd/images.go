@@ -397,7 +397,7 @@ func imageRefToKey(metros []config.Metro, named reference.Named) multimetro.Key 
 	for _, metro := range metros {
 		if domain == metro.Index().Host {
 			return multimetro.Key{
-				Metro: metro.Name,
+				Metro: metro.Name.String(),
 				Name:  named.String(),
 			}
 		}

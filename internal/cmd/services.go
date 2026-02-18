@@ -161,7 +161,7 @@ func (s ServiceGroup) Fields() ([]resource.Field, error) {
 				field.Links = append(field.Links, resource.Link{
 					Type: "certificate",
 					Key: multimetro.Key{
-						Metro: s.Metro.Name,
+						Metro: s.Metro.Name.String(),
 						Name:  name,
 						UUID:  uuid,
 					}.String(),
@@ -218,7 +218,7 @@ func (ServiceGroup) Get(ctx context.Context, keys []string) ([]resource.Resource
 				return nil, nil, err
 			}
 			found = append(found, group.Ref{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				Name:  result.Name,
 				UUID:  result.UUID,
 			})
@@ -313,7 +313,7 @@ func (ServiceGroup) Create(ctx context.Context, fields []resource.Field) ([]reso
 		created := make(multimetro.Keys, 0, len(resp.Data.ServiceGroups))
 		for _, group := range resp.Data.ServiceGroups {
 			key := multimetro.Key{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				UUID:  ptr.ZeroIfNil(group.Uuid),
 				Name:  ptr.ZeroIfNil(group.Name),
 			}

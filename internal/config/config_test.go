@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSavePreservesCommentsAndDropsUnknownKeys(t *testing.T) {
@@ -27,41 +29,122 @@ profiles:
     foobar: remove-me
 `) + "\n"
 
-	if err := os.WriteFile(path, []byte(input), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
+	require.NoError(t, os.WriteFile(path, []byte(input), 0o600))
 
 	config := &Config{
 		Path:           path,
-		DefaultProfile: "default",
+		DefaultProfile: InterpolateString("default"),
 		Profiles: map[string]Profile{
 			"default": {
-				Type:  ProfileTypeCloud,
-				Token: "newtoken",
+				Type:  InterpolateString(string(ProfileTypeCloud)),
+				Token: InterpolateString("newtoken"),
 			},
 		},
 	}
 
-	if err := config.Save(); err != nil {
-		t.Fatalf("save config: %v", err)
-	}
+	require.NoError(t, config.Save())
 
 	output, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read config: %v", err)
-	}
+	require.NoError(t, err)
 	content := string(output)
 
-	if !strings.Contains(content, "# global comment") {
-		t.Fatalf("expected global comment to be preserved, got:\n%s", content)
+	require.Contains(t, content, "# global comment", "expected global comment to be preserved")
+	require.Contains(t, content, "# default profile comment", "expected profile comment to be preserved")
+	require.Contains(t, content, "token: newtoken", "expected token to be updated")
+	require.NotContains(t, content, "foobar", "expected unknown profile key to be removed")
+}
+
+func TestLoadInterpolatesTokenForValidationButKeepsRaw(t *testing.T) {
+	t.Setenv("UKC_TOKEN", "s3cr3t")
+
+	root := t.TempDir()
+	path := filepath.Join(root, "config.yaml")
+	input := strings.TrimSpace(`
+profile: default
+profiles:
+  default:
+    type: cloud
+    token: ${UKC_TOKEN}
+`) + "\n"
+
+	require.NoError(t, os.WriteFile(path, []byte(input), 0o600))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	require.Contains(t, cfg.Profiles, "default")
+	profile := cfg.Profiles["default"]
+	require.Equal(t, "${UKC_TOKEN}", profile.Token.Raw())
+	require.Equal(t, "s3cr3t", profile.Token.String())
+}
+
+func TestLoadFailsValidationWhenInterpolatedTokenEmpty(t *testing.T) {
+	t.Setenv("UKC_TOKEN", "")
+
+	root := t.TempDir()
+	path := filepath.Join(root, "config.yaml")
+	input := strings.TrimSpace(`
+profile: default
+profiles:
+  default:
+    type: cloud
+    token: ${UKC_TOKEN}
+`) + "\n"
+
+	require.NoError(t, os.WriteFile(path, []byte(input), 0o600))
+
+	_, err := Load(path)
+	require.Error(t, err)
+}
+
+func TestSavePreservesRawPlaceholders(t *testing.T) {
+	t.Setenv("UKC_TOKEN", "s3cr3t")
+
+	root := t.TempDir()
+	path := filepath.Join(root, "config.yaml")
+
+	cfg := &Config{
+		Path:           path,
+		DefaultProfile: InterpolateString("default"),
+		Profiles: map[string]Profile{
+			"default": {
+				Type:  InterpolateString(string(ProfileTypeCloud)),
+				Token: InterpolateString("${UKC_TOKEN}"),
+			},
+		},
 	}
-	if !strings.Contains(content, "# default profile comment") {
-		t.Fatalf("expected profile comment to be preserved, got:\n%s", content)
+
+	require.NoError(t, cfg.Save())
+
+	out, err := os.ReadFile(path)
+	require.NoError(t, err)
+	content := string(out)
+	require.NotContains(t, content, "s3cr3t", "expected saved config not to contain expanded secret")
+	require.Contains(t, content, "${UKC_TOKEN}", "expected saved config to preserve placeholder")
+}
+
+func TestSaveOmitsZeroInterpolateFields(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "config.yaml")
+
+	cfg := &Config{
+		Path:           path,
+		DefaultProfile: InterpolateString("default"),
+		Profiles: map[string]Profile{
+			"default": {
+				Type:  InterpolateString(string(ProfileTypeCloud)),
+				Token: InterpolateString("token"),
+			},
+		},
 	}
-	if !strings.Contains(content, "token: newtoken") {
-		t.Fatalf("expected token to be updated, got:\n%s", content)
-	}
-	if strings.Contains(content, "foobar") {
-		t.Fatalf("expected unknown profile key to be removed, got:\n%s", content)
-	}
+
+	require.NoError(t, cfg.Save())
+
+	out, err := os.ReadFile(path)
+	require.NoError(t, err)
+	content := string(out)
+	require.NotContains(t, content, "organization:", "expected organization to be omitted")
+	require.NotContains(t, content, "controlplane:", "expected controlplane to be omitted")
+	require.Contains(t, content, "token: token", "expected token to be present")
 }

@@ -23,8 +23,8 @@ func (cmd *LogoutCmd) Run(ctx context.Context, cfg *config.Config) error {
 	}
 
 	delete(cfg.Profiles, profile.Name)
-	if cfg.DefaultProfile == profile.Name {
-		cfg.DefaultProfile = ""
+	if cfg.DefaultProfile.String() == profile.Name {
+		cfg.DefaultProfile = config.InterpolateString("")
 	}
 
 	if err := cfg.Save(); err != nil {

@@ -248,7 +248,7 @@ func (i Instance) Fields() ([]resource.Field, error) {
 				field.Links = append(field.Links, resource.Link{
 					Type: "service",
 					Key: multimetro.Key{
-						Metro: i.Metro.Name,
+						Metro: i.Metro.Name.String(),
 						Name:  name,
 						UUID:  uuid,
 					}.String(),
@@ -261,15 +261,15 @@ func (i Instance) Fields() ([]resource.Field, error) {
 }
 
 func (i Instance) hyperlink() string {
-	if i.Profile == nil || i.Profile.ControlPlane == "" {
+	if i.Profile == nil || i.Profile.ControlPlane.String() == "" {
 		return ""
 	}
-	if i.Name == "" || i.Profile.Organization == "" {
+	if i.Name == "" || i.Profile.Organization.String() == "" {
 		return ""
 	}
 	return fmt.Sprintf(
 		"https://console.unikraft.cloud/org/%s/instances/%s/%s",
-		i.Profile.Organization,
+		i.Profile.Organization.String(),
 		i.MetroName,
 		i.Name,
 	)
@@ -328,7 +328,7 @@ func (Instance) Get(ctx context.Context, keys []string) ([]resource.Resource, er
 				return nil, nil, err
 			}
 			found = append(found, group.Ref{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				Name:  result.Name,
 				UUID:  result.UUID,
 			})
@@ -352,7 +352,6 @@ func (Instance) load(instance platform.Instance, metro *config.Metro, profile *c
 	if name, _, ok := strings.Cut(result.Image, "@"); ok {
 		result.Image = name
 	}
-
 	return result, nil
 }
 
@@ -379,7 +378,7 @@ func (Instance) Delete(ctx context.Context, targets []resource.Resource) error {
 				continue
 			}
 			deleted = append(deleted, group.Ref{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				Name:  *instance.Name,
 				UUID:  *instance.Uuid,
 			})
@@ -629,7 +628,7 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 		created := make(multimetro.Keys, 0, len(resp.Data.Instances))
 		for _, instance := range resp.Data.Instances {
 			key := multimetro.Key{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				UUID:  ptr.ZeroIfNil(instance.Uuid),
 				Name:  ptr.ZeroIfNil(instance.Name),
 			}
@@ -1018,7 +1017,7 @@ func startInstances(ctx context.Context, g *group.Group[multimetro.MetroClient],
 				continue
 			}
 			started = append(started, multimetro.Key{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				Name:  *instance.Name,
 				UUID:  *instance.Uuid,
 			})
@@ -1045,7 +1044,7 @@ func stopInstances(ctx context.Context, g *group.Group[multimetro.MetroClient], 
 				continue
 			}
 			stopped = append(stopped, multimetro.Key{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				Name:  *instance.Name,
 				UUID:  *instance.Uuid,
 			})

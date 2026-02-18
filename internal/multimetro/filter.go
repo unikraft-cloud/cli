@@ -27,7 +27,7 @@ func filterMetros(metros []config.Metro, spec filters.Filter) []config.Metro {
 
 	result := make([]config.Metro, 0, len(names))
 	for _, metro := range metros { // preserve order
-		if ok := names[metro.Name]; ok {
+		if ok := names[metro.Name.String()]; ok {
 			result = append(result, metro)
 		}
 	}
@@ -54,7 +54,7 @@ func filterMetroNames(metros []config.Metro, spec filters.Filter) map[string]boo
 			if len(filtered) == 0 {
 				// filter did not seem to apply to any metros, so include all of them
 				for _, metro := range metros {
-					result[metro.Name] = true
+					result[metro.Name.String()] = true
 				}
 				break
 			}
@@ -74,10 +74,10 @@ func filterMetroNames(metros []config.Metro, spec filters.Filter) map[string]boo
 					return "", false
 				}
 				found = true
-				return metro.Name, true
+				return metro.Name.String(), true
 			}))
 			if found {
-				result[metro.Name] = matched
+				result[metro.Name.String()] = matched
 			}
 		}
 		return result

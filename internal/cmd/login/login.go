@@ -44,8 +44,8 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 
 	// Create a temporary profile for authentication
 	tempProfile := &config.Profile{
-		Type:         config.ProfileTypeCloud,
-		ControlPlane: cmp.Or(cmd.ControlPlane, controlplane.DefaultEndpoint),
+		Type:         config.InterpolateString(string(config.ProfileTypeCloud)),
+		ControlPlane: config.InterpolateString(cmp.Or(cmd.ControlPlane, controlplane.DefaultEndpoint)),
 	}
 
 	if cmd.Check {
@@ -53,9 +53,9 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 		if err != nil {
 			return jujuerrors.Errorf("no existing authentication token found")
 		}
-		if profile.Token != "" {
+		if profile.Token.String() != "" {
 			log.G(ctx).Info().
-				Str("organization", profile.Organization).
+				Str("organization", profile.Organization.String()).
 				Msg("existing authentication token found")
 			return nil
 		}
@@ -109,9 +109,9 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return jujuerrors.Annotate(err, "finding or creating profile")
 	}
-	profile.Token = token
-	profile.Organization = organization
-	profile.ControlPlane = loginControlPlane
+	profile.Token = config.InterpolateString(token)
+	profile.Organization = config.InterpolateString(organization)
+	profile.ControlPlane = config.InterpolateString(loginControlPlane)
 
 	// Fetch and merge metros
 	newMetros, err := cmd.getMetros(ctx, profile)
@@ -120,19 +120,20 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 			Warn().
 			Err(err).
 			Msg("could not list metros for profile: please add metros manually")
-	}
-	existingMetros := make(map[string]struct{}, len(profile.Metros))
-	for _, metro := range profile.Metros {
-		existingMetros[metro.Name] = struct{}{}
-	}
-	for _, metro := range newMetros {
-		if _, ok := existingMetros[metro.Name]; !ok {
-			profile.Metros = append(profile.Metros, metro)
+	} else {
+		existingMetros := make(map[string]struct{}, len(profile.Metros))
+		for _, metro := range profile.Metros {
+			existingMetros[metro.Name.String()] = struct{}{}
+		}
+		for _, metro := range newMetros {
+			if _, ok := existingMetros[metro.Name.String()]; !ok {
+				profile.Metros = append(profile.Metros, metro)
+			}
 		}
 	}
 
 	// Save the profile
-	cfg.DefaultProfile = profile.Name
+	cfg.DefaultProfile = config.InterpolateString(profile.Name)
 	if cfg.Profiles == nil {
 		cfg.Profiles = make(map[string]config.Profile)
 	}
@@ -157,7 +158,7 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 func (cmd *LoginCmd) findOrCreateProfile(cfg *config.Config, organization, loginControlPlane string) (*config.Profile, error) {
 	// Search existing profiles for one with matching organization and controlplane
 	for name, profile := range cfg.Profiles {
-		if profile.Organization == organization && profile.ControlPlane == loginControlPlane {
+		if profile.Organization.String() == organization && profile.ControlPlane.String() == loginControlPlane {
 			p := profile // copy to avoid returning pointer to loop variable
 			p.Name = name
 			return &p, nil
@@ -166,15 +167,15 @@ func (cmd *LoginCmd) findOrCreateProfile(cfg *config.Config, organization, login
 
 	// Check if a profile with the organization name already exists
 	if existing, ok := cfg.Profiles[organization]; ok {
-		if existing.Organization != organization && existing.Organization != "" {
+		if existing.Organization.String() != organization && existing.Organization.String() != "" {
 			// Profile exists for a different organization - error
 			return nil, jujuerrors.Errorf(
 				"profile %q already exists for organization %q; "+
 					"cannot overwrite with organization %q",
-				organization, existing.Organization, organization,
+				organization, existing.Organization.String(), organization,
 			)
 		}
-		if existing.Organization == "" {
+		if existing.Organization.String() == "" {
 			// Profile exists but has no organization set - merge into it
 			p := existing // copy to avoid returning pointer to map value
 			p.Name = organization
@@ -183,14 +184,14 @@ func (cmd *LoginCmd) findOrCreateProfile(cfg *config.Config, organization, login
 		// Profile exists for same org but different controlplane - create with unique name
 		profileName := cmd.generateUniqueProfileName(cfg, organization)
 		return &config.Profile{
-			Type: config.ProfileTypeCloud,
+			Type: config.InterpolateString(string(config.ProfileTypeCloud)),
 			Name: profileName,
 		}, nil
 	}
 
 	// No existing profile found, create a new one with organization as the name
 	return &config.Profile{
-		Type: config.ProfileTypeCloud,
+		Type: config.InterpolateString(string(config.ProfileTypeCloud)),
 		Name: organization,
 	}, nil
 }
@@ -210,8 +211,8 @@ func (cmd *LoginCmd) generateUniqueProfileName(cfg *config.Config, organization 
 
 func (cmd *LoginCmd) getMetros(ctx context.Context, profile *config.Profile) ([]config.Metro, error) {
 	copts := []controlplane.ClientOption{
-		controlplane.WithDefaultEndpoint(profile.ControlPlane),
-		controlplane.WithToken(profile.Token),
+		controlplane.WithDefaultEndpoint(profile.ControlPlane.String()),
+		controlplane.WithToken(profile.Token.String()),
 	}
 	if cmd.AllowInsecure {
 		copts = append(copts, controlplane.WithHTTPClient(httpclient.InsecureHTTPClient))
@@ -231,9 +232,9 @@ func (cmd *LoginCmd) getMetros(ctx context.Context, profile *config.Profile) ([]
 	var metros []config.Metro
 	for _, metro := range metroResp.Data.Metros {
 		metros = append(metros, config.Metro{
-			Name:     ptr.ZeroIfNil(metro.Name),
-			Endpoint: ptr.ZeroIfNil(metro.Endpoint),
-			Country:  ptr.ZeroIfNil(metro.Country),
+			Name:     config.InterpolateString(ptr.ZeroIfNil(metro.Name)),
+			Endpoint: config.InterpolateString(ptr.ZeroIfNil(metro.Endpoint)),
+			Country:  config.InterpolateString(ptr.ZeroIfNil(metro.Country)),
 		})
 	}
 	return metros, nil
@@ -241,7 +242,7 @@ func (cmd *LoginCmd) getMetros(ctx context.Context, profile *config.Profile) ([]
 
 func (cmd *LoginCmd) getAuth(ctx context.Context, profile *config.Profile) (*controlplane.Response[controlplane.CheckAuthorizationResponseData], error) {
 	copts := []controlplane.ClientOption{
-		controlplane.WithDefaultEndpoint(profile.ControlPlane),
+		controlplane.WithDefaultEndpoint(profile.ControlPlane.String()),
 	}
 	if cmd.AllowInsecure {
 		copts = append(copts, controlplane.WithHTTPClient(httpclient.InsecureHTTPClient))

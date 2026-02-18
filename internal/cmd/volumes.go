@@ -121,7 +121,7 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 	if err != nil {
 		return err
 	}
-	keys, opErr := group.CollectMetro(ctx, g, volume.Metro.Name, func(ctx context.Context, client multimetro.MetroClient) (multimetro.Keys, error) {
+	keys, opErr := group.CollectMetro(ctx, g, volume.Metro.Name.String(), func(ctx context.Context, client multimetro.MetroClient) (multimetro.Keys, error) {
 		log.G(ctx).Trace().Msg("cloning volume")
 		resp, err := client.CloneVolumeByUUID(ctx, volume.UUID, req)
 		if err != nil {
@@ -133,7 +133,7 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 		created := make(multimetro.Keys, 0, len(resp.Data.Volumes))
 		for _, vol := range resp.Data.Volumes {
 			created = append(created, multimetro.Key{
-				Metro: client.Metro.Name,
+				Metro: client.Metro.Name.String(),
 				UUID:  ptr.ZeroIfNil(vol.Uuid),
 				Name:  ptr.ZeroIfNil(vol.Name),
 			})
@@ -268,7 +268,7 @@ func (Volume) Get(ctx context.Context, keys []string) ([]resource.Resource, erro
 				return nil, nil, err
 			}
 			found = append(found, group.Ref{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				Name:  result.Name,
 				UUID:  result.UUID,
 			})
@@ -347,7 +347,7 @@ func (Volume) Create(ctx context.Context, fields []resource.Field) ([]resource.R
 		created := make(multimetro.Keys, 0, len(resp.Data.Volumes))
 		for _, volume := range resp.Data.Volumes {
 			key := multimetro.Key{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				UUID:  ptr.ZeroIfNil(volume.Uuid),
 				Name:  ptr.ZeroIfNil(volume.Name),
 			}

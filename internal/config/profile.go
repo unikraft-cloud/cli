@@ -57,14 +57,14 @@ type Profile struct {
 	// Name of the profile
 	Name string `json:"-"`
 	// Type of the profile
-	Type ProfileType `json:"type"`
+	Type Interpolate[string] `json:"type"`
 	// Token is the authentication token associated with the profile, used for
 	// authenticating with Unikraft Cloud services.
-	Token string `json:"token"`
+	Token Interpolate[string] `json:"token"`
 	// Organization is the organization associated with the profile.
-	Organization string `json:"organization,omitempty"`
+	Organization Interpolate[string] `json:"organization,omitzero"`
 	// ControlPlane is the endpoint for the control plane associated with the profile.
-	ControlPlane string `json:"controlplane,omitempty"`
+	ControlPlane Interpolate[string] `json:"controlplane,omitzero"`
 	// Metros is a static list of metros.
 	Metros []Metro `json:"metros,omitempty"`
 }
@@ -73,15 +73,15 @@ func (p Profile) Validate() error {
 	if p.Name == "" {
 		return fmt.Errorf("profile name cannot be empty")
 	}
-	switch p.Type {
-	case ProfileTypeCloud:
-		if p.Token == "" {
+	switch p.Type.String() {
+	case string(ProfileTypeCloud):
+		if p.Token.String() == "" {
 			return fmt.Errorf("cloud profiles require a token")
 		}
-	case ProfileTypeLocal:
+	case string(ProfileTypeLocal):
 		return fmt.Errorf("local profiles are not currently supported")
 	default:
-		return fmt.Errorf("invalid profile type: %s", p.Type)
+		return fmt.Errorf("invalid profile type: %s", p.Type.String())
 	}
 	return nil
 }
@@ -89,11 +89,11 @@ func (p Profile) Validate() error {
 // Metro represents a metro configuration for a profile in the Unikraft CLI.
 type Metro struct {
 	// Name of the metro.
-	Name string `json:"name"`
+	Name Interpolate[string] `json:"name"`
 	// Endpoint for the metro.
-	Endpoint string `json:"endpoint"`
+	Endpoint Interpolate[string] `json:"endpoint"`
 	// Country code for the metro.
-	Country string `json:"country"`
+	Country Interpolate[string] `json:"country"`
 	// Allows insecure connections to the metro, skipping TLS verification.
 	Insecure bool `json:"insecure,omitempty"`
 }
@@ -108,9 +108,10 @@ type Index struct {
 }
 
 func (m Metro) Index() Index {
-	u, err := url.Parse(m.Endpoint)
+	endpoint := m.Endpoint.String()
+	u, err := url.Parse(endpoint)
 	if err != nil {
-		return Index{Host: m.Endpoint}
+		return Index{Host: endpoint}
 	}
 	hostname := u.Hostname()
 	hostname, _ = strings.CutPrefix(hostname, "api.")
@@ -144,7 +145,7 @@ func (config *Config) CurrentProfile() (*Profile, error) {
 
 	profile, ok := config.Profiles[config.CurrentProfileName()]
 	if !ok {
-		if len(config.Profiles) == 0 && (config.DefaultProfile == "" || config.DefaultProfile == DefaultProfile) {
+		if len(config.Profiles) == 0 && (config.DefaultProfile.String() == "" || config.DefaultProfile.String() == DefaultProfile) {
 			return nil, ErrNotSetup
 		}
 		return nil, ErrProfileNotFound{Name: config.CurrentProfileName()}
@@ -157,7 +158,7 @@ func (config *Config) CurrentProfileName() string {
 	if config == nil {
 		return DefaultProfile
 	}
-	return cmp.Or(config.selectedProfile, config.DefaultProfile, DefaultProfile)
+	return cmp.Or(config.selectedProfile, config.DefaultProfile.String(), DefaultProfile)
 }
 
 func (config *Config) OverrideCurrentProfile(name string) {

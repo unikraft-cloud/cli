@@ -181,12 +181,12 @@ func TestGolden(t *testing.T) {
 						report.cleaners = append(
 							report.cleaners,
 							cleaner{
-								pattern: regexp.MustCompile(regexp.QuoteMeta(metro.Endpoint)),
-								repl:    "https://api." + metro.Name + ".unikraft.internal/",
+								pattern: regexp.MustCompile(regexp.QuoteMeta(metro.Endpoint.String())),
+								repl:    "https://api." + metro.Name.String() + ".unikraft.internal/",
 							},
 							cleaner{
 								pattern: regexp.MustCompile(regexp.QuoteMeta(metro.Index().Host)),
-								repl:    "index." + metro.Name + ".unikraft.internal",
+								repl:    "index." + metro.Name.String() + ".unikraft.internal",
 							},
 						)
 					}
@@ -440,20 +440,20 @@ func defaultCfg() (*config.Config, *config.Profile) {
 		return nil, nil
 	}
 	profile := &config.Profile{
-		Type:  config.ProfileTypeCloud,
+		Type:  config.InterpolateString(string(config.ProfileTypeCloud)),
 		Name:  "default",
-		Token: testToken,
+		Token: config.InterpolateString(testToken),
 	}
 	for _, metro := range testMetros {
 		profile.Metros = append(profile.Metros, config.Metro{
-			Name:     defaultMetro,
-			Endpoint: metro,
-			Country:  "xx",
+			Name:     config.InterpolateString(defaultMetro),
+			Endpoint: config.InterpolateString(metro),
+			Country:  config.InterpolateString("xx"),
 		})
 		break
 	}
 	cfg := &config.Config{
-		DefaultProfile: profile.Name,
+		DefaultProfile: config.InterpolateString(profile.Name),
 		Profiles: map[string]config.Profile{
 			profile.Name: *profile,
 		},

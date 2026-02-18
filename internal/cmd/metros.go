@@ -197,9 +197,9 @@ func (Metro) List(ctx context.Context) ([]resource.Resource, error) {
 	var results []resource.Resource
 	for _, metro := range profile.Metros {
 		result := Metro{
-			Name:     metro.Name,
-			Country:  metro.Country,
-			Endpoint: metro.Endpoint,
+			Name:     metro.Name.String(),
+			Country:  metro.Country.String(),
+			Endpoint: metro.Endpoint.String(),
 			Insecure: metro.Insecure,
 		}
 		results = append(results, result)

@@ -83,7 +83,7 @@ func TestFilterMetros(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			metros := make([]config.Metro, len(tt.input))
 			for i, name := range tt.input {
-				metros[i] = config.Metro{Name: name}
+				metros[i] = config.Metro{Name: config.InterpolateString(name)}
 			}
 
 			filter, err := filters.ParseAll(tt.filter...)
@@ -93,7 +93,7 @@ func TestFilterMetros(t *testing.T) {
 
 			var resultNames []string
 			for _, metro := range result {
-				resultNames = append(resultNames, metro.Name)
+				resultNames = append(resultNames, metro.Name.String())
 			}
 			assert.Equal(t, tt.output, resultNames)
 		})

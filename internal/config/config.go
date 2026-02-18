@@ -21,8 +21,8 @@ import (
 type Config struct {
 	Path string `json:"-"`
 
-	DefaultProfile string             `json:"profile"`
-	Profiles       map[string]Profile `json:"profiles"`
+	DefaultProfile Interpolate[string] `json:"profile"`
+	Profiles       map[string]Profile  `json:"profiles"`
 
 	selectedProfile string
 }

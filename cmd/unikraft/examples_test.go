@@ -27,11 +27,11 @@ func TestExamples(t *testing.T) {
 
 	cfg := &config.Config{
 		Path:           configPath,
-		DefaultProfile: "default",
+		DefaultProfile: config.InterpolateString("default"),
 		Profiles: map[string]config.Profile{
 			"default": {
 				Name: "default",
-				Type: config.ProfileTypeCloud,
+				Type: config.InterpolateString(string(config.ProfileTypeCloud)),
 			},
 		},
 	}

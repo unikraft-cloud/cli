@@ -58,12 +58,12 @@ func (Profile) List(ctx context.Context) ([]resource.Resource, error) {
 	for _, profile := range profiles {
 		metroNames := make([]string, 0, len(profile.Metros))
 		for _, metro := range profile.Metros {
-			metroNames = append(metroNames, metro.Name)
+			metroNames = append(metroNames, metro.Name.String())
 		}
 
 		result := Profile{
 			Name:   profile.Name,
-			Active: profile.Name == cfg.DefaultProfile,
+			Active: profile.Name == cfg.DefaultProfile.String(),
 			Metros: metroNames,
 		}
 		results = append(results, result)
@@ -101,7 +101,7 @@ func (cmd *UseCmd) Run(ctx context.Context, cfg *config.Config) error {
 	if !ok {
 		return config.ErrProfileNotFound{Name: cmd.Name}
 	}
-	cfg.DefaultProfile = cmd.Name
+	cfg.DefaultProfile = config.InterpolateString(cmd.Name)
 
 	if err := cfg.Save(); err != nil {
 		return jujuerrors.Annotate(err, "saving profile")

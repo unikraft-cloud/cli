@@ -35,7 +35,7 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 
 	metroNames := make([]string, 0, len(metros))
 	for _, metro := range metros {
-		metroNames = append(metroNames, metro.Name)
+		metroNames = append(metroNames, metro.Name.String())
 	}
 	log.G(ctx).
 		Trace().
@@ -46,11 +46,11 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 	for _, metro := range metros {
 		client := platform.NewClient(
 			platform.WithHTTPClient(httpclient.GetClient(metro.Insecure)),
-			platform.WithToken(profile.Token),
-			platform.WithDefaultMetro(metro.Endpoint),
+			platform.WithToken(profile.Token.String()),
+			platform.WithDefaultMetro(metro.Endpoint.String()),
 		)
 		group = group.WithClient(
-			metro.Name,
+			metro.Name.String(),
 			MetroClient{Client: client, Metro: metro},
 		)
 	}

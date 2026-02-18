@@ -131,7 +131,7 @@ func (Certificate) Get(ctx context.Context, keys []string) ([]resource.Resource,
 				return nil, nil, err
 			}
 			found = append(found, group.Ref{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				Name:  result.Name,
 				UUID:  result.UUID,
 			})
@@ -215,7 +215,7 @@ func (Certificate) Create(ctx context.Context, fields []resource.Field) ([]resou
 		created := make(multimetro.Keys, 0, len(resp.Data.Certificates))
 		for _, certificate := range resp.Data.Certificates {
 			key := multimetro.Key{
-				Metro: c.Metro.Name,
+				Metro: c.Metro.Name.String(),
 				UUID:  ptr.ZeroIfNil(certificate.Uuid),
 				Name:  ptr.ZeroIfNil(certificate.Name),
 			}

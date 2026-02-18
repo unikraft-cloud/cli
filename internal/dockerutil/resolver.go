@@ -56,18 +56,18 @@ func Resolver(profile *config.Profile) remotes.Resolver {
 			if profile != nil {
 				// FIXME: why are there two different auth schemes?
 				if hostname == "index.unikraft.io" {
-					return decodeAuth(profile.Token)
+					return decodeAuth(profile.Token.String())
 				}
 				for _, index := range indexes {
 					if hostname == index.Host {
-						username := profile.Organization
+						username := profile.Organization.String()
 						if username == "" {
 							// organization may not be set on old or manually created
 							// profiles - so fall back to decoding the username from the
 							// token itself
-							username, _, _ = decodeAuth(profile.Token)
+							username, _, _ = decodeAuth(profile.Token.String())
 						}
-						return username, profile.Token, nil
+						return username, profile.Token.String(), nil
 					}
 				}
 			}
