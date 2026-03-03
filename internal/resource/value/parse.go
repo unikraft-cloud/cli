@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ettle/strcase"
+
 	xmaps "unikraft.com/cli/internal/x/maps"
 )
 
@@ -157,7 +159,12 @@ func parseReflect(input []string, value reflect.Value) error {
 					if !field.IsExported() {
 						continue
 					}
-					if strings.SplitN(field.Tag.Get("field"), ",", 2)[0] == k || strings.EqualFold(field.Name, k) {
+					name := strings.SplitN(field.Tag.Get("field"), ",", 2)[0]
+					if name == "" {
+						name = field.Name
+						name = strcase.ToKebab(name)
+					}
+					if k == name {
 						fieldVal := s.Field(i)
 						err := parseReflect([]string{v}, fieldVal)
 						if err != nil {
