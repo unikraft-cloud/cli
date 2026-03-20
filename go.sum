@@ -471,8 +471,8 @@ unikraft.com/x/fingerprint v0.0.0-20260126094137-ab6e717e5679 h1:zdvJjNkjsriS8RM
 unikraft.com/x/fingerprint v0.0.0-20260126094137-ab6e717e5679/go.mod h1:FP7uOxux/W5PKqSRQsR4tyjNuLq4Cfio7mc5QVH1kW8=
 unikraft.com/x/guesstermwidth v0.0.0-20260304162956-523940cab1de h1:1xafSiBA1yfMvhnM3q1baUliqkV6wkE1AXxiOSUkJSA=
 unikraft.com/x/guesstermwidth v0.0.0-20260304162956-523940cab1de/go.mod h1:q3EH6bLqLAJ1PqZgHlCJPpvvP6scnjJJspBMyGQtMt4=
-unikraft.com/x/image-spec v0.0.0-20260304162956-523940cab1de h1:D0yMS95zf5Vgi4791JlxQDli3BRPZXLOjQmjVrqFjVI=
-unikraft.com/x/image-spec v0.0.0-20260304162956-523940cab1de/go.mod h1:l0+tgd72OA6DzrX+V7z9XYjd80PrMJMCPnXNTODBjrc=
+unikraft.com/x/image-spec v0.0.0-20260320164959-32db9e2896d2 h1:qV/HvP7q5Ckp3lXUr/K5gy1aTXRQcVlG4alhtnWnh+0=
+unikraft.com/x/image-spec v0.0.0-20260320164959-32db9e2896d2/go.mod h1:l0+tgd72OA6DzrX+V7z9XYjd80PrMJMCPnXNTODBjrc=
 unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de h1:cm4FnPvnahRIK0derbI+T4ds1LsD5CFeyyAvIqcOCek=
 unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de/go.mod h1:XND1VvLxwqKFGrmdwUTWps4WEpMm7HTHPQg9HWQtrxg=
 unikraft.com/x/kingkong v0.0.0-20260304162956-523940cab1de h1:jrsspHGxv0kXZG/9aZRQNwJidV/ZmI2ywkw2Zh4ZbeE=

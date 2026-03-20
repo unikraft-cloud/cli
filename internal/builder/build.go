@@ -15,6 +15,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	imagespec "unikraft.com/x/image-spec"
 
+	ximagespec "unikraft.com/cli/internal/x/imagespec"
 	"unikraft.com/x/kraftfile"
 )
 
@@ -100,8 +101,8 @@ func Build(ctx context.Context, opts BuildOpts, c *client.Client) ([]*imagespec.
 		}
 
 		images = append(images, imagespec.NewImage(
-			imagespec.WithKernel(kernel.Kernel),
-			imagespec.WithInitrd(root.Initrd),
+			imagespec.WithKernel(ximagespec.WrapCached(ctx, kernel.Kernel)),
+			imagespec.WithInitrd(ximagespec.WrapCached(ctx, root.Initrd)),
 			imagespec.WithImageConfig(root.Image.Config),
 			imagespec.WithImageMetadata(meta),
 			imagespec.WithPlatform(root.Image.Platform),
