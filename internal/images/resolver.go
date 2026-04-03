@@ -139,6 +139,18 @@ func hostCreds(profile *config.Profile, hostname string) (string, string, error)
 	if slices.Contains(defaultRegistries, hostname) {
 		return decodeAuth(profile.Token)
 	}
+
+	if len(profile.Metros) == 0 {
+		username := profile.Organization
+		if username == "" {
+			// organization may not be set on old or manually created
+			// profiles - so fall back to decoding the username from the
+			// token itself
+			username, _, _ = decodeAuth(profile.Token)
+		}
+		return username, profile.Token, nil
+	}
+
 	for _, metro := range profile.Metros {
 		if hostname == metro.Index().Host {
 			username := profile.Organization
