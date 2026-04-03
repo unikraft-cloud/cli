@@ -22,7 +22,7 @@ import (
 	"unikraft.com/cli/internal/version"
 )
 
-func Resolver(profile *config.Profile) remotes.Resolver {
+func Resolver(profile *config.Profile, skipTLSVerify bool) remotes.Resolver {
 	headers := http.Header{}
 	headers.Set("User-Agent", version.UserAgent())
 
@@ -43,6 +43,9 @@ func Resolver(profile *config.Profile) remotes.Resolver {
 		return false, nil
 	}
 	insecureHost := func(host string) (bool, error) {
+		if skipTLSVerify {
+			return true, nil
+		}
 		for _, index := range indexes {
 			if host == index.Host {
 				return index.Insecure, nil

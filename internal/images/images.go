@@ -23,7 +23,27 @@ var defaultRegistries = []string{
 	"index.unikraft.io",
 }
 
-func Accessor(ctx context.Context) (*imagespec.Accessor, error) {
+// AccessorOpt is a functional option for configuring an Accessor.
+type AccessorOpt func(*accessorOpts)
+
+type accessorOpts struct {
+	skipTLSVerify bool
+}
+
+// WithSkipTLSVerify configures the accessor to skip TLS certificate
+// verification when communicating with registries.
+func WithSkipTLSVerify(skip bool) AccessorOpt {
+	return func(o *accessorOpts) {
+		o.skipTLSVerify = skip
+	}
+}
+
+func Accessor(ctx context.Context, opts ...AccessorOpt) (*imagespec.Accessor, error) {
+	var o accessorOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	cfg := config.FromContextOrDefault(ctx)
 	profile, err := cfg.CurrentProfile()
 	if err != nil {
@@ -31,7 +51,7 @@ func Accessor(ctx context.Context) (*imagespec.Accessor, error) {
 	}
 
 	return imagespec.NewAccessor(
-		imagespec.WithResolver(Resolver(profile)),
+		imagespec.WithResolver(Resolver(profile, o.skipTLSVerify)),
 		imagespec.WithReferenceParser(ParseNormalizedNamed),
 	), nil
 }

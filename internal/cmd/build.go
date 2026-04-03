@@ -24,10 +24,11 @@ type BuildCmd struct {
 	Output string `short:"o" help:"Output destination"`
 
 	// similar to docker compose build
-	BuildArg []string `help:"Set build-time variables."`
-	NoCache  bool     `help:"Do not use cache when building the image."`
-	Secret   []string `help:"Secret to expose to the build (format: \"id=mysecret[,src=/local/secret]\")."`
-	SSH      []string `help:"SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")."`
+	BuildArg    []string `help:"Set build-time variables."`
+	NoCache     bool     `help:"Do not use cache when building the image."`
+	NoTLSVerify bool     `help:"Skip TLS certificate verification when pushing to a registry."`
+	Secret      []string `help:"Secret to expose to the build (format: \"id=mysecret[,src=/local/secret]\")."`
+	SSH         []string `help:"SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")."`
 }
 
 func (BuildCmd) Examples() []kingkong.Example {
@@ -134,7 +135,9 @@ func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	access, err := images.Accessor(ctx)
+	access, err := images.Accessor(ctx,
+		images.WithSkipTLSVerify(c.NoTLSVerify),
+	)
 	if err != nil {
 		return err
 	}
