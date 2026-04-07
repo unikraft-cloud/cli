@@ -20,6 +20,8 @@ stdout:
 	  mac:        aa:bb:cc:dd:ee:ff
 	timestamps:
 	  created:    RELATIVE_TIME
+	timing:
+	  boot-time:  DURATION
 
 $ SERVICE_NAME=$(unikraft instance inspect test-$UNIQ_INST --output 'template={{ .service.name }}')
 
@@ -51,6 +53,8 @@ stdout:
 	  mac:        aa:bb:cc:dd:ee:ff
 	timestamps:
 	  created:    RELATIVE_TIME
+	timing:
+	  boot-time:  DURATION
 
 $ unikraft instance delete test-$UNIQ_INST
 

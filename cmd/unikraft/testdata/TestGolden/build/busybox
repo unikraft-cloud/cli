@@ -25,6 +25,8 @@ stdout:
 	  mac:        aa:bb:cc:dd:ee:ff
 	timestamps:
 	  created:    RELATIVE_TIME
+	timing:
+	  boot-time:  DURATION
 	stop:
 	  reason:     app exit
 	  exit-code:  0

@@ -17,6 +17,8 @@ stdout:
 	  mac:        aa:bb:cc:dd:ee:ff
 	timestamps:
 	  created:    RELATIVE_TIME
+	timing:
+	  boot-time:  DURATION
 
 $ unikraft instance inspect test-$UNIQ_INST
 
@@ -37,6 +39,8 @@ stdout:
 	  mac:        aa:bb:cc:dd:ee:ff
 	timestamps:
 	  created:    RELATIVE_TIME
+	timing:
+	  boot-time:  DURATION
 
 $ unikraft instance delete test-$UNIQ_INST
 

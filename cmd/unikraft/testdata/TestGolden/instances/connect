@@ -25,6 +25,8 @@ stdout:
 	  mac:        aa:bb:cc:dd:ee:ff
 	timestamps:
 	  created:    RELATIVE_TIME
+	timing:
+	  boot-time:  DURATION
 
 $ FQDN=$(unikraft instance inspect test-$UNIQ_INST --output 'template={{ (index .service.domains 0).fqdn }}')
 
