@@ -455,6 +455,11 @@ var cleaners = []cleaner{
 		repl:    "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 	},
 	{
+		// durations like "111.938ms", "1h2m3.456s", "0s" change between runs
+		pattern: regexp.MustCompile(`\b(?:\d+h\d+m\d+(?:\.\d+)?s|\d+m\d+(?:\.\d+)?s|\d+(?:\.\d+)?(?:µs|ms|ns|s))\b`),
+		repl:    "DURATION",
+	},
+	{
 		// temp config paths like "/tmp/TestGolden.../001/config.yaml" change between runs
 		pattern: regexp.MustCompile(`/tmp/TestGolden[^/]+/`),
 		repl:    "/tmp/TestGolden/",
