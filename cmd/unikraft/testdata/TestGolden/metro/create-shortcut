@@ -9,7 +9,7 @@ $ unikraft metro create --name example --endpoint https://api.example.unikraft.c
 stderr:
 	│  
 	│ error:
-	│   resolving quotas.instances.active: error performing the request: Get "https://api.example.unikraft.cloud/v1/users/quotas": dial tcp: lookup api.example.unikraft.cloud: no such host
+	│   resolving quotas.FIELD: error performing the request: Get "https://api.example.unikraft.cloud/v1/users/quotas": dial tcp: lookup api.example.unikraft.cloud: no such host
 	│
 
 exit code: 1

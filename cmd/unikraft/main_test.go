@@ -463,6 +463,12 @@ var cleaners = []cleaner{
 		repl:    "/tmp/TestGolden/",
 	},
 	{
+		// quota field paths like "quotas.instances.active.used" vary between runs
+		// because concurrent resolution picks a non-deterministic field.
+		pattern: regexp.MustCompile(`\bresolving quotas\.[a-z.]+:`),
+		repl:    "resolving quotas.FIELD:",
+	},
+	{
 		// auto-generated domain names like "foo.ukp-stable.apw.unikraft.internal"
 		pattern: regexp.MustCompile(`\.[a-z0-9.\-]+\.unikraft\.(app|internal)\b`),
 		repl:    ".unikraft.internal",
