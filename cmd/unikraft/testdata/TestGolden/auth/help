@@ -79,12 +79,20 @@ stdout:
 	          Inspect a profile.
 	  list, ls
 	          List profiles.
+	  delete, rm, remove
+	          Remove a profile.
+	  create
+	          Create a profile.
 	  use
 	          Switch between profiles.
 
 	Fields:
 	  name
 	  active
+	  organization
+	  token
+	  control-plane
+	  insecure
 	  metros
 
 	Global flags:
@@ -123,6 +131,10 @@ stdout:
 	Fields:
 	  name
 	  active
+	  organization
+	  token
+	  control-plane
+	  insecure
 	  metros
 
 	Flags:
@@ -169,6 +181,10 @@ stdout:
 	Fields:
 	  name
 	  active
+	  organization
+	  token
+	  control-plane
+	  insecure
 	  metros
 
 	Flags:
@@ -232,102 +248,41 @@ stdout:
 	          Toggle anonymous usage analytics.
 	          [default: true]
 
-$ unikraft metro --help
+$ unikraft profile create --help
 
 stdout:
-	Manage Unikraft Cloud metros.
+	Create a profile.
 
 	Usage:
-	  unikraft metros <command> [flags]
-
-	Resources:
-	  get, inspect, show
-	          Inspect a metro.
-	  list, ls
-	          List metros.
-
-	Fields:
-	  name
-	  country
-	  endpoint
-	  insecure
-	  quotas, quotas.instances, quotas.instances.active,
-	  quotas.instances.active.used, quotas.instances.active.limit,
-	  quotas.instances.total, quotas.instances.total.used,
-	  quotas.instances.total.limit, quotas.vcpus, quotas.vcpus.active,
-	  quotas.vcpus.active.used, quotas.vcpus.active.limit, quotas.memory,
-	  quotas.memory.active, quotas.memory.active.used, quotas.memory.active.limit,
-	  quotas.services, quotas.services.groups, quotas.services.groups.used,
-	  quotas.services.groups.limit, quotas.services.exposed,
-	  quotas.services.exposed.used, quotas.services.exposed.limit, quotas.volumes,
-	  quotas.volumes.count, quotas.volumes.count.used, quotas.volumes.count.limit,
-	  quotas.volumes.total, quotas.volumes.total.used, quotas.volumes.total.limit,
-	  quotas.limits, quotas.limits.vcpus, quotas.limits.vcpus.min,
-	  quotas.limits.vcpus.max, quotas.limits.memory, quotas.limits.memory.min,
-	  quotas.limits.memory.max, quotas.limits.volume, quotas.limits.volume.min,
-	  quotas.limits.volume.max, quotas.limits.autoscale,
-	  quotas.limits.autoscale.min, quotas.limits.autoscale.max
-	  status, status.ip, status.ping, status.online
-
-	Global flags:
-	  -h, --help
-	          Show context-sensitive help.
-	      --config=<file> ($UNIKRAFT_CONFIG)
-	          Path to the configuration file.
-	      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
-	          Set the logging level.
-	          [default: info, choices: trace, debug, info, warn, error, fatal]
-	      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
-	          Set the log type.
-	          [default: text, choices: text, json]
-	      --profile=<name> ($UNIKRAFT_PROFILE)
-	          Set the current profile.
-	      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
-	          Toggle anonymous usage analytics.
-	          [default: true]
-
-$ unikraft metro get --help
-
-stdout:
-	Inspect a metro.
-
-	Usage:
-	  unikraft metros get [<target> ...] [flags]
-
-	Arguments:
-	  [<target> ...]
-	          Target metros to get.
+	  unikraft profile create [flags]
 
 	Examples:
-	  # Inspect a metro by name
-	  unikraft metro get fra
+	  # Create a new profile
+	  unikraft profile create \
+	    --name staging \
+	    --token mytoken \
+	    --organization my-org
 
 	Fields:
 	  name
-	  country
-	  endpoint
+	  active
+	  organization
+	  token
+	  control-plane
 	  insecure
-	  quotas, quotas.instances, quotas.instances.active,
-	  quotas.instances.active.used, quotas.instances.active.limit,
-	  quotas.instances.total, quotas.instances.total.used,
-	  quotas.instances.total.limit, quotas.vcpus, quotas.vcpus.active,
-	  quotas.vcpus.active.used, quotas.vcpus.active.limit, quotas.memory,
-	  quotas.memory.active, quotas.memory.active.used, quotas.memory.active.limit,
-	  quotas.services, quotas.services.groups, quotas.services.groups.used,
-	  quotas.services.groups.limit, quotas.services.exposed,
-	  quotas.services.exposed.used, quotas.services.exposed.limit, quotas.volumes,
-	  quotas.volumes.count, quotas.volumes.count.used, quotas.volumes.count.limit,
-	  quotas.volumes.total, quotas.volumes.total.used, quotas.volumes.total.limit,
-	  quotas.limits, quotas.limits.vcpus, quotas.limits.vcpus.min,
-	  quotas.limits.vcpus.max, quotas.limits.memory, quotas.limits.memory.min,
-	  quotas.limits.memory.max, quotas.limits.volume, quotas.limits.volume.min,
-	  quotas.limits.volume.max, quotas.limits.autoscale,
-	  quotas.limits.autoscale.min, quotas.limits.autoscale.max
-	  status, status.ip, status.ping, status.online
+	  metros
 
 	Flags:
-	  -w, --watch=<duration>
-	          Watch for changes and refresh output. Defaults to 2s.
+	      --set=<name>=<value>, --set-file=<name>=<filename>
+	          Key-value pairs to set on the profile.
+	      --visual
+	          Open an editor to modify fields visually.
+	      --cmd
+	          Run a command to edit fields (receives YAML on stdin, outputs edited YAML on stdout).
+	      --load, --save=<FILE>
+	          Load fields from a YAML file.
+	      --dry-run
+	          Print patches without applying them.
 	  -f, --field
 	          Specify which fields to include in the output.
 	  -o, --output
@@ -350,58 +305,45 @@ stdout:
 	          Toggle anonymous usage analytics.
 	          [default: true]
 
-$ unikraft metro list --help
+	Create flags:
+	  -n, --name=<name>
+	          Profile name.
+	      --token=<token>
+	          Authentication token.
+	      --organization=<org>
+	          Organization name.
+	      --controlplane=<url>
+	          Control plane URL.
+	          [example: https://controlplane.unikraft.cloud]
+	  -k, --insecure
+	          Allow insecure connections.
+
+$ unikraft profile delete --help
 
 stdout:
-	List metros.
+	Remove a profile.
 
 	Usage:
-	  unikraft metros list [<target> ...] [flags]
+	  unikraft profile delete <target> ... [flags]
 
 	Arguments:
-	  [<target> ...]
-	          Target metros to list.
+	  <target> ...
+	          Target profiles to remove.
 
 	Examples:
-	  # List all metros
-	  unikraft metro list
-
-	  # List metros with connection status
-	  unikraft metro list -f +status
-
-	  # List metros with quota usage
-	  unikraft metro list -f +quotas
+	  # Delete a profile
+	  unikraft profile delete staging
 
 	Fields:
 	  name
-	  country
-	  endpoint
+	  active
+	  organization
+	  token
+	  control-plane
 	  insecure
-	  quotas, quotas.instances, quotas.instances.active,
-	  quotas.instances.active.used, quotas.instances.active.limit,
-	  quotas.instances.total, quotas.instances.total.used,
-	  quotas.instances.total.limit, quotas.vcpus, quotas.vcpus.active,
-	  quotas.vcpus.active.used, quotas.vcpus.active.limit, quotas.memory,
-	  quotas.memory.active, quotas.memory.active.used, quotas.memory.active.limit,
-	  quotas.services, quotas.services.groups, quotas.services.groups.used,
-	  quotas.services.groups.limit, quotas.services.exposed,
-	  quotas.services.exposed.used, quotas.services.exposed.limit, quotas.volumes,
-	  quotas.volumes.count, quotas.volumes.count.used, quotas.volumes.count.limit,
-	  quotas.volumes.total, quotas.volumes.total.used, quotas.volumes.total.limit,
-	  quotas.limits, quotas.limits.vcpus, quotas.limits.vcpus.min,
-	  quotas.limits.vcpus.max, quotas.limits.memory, quotas.limits.memory.min,
-	  quotas.limits.memory.max, quotas.limits.volume, quotas.limits.volume.min,
-	  quotas.limits.volume.max, quotas.limits.autoscale,
-	  quotas.limits.autoscale.min, quotas.limits.autoscale.max
-	  status, status.ip, status.ping, status.online
+	  metros
 
 	Flags:
-	      --filter
-	          Filter output based on a field value (e.g. --filter state==running).
-	  -w, --watch=<duration>
-	          Watch for changes and refresh output. Defaults to 2s.
-	      --sort
-	          Sort output by field values (e.g. --sort name,-timestamps.created-at). Use - prefix for descending, + for ascending.
 	  -f, --field
 	          Specify which fields to include in the output.
 	  -o, --output

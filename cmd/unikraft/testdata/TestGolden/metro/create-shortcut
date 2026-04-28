@@ -1,0 +1,29 @@
+$ unikraft metro list
+
+stdout:
+	NAME  COUNTRY  ENDPOINT
+	test  xx       https://api.unikraft.test
+
+$ unikraft metro create --name example --endpoint https://api.example.unikraft.cloud --country se
+
+stderr:
+	│  
+	│ error:
+	│   resolving quotas.FIELD: error performing the request: Get "https://api.example.unikraft.cloud/v1/users/quotas": dial tcp: lookup api.example.unikraft.cloud: no such host
+	│
+
+exit code: 1
+
+$ unikraft metro list
+
+stdout:
+	NAME     COUNTRY  ENDPOINT
+	test     xx       https://api.unikraft.test
+	example  se       https://api.example.unikraft.cloud
+
+$ unikraft metro get example -f name,country,endpoint
+
+stdout:
+	name:     example
+	country:  se
+	endpoint: https://api.example.unikraft.cloud

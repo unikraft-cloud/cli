@@ -1,0 +1,14 @@
+$ unikraft profile create --name dup-profile --token test-token
+
+stdout:
+	name: dup-profile
+
+$ unikraft profile create --name dup-profile --token test-token-2
+
+stderr:
+	│  
+	│ error:
+	│   profile already exists: dup-profile
+	│
+
+exit code: 1

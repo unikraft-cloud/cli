@@ -1,0 +1,21 @@
+$ unikraft profile list
+
+stdout:
+	NAME     ACTIVE  ORGANIZATION  METROS
+	default  true    test        ["test"]
+
+$ unikraft profile delete default
+
+stderr:
+	│  
+	│ error:
+	│   cannot delete the active profile: default
+	│
+
+exit code: 1
+
+$ unikraft profile list
+
+stdout:
+	NAME     ACTIVE  ORGANIZATION  METROS
+	default  true    test        ["test"]

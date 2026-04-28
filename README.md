@@ -147,8 +147,17 @@ This opens your browser for authentication. Alternatively, provide a token file:
 unikraft login --token /path/to/token
 ```
 
-Or, if you need to directly specify a metro endpoint, you can manually create a
-profile:
+Or, you can manually create a profile and configure metros using the CLI:
+
+```sh
+# Create a profile with a token and organization
+unikraft profile create --name my-profile --token /path/to/token --organization my-org
+
+# Add a metro to the profile
+unikraft metro create --name fra --endpoint https://api.fra.unikraft.cloud --country de
+```
+
+You can also directly edit the config file if you prefer:
 
 ```yaml
 # Linux: ~/.config/unikraft/config.yaml
@@ -289,6 +298,12 @@ Manage multiple accounts or configurations with profiles:
 ```sh
 # List profiles
 unikraft profile list
+
+# Create a new profile
+unikraft profile create --name staging --token /path/to/token --organization my-org
+
+# Delete a profile
+unikraft profile delete old-profile
 
 # Switch profile
 unikraft profile use staging

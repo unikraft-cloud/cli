@@ -109,6 +109,7 @@ func TestGolden(t *testing.T) {
 	}{
 		{"help", helpTests},
 		{"auth", authTests},
+		{"metro", metroTests},
 		{"instances", instancesTests},
 		{"instance-templates", instanceTemplatesTests},
 		{"volumes", volumesTests},
@@ -460,6 +461,12 @@ var cleaners = []cleaner{
 		// temp config paths like "/tmp/TestGolden.../001/config.yaml" change between runs
 		pattern: regexp.MustCompile(`/tmp/TestGolden[^/]+/`),
 		repl:    "/tmp/TestGolden/",
+	},
+	{
+		// quota field paths like "quotas.instances.active.used" vary between runs
+		// because concurrent resolution picks a non-deterministic field.
+		pattern: regexp.MustCompile(`\bresolving quotas\.[a-z.]+:`),
+		repl:    "resolving quotas.FIELD:",
 	},
 	{
 		// auto-generated domain names like "foo.ukp-stable.apw.unikraft.internal"
