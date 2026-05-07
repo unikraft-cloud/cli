@@ -1330,6 +1330,95 @@ func TestCreateSetFile(t *testing.T) {
 	assert.Equal(t, "created", created.Settings.Bar)
 }
 
+// rollableTestResource wraps TestResource and implements RolloutableResource.
+// The Rollout hook is stored in context via rolloutHookKey.
+type rollableTestResource struct {
+	resourcet.TestResource
+}
+
+type rolloutHookKey struct{}
+
+func (r rollableTestResource) Rollout(ctx context.Context, created []resource.Resource, fields []resource.Field) error {
+	if hook, ok := ctx.Value(rolloutHookKey{}).(func([]resource.Resource, []resource.Field) error); ok {
+		return hook(created, fields)
+	}
+	return nil
+}
+
+var _ resource.RolloutableResource = rollableTestResource{}
+
+func TestCreateRollout(t *testing.T) {
+	sandbox := &resource.Sandbox{}
+
+	t.Run("rollout_called_on_success", func(t *testing.T) {
+		env := resourcet.NewTestEnv()
+		rolloutCalled := false
+		var rolloutCreated []resource.Resource
+		ctx := resourcet.WithTestEnv(context.Background(), env)
+		ctx = context.WithValue(ctx, rolloutHookKey{}, func(created []resource.Resource, _ []resource.Field) error {
+			rolloutCalled = true
+			rolloutCreated = created
+			return nil
+		})
+
+		var out bytes.Buffer
+		cmd := &ResourceCreateCmd[rollableTestResource]{
+			SetArgs: SetArgs{
+				Set: []map[string]string{{"name": "rollout-new"}},
+			},
+			FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeQuiet}},
+		}
+		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		require.NoError(t, err)
+		assert.True(t, rolloutCalled, "Rollout should be called after successful create")
+		require.Len(t, rolloutCreated, 1)
+		assert.Equal(t, "rollout-new", rolloutCreated[0].(resourcet.TestResource).Name)
+	})
+
+	t.Run("rollout_error_propagated", func(t *testing.T) {
+		env := resourcet.NewTestEnv()
+		rolloutErr := errors.New("rollout failed")
+		ctx := resourcet.WithTestEnv(context.Background(), env)
+		ctx = context.WithValue(ctx, rolloutHookKey{}, func(_ []resource.Resource, _ []resource.Field) error {
+			return rolloutErr
+		})
+
+		var out bytes.Buffer
+		cmd := &ResourceCreateCmd[rollableTestResource]{
+			SetArgs: SetArgs{
+				Set: []map[string]string{{"name": "rollout-fail"}},
+			},
+			FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeQuiet}},
+		}
+		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		require.ErrorIs(t, err, rolloutErr, "Rollout error should be propagated to the caller")
+	})
+
+	t.Run("rollout_not_called_on_create_error", func(t *testing.T) {
+		env := resourcet.NewTestEnv()
+		createErr := errors.New("create failed")
+		rolloutCalled := false
+		ctx := resourcet.WithTestEnv(context.Background(), env)
+		env.Hooks.Create = func(_ context.Context, fields []resource.Field, _ func(context.Context, []resource.Field) ([]resource.Resource, error)) ([]resource.Resource, error) {
+			return nil, createErr
+		}
+		ctx = context.WithValue(ctx, rolloutHookKey{}, func(_ []resource.Resource, _ []resource.Field) error {
+			rolloutCalled = true
+			return nil
+		})
+
+		var out bytes.Buffer
+		cmd := &ResourceCreateCmd[rollableTestResource]{
+			SetArgs: SetArgs{
+				Set: []map[string]string{{"name": "rollout-skip"}},
+			},
+		}
+		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		require.Error(t, err)
+		assert.False(t, rolloutCalled, "Rollout should not be called when create fails")
+	})
+}
+
 func TestEdit(t *testing.T) {
 	env := resourcet.NewTestEnv()
 	env.Add(resourcet.TestResource{

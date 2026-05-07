@@ -773,6 +773,13 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
     }
   },
   {
+    "name": "rollout",
+    "verbosity": "invisible",
+    "create": {
+      "set": false
+    }
+  },
+  {
     "name": "stop",
     "subfields": [
       {

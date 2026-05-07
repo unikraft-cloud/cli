@@ -63,6 +63,7 @@ Fields:
   features
   vsock
   template
+  rollout
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
   delete-lock
 
@@ -130,6 +131,7 @@ Fields:
   features
   vsock
   template
+  rollout
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
   delete-lock
 
@@ -205,6 +207,7 @@ Fields:
   features
   vsock
   template
+  rollout
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
   delete-lock
 
@@ -282,6 +285,7 @@ Fields:
   features
   vsock
   template
+  rollout
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
   delete-lock
 
@@ -369,6 +373,7 @@ Fields:
   features
   vsock
   template
+  rollout
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
   delete-lock
 
@@ -627,6 +632,8 @@ Create flags:
           Create from instance template.
       --rm
           Automatically delete the instance when it stops.
+      --rollout
+          Replace old instances with new ones matching image name.
 
 $ unikraft instance edit --help
 
@@ -690,6 +697,7 @@ Fields:
   features
   vsock
   template
+  rollout
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
   delete-lock
 
@@ -811,6 +819,7 @@ Fields:
   features
   vsock
   template
+  rollout
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
   delete-lock
 

@@ -946,12 +946,24 @@ func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.
 	if opErr != nil && len(resources) == 0 {
 		return nil, opErr
 	}
+
+	// Perform post-creation rollout if the resource supports it.
+	if opErr == nil {
+		if rollout, ok := any(empty).(resource.RolloutableResource); ok {
+			rolloutCtx := resource.WithSandbox(ctx, sandbox)
+			if err := rollout.Rollout(rolloutCtx, resources, patchedFields); err != nil {
+				return resources, err
+			}
+		}
+	}
+
 	printErr := cmd.Output.
 		WithDefault(PrinterTypeKeyValue).
 		Print(ctx, stdio.Stdout, cmd.Field, empty, resources...)
 	if printErr != nil {
 		return resources, errors.Join(opErr, printErr)
 	}
+
 	return resources, opErr
 }
 
