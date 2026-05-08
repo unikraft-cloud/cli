@@ -278,30 +278,40 @@ func (Certificate) Examples() map[cmd.CmdType][]kingkong.Example {
 	return map[cmd.CmdType][]kingkong.Example{
 		cmd.CmdTypeGet: {
 			{
-				Description: "Get a certificate by name or UUID",
+				Description: "Inspect a certificate by name",
 				Commands:    []string{"unikraft certificate get demo-cert"},
+			},
+			{
+				Description: "Inspect a certificate by UUID",
+				Commands:    []string{"unikraft certificate get d4f0c132-a70e-4777-9631-7dfe08a1c15d"},
+			},
+			{
+				Description: "Inspect a certificate in a specific metro",
+				Commands:    []string{"unikraft certificate get fra/demo-cert"},
+			},
+			{
+				Description: "Show certificate details in JSON format",
+				Commands:    []string{"unikraft certificate get demo-cert -o json"},
 			},
 		},
 		cmd.CmdTypeList: {
 			{
-				Description: "List all certificates",
+				Description: "List all certificates across metros",
 				Commands:    []string{"unikraft certificate list"},
+			},
+			{
+				Description: "List certificates and watch for changes",
+				Commands:    []string{"unikraft certificate list -w"},
 			},
 		},
 		cmd.CmdTypeCreate: {
 			{
-				Description: "Create a new certificate",
+				Description: "Create a self-signed certificate and upload it",
 				Commands: []string{
 					`openssl req -x509 -newkey rsa:2048 -sha256 -days 365 -nodes \
   -subj "/CN=demo.unikraft.dev" \
   -keyout cert.key \
   -out cert.pem`,
-					// `unikraft certificate create \
-					//   --set name=demo-cert \
-					//   --set cn=demo.unikraft.dev. \
-					//   --set-file chain=cert.pem \
-					//   --set-file pkey=cert.key \
-					//   --set metro=fra`,
 					`unikraft certificate create \
 	  --name demo-cert \
 	  --cn demo.unikraft.dev. \
@@ -310,11 +320,30 @@ func (Certificate) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --metro fra`,
 				},
 			},
+			{
+				Description: "Preview certificate creation without applying",
+				Commands: []string{
+					`unikraft certificate create \
+	  --cn example.com. \
+	  --chain cert.pem \
+	  --pkey cert.key \
+	  --metro sfo \
+	  --dry-run`,
+				},
+			},
 		},
 		cmd.CmdTypeDelete: {
 			{
-				Description: "Delete a certificate by name or UUID",
+				Description: "Delete a certificate by name",
 				Commands:    []string{"unikraft certificate delete demo-cert"},
+			},
+			{
+				Description: "Delete a certificate by UUID",
+				Commands:    []string{"unikraft certificate delete d4f0c132-a70e-4777-9631-7dfe08a1c15d"},
+			},
+			{
+				Description: "Delete all certificates (with confirmation prompt)",
+				Commands:    []string{"unikraft certificate delete --all"},
 			},
 		},
 	}

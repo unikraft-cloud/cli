@@ -36,19 +36,19 @@ type RunCmd struct {
 func (RunCmd) Examples() []kingkong.Example {
 	return []kingkong.Example{
 		{
-			Description: "Deploy a new instance and expose a HTTPS service",
+			Description: "Deploy a new instance and expose an HTTPS service",
 			Commands: []string{
-				"unikraft run --metro=sfo --image=nginx:latest -p 443:8080/http+tls",
+				"unikraft run --metro=fra --image=nginx:latest -p 443:8080/http+tls",
 			},
 		},
 		{
-			Description: "Deploy a new instance and expose a HTTPS service and redirect from HTTP to HTTPS",
+			Description: "Deploy with HTTPS and HTTP-to-HTTPS redirect",
 			Commands: []string{
-				"unikraft run --metro=sfo --image=nginx:latest -p 443:8080/http+tls -p 80:443/http+redirect",
+				"unikraft run --metro=fra --image=nginx:latest -p 443:8080/http+tls -p 80:443/http+redirect",
 			},
 		},
 		{
-			Description: "Deploy and tail logs from a new instance",
+			Description: "Deploy and tail logs",
 			Commands: []string{
 				"unikraft run --metro=fra --image=nginx:latest --follow",
 			},
@@ -56,43 +56,52 @@ func (RunCmd) Examples() []kingkong.Example {
 		{
 			Description: "Preview instance creation without executing",
 			Commands: []string{
-				"unikraft run --metro=dal --image=nginx:latest --dry-run",
+				"unikraft run --metro=fra --image=nginx:latest --dry-run",
 			},
 		},
 		{
-			Description: "Deploy a new instance with environment variables",
+			Description: "Deploy with environment variables",
 			Commands: []string{
-				"unikraft run --metro=was --image=my-app:latest -e KEY1=VALUE1 -e KEY2=VALUE2",
+				"unikraft run --metro=fra --image=my-app:latest -e KEY1=VALUE1 -e KEY2=VALUE2",
 			},
 		},
 		{
-			Description: "Deploy a new instance with attached volume",
+			Description: "Deploy with an attached volume",
 			Commands: []string{
-				"unikraft run --metro=sin --image=my-app:latest -v my-volume:/data",
+				"unikraft run --metro=fra --image=my-app:latest -v my-volume:/data",
 			},
 		},
 		{
-			Description: "Deploy a new instance with attached volume which is read-only",
+			Description: "Deploy with a read-only volume",
 			Commands: []string{
-				"unikraft run --metro=sin --image=my-app:latest -v my-volume:/data:ro",
+				"unikraft run --metro=fra --image=my-app:latest -v config-vol:/etc/app:ro",
 			},
 		},
 		{
-			Description: "Deploy a new instance with custom resource allocations",
+			Description: "Deploy with custom resource allocations",
 			Commands: []string{
-				"unikraft run --metro=sfo --image=my-app:latest -m 512MiB --vcpus 2",
+				"unikraft run --metro=fra --image=my-app:latest -m 512MiB --vcpus 2",
 			},
 		},
 		{
-			Description: "Deploy a new instance with scale-to-zero enabled",
+			Description: "Deploy with scale-to-zero enabled",
 			Commands: []string{
-				"unikraft run --metro=fra --image=my-app:latest --scale-to-zero policy=on,cooldown-time=300",
+				"unikraft run --metro=fra --image=my-app:latest --scale-to-zero on -p 443:8080/http+tls",
 			},
 		},
 		{
-			Description: "Deploy a new instance with specific restart policy",
+			Description: "Deploy with a custom restart policy",
 			Commands: []string{
-				"unikraft run --metro=dal --image=my-app:latest --restart=on-failure",
+				"unikraft run --metro=fra --image=my-app:latest --restart=on-failure",
+			},
+		},
+		{
+			Description: "Deploy a named instance with a custom domain",
+			Commands: []string{
+				`unikraft run --metro=fra --image=my-app:latest \
+	  --name my-web-app \
+	  -p 443:8080/http+tls \
+	  --domain my-app.example.com`,
 			},
 		},
 	}

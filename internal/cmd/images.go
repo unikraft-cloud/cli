@@ -224,6 +224,14 @@ func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
 				Description: "Inspect an image by tag",
 				Commands:    []string{"unikraft image get nginx:latest"},
 			},
+			{
+				Description: "Show image details in JSON format",
+				Commands:    []string{"unikraft image get nginx:latest -o json"},
+			},
+			{
+				Description: "Show all image fields including kernel and initrd info",
+				Commands:    []string{"unikraft image get my-app:v1.0 -f +kernel,+initrd"},
+			},
 		},
 		cmd.CmdTypeList: {
 			{
@@ -233,6 +241,10 @@ func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
 			{
 				Description: "Filter images by reference",
 				Commands:    []string{`unikraft image list --filter 'ref~="/nginx"'`},
+			},
+			{
+				Description: "List images in table format",
+				Commands:    []string{"unikraft image list -o table"},
 			},
 		},
 		cmd.CmdTypeDelete: {
@@ -648,21 +660,27 @@ type ImagesCopyCmd struct {
 func (cmd ImagesCopyCmd) Examples() []kingkong.Example {
 	return []kingkong.Example{
 		{
-			Description: "Create a copy of an image",
+			Description: "Copy an official image to your namespace",
 			Commands: []string{
-				"unikraft image copy unikraft.io/official/nginx:latest unikraft.io/my-user/my-nginx",
+				"unikraft image copy unikraft.io/official/nginx:latest unikraft.io/my-user/my-nginx:latest",
 			},
 		},
 		{
-			Description: "Upload a local image to a remote registry",
+			Description: "Upload a local OCI archive to a remote registry",
 			Commands: []string{
 				"unikraft image copy ./my-local-image.tar unikraft.io/my-user/my-image:1.0.0",
 			},
 		},
 		{
-			Description: "Download an image from a remote registry",
+			Description: "Download an image to a local archive",
 			Commands: []string{
 				"unikraft image copy unikraft.io/official/redis:latest ./my-redis-image.tar",
+			},
+		},
+		{
+			Description: "Tag an image with a new version",
+			Commands: []string{
+				"unikraft image copy unikraft.io/my-user/my-app:latest unikraft.io/my-user/my-app:v2.0",
 			},
 		},
 	}

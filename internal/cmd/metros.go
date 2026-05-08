@@ -239,6 +239,10 @@ func (Metro) Examples() map[cmd.CmdType][]kingkong.Example {
 				Description: "Inspect a metro by name",
 				Commands:    []string{"unikraft metro get fra"},
 			},
+			{
+				Description: "Show all metro details including status and quotas",
+				Commands:    []string{"unikraft metro get fra -f +status,+quotas"},
+			},
 		},
 		cmd.CmdTypeList: {
 			{
@@ -246,12 +250,16 @@ func (Metro) Examples() map[cmd.CmdType][]kingkong.Example {
 				Commands:    []string{"unikraft metro list"},
 			},
 			{
-				Description: "List metros with connection status",
+				Description: "List metros with latency and online status",
 				Commands:    []string{"unikraft metro list -f +status"},
 			},
 			{
 				Description: "List metros with quota usage",
 				Commands:    []string{"unikraft metro list -f +quotas"},
+			},
+			{
+				Description: "Output metro list as JSON",
+				Commands:    []string{"unikraft metro list -o json"},
 			},
 		},
 	}

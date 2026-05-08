@@ -38,7 +38,7 @@ func (BuildCmd) Examples() []kingkong.Example {
 			},
 		},
 		{
-			Description: "Build and publish an image from a Kraftfile",
+			Description: "Build and publish an image to a registry",
 			Commands: []string{
 				"unikraft build . --output my-org/my-app:latest",
 			},
@@ -47,6 +47,12 @@ func (BuildCmd) Examples() []kingkong.Example {
 			Description: "Build with custom build arguments",
 			Commands: []string{
 				"unikraft build ./app --build-arg VERSION=1.2.3 --build-arg COMMIT=abc123",
+			},
+		},
+		{
+			Description: "Build without using cache",
+			Commands: []string{
+				"unikraft build . --no-cache",
 			},
 		},
 		{

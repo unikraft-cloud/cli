@@ -88,8 +88,20 @@ stdout:
 	          Target instances to get.
 
 	Examples:
-	  # Inspect an instance by name or UUID
+	  # Inspect an instance by name
 	  unikraft instance get demo-instance
+
+	  # Inspect an instance by UUID
+	  unikraft instance get 12345678-1234-1234-1234-123456789abc
+
+	  # Inspect an instance in a specific metro
+	  unikraft instance get fra/demo-instance
+
+	  # Show instance details in JSON format
+	  unikraft instance get demo-instance -o json
+
+	  # Watch instance state changes in real-time
+	  unikraft instance get demo-instance -w
 
 	Fields:
 	  metro
@@ -153,8 +165,20 @@ stdout:
 	          Target instances to list.
 
 	Examples:
-	  # List instances across metros
+	  # List instances across all metros
 	  unikraft instance list
+
+	  # List only running instances
+	  unikraft instance list --filter 'state=="running"'
+
+	  # List instances sorted by creation time (newest first)
+	  unikraft instance list --sort -timestamps.created
+
+	  # Watch instances and refresh every 5 seconds
+	  unikraft instance list -w 5s
+
+	  # List instances as a table with additional fields
+	  unikraft instance list -f +resources -o table
 
 	Fields:
 	  metro
@@ -288,20 +312,47 @@ stdout:
 	  unikraft instances create [flags]
 
 	Examples:
-	  # Create a new instance
+	  # Create a new instance with HTTPS port exposed
 	  unikraft instance create \
 	  	  --name demo-instance \
 	  	  --metro fra \
 	  	  --image nginx:latest \
 	  	  --autostart \
-	  	  --memory 128 \
-	  	  --vcpus 1
+	  	  -m 128MiB \
+	  	  --vcpus 1 \
+	  	  -p 443:8080/http+tls
 
 	  # Create an instance from a template
 	  unikraft instance create \
 	  	  --name new-instance \
 	  	  --metro fra \
 	  	  --template my-template
+
+	  # Create an instance with environment variables and a volume
+	  unikraft instance create \
+	  	  --metro sfo \
+	  	  --image my-app:latest \
+	  	  -e DB_HOST=db.example.com \
+	  	  -e DB_PORT=5432 \
+	  	  -v data-vol:/data \
+	  	  --autostart
+
+	  # Create an instance with scale-to-zero enabled
+	  unikraft instance create \
+	  	  --metro fra \
+	  	  --image my-app:latest \
+	  	  --scale-to-zero policy=on,cooldown-time=300 \
+	  	  -p 443:8080/http+tls \
+	  	  --autostart
+
+	  # Preview instance creation without applying
+	  unikraft instance create \
+	  	  --metro dal \
+	  	  --image nginx:latest \
+	  	  --dry-run
+
+	  # Save creatable fields to a YAML file for later use
+	  unikraft instance create --save instance.yaml --dry-run
 
 	Fields:
 	  metro
@@ -425,7 +476,19 @@ stdout:
 
 	Examples:
 	  # Resize instance memory
-	  unikraft instance edit demo-instance --memory 256
+	  unikraft instance edit demo-instance -m 256MiB
+
+	  # Update the image of an instance
+	  unikraft instance edit demo-instance --image my-app:v2.0
+
+	  # Change environment variables
+	  unikraft instance edit demo-instance --set runtime.env.DEBUG=true
+
+	  # Enable scale-to-zero on an existing instance
+	  unikraft instance edit demo-instance --scale-to-zero on
+
+	  # Preview edits without applying them
+	  unikraft instance edit demo-instance -m 512MiB --dry-run
 
 	Fields:
 	  metro
@@ -524,8 +587,17 @@ stdout:
 	          Target instances to remove.
 
 	Examples:
-	  # Delete an instance by name or UUID
+	  # Delete an instance by name
 	  unikraft instance delete demo-instance
+
+	  # Delete an instance by UUID
+	  unikraft instance delete 12345678-1234-1234-1234-123456789abc
+
+	  # Delete multiple instances at once
+	  unikraft instance delete instance-1 instance-2
+
+	  # Delete all stopped instances (with confirmation)
+	  unikraft instance delete --filter 'state=="stopped"'
 
 	Fields:
 	  metro
@@ -647,8 +719,14 @@ stdout:
 	          Target instance-templates to get.
 
 	Examples:
-	  # Inspect an instance template by name or UUID
+	  # Inspect an instance template by name
 	  unikraft instance template get demo-template
+
+	  # Inspect an instance template by UUID
+	  unikraft instance template get 12345678-1234-1234-1234-123456789abc
+
+	  # Show template details in JSON format
+	  unikraft instance template get demo-template -o json
 
 	Fields:
 	  metro
@@ -706,6 +784,9 @@ stdout:
 	Examples:
 	  # List instance templates across metros
 	  unikraft instance template list
+
+	  # List templates in table format
+	  unikraft instance template list -o table
 
 	Fields:
 	  metro
@@ -770,6 +851,9 @@ stdout:
 	  # Convert a stopped instance into a template
 	  unikraft instance template create demo-instance
 
+	  # Convert multiple instances into templates
+	  unikraft instance template create instance-1 instance-2
+
 	Fields:
 	  metro
 	  name
@@ -833,7 +917,10 @@ stdout:
 
 	Examples:
 	  # Update template tags
-	  unikraft instance template edit demo-template --set tags=env-dev
+	  unikraft instance template edit demo-template --tags env-prod,team-platform
+
+	  # Lock a template to prevent deletion
+	  unikraft instance template edit demo-template --delete-lock
 
 	Fields:
 	  metro
@@ -911,6 +998,9 @@ stdout:
 	  # Delete an instance template
 	  unikraft instance template delete demo-template
 
+	  # Delete all instance templates (with confirmation)
+	  unikraft instance template delete --all
+
 	Fields:
 	  metro
 	  name
@@ -973,11 +1063,20 @@ stdout:
 	  # Fetch logs from an instance
 	  unikraft instance logs my-instance
 
-	  # Fetch the last 100 lines of logs from an instance
+	  # Fetch the last 100 lines of logs
 	  unikraft instance logs my-instance --tail 100
 
 	  # Follow logs from an instance in real-time
 	  unikraft instance logs my-instance --follow
+
+	  # Fetch logs from a specific metro
+	  unikraft instance logs fra/my-instance
+
+	  # Follow logs from multiple instances
+	  unikraft instance logs instance-1 instance-2 --follow
+
+	  # Follow logs without instance name prefix
+	  unikraft instance logs my-instance --follow --no-prefix
 
 	Flags:
 	      --[no-]prefix
@@ -1021,6 +1120,12 @@ stdout:
 	  # Start an instance
 	  unikraft instance start demo-instance
 
+	  # Start multiple instances at once
+	  unikraft instance start instance-1 instance-2 instance-3
+
+	  # Start an instance in a specific metro
+	  unikraft instance start fra/demo-instance
+
 	Flags:
 	  -f, --field
 	          Specify which fields to include in the output.
@@ -1057,14 +1162,17 @@ stdout:
 	          Target instances to stop.
 
 	Examples:
-	  # Stop an instance
+	  # Stop an instance gracefully
 	  unikraft instance stop demo-instance
 
-	  # Stop with a drain timeout
+	  # Stop with a drain timeout to allow in-flight requests to complete
 	  unikraft instance stop demo-instance --drain-timeout 30000
 
-	  # Force stop an instance
+	  # Force stop an instance immediately
 	  unikraft instance stop demo-instance --force
+
+	  # Stop multiple instances
+	  unikraft instance stop instance-1 instance-2
 
 	Flags:
 	      --force
@@ -1107,11 +1215,14 @@ stdout:
 	          Target instances to suspend.
 
 	Examples:
-	  # Suspend an instance
+	  # Suspend an instance (preserves state for fast resume)
 	  unikraft instance suspend demo-instance
 
-	  # Suspend with a drain timeout
+	  # Suspend with a drain timeout to allow in-flight requests to complete
 	  unikraft instance suspend demo-instance --drain-timeout 30000
+
+	  # Suspend multiple instances
+	  unikraft instance suspend instance-1 instance-2
 
 	Flags:
 	      --drain-timeout
@@ -1152,11 +1263,14 @@ stdout:
 	          Target instances to restart.
 
 	Examples:
-	  # Restart an instance
+	  # Restart an instance gracefully
 	  unikraft instance restart demo-instance
 
-	  # Force restart an instance
+	  # Force restart an instance (skips graceful shutdown)
 	  unikraft instance restart demo-instance --force
+
+	  # Restart with a drain timeout
+	  unikraft instance restart demo-instance --drain-timeout 10000
 
 	Flags:
 	      --force

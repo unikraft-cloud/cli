@@ -22,6 +22,7 @@ import (
 
 	jujuerrors "github.com/juju/errors"
 	"golang.org/x/mod/semver"
+	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/binorigin"
@@ -40,6 +41,27 @@ type UpgradeCmd struct {
 	Version string `short:"v" help:"Upgrade to a specific version."`
 	BinDir  string `help:"Directory where to install the binary. If empty, uses the current binary location."`
 	BaseUrl string `help:"Base URL for fetching releases." env:"UNIKRAFT_CLI_INSTALL_URL" default:"https://pkg.unikraft.com" hidden:"true"`
+}
+
+func (UpgradeCmd) Examples() []kingkong.Example {
+	return []kingkong.Example{
+		{
+			Description: "Upgrade to the latest stable version",
+			Commands:    []string{"unikraft upgrade"},
+		},
+		{
+			Description: "Upgrade to a specific version",
+			Commands:    []string{"unikraft upgrade --version v1.2.3"},
+		},
+		{
+			Description: "Upgrade from the staging channel",
+			Commands:    []string{"unikraft upgrade --channel staging"},
+		},
+		{
+			Description: "Force re-install even if already at the latest version",
+			Commands:    []string{"unikraft upgrade --force"},
+		},
+	}
 }
 
 func (cmd *UpgradeCmd) Run(ctx context.Context, stdio config.Stdio) error {

@@ -15,11 +15,33 @@ import (
 	"unikraft.com/cli/internal/resource"
 	resourcetui "unikraft.com/cli/internal/resource/tui"
 	"unikraft.com/cli/internal/tui/uitui"
+	"unikraft.com/x/kingkong"
 )
 
 type TUICmd struct {
 	Resource string `arg:"" optional:"" help:"Resource type to browse."`
 	Name     string `arg:"" optional:"" help:"Resource key to open."`
+}
+
+func (TUICmd) Examples() []kingkong.Example {
+	return []kingkong.Example{
+		{
+			Description: "Open the TUI home screen",
+			Commands:    []string{"unikraft tui"},
+		},
+		{
+			Description: "Browse instances directly",
+			Commands:    []string{"unikraft tui instances"},
+		},
+		{
+			Description: "Open a specific instance detail view",
+			Commands:    []string{"unikraft tui instances demo-instance"},
+		},
+		{
+			Description: "Browse volumes",
+			Commands:    []string{"unikraft tui volumes"},
+		},
+	}
 }
 
 // NewTUIModel builds the same Bubble Tea model used by `unikraft tui`.

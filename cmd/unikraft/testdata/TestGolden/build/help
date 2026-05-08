@@ -15,11 +15,14 @@ stdout:
 	  # Build the project in the current directory
 	  unikraft build .
 
-	  # Build and publish an image from a Kraftfile
+	  # Build and publish an image to a registry
 	  unikraft build . --output my-org/my-app:latest
 
 	  # Build with custom build arguments
 	  unikraft build ./app --build-arg VERSION=1.2.3 --build-arg COMMIT=abc123
+
+	  # Build without using cache
+	  unikraft build . --no-cache
 
 	  # Build with secret and SSH access
 	  unikraft build . --secret id=npm,src=$HOME/.npmrc --ssh default=$SSH_AUTH_SOCK

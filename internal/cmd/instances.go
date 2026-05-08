@@ -918,34 +918,60 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	return map[cmd.CmdType][]kingkong.Example{
 		cmd.CmdTypeGet: {
 			{
-				Description: "Inspect an instance by name or UUID",
+				Description: "Inspect an instance by name",
 				Commands:    []string{"unikraft instance get demo-instance"},
+			},
+			{
+				Description: "Inspect an instance by UUID",
+				Commands:    []string{"unikraft instance get d4f0c132-a70e-4777-9631-7dfe08a1c15d"},
+			},
+			{
+				Description: "Inspect an instance in a specific metro",
+				Commands:    []string{"unikraft instance get fra/demo-instance"},
+			},
+			{
+				Description: "Show instance details in JSON format",
+				Commands:    []string{"unikraft instance get demo-instance -o json"},
+			},
+			{
+				Description: "Watch instance state changes in real-time",
+				Commands:    []string{"unikraft instance get demo-instance -w"},
 			},
 		},
 		cmd.CmdTypeList: {
 			{
-				Description: "List instances across metros",
+				Description: "List instances across all metros",
 				Commands:    []string{"unikraft instance list"},
+			},
+			{
+				Description: "List only running instances",
+				Commands:    []string{`unikraft instance list --filter 'state=="running"'`},
+			},
+			{
+				Description: "List instances sorted by creation time (newest first)",
+				Commands:    []string{"unikraft instance list --sort -timestamps.created"},
+			},
+			{
+				Description: "Watch instances and refresh every 5 seconds",
+				Commands:    []string{"unikraft instance list -w 5s"},
+			},
+			{
+				Description: "List instances as a table with additional fields",
+				Commands:    []string{"unikraft instance list -f +resources -o table"},
 			},
 		},
 		cmd.CmdTypeCreate: {
 			{
-				Description: "Create a new instance",
+				Description: "Create a new instance with HTTPS port exposed",
 				Commands: []string{
-					// `unikraft instance create \
-					//   --set name=demo-instance \
-					//   --set metro=fra \
-					//   --set image=nginx:latest \
-					//   --set autostart=true \
-					//   --set resources.memory=128 \
-					//   --set resources.vcpus=1`,
 					`unikraft instance create \
 	  --name demo-instance \
 	  --metro fra \
 	  --image nginx:latest \
 	  --autostart \
-	  --memory 128 \
-	  --vcpus 1`,
+	  -m 128MiB \
+	  --vcpus 1 \
+	  -p 443:8080/http+tls`,
 				},
 			},
 			{
@@ -957,20 +983,93 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --template my-template`,
 				},
 			},
+			{
+				Description: "Create an instance with environment variables and a volume",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro sfo \
+	  --image my-app:latest \
+	  -e DB_HOST=db.example.com \
+	  -e DB_PORT=5432 \
+	  -v data-vol:/data \
+	  --autostart`,
+				},
+			},
+			{
+				Description: "Create an instance with scale-to-zero enabled",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-app:latest \
+	  --scale-to-zero policy=on,cooldown-time=300 \
+	  -p 443:8080/http+tls \
+	  --autostart`,
+				},
+			},
+			{
+				Description: "Preview instance creation without applying",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro dal \
+	  --image nginx:latest \
+	  --dry-run`,
+				},
+			},
+			{
+				Description: "Save creatable fields to a YAML file for later use",
+				Commands: []string{
+					"unikraft instance create --save instance.yaml --dry-run",
+				},
+			},
 		},
 		cmd.CmdTypeEdit: {
 			{
 				Description: "Resize instance memory",
 				Commands: []string{
-					// "unikraft instance edit demo-instance --set resources.memory=256",
-					"unikraft instance edit demo-instance --memory 256",
+					"unikraft instance edit demo-instance -m 256MiB",
+				},
+			},
+			{
+				Description: "Update the image of an instance",
+				Commands: []string{
+					"unikraft instance edit demo-instance --image my-app:v2.0",
+				},
+			},
+			{
+				Description: "Change environment variables",
+				Commands: []string{
+					"unikraft instance edit demo-instance --set runtime.env.DEBUG=true",
+				},
+			},
+			{
+				Description: "Enable scale-to-zero on an existing instance",
+				Commands: []string{
+					"unikraft instance edit demo-instance --scale-to-zero on",
+				},
+			},
+			{
+				Description: "Preview edits without applying them",
+				Commands: []string{
+					"unikraft instance edit demo-instance -m 512MiB --dry-run",
 				},
 			},
 		},
 		cmd.CmdTypeDelete: {
 			{
-				Description: "Delete an instance by name or UUID",
+				Description: "Delete an instance by name",
 				Commands:    []string{"unikraft instance delete demo-instance"},
+			},
+			{
+				Description: "Delete an instance by UUID",
+				Commands:    []string{"unikraft instance delete d4f0c132-a70e-4777-9631-7dfe08a1c15d"},
+			},
+			{
+				Description: "Delete multiple instances at once",
+				Commands:    []string{"unikraft instance delete instance-1 instance-2"},
+			},
+			{
+				Description: "Delete all stopped instances (with confirmation)",
+				Commands:    []string{`unikraft instance delete --filter 'state=="stopped"'`},
 			},
 		},
 	}
@@ -993,7 +1092,7 @@ func (cmd InstancesLogsCmd) Examples() []kingkong.Example {
 			},
 		},
 		{
-			Description: "Fetch the last 100 lines of logs from an instance",
+			Description: "Fetch the last 100 lines of logs",
 			Commands: []string{
 				"unikraft instance logs my-instance --tail 100",
 			},
@@ -1002,6 +1101,24 @@ func (cmd InstancesLogsCmd) Examples() []kingkong.Example {
 			Description: "Follow logs from an instance in real-time",
 			Commands: []string{
 				"unikraft instance logs my-instance --follow",
+			},
+		},
+		{
+			Description: "Fetch logs from a specific metro",
+			Commands: []string{
+				"unikraft instance logs fra/my-instance",
+			},
+		},
+		{
+			Description: "Follow logs from multiple instances",
+			Commands: []string{
+				"unikraft instance logs instance-1 instance-2 --follow",
+			},
+		},
+		{
+			Description: "Follow logs without instance name prefix",
+			Commands: []string{
+				"unikraft instance logs my-instance --follow --no-prefix",
 			},
 		},
 	}
@@ -1075,6 +1192,18 @@ func (cmd InstancesStartCmd) Examples() []kingkong.Example {
 				"unikraft instance start demo-instance",
 			},
 		},
+		{
+			Description: "Start multiple instances at once",
+			Commands: []string{
+				"unikraft instance start instance-1 instance-2 instance-3",
+			},
+		},
+		{
+			Description: "Start an instance in a specific metro",
+			Commands: []string{
+				"unikraft instance start fra/demo-instance",
+			},
+		},
 	}
 }
 
@@ -1135,21 +1264,27 @@ type InstancesStopCmd struct {
 func (cmd InstancesStopCmd) Examples() []kingkong.Example {
 	return []kingkong.Example{
 		{
-			Description: "Stop an instance",
+			Description: "Stop an instance gracefully",
 			Commands: []string{
 				"unikraft instance stop demo-instance",
 			},
 		},
 		{
-			Description: "Stop with a drain timeout",
+			Description: "Stop with a drain timeout to allow in-flight requests to complete",
 			Commands: []string{
 				"unikraft instance stop demo-instance --drain-timeout 30000",
 			},
 		},
 		{
-			Description: "Force stop an instance",
+			Description: "Force stop an instance immediately",
 			Commands: []string{
 				"unikraft instance stop demo-instance --force",
+			},
+		},
+		{
+			Description: "Stop multiple instances",
+			Commands: []string{
+				"unikraft instance stop instance-1 instance-2",
 			},
 		},
 	}
@@ -1211,15 +1346,21 @@ type InstancesRestartCmd struct {
 func (cmd InstancesRestartCmd) Examples() []kingkong.Example {
 	return []kingkong.Example{
 		{
-			Description: "Restart an instance",
+			Description: "Restart an instance gracefully",
 			Commands: []string{
 				"unikraft instance restart demo-instance",
 			},
 		},
 		{
-			Description: "Force restart an instance",
+			Description: "Force restart an instance (skips graceful shutdown)",
 			Commands: []string{
 				"unikraft instance restart demo-instance --force",
+			},
+		},
+		{
+			Description: "Restart with a drain timeout",
+			Commands: []string{
+				"unikraft instance restart demo-instance --drain-timeout 10000",
 			},
 		},
 	}
@@ -1362,15 +1503,21 @@ type InstancesSuspendCmd struct {
 func (cmd InstancesSuspendCmd) Examples() []kingkong.Example {
 	return []kingkong.Example{
 		{
-			Description: "Suspend an instance",
+			Description: "Suspend an instance (preserves state for fast resume)",
 			Commands: []string{
 				"unikraft instance suspend demo-instance",
 			},
 		},
 		{
-			Description: "Suspend with a drain timeout",
+			Description: "Suspend with a drain timeout to allow in-flight requests to complete",
 			Commands: []string{
 				"unikraft instance suspend demo-instance --drain-timeout 30000",
+			},
+		},
+		{
+			Description: "Suspend multiple instances",
+			Commands: []string{
+				"unikraft instance suspend instance-1 instance-2",
 			},
 		},
 	}

@@ -471,30 +471,73 @@ func (ServiceGroup) Examples() map[cmd.CmdType][]kingkong.Example {
 	return map[cmd.CmdType][]kingkong.Example{
 		cmd.CmdTypeGet: {
 			{
-				Description: "Inspect a service group by name or UUID",
+				Description: "Inspect a service group by name",
 				Commands:    []string{"unikraft service get demo-service"},
+			},
+			{
+				Description: "Inspect a service group by UUID",
+				Commands:    []string{"unikraft service get d4f0c132-a70e-4777-9631-7dfe08a1c15d"},
+			},
+			{
+				Description: "Inspect a service group in a specific metro",
+				Commands:    []string{"unikraft service get fra/demo-service"},
+			},
+			{
+				Description: "Show service details in JSON format",
+				Commands:    []string{"unikraft service get demo-service -o json"},
 			},
 		},
 		cmd.CmdTypeList: {
 			{
-				Description: "List all service groups",
+				Description: "List all service groups across metros",
 				Commands:    []string{"unikraft service list"},
+			},
+			{
+				Description: "List services and watch for changes",
+				Commands:    []string{"unikraft service list -w"},
 			},
 		},
 		cmd.CmdTypeCreate: {
 			{
-				Description: "Create a new service group",
+				Description: "Create a service group with HTTPS",
 				Commands: []string{
-					// `unikraft service create \
-					//   --set name=demo-service \
-					//   --set metro=fra \
-					//   --set domains=demo \
-					//   --set services=443:8080/tls+http`,
 					`unikraft service create \
 	--name demo-service \
 	--metro fra \
 	--domains demo \
-	--services 443:8080/tls+http`,
+	--services 443:8080/http+tls`,
+				},
+			},
+			{
+				Description: "Create a service group with HTTPS and HTTP-to-HTTPS redirect",
+				Commands: []string{
+					`unikraft service create \
+	--name web-service \
+	--metro fra \
+	--domains my-app.example.com \
+	--services 443:8080/http+tls \
+	--services 80:443/http+redirect`,
+				},
+			},
+			{
+				Description: "Create a service group with rate limits",
+				Commands: []string{
+					`unikraft service create \
+	--name api-service \
+	--metro fra \
+	--services 443:8080/http+tls \
+	--soft-limit 100 \
+	--hard-limit 200`,
+				},
+			},
+			{
+				Description: "Preview service creation without applying",
+				Commands: []string{
+					`unikraft service create \
+	--name test-service \
+	--metro fra \
+	--services 443:8080/http+tls \
+	--dry-run`,
 				},
 			},
 		},
@@ -502,15 +545,40 @@ func (ServiceGroup) Examples() map[cmd.CmdType][]kingkong.Example {
 			{
 				Description: "Add a new service port",
 				Commands: []string{
-					// "unikraft service edit demo-service --add services=8443:8080/tls",
-					"unikraft service edit demo-service --services 8443:8080/tls",
+					"unikraft service edit demo-service --add services=8443:9090/http+tls",
+				},
+			},
+			{
+				Description: "Add a domain to a service group",
+				Commands: []string{
+					"unikraft service edit demo-service --add domains=api.example.com",
+				},
+			},
+			{
+				Description: "Update rate limits",
+				Commands: []string{
+					"unikraft service edit demo-service --soft-limit 50 --hard-limit 100",
+				},
+			},
+			{
+				Description: "Remove a domain from a service group",
+				Commands: []string{
+					"unikraft service edit demo-service --del domains=old.example.com",
 				},
 			},
 		},
 		cmd.CmdTypeDelete: {
 			{
-				Description: "Delete a service group by name or UUID",
+				Description: "Delete a service group by name",
 				Commands:    []string{"unikraft service delete demo-service"},
+			},
+			{
+				Description: "Delete a service group by UUID",
+				Commands:    []string{"unikraft service delete d4f0c132-a70e-4777-9631-7dfe08a1c15d"},
+			},
+			{
+				Description: "Delete all service groups (with confirmation)",
+				Commands:    []string{"unikraft service delete --all"},
 			},
 		},
 	}
