@@ -412,8 +412,16 @@ func (InstanceTemplate) Examples() map[cmd.CmdType][]kingkong.Example {
 	return map[cmd.CmdType][]kingkong.Example{
 		cmd.CmdTypeGet: {
 			{
-				Description: "Inspect an instance template by name or UUID",
+				Description: "Inspect an instance template by name",
 				Commands:    []string{"unikraft instance template get demo-template"},
+			},
+			{
+				Description: "Inspect an instance template by UUID",
+				Commands:    []string{"unikraft instance template get d4f0c132-a70e-4777-9631-7dfe08a1c15d"},
+			},
+			{
+				Description: "Show template details in JSON format",
+				Commands:    []string{"unikraft instance template get demo-template -o json"},
 			},
 		},
 		cmd.CmdTypeList: {
@@ -421,18 +429,32 @@ func (InstanceTemplate) Examples() map[cmd.CmdType][]kingkong.Example {
 				Description: "List instance templates across metros",
 				Commands:    []string{"unikraft instance template list"},
 			},
+			{
+				Description: "List templates in table format",
+				Commands:    []string{"unikraft instance template list -o table"},
+			},
 		},
 		cmd.CmdTypeCreate: {
 			{
 				Description: "Convert a stopped instance into a template",
 				Commands:    []string{"unikraft instance template create demo-instance"},
 			},
+			{
+				Description: "Convert multiple instances into templates",
+				Commands:    []string{"unikraft instance template create instance-1 instance-2"},
+			},
 		},
 		cmd.CmdTypeEdit: {
 			{
 				Description: "Update template tags",
 				Commands: []string{
-					"unikraft instance template edit demo-template --set tags=env-dev",
+					"unikraft instance template edit demo-template --tags env-prod,team-platform",
+				},
+			},
+			{
+				Description: "Lock a template to prevent deletion",
+				Commands: []string{
+					"unikraft instance template edit demo-template --delete-lock",
 				},
 			},
 		},
@@ -440,6 +462,10 @@ func (InstanceTemplate) Examples() map[cmd.CmdType][]kingkong.Example {
 			{
 				Description: "Delete an instance template",
 				Commands:    []string{"unikraft instance template delete demo-template"},
+			},
+			{
+				Description: "Delete all instance templates (with confirmation)",
+				Commands:    []string{"unikraft instance template delete --all"},
 			},
 		},
 	}

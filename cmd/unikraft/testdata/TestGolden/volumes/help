@@ -72,8 +72,17 @@ stdout:
 	          Target volumes to get.
 
 	Examples:
-	  # Inspect a volume by name or UUID
+	  # Inspect a volume by name
 	  unikraft volume get demo-volume
+
+	  # Inspect a volume by UUID
+	  unikraft volume get 12345678-1234-1234-1234-123456789abc
+
+	  # Inspect a volume in a specific metro
+	  unikraft volume get fra/demo-volume
+
+	  # Show volume details in JSON format
+	  unikraft volume get demo-volume -o json
 
 	Fields:
 	  metro
@@ -127,8 +136,14 @@ stdout:
 	          Target volumes to list.
 
 	Examples:
-	  # List all volumes
+	  # List all volumes across metros
 	  unikraft volume list
+
+	  # List volumes and watch for state changes
+	  unikraft volume list -w
+
+	  # List volumes with attachment information
+	  unikraft volume list -f +attached-to
 
 	Fields:
 	  metro
@@ -242,11 +257,25 @@ stdout:
 	  unikraft volumes create [flags]
 
 	Examples:
-	  # Create a new volume
+	  # Create a 10 GiB volume
 	  unikraft volume create \
 	  	  --name demo-volume \
-	  	  --size 10 \
+	  	  --size 10GiB \
 	  	  --metro fra
+
+	  # Create a volume with ext4 filesystem
+	  unikraft volume create \
+	  	  --name app-data \
+	  	  --size 5GiB \
+	  	  --filesystem ext4 \
+	  	  --metro fra
+
+	  # Preview volume creation without applying
+	  unikraft volume create \
+	  	  --name test-vol \
+	  	  --size 1GiB \
+	  	  --metro fra \
+	  	  --dry-run
 
 	Fields:
 	  metro
@@ -327,6 +356,9 @@ stdout:
 	  # Clone a volume with a new name
 	  unikraft volume clone demo-volume --name demo-volume-clone
 
+	  # Clone a volume with tags
+	  unikraft volume clone demo-volume --name backup --tags env=staging
+
 	Flags:
 	      --set=<name>=<value>, --set-file=<name>=<filename>
 	          Key-value pairs to set on the volume.
@@ -384,6 +416,9 @@ stdout:
 	  # Import a Dockerfile context into a volume
 	  unikraft volume import my-volume --source ./Dockerfile
 
+	  # Force import even if data exceeds volume capacity
+	  unikraft volume import my-volume --source ./large-data --force
+
 	Flags:
 	  -s, --source=<path>
 	          Data source: local directory, CPIO archive, or Dockerfile.
@@ -421,7 +456,10 @@ stdout:
 
 	Examples:
 	  # Resize a volume
-	  unikraft volume edit demo-volume --size 20
+	  unikraft volume edit demo-volume --size 20GiB
+
+	  # Change the quota policy
+	  unikraft volume edit demo-volume --quota-policy dynamic
 
 	Fields:
 	  metro
@@ -495,8 +533,14 @@ stdout:
 	          Target volumes to remove.
 
 	Examples:
-	  # Delete a volume by name or UUID
+	  # Delete a volume by name
 	  unikraft volume delete demo-volume
+
+	  # Delete a volume by UUID
+	  unikraft volume delete 12345678-1234-1234-1234-123456789abc
+
+	  # Delete all volumes (with confirmation)
+	  unikraft volume delete --all
 
 	Fields:
 	  metro

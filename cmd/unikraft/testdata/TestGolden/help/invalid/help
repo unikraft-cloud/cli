@@ -56,15 +56,18 @@ stdout:
 	  # Login to Unikraft Cloud
 	  unikraft login
 
-	  # List instances across metros
-	  unikraft instances list
+	  # List instances across all metros
+	  unikraft instance list
 
 	  # Build and publish an image from a Kraftfile
 	  unikraft build . --output my-org/my-app:latest
 
 	  # Deploy a new instance from an image
-	  unikraft run --metro=sfo --image=nginx:latest --autostart -p 443:8080/http+tls
-	  --scale-to-zero policy=on
+	  unikraft run --metro=fra --image=nginx:latest -p 443:8080/http+tls --scale-to-
+	  zero on
+
+	  # Browse resources in an interactive TUI
+	  unikraft tui
 
 	  # Switch to a different profile
 	  unikraft profile use my-other-profile
@@ -153,15 +156,18 @@ stdout:
 	  # Login to Unikraft Cloud
 	  unikraft login
 
-	  # List instances across metros
-	  unikraft instances list
+	  # List instances across all metros
+	  unikraft instance list
 
 	  # Build and publish an image from a Kraftfile
 	  unikraft build . --output my-org/my-app:latest
 
 	  # Deploy a new instance from an image
-	  unikraft run --metro=sfo --image=nginx:latest --autostart -p 443:8080/http+tls
-	  --scale-to-zero policy=on
+	  unikraft run --metro=fra --image=nginx:latest -p 443:8080/http+tls --scale-to-
+	  zero on
+
+	  # Browse resources in an interactive TUI
+	  unikraft tui
 
 	  # Switch to a different profile
 	  unikraft profile use my-other-profile

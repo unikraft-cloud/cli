@@ -52,6 +52,12 @@ stdout:
 	  # Show the current configuration
 	  unikraft config get
 
+	  # Show config from a specific file
+	  unikraft config get /path/to/config.yaml
+
+	  # Show a specific field in JSON format
+	  unikraft config get -f profiles -o json
+
 	Fields:
 	  path
 	  profile

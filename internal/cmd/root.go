@@ -71,9 +71,9 @@ func (cli UnikraftCLI) Examples() []kingkong.Example {
 			},
 		},
 		{
-			Description: "List instances across metros",
+			Description: "List instances across all metros",
 			Commands: []string{
-				"unikraft instances list",
+				"unikraft instance list",
 			},
 		},
 		{
@@ -85,7 +85,13 @@ func (cli UnikraftCLI) Examples() []kingkong.Example {
 		{
 			Description: "Deploy a new instance from an image",
 			Commands: []string{
-				"unikraft run --metro=sfo --image=nginx:latest --autostart -p 443:8080/http+tls --scale-to-zero policy=on",
+				"unikraft run --metro=fra --image=nginx:latest -p 443:8080/http+tls --scale-to-zero on",
+			},
+		},
+		{
+			Description: "Browse resources in an interactive TUI",
+			Commands: []string{
+				"unikraft tui",
 			},
 		},
 		{

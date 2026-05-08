@@ -120,6 +120,9 @@ stdout:
 	  # Inspect a profile by name
 	  unikraft profile get default
 
+	  # Show the currently active profile
+	  unikraft profile list --filter 'active==true'
+
 	Fields:
 	  name
 	  active
@@ -165,6 +168,9 @@ stdout:
 	Examples:
 	  # List all profiles
 	  unikraft profile list
+
+	  # List profiles in JSON format
+	  unikraft profile list -o json
 
 	Fields:
 	  name
@@ -304,6 +310,9 @@ stdout:
 	  # Inspect a metro by name
 	  unikraft metro get fra
 
+	  # Show all metro details including status and quotas
+	  unikraft metro get fra -f +status,+quotas
+
 	Fields:
 	  name
 	  country
@@ -368,11 +377,14 @@ stdout:
 	  # List all metros
 	  unikraft metro list
 
-	  # List metros with connection status
+	  # List metros with latency and online status
 	  unikraft metro list -f +status
 
 	  # List metros with quota usage
 	  unikraft metro list -f +quotas
+
+	  # Output metro list as JSON
+	  unikraft metro list -o json
 
 	Fields:
 	  name

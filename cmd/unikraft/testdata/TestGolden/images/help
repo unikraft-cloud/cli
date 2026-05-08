@@ -54,6 +54,12 @@ stdout:
 	  # Inspect an image by tag
 	  unikraft image get nginx:latest
 
+	  # Show image details in JSON format
+	  unikraft image get nginx:latest -o json
+
+	  # Show all image fields including kernel and initrd info
+	  unikraft image get my-app:v1.0 -f +kernel,+initrd
+
 	Fields:
 	  ref
 	  digest
@@ -110,6 +116,9 @@ stdout:
 	  # Filter images by reference
 	  unikraft image list --filter 'ref~="/nginx"'
 
+	  # List images in table format
+	  unikraft image list -o table
+
 	Fields:
 	  ref
 	  digest
@@ -161,15 +170,19 @@ stdout:
 	          Destination image reference.
 
 	Examples:
-	  # Create a copy of an image
+	  # Copy an official image to your namespace
 	  unikraft image copy unikraft.io/official/nginx:latest unikraft.io/my-user/my-
-	  nginx
+	  nginx:latest
 
-	  # Upload a local image to a remote registry
+	  # Upload a local OCI archive to a remote registry
 	  unikraft image copy ./my-local-image.tar unikraft.io/my-user/my-image:1.0.0
 
-	  # Download an image from a remote registry
+	  # Download an image to a local archive
 	  unikraft image copy unikraft.io/official/redis:latest ./my-redis-image.tar
+
+	  # Tag an image with a new version
+	  unikraft image copy unikraft.io/my-user/my-app:latest unikraft.io/my-user/my-
+	  app:v2.0
 
 	Global flags:
 	  -h, --help

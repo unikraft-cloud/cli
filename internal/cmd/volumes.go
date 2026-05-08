@@ -109,8 +109,13 @@ func (VolumesCloneCmd) Examples() []kingkong.Example {
 		{
 			Description: "Clone a volume with a new name",
 			Commands: []string{
-				// "unikraft volume clone demo-volume --set name=demo-volume-clone",
 				"unikraft volume clone demo-volume --name demo-volume-clone",
+			},
+		},
+		{
+			Description: "Clone a volume with tags",
+			Commands: []string{
+				"unikraft volume clone demo-volume --name backup --tags env=staging",
 			},
 		},
 	}
@@ -515,28 +520,64 @@ func (Volume) Examples() map[cmd.CmdType][]kingkong.Example {
 	return map[cmd.CmdType][]kingkong.Example{
 		cmd.CmdTypeGet: {
 			{
-				Description: "Inspect a volume by name or UUID",
+				Description: "Inspect a volume by name",
 				Commands:    []string{"unikraft volume get demo-volume"},
+			},
+			{
+				Description: "Inspect a volume by UUID",
+				Commands:    []string{"unikraft volume get d4f0c132-a70e-4777-9631-7dfe08a1c15d"},
+			},
+			{
+				Description: "Inspect a volume in a specific metro",
+				Commands:    []string{"unikraft volume get fra/demo-volume"},
+			},
+			{
+				Description: "Show volume details in JSON format",
+				Commands:    []string{"unikraft volume get demo-volume -o json"},
 			},
 		},
 		cmd.CmdTypeList: {
 			{
-				Description: "List all volumes",
+				Description: "List all volumes across metros",
 				Commands:    []string{"unikraft volume list"},
+			},
+			{
+				Description: "List volumes and watch for state changes",
+				Commands:    []string{"unikraft volume list -w"},
+			},
+			{
+				Description: "List volumes with attachment information",
+				Commands:    []string{"unikraft volume list -f +attached-to"},
 			},
 		},
 		cmd.CmdTypeCreate: {
 			{
-				Description: "Create a new volume",
+				Description: "Create a 10 GiB volume",
 				Commands: []string{
-					// `unikraft volume create \
-					//   --set name=demo-volume \
-					//   --set size=10 \
-					//   --set metro=fra`,
 					`unikraft volume create \
 	  --name demo-volume \
-	  --size 10 \
+	  --size 10GiB \
 	  --metro fra`,
+				},
+			},
+			{
+				Description: "Create a volume with ext4 filesystem",
+				Commands: []string{
+					`unikraft volume create \
+	  --name app-data \
+	  --size 5GiB \
+	  --filesystem ext4 \
+	  --metro fra`,
+				},
+			},
+			{
+				Description: "Preview volume creation without applying",
+				Commands: []string{
+					`unikraft volume create \
+	  --name test-vol \
+	  --size 1GiB \
+	  --metro fra \
+	  --dry-run`,
 				},
 			},
 		},
@@ -544,15 +585,28 @@ func (Volume) Examples() map[cmd.CmdType][]kingkong.Example {
 			{
 				Description: "Resize a volume",
 				Commands: []string{
-					// "unikraft volume edit demo-volume --set size=20",
-					"unikraft volume edit demo-volume --size 20",
+					"unikraft volume edit demo-volume --size 20GiB",
+				},
+			},
+			{
+				Description: "Change the quota policy",
+				Commands: []string{
+					"unikraft volume edit demo-volume --quota-policy dynamic",
 				},
 			},
 		},
 		cmd.CmdTypeDelete: {
 			{
-				Description: "Delete a volume by name or UUID",
+				Description: "Delete a volume by name",
 				Commands:    []string{"unikraft volume delete demo-volume"},
+			},
+			{
+				Description: "Delete a volume by UUID",
+				Commands:    []string{"unikraft volume delete d4f0c132-a70e-4777-9631-7dfe08a1c15d"},
+			},
+			{
+				Description: "Delete all volumes (with confirmation)",
+				Commands:    []string{"unikraft volume delete --all"},
 			},
 		},
 	}
@@ -599,6 +653,10 @@ func (VolumeImportCmd) Examples() []kingkong.Example {
 		{
 			Description: "Import a Dockerfile context into a volume",
 			Commands:    []string{"unikraft volume import my-volume --source ./Dockerfile"},
+		},
+		{
+			Description: "Force import even if data exceeds volume capacity",
+			Commands:    []string{"unikraft volume import my-volume --source ./large-data --force"},
 		},
 	}
 }

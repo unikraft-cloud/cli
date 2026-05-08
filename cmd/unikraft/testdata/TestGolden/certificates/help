@@ -62,8 +62,17 @@ stdout:
 	          Target certificates to get.
 
 	Examples:
-	  # Get a certificate by name or UUID
+	  # Inspect a certificate by name
 	  unikraft certificate get demo-cert
+
+	  # Inspect a certificate by UUID
+	  unikraft certificate get 12345678-1234-1234-1234-123456789abc
+
+	  # Inspect a certificate in a specific metro
+	  unikraft certificate get fra/demo-cert
+
+	  # Show certificate details in JSON format
+	  unikraft certificate get demo-cert -o json
 
 	Fields:
 	  metro
@@ -117,8 +126,11 @@ stdout:
 	          Target certificates to list.
 
 	Examples:
-	  # List all certificates
+	  # List all certificates across metros
 	  unikraft certificate list
+
+	  # List certificates and watch for changes
+	  unikraft certificate list -w
 
 	Fields:
 	  metro
@@ -232,7 +244,7 @@ stdout:
 	  unikraft certificates create [flags]
 
 	Examples:
-	  # Create a new certificate
+	  # Create a self-signed certificate and upload it
 	  openssl req -x509 -newkey rsa:2048 -sha256 -days 365 -nodes \
 	    -subj "/CN=demo.unikraft.dev" \
 	    -keyout cert.key \
@@ -243,6 +255,14 @@ stdout:
 	  	  --chain cert.pem \
 	  	  --pkey cert.key \
 	  	  --metro fra
+
+	  # Preview certificate creation without applying
+	  unikraft certificate create \
+	  	  --cn example.com. \
+	  	  --chain cert.pem \
+	  	  --pkey cert.key \
+	  	  --metro sfo \
+	  	  --dry-run
 
 	Fields:
 	  metro
@@ -318,8 +338,14 @@ stdout:
 	          Target certificates to remove.
 
 	Examples:
-	  # Delete a certificate by name or UUID
+	  # Delete a certificate by name
 	  unikraft certificate delete demo-cert
+
+	  # Delete a certificate by UUID
+	  unikraft certificate delete 12345678-1234-1234-1234-123456789abc
+
+	  # Delete all certificates (with confirmation prompt)
+	  unikraft certificate delete --all
 
 	Fields:
 	  metro

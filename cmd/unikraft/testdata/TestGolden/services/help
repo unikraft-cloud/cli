@@ -62,8 +62,17 @@ stdout:
 	          Target services to get.
 
 	Examples:
-	  # Inspect a service group by name or UUID
+	  # Inspect a service group by name
 	  unikraft service get demo-service
+
+	  # Inspect a service group by UUID
+	  unikraft service get 12345678-1234-1234-1234-123456789abc
+
+	  # Inspect a service group in a specific metro
+	  unikraft service get fra/demo-service
+
+	  # Show service details in JSON format
+	  unikraft service get demo-service -o json
 
 	Fields:
 	  metro
@@ -115,8 +124,11 @@ stdout:
 	          Target services to list.
 
 	Examples:
-	  # List all service groups
+	  # List all service groups across metros
 	  unikraft service list
+
+	  # List services and watch for changes
+	  unikraft service list -w
 
 	Fields:
 	  metro
@@ -226,12 +238,35 @@ stdout:
 	  unikraft services create [flags]
 
 	Examples:
-	  # Create a new service group
+	  # Create a service group with HTTPS
 	  unikraft service create \
 	  	--name demo-service \
 	  	--metro fra \
 	  	--domains demo \
-	  	--services 443:8080/tls+http
+	  	--services 443:8080/http+tls
+
+	  # Create a service group with HTTPS and HTTP-to-HTTPS redirect
+	  unikraft service create \
+	  	--name web-service \
+	  	--metro fra \
+	  	--domains my-app.example.com \
+	  	--services 443:8080/http+tls \
+	  	--services 80:443/http+redirect
+
+	  # Create a service group with rate limits
+	  unikraft service create \
+	  	--name api-service \
+	  	--metro fra \
+	  	--services 443:8080/http+tls \
+	  	--soft-limit 100 \
+	  	--hard-limit 200
+
+	  # Preview service creation without applying
+	  unikraft service create \
+	  	--name test-service \
+	  	--metro fra \
+	  	--services 443:8080/http+tls \
+	  	--dry-run
 
 	Fields:
 	  metro
@@ -311,7 +346,16 @@ stdout:
 
 	Examples:
 	  # Add a new service port
-	  unikraft service edit demo-service --services 8443:8080/tls
+	  unikraft service edit demo-service --add services=8443:9090/http+tls
+
+	  # Add a domain to a service group
+	  unikraft service edit demo-service --add domains=api.example.com
+
+	  # Update rate limits
+	  unikraft service edit demo-service --soft-limit 50 --hard-limit 100
+
+	  # Remove a domain from a service group
+	  unikraft service edit demo-service --del domains=old.example.com
 
 	Fields:
 	  metro
@@ -389,8 +433,14 @@ stdout:
 	          Target services to remove.
 
 	Examples:
-	  # Delete a service group by name or UUID
+	  # Delete a service group by name
 	  unikraft service delete demo-service
+
+	  # Delete a service group by UUID
+	  unikraft service delete 12345678-1234-1234-1234-123456789abc
+
+	  # Delete all service groups (with confirmation)
+	  unikraft service delete --all
 
 	Fields:
 	  metro

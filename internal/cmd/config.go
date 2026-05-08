@@ -83,6 +83,14 @@ func (Config) Examples() map[cmd.CmdType][]kingkong.Example {
 				Description: "Show the current configuration",
 				Commands:    []string{"unikraft config get"},
 			},
+			{
+				Description: "Show config from a specific file",
+				Commands:    []string{"unikraft config get /path/to/config.yaml"},
+			},
+			{
+				Description: "Show a specific field in JSON format",
+				Commands:    []string{"unikraft config get -f profiles -o json"},
+			},
 		},
 	}
 }

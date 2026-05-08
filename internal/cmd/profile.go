@@ -91,11 +91,19 @@ func (Profile) Examples() map[cmd.CmdType][]kingkong.Example {
 				Description: "Inspect a profile by name",
 				Commands:    []string{"unikraft profile get default"},
 			},
+			{
+				Description: "Show the currently active profile",
+				Commands:    []string{`unikraft profile list --filter 'active==true'`},
+			},
 		},
 		cmd.CmdTypeList: {
 			{
 				Description: "List all profiles",
 				Commands:    []string{"unikraft profile list"},
+			},
+			{
+				Description: "List profiles in JSON format",
+				Commands:    []string{"unikraft profile list -o json"},
 			},
 		},
 	}
