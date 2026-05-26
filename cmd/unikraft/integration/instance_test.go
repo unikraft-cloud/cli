@@ -78,6 +78,161 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
 
+	t.Run("create-stopped", func(t *testing.T) {
+		r := runner(t, true)
+		instName := uniq()
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		})
+		assert.Regexp(t, `state:\s+stopped`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("create-name-too-long", func(t *testing.T) {
+		r := runner(t, true)
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--set", "name=" + strings.Repeat("a", 64),
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		}, integ.ExpectFail())
+		assert.Regexp(t, `(?i)invalid`, out)
+	})
+
+	t.Run("create-name-trailing-hyphen", func(t *testing.T) {
+		r := runner(t, true)
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--set", "name=test-" + uniq() + "-",
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		}, integ.ExpectFail())
+		assert.Regexp(t, `(?i)invalid`, out)
+	})
+
+	t.Run("create-name-special-chars", func(t *testing.T) {
+		r := runner(t, true)
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--set", "name=test-" + uniq() + "!@#",
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		}, integ.ExpectFail())
+		assert.Regexp(t, `(?i)invalid`, out)
+	})
+
+	t.Run("create-name-uppercase", func(t *testing.T) {
+		r := runner(t, true)
+		instName := "TEST-" + strings.ToUpper(uniq())
+
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		})
+
+		out := r.Run(t, []string{"unikraft", "instance", "inspect", strings.ToLower(instName)})
+		assert.Regexp(t, `name:\s+`+strings.ToLower(instName), out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", strings.ToLower(instName)})
+	})
+
+	t.Run("create-memory-negative", func(t *testing.T) {
+		r := runner(t, true)
+		instName := uniq()
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=-16",
+			"--set", "resources.vcpus=1",
+		}, integ.ExpectFail())
+		assert.Regexp(t, `'memory_mb' must be in the range`, out)
+	})
+
+	t.Run("create-memory-too-large", func(t *testing.T) {
+		r := runner(t, true)
+		instName := uniq()
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=10000000000",
+			"--set", "resources.vcpus=1",
+		}, integ.ExpectFail())
+		assert.Regexp(t, `(?i)memory|range|must be`, out)
+	})
+
+	t.Run("create-nonexistent-service", func(t *testing.T) {
+		r := runner(t, true)
+		instName := uniq()
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+			"--service", "nonexistent-" + uniq(),
+		}, integ.ExpectFail())
+		assert.Regexp(t, `(?i)No service group with name`, out)
+	})
+
+	t.Run("create-env-unicode", func(t *testing.T) {
+		r := runner(t, true)
+		instName := uniq()
+
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "runtime.env=HÉLLO=wörld",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		})
+
+		out := r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.Regexp(t, `HÉLLO:\s+wörld`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
 	t.Run("connect", func(t *testing.T) {
 		r := runner(t, true)
 		instName := uniq()
@@ -142,6 +297,33 @@ func TestInstances(t *testing.T) {
 		// TODO: start doesn't actually wait to start; re-enable once it does.
 		// out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
 		// assert.Regexp(t, `state:\s+running`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("restart", func(t *testing.T) {
+		r := runner(t, true)
+		instName := uniq()
+
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=true",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		})
+
+		r.Run(t, []string{"unikraft", "instance", "wait", "--until", "state==running", "--timeout", "30s", "test-" + instName})
+
+		r.Run(t, []string{"unikraft", "instance", "restart", "test-" + instName})
+
+		r.Run(t, []string{"unikraft", "instance", "wait", "--until", "state==running", "--timeout", "30s", "test-" + instName})
+
+		out := r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.Regexp(t, `state:\s+running`, out)
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
