@@ -17,6 +17,8 @@ const (
 	CmdTypeCreate CmdType = "create"
 	CmdTypeEdit   CmdType = "edit"
 	CmdTypeDelete CmdType = "delete"
+	CmdTypeAttach CmdType = "attach"
+	CmdTypeDetach CmdType = "detach"
 )
 
 type ExampledResource interface {

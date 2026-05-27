@@ -266,12 +266,26 @@ func (s *Sandbox) WrapListable(r ListableResource) ListableResource {
 	}
 }
 
-func (s *Sandbox) WrapEditable(r EditableResource) EditableResource {
-	if s == nil {
-		return r
+func (s *Sandbox) WrapEditable(r EditableResource) SettableResource {
+	return sandboxedSettableResource{
+		GettableResource: r,
+		setFn:            r.Edit,
+		sandbox:          s,
 	}
-	return sandboxedEditableResource{
-		EditableResource: r,
+}
+
+func (s *Sandbox) WrapAttachable(r AttachableResource) SettableResource {
+	return sandboxedSettableResource{
+		GettableResource: r,
+		setFn:            r.Attach,
+		sandbox:          s,
+	}
+}
+
+func (s *Sandbox) WrapDetachable(r DetachableResource) SettableResource {
+	return sandboxedSettableResource{
+		GettableResource: r,
+		setFn:            r.Detach,
 		sandbox:          s,
 	}
 }
@@ -306,6 +320,11 @@ func (r sandboxedGettableResource) Get(ctx context.Context, keys []string) ([]Re
 	if opErr != nil && len(resources) == 0 {
 		return nil, opErr
 	}
+
+	if r.sandbox == nil {
+		return resources, nil
+	}
+
 	resources = slices.DeleteFunc(resources, r.sandbox.Missing)
 	if len(resources) == 0 {
 		if opErr != nil {
@@ -330,25 +349,31 @@ func (r sanboxedListableResource) List(ctx context.Context) ([]Resource, error) 
 	return resources, opErr
 }
 
-type sandboxedEditableResource struct {
-	EditableResource
+type sandboxedSettableResource struct {
+	GettableResource
+	setFn   func(ctx context.Context, key string, fields []Field) error
 	sandbox *Sandbox
 }
 
-func (r sandboxedEditableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
+func (r sandboxedSettableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
 	return sandboxedGettableResource{
-		GettableResource: r.EditableResource,
+		GettableResource: r.GettableResource,
 		sandbox:          r.sandbox,
 	}.Get(ctx, keys)
 }
 
-func (r sandboxedEditableResource) Edit(ctx context.Context, key string, fields []Field) error {
-	if err := r.EditableResource.Edit(ctx, key, fields); err != nil {
+func (r sandboxedSettableResource) Set(ctx context.Context, key string, fields []Field) error {
+	if err := r.setFn(ctx, key, fields); err != nil {
 		return err
 	}
+
+	if r.sandbox == nil {
+		return nil
+	}
+
 	// re-fetch, since we may have found new strongly linked dependencies (e.g.
 	// by creating a certificate)
-	resources, err := r.EditableResource.Get(ctx, []string{key})
+	resources, err := r.GettableResource.Get(ctx, []string{key})
 	if err != nil {
 		return err
 	}

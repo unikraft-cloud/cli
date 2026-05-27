@@ -681,12 +681,14 @@ func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio
 	}
 }
 
-type ResourceEditCmd[R resource.EditableResource] struct {
-	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to edit."`
-
+// ResourceSetCmd is a shared implementation for editing fields of a resource, used by both edit and attach/detach commands.
+// The create command is similar but has enough differences that it gets its own implementation.
+type ResourceSetCmd[R resource.GettableResource] struct {
 	SetArgs
 	AddArgs
 	DelArgs
+
+	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to edit."`
 
 	Visual bool   `xor:"edit-mode" help:"Open an editor to modify fields visually."`
 	Cmd    string `xor:"edit-mode" help:"Run a command to edit fields (receives YAML on stdin, outputs edited YAML on stdout)."`
@@ -698,23 +700,12 @@ type ResourceEditCmd[R resource.EditableResource] struct {
 	FormatOpts
 }
 
-func (cmd ResourceEditCmd[R]) HelpSections() []kingkong.HelpSection {
-	return ResourceCmd[R]{}.HelpSections()
-}
-
-func (cmd ResourceEditCmd[R]) Examples() []kingkong.Example {
-	var r R
-	if ep, ok := any(r).(ExampledResource); ok {
-		return ep.Examples()[CmdTypeEdit]
-	}
-	return nil
-}
-
-func (cmd *ResourceEditCmd[R]) toPatchSpec() (patch.PatchSpec, error) {
+func (cmd *ResourceSetCmd[R]) toPatchSpec(createField bool) (patch.PatchSpec, error) {
 	spec := patch.PatchSpec{
-		Set: make(map[string][]string),
-		Add: make(map[string][]string),
-		Del: make(map[string][]string),
+		Create: createField,
+		Set:    make(map[string][]string),
+		Add:    make(map[string][]string),
+		Del:    make(map[string][]string),
 	}
 	if err := cmd.SetArgs.Apply(&spec); err != nil {
 		return spec, err
@@ -728,14 +719,17 @@ func (cmd *ResourceEditCmd[R]) toPatchSpec() (patch.PatchSpec, error) {
 	return spec, nil
 }
 
-func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
-	spec, err := cmd.toPatchSpec()
+func (cmd ResourceSetCmd[R]) HelpSections() []kingkong.HelpSection {
+	return ResourceCmd[R]{}.HelpSections()
+}
+
+func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r resource.SettableResource, createField bool) error {
+	spec, err := cmd.toPatchSpec(createField)
 	if err != nil {
 		return err
 	}
 
 	var empty R
-	r := sandbox.WrapEditable(empty)
 
 	var res resource.Resource
 	if cmd.Target == "" {
@@ -823,7 +817,7 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 	updated := []resource.Resource{res}
 	if len(patched) > 0 {
 		editKey := res.Key().String()
-		if err := r.Edit(ctx, editKey, patched); err != nil {
+		if err := r.Set(ctx, editKey, patched); err != nil {
 			return err
 		}
 		// Re-fetch the resource to get the updated state.
@@ -844,6 +838,63 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 			Msg("no edits made")
 	}
 	return Diff(ctx, stdio.Stdout, cmd.FormatOpts, empty, []resource.Resource{res}, updated)
+}
+
+type ResourceEditCmd[R resource.EditableResource] struct {
+	ResourceSetCmd[R]
+}
+
+func (cmd ResourceEditCmd[R]) Examples() []kingkong.Example {
+	var r R
+	if ep, ok := any(r).(ExampledResource); ok {
+		return ep.Examples()[CmdTypeEdit]
+	}
+	return nil
+}
+
+func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+	var empty R
+	r := sandbox.WrapEditable(empty)
+
+	return cmd.ResourceSetCmd.Run(ctx, stdio, r, false)
+}
+
+type ResourceAttachCmd[R resource.AttachableResource] struct {
+	ResourceSetCmd[R]
+}
+
+func (cmd ResourceAttachCmd[R]) Examples() []kingkong.Example {
+	var r R
+	if ep, ok := any(r).(ExampledResource); ok {
+		return ep.Examples()[CmdTypeAttach]
+	}
+	return nil
+}
+
+func (cmd *ResourceAttachCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+	var empty R
+	r := sandbox.WrapAttachable(empty)
+
+	return cmd.ResourceSetCmd.Run(ctx, stdio, r, true)
+}
+
+type ResourceDetachCmd[R resource.DetachableResource] struct {
+	ResourceSetCmd[R]
+}
+
+func (cmd ResourceDetachCmd[R]) Examples() []kingkong.Example {
+	var r R
+	if ep, ok := any(r).(ExampledResource); ok {
+		return ep.Examples()[CmdTypeDetach]
+	}
+	return nil
+}
+
+func (cmd *ResourceDetachCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+	var empty R
+	r := sandbox.WrapDetachable(empty)
+
+	return cmd.ResourceSetCmd.Run(ctx, stdio, r, true)
 }
 
 type ResourceCreateCmd[R resource.CreatableResource] struct {

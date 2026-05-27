@@ -38,6 +38,7 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 	for _, metro := range metros {
 		metroNames = append(metroNames, metro.Name)
 	}
+
 	log.G(ctx).
 		Trace().
 		Strs("metros", metroNames).

@@ -52,6 +52,10 @@ type VolumesCmd struct {
 
 	Clone  VolumesCloneCmd `cmd:"" help:"Clone a volume."`
 	Import VolumeImportCmd `cmd:"" help:"Import data into a volume."`
+
+	// Attach and Detach are implemented as resource-level operations rather than action commands to allow for multiple volumes to be attached or detached in a single command, which is a common use case when managing volumes. The attach and detach fields are specified as part of the volume resource, allowing for more flexible and efficient management of volume attachments.
+	Attach VolumeAttachCmd `cmd:"" help:"Attach a volume."`
+	Detach VolumeDetachCmd `cmd:"" help:"Detach a volume."`
 }
 
 // VolumeCreateCmd extends the generic resource create command with shortcut
@@ -72,7 +76,46 @@ func (c *VolumeCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
+
 	return c.ResourceCreateCmd.Run(ctx, stdio, sandbox)
+}
+
+// VolumeAttachCmd extends the generic resource attach command with shortcut flags for
+// commonly used attachable volume fields. Each field tagged with `shortcut:"<path>"` is
+// translated into a --set <path>=<value> entry before the standard attach pipeline runs.
+type VolumeAttachCmd struct {
+	cmd.ResourceAttachCmd[Volume]
+
+	AttachTo string `group:"flag-attach" name:"to" shortcut:"attached-to" help:"The instance the volume should be attached to." placeholder:"name"`
+	MountAt  string `group:"flag-attach" name:"at" shortcut:"attached-to.0.mount-at" help:"The path the volume should be mounted to." placeholder:"path" example:"/mnt"`
+	ReadOnly bool   `group:"flag-attach" name:"readonly" shortcut:"attached-to.0.read-only" short:"r" help:"Mount the volume read-only."`
+}
+
+// Run applies any shortcut flags as --set arguments and then defers to the standard attach command implementation.
+func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
+		return err
+	}
+
+	return c.ResourceAttachCmd.Run(ctx, stdio, sandbox)
+}
+
+// VolumeDetachCmd extends the generic resource detach command with shortcut flags for
+// commonly used detachable volume fields. Each field tagged with `shortcut:"<path>"` is
+// translated into a --set <path>=<value> entry before the standard detach pipeline runs.
+type VolumeDetachCmd struct {
+	cmd.ResourceDetachCmd[Volume]
+
+	From string `group:"flag-detach" name:"from" shortcut:"attached-to" help:"The instance the volume should be detached from." placeholder:"name"`
+}
+
+// Run applies any shortcut flags as --set arguments and then defers to the standard attach command implementation.
+func (c *VolumeDetachCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
+		return err
+	}
+
+	return c.ResourceDetachCmd.Run(ctx, stdio, sandbox)
 }
 
 // VolumeEditCmd extends the generic resource edit command with shortcut
@@ -90,6 +133,7 @@ func (c *VolumeEditCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *re
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
+
 	return c.ResourceEditCmd.Run(ctx, stdio, sandbox)
 }
 
@@ -232,6 +276,12 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 	return errors.Join(opErr, getErr)
 }
 
+type VolumeAttachTo struct {
+	Link[Instance]
+	ReadOnly bool   `mirror:"volume.read_only" field:",long" create:"set" edit:"set"`
+	MountAt  string `mirror:"volume.mount_at" create:"set" edit:"set"`
+}
+
 type Volume struct {
 	MetroName LinkName[Metro] `mirror:"metro.name" field:"metro,short" create:"set,required"`
 	Name      string          `mirror:"volume.name" field:",short" create:"set"`
@@ -249,14 +299,7 @@ type Volume struct {
 		Created types.RelativeTime `mirror:"volume.created_at" field:",short"`
 	}
 
-	AttachedTo []struct {
-		Link[Instance]
-	} `mirror:"volume.attached_to"`
-
-	MountedBy []struct {
-		Link[Instance]
-		ReadOnly bool `mirror:"read_only" field:",long"`
-	} `mirror:"volume.mounted_by"`
+	AttachedTo []*VolumeAttachTo `mirror:"volume.attached_to" field:",embed" create:"set" edit:"set"`
 
 	Volume platform.Volume `field:"-" json:"volume"`
 	Metro  *config.Metro   `field:"-" json:"metro"`
@@ -475,6 +518,121 @@ func (Volume) Create(ctx context.Context, fields []resource.Field) ([]resource.R
 	return results, nil
 }
 
+// Attach attempts to attach the specified volume to an instance. The volume and instance can be identified by either name or UUID,
+// but the instance must be specified in the attach fields rather than the key.
+func (Volume) Attach(ctx context.Context, key string, fields []resource.Field) error {
+	parsedKeys := multimetro.ParseKeys([]string{key})
+
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return group.DoRefs(ctx, g, parsedKeys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+		reqs := make([]platform.AttachVolumesRequestItem, 0, len(refs))
+
+		for _, ref := range refs {
+			var req platform.AttachVolumesRequestItem
+
+			if ref.UUID != "" {
+				req.Uuid = &ref.UUID
+			} else {
+				req.Name = &ref.Name
+			}
+
+			for key, field := range resource.IterFields(fields) {
+				if field.Create != nil && field.Create.Set != nil {
+					switch key.String() {
+					case "attached-to":
+						if attach, ok := field.Create.Set.([]*VolumeAttachTo); ok && len(attach) > 0 {
+							if uuid := attach[0].Link.UUID; uuid != "" {
+								req.AttachTo = platform.NameOrUUID{Uuid: &uuid}
+							} else if name := attach[0].Link.Name; name != "" {
+								req.AttachTo = platform.NameOrUUID{Name: &name}
+							}
+						}
+					case "attached-to.0.read-only":
+						readonly := true
+						req.Readonly = &readonly
+					case "attached-to.0.mount-at":
+						req.At = field.Create.Set.(string)
+					}
+				}
+
+			}
+
+			reqs = append(reqs, req)
+		}
+
+		log.G(ctx).Trace().Msg("attaching volume")
+
+		_, err := c.AttachVolumes(ctx, reqs)
+		if err != nil {
+			if platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
+				return nil, nil
+			}
+			return nil, err
+		}
+
+		return refs, nil
+	})
+}
+
+// Detach attempts to detach the specified volume from an instance. The volume can be identified by either name or UUID,
+// but the instance must be specified in the detach fields rather than the key.
+func (Volume) Detach(ctx context.Context, key string, fields []resource.Field) error {
+	parsedKeys := multimetro.ParseKeys([]string{key})
+
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return group.DoRefs(ctx, g, parsedKeys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+		reqs := make([]platform.DetachVolumesRequestItem, 0, len(refs))
+
+		for _, ref := range refs {
+			var req platform.DetachVolumesRequestItem
+
+			if ref.UUID != "" {
+				req.Uuid = &ref.UUID
+			} else {
+				req.Name = &ref.Name
+			}
+
+			for key, field := range resource.IterFields(fields) {
+				if field.Create != nil && field.Create.Set != nil {
+					switch key.String() {
+					case "attached-to":
+						if attach, ok := field.Create.Set.([]*VolumeAttachTo); ok && len(attach) > 0 {
+							if uuid := attach[0].Link.UUID; uuid != "" {
+								req.From = &platform.NameOrUUID{Uuid: &uuid}
+							} else if name := attach[0].Link.Name; name != "" {
+								req.From = &platform.NameOrUUID{Name: &name}
+							}
+						}
+					}
+				}
+
+			}
+
+			reqs = append(reqs, req)
+		}
+
+		log.G(ctx).Trace().Msg("detaching volume")
+
+		_, err := c.DetachVolumes(ctx, reqs)
+		if err != nil {
+			if platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
+				return nil, nil
+			}
+			return nil, err
+		}
+
+		return refs, nil
+	})
+}
+
 func (Volume) Edit(ctx context.Context, key string, fields []resource.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 	patches, err := patchRequests(fields, volumePatchSpec)
@@ -557,6 +715,26 @@ func (Volume) Examples() map[cmd.CmdType][]kingkong.Example {
 			{
 				Description: "Delete a volume by name or UUID",
 				Commands:    []string{"unikraft volume delete demo-volume"},
+			},
+		},
+		cmd.CmdTypeAttach: {
+			{
+				Description: "Attach a volume",
+				Commands: []string{
+					`unikraft volume attach demo-volume \
+	  --at /mnt \
+	  --readonly \
+	  --to instance-name`,
+				},
+			},
+		},
+		cmd.CmdTypeDetach: {
+			{
+				Description: "Detach a volume",
+				Commands: []string{
+					`unikraft volume detach demo-volume \
+	  --from instance-name`,
+				},
 			},
 		},
 	}

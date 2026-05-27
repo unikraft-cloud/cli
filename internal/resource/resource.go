@@ -52,9 +52,24 @@ type EditableResource interface {
 	Edit(ctx context.Context, key string, fields []Field) error
 }
 
+type SettableResource interface {
+	GettableResource
+	Set(ctx context.Context, key string, fields []Field) error
+}
+
 type CreatableResource interface {
 	GettableResource
 	Create(ctx context.Context, fields []Field) ([]Resource, error)
+}
+
+type AttachableResource interface {
+	GettableResource
+	Attach(ctx context.Context, key string, fields []Field) error
+}
+
+type DetachableResource interface {
+	GettableResource
+	Detach(ctx context.Context, key string, fields []Field) error
 }
 
 type DeletableResource interface {

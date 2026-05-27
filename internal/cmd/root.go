@@ -323,6 +323,14 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 				Key:   "flag-edit",
 				Title: kingkong.Underline("Edit flags") + ":",
 			},
+			{
+				Key:   "flag-attach",
+				Title: kingkong.Underline("Attach flags") + ":",
+			},
+			{
+				Key:   "flag-detach",
+				Title: kingkong.Underline("Detach flags") + ":",
+			},
 			globalFlagGroup,
 			{
 				Key:   "flag-local",
