@@ -1400,14 +1400,16 @@ func TestEditOutput(t *testing.T) {
 		t.Helper()
 		var out bytes.Buffer
 		cmd := &ResourceEditCmd[resourcet.TestResource]{
-			Target: "test-edit",
-			SetArgs: SetArgs{
-				Set: []map[string]string{
-					{"settings.foo": "999"},
+			ResourceSetCmd[resourcet.TestResource]{
+				Target: "test-edit",
+				SetArgs: SetArgs{
+					Set: []map[string]string{
+						{"settings.foo": "999"},
+					},
 				},
-			},
-			FormatOpts: FormatOpts{
-				Output: printer,
+				FormatOpts: FormatOpts{
+					Output: printer,
+				},
 			},
 		}
 		err := cmd.Run(ctx, testStdio(&out), sandbox)
@@ -1439,12 +1441,14 @@ func TestEditDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		Target: "test-edit",
-		DryRun: true,
-		SetArgs: SetArgs{
-			Set: []map[string]string{
-				{"settings.foo": "999"},
-				{"settings.bar": "modified"},
+		ResourceSetCmd[resourcet.TestResource]{
+			Target: "test-edit",
+			DryRun: true,
+			SetArgs: SetArgs{
+				Set: []map[string]string{
+					{"settings.foo": "999"},
+					{"settings.bar": "modified"},
+				},
 			},
 		},
 	}
@@ -1483,9 +1487,11 @@ func TestEditCmdNoChangesDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		Target: "test-edit",
-		Cmd:    "cat", // pass through unchanged
-		DryRun: true,
+		ResourceSetCmd[resourcet.TestResource]{
+			Target: "test-edit",
+			Cmd:    "cat", // pass through unchanged
+			DryRun: true,
+		},
 	}
 	err := cmd.Run(ctx, testStdio(&out), sandbox)
 	require.NoError(t, err)
@@ -1515,9 +1521,11 @@ func TestEditCmdWithChangesDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		Target: "test-edit",
-		Cmd:    `sed 's/old-value/new-value/'`, // change settings.bar
-		DryRun: true,
+		ResourceSetCmd[resourcet.TestResource]{
+			Target: "test-edit",
+			Cmd:    `sed 's/old-value/new-value/'`, // change settings.bar
+			DryRun: true,
+		},
 	}
 	err := cmd.Run(ctx, testStdio(&out), sandbox)
 	require.NoError(t, err)
@@ -1539,21 +1547,23 @@ func TestEditPatchSpecFileArgs(t *testing.T) {
 	delFile := tempFile(t, " old-entry\n")
 
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		SetArgs: SetArgs{
-			Set:     []map[string]string{{"settings.bar": "inline"}},
-			SetFile: []map[string]string{{"settings.foo": setFile}},
-		},
-		AddArgs: AddArgs{
-			Add:     []map[string]string{{"authors": "inline-entry"}},
-			AddFile: []map[string]string{{"authors": addFile}},
-		},
-		DelArgs: DelArgs{
-			Del:     []map[string]string{{"url": "inline-entry"}},
-			DelFile: []map[string]string{{"url": delFile}},
+		ResourceSetCmd[resourcet.TestResource]{
+			SetArgs: SetArgs{
+				Set:     []map[string]string{{"settings.bar": "inline"}},
+				SetFile: []map[string]string{{"settings.foo": setFile}},
+			},
+			AddArgs: AddArgs{
+				Add:     []map[string]string{{"authors": "inline-entry"}},
+				AddFile: []map[string]string{{"authors": addFile}},
+			},
+			DelArgs: DelArgs{
+				Del:     []map[string]string{{"url": "inline-entry"}},
+				DelFile: []map[string]string{{"url": delFile}},
+			},
 		},
 	}
 
-	spec, err := cmd.toPatchSpec()
+	spec, err := cmd.toPatchSpec(false)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"inline"}, spec.Set["settings.bar"])

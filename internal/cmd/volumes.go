@@ -545,9 +545,9 @@ func (Volume) Attach(ctx context.Context, key string, fields []resource.Field) e
 					switch key.String() {
 					case "attached-to":
 						if attach, ok := field.Create.Set.([]*VolumeAttachTo); ok && len(attach) > 0 {
-							if uuid := attach[0].Link.UUID; uuid != "" {
+							if uuid := attach[0].UUID; uuid != "" {
 								req.AttachTo = platform.NameOrUUID{Uuid: &uuid}
-							} else if name := attach[0].Link.Name; name != "" {
+							} else if name := attach[0].Name; name != "" {
 								req.AttachTo = platform.NameOrUUID{Name: &name}
 							}
 						}
@@ -558,7 +558,6 @@ func (Volume) Attach(ctx context.Context, key string, fields []resource.Field) e
 						req.At = field.Create.Set.(string)
 					}
 				}
-
 			}
 
 			reqs = append(reqs, req)
@@ -605,15 +604,14 @@ func (Volume) Detach(ctx context.Context, key string, fields []resource.Field) e
 					switch key.String() {
 					case "attached-to":
 						if attach, ok := field.Create.Set.([]*VolumeAttachTo); ok && len(attach) > 0 {
-							if uuid := attach[0].Link.UUID; uuid != "" {
+							if uuid := attach[0].UUID; uuid != "" {
 								req.From = &platform.NameOrUUID{Uuid: &uuid}
-							} else if name := attach[0].Link.Name; name != "" {
+							} else if name := attach[0].Name; name != "" {
 								req.From = &platform.NameOrUUID{Name: &name}
 							}
 						}
 					}
 				}
-
 			}
 
 			reqs = append(reqs, req)

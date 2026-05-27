@@ -21,7 +21,6 @@ persistent:   true
 timestamps:
   created:    never
 attached-to:
-mounted-by:
 
 ==================================== table =====================================
 METRO  NAME       STATE      SIZE   CREATED
@@ -130,35 +129,38 @@ fra    my-volume  available  50MiB  never
           "name": "uuid",
           "value": "",
           "verbosity": "long"
-        }
-      ],
-      "verbosity": "long"
-    },
-    "verbosity": "long"
-  },
-  {
-    "name": "mounted-by",
-    "elem": {
-      "name": "",
-      "subfields": [
-        {
-          "name": "name",
-          "value": "",
-          "verbosity": "long"
-        },
-        {
-          "name": "uuid",
-          "value": "",
-          "verbosity": "long"
         },
         {
           "name": "read-only",
           "value": false,
-          "verbosity": "long"
+          "verbosity": "long",
+          "create": {
+            "set": false
+          },
+          "edit": {
+            "set": false
+          }
+        },
+        {
+          "name": "mount-at",
+          "value": "",
+          "verbosity": "hidden",
+          "create": {
+            "set": ""
+          },
+          "edit": {
+            "set": ""
+          }
         }
       ],
       "verbosity": "long"
     },
-    "verbosity": "long"
+    "verbosity": "long",
+    "create": {
+      "set": null
+    },
+    "edit": {
+      "set": null
+    }
   }
 ]

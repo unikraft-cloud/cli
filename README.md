@@ -211,7 +211,7 @@ unikraft instances logs my-instance
 | `tui`          | Browse resources in a TUI                                                      |
 | `metros`       | List available metro locations                                                 |
 | `instances`    | Manage instances (list, get, create, edit, delete, logs, start, stop, restart) |
-| `volumes`      | Manage persistent volumes (list, get, create, edit, delete, clone)             |
+| `volumes`      | Manage persistent volumes (list, get, create, edit, delete, clone, attach, detach) |
 | `services`     | Manage service groups (list, get, create, edit, delete)                        |
 | `certificates` | Manage TLS certificates (list, get, create, delete)                            |
 | `images`       | Manage images (list, get, copy)                                                |
