@@ -808,7 +808,11 @@ func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r res
 			return err
 		}
 	}
-	patched = patch.FilterEditFields(patched)
+	if createField {
+		patched = patch.FilterCreateFields(patched)
+	} else {
+		patched = patch.FilterEditFields(patched)
+	}
 
 	if cmd.DryRun {
 		return PrintPatches(stdio.Stdout, patched, false)
