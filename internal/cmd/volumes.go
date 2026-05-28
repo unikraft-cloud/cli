@@ -109,7 +109,7 @@ type VolumeDetachCmd struct {
 	From string `group:"flag-detach" name:"from" shortcut:"detach-from" help:"The instance the volume should be detached from." placeholder:"instance-name"`
 }
 
-// Run applies any shortcut flags as --set arguments and then defers to the standard attach command implementation.
+// Run applies any shortcut flags as --set arguments and then defers to the standard detach command implementation.
 func (c *VolumeDetachCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
@@ -537,37 +537,43 @@ func (Volume) Attach(ctx context.Context, key string, fields []resource.Field) e
 	}
 
 	return group.DoRefs(ctx, g, parsedKeys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+		var (
+			attachTo platform.NameOrUUID
+			attachAt string
+			readOnly *bool
+		)
+		for key, field := range resource.IterFields(fields) {
+			if field.Create == nil || field.Create.Set == nil {
+				continue
+			}
+			switch key.String() {
+			case "attach-to":
+				if instance, ok := field.Create.Set.(Link[Instance]); ok {
+					attachTo = instance.Ref().NameOrUUID()
+				}
+			case "attach-read-only":
+				if ro, ok := field.Create.Set.(bool); ok {
+					readOnly = &ro
+				}
+			case "attach-at":
+				if at, ok := field.Create.Set.(string); ok {
+					attachAt = at
+				}
+			}
+		}
+
 		reqs := make([]platform.AttachVolumesRequestItem, 0, len(refs))
-
 		for _, ref := range refs {
-			var req platform.AttachVolumesRequestItem
-
+			req := platform.AttachVolumesRequestItem{
+				AttachTo: attachTo,
+				At:       attachAt,
+				Readonly: readOnly,
+			}
 			if ref.UUID != "" {
 				req.Uuid = &ref.UUID
 			} else {
 				req.Name = &ref.Name
 			}
-
-			for key, field := range resource.IterFields(fields) {
-				if field.Create != nil && field.Create.Set != nil {
-					switch key.String() {
-					case "attach-to":
-						if instance, ok := field.Create.Set.(Link[Instance]); ok {
-							if uuid := instance.UUID; uuid != "" {
-								req.AttachTo = platform.NameOrUUID{Uuid: &uuid}
-							} else if name := instance.Name; name != "" {
-								req.AttachTo = platform.NameOrUUID{Name: &name}
-							}
-						}
-					case "attach-read-only":
-						readonly := true
-						req.Readonly = &readonly
-					case "attach-at":
-						req.At = field.Create.Set.(string)
-					}
-				}
-			}
-
 			reqs = append(reqs, req)
 		}
 
@@ -596,32 +602,27 @@ func (Volume) Detach(ctx context.Context, key string, fields []resource.Field) e
 	}
 
 	return group.DoRefs(ctx, g, parsedKeys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+		var from *platform.NameOrUUID
+		for key, field := range resource.IterFields(fields) {
+			if field.Create == nil || field.Create.Set == nil {
+				continue
+			}
+			if key.String() == "detach-from" {
+				if instance, ok := field.Create.Set.(Link[Instance]); ok {
+					nou := instance.Ref().NameOrUUID()
+					from = &nou
+				}
+			}
+		}
+
 		reqs := make([]platform.DetachVolumesRequestItem, 0, len(refs))
-
 		for _, ref := range refs {
-			var req platform.DetachVolumesRequestItem
-
+			req := platform.DetachVolumesRequestItem{From: from}
 			if ref.UUID != "" {
 				req.Uuid = &ref.UUID
 			} else {
 				req.Name = &ref.Name
 			}
-
-			for key, field := range resource.IterFields(fields) {
-				if field.Create != nil && field.Create.Set != nil {
-					switch key.String() {
-					case "detach-from":
-						if instance, ok := field.Create.Set.(Link[Instance]); ok {
-							if uuid := instance.UUID; uuid != "" {
-								req.From = &platform.NameOrUUID{Uuid: &uuid}
-							} else if name := instance.Name; name != "" {
-								req.From = &platform.NameOrUUID{Name: &name}
-							}
-						}
-					}
-				}
-			}
-
 			reqs = append(reqs, req)
 		}
 

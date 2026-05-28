@@ -22,6 +22,10 @@ Resources:
           Clone a volume.
   import
           Import data into a volume.
+  attach
+          Attach a volume.
+  detach
+          Detach a volume.
 
 Templates:
   template, templates
@@ -45,7 +49,7 @@ Fields:
   attach-at
   attach-read-only
   detach-from
-        
+
 Global flags:
   -h, --help
           Show context-sensitive help.

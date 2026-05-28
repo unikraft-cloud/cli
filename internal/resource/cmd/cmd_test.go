@@ -1400,8 +1400,7 @@ func TestEditOutput(t *testing.T) {
 		t.Helper()
 		var out bytes.Buffer
 		cmd := &ResourceEditCmd[resourcet.TestResource]{
-			ResourceSetCmd[resourcet.TestResource]{
-				Target: "test-edit",
+			ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
 				SetArgs: SetArgs{
 					Set: []map[string]string{
 						{"settings.foo": "999"},
@@ -1411,6 +1410,7 @@ func TestEditOutput(t *testing.T) {
 					Output: printer,
 				},
 			},
+			Target: "test-edit",
 		}
 		err := cmd.Run(ctx, testStdio(&out), sandbox)
 		require.NoError(t, err)
@@ -1441,8 +1441,7 @@ func TestEditDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		ResourceSetCmd[resourcet.TestResource]{
-			Target: "test-edit",
+		ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
 			DryRun: true,
 			SetArgs: SetArgs{
 				Set: []map[string]string{
@@ -1451,6 +1450,7 @@ func TestEditDryRun(t *testing.T) {
 				},
 			},
 		},
+		Target: "test-edit",
 	}
 	err := cmd.Run(ctx, testStdio(&out), sandbox)
 	require.NoError(t, err)
@@ -1487,11 +1487,11 @@ func TestEditCmdNoChangesDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		ResourceSetCmd[resourcet.TestResource]{
-			Target: "test-edit",
+		ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
 			Cmd:    "cat", // pass through unchanged
 			DryRun: true,
 		},
+		Target: "test-edit",
 	}
 	err := cmd.Run(ctx, testStdio(&out), sandbox)
 	require.NoError(t, err)
@@ -1521,11 +1521,11 @@ func TestEditCmdWithChangesDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		ResourceSetCmd[resourcet.TestResource]{
-			Target: "test-edit",
+		ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
 			Cmd:    `sed 's/old-value/new-value/'`, // change settings.bar
 			DryRun: true,
 		},
+		Target: "test-edit",
 	}
 	err := cmd.Run(ctx, testStdio(&out), sandbox)
 	require.NoError(t, err)
@@ -1547,7 +1547,7 @@ func TestEditPatchSpecFileArgs(t *testing.T) {
 	delFile := tempFile(t, " old-entry\n")
 
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		ResourceSetCmd[resourcet.TestResource]{
+		ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
 			SetArgs: SetArgs{
 				Set:     []map[string]string{{"settings.bar": "inline"}},
 				SetFile: []map[string]string{{"settings.foo": setFile}},
