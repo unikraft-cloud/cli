@@ -86,9 +86,9 @@ func (c *VolumeCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 type VolumeAttachCmd struct {
 	cmd.ResourceAttachCmd[Volume]
 
-	AttachTo string `group:"flag-attach" name:"to" shortcut:"attached-to" help:"The instance the volume should be attached to." placeholder:"name"`
-	MountAt  string `group:"flag-attach" name:"at" shortcut:"attached-to.0.mount-at" help:"The path the volume should be mounted to." placeholder:"path" example:"/mnt"`
-	ReadOnly bool   `group:"flag-attach" name:"readonly" shortcut:"attached-to.0.read-only" short:"r" help:"Mount the volume read-only."`
+	AttachTo string `group:"flag-attach" name:"to" shortcut:"attach-to" help:"The instance the volume should be attached to." placeholder:"instance-name"`
+	At       string `group:"flag-attach" name:"at" shortcut:"attach-at" help:"The path the volume should be mounted to." placeholder:"path" example:"/mnt"`
+	ReadOnly bool   `group:"flag-attach" name:"readonly" shortcut:"attach-read-only" short:"r" help:"Mount the volume read-only."`
 }
 
 // Run applies any shortcut flags as --set arguments and then defers to the standard attach command implementation.
@@ -106,7 +106,7 @@ func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 type VolumeDetachCmd struct {
 	cmd.ResourceDetachCmd[Volume]
 
-	From string `group:"flag-detach" name:"from" shortcut:"attached-to" help:"The instance the volume should be detached from." placeholder:"name"`
+	From string `group:"flag-detach" name:"from" shortcut:"detach-from" help:"The instance the volume should be detached from." placeholder:"instance-name"`
 }
 
 // Run applies any shortcut flags as --set arguments and then defers to the standard attach command implementation.
@@ -276,12 +276,6 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 	return errors.Join(opErr, getErr)
 }
 
-type VolumeAttachTo struct {
-	Link[Instance]
-	ReadOnly bool   `mirror:"volume.read_only" field:",long" create:"set" edit:"set"`
-	MountAt  string `mirror:"volume.mount_at" create:"set" edit:"set"`
-}
-
 type Volume struct {
 	MetroName LinkName[Metro] `mirror:"metro.name" field:"metro,short" create:"set,required"`
 	Name      string          `mirror:"volume.name" field:",short" create:"set"`
@@ -299,7 +293,20 @@ type Volume struct {
 		Created types.RelativeTime `mirror:"volume.created_at" field:",short"`
 	}
 
-	AttachedTo []*VolumeAttachTo `mirror:"volume.attached_to" field:",embed" create:"set" edit:"set"`
+	AttachedTo []*struct {
+		Link[Instance]
+	} `mirror:"volume.attached_to"`
+
+	MountedBy []struct {
+		Link[Instance]
+		ReadOnly bool `mirror:"read_only" field:",long"`
+	} `mirror:"volume.mounted_by"`
+
+	AttachTo       Link[Instance] `mirror:"volume.attach_to" field:",invisible" create:"set"`
+	AttachAt       string         `mirror:"volume.attach_at" field:",invisible" create:"set"`
+	AttachReadOnly bool           `mirror:"volume.attach_read_only" field:",invisible" create:"set"`
+
+	DetachFrom Link[Instance] `mirror:"volume.detach_from" field:",invisible" create:"set"`
 
 	Volume platform.Volume `field:"-" json:"volume"`
 	Metro  *config.Metro   `field:"-" json:"metro"`
@@ -375,6 +382,7 @@ func (Volume) Get(ctx context.Context, keys []string) ([]resource.Resource, erro
 				errs = append(errs, err)
 				continue
 			}
+
 			found = append(found, group.Ref{
 				Metro: c.Metro.Name,
 				Name:  result.Name,
@@ -543,18 +551,18 @@ func (Volume) Attach(ctx context.Context, key string, fields []resource.Field) e
 			for key, field := range resource.IterFields(fields) {
 				if field.Create != nil && field.Create.Set != nil {
 					switch key.String() {
-					case "attached-to":
-						if attach, ok := field.Create.Set.([]*VolumeAttachTo); ok && len(attach) > 0 {
-							if uuid := attach[0].UUID; uuid != "" {
+					case "attach-to":
+						if instance, ok := field.Create.Set.(Link[Instance]); ok {
+							if uuid := instance.UUID; uuid != "" {
 								req.AttachTo = platform.NameOrUUID{Uuid: &uuid}
-							} else if name := attach[0].Name; name != "" {
+							} else if name := instance.Name; name != "" {
 								req.AttachTo = platform.NameOrUUID{Name: &name}
 							}
 						}
-					case "attached-to.0.read-only":
+					case "attach-read-only":
 						readonly := true
 						req.Readonly = &readonly
-					case "attached-to.0.mount-at":
+					case "attach-at":
 						req.At = field.Create.Set.(string)
 					}
 				}
@@ -602,11 +610,11 @@ func (Volume) Detach(ctx context.Context, key string, fields []resource.Field) e
 			for key, field := range resource.IterFields(fields) {
 				if field.Create != nil && field.Create.Set != nil {
 					switch key.String() {
-					case "attached-to":
-						if attach, ok := field.Create.Set.([]*VolumeAttachTo); ok && len(attach) > 0 {
-							if uuid := attach[0].UUID; uuid != "" {
+					case "detach-from":
+						if instance, ok := field.Create.Set.(Link[Instance]); ok {
+							if uuid := instance.UUID; uuid != "" {
 								req.From = &platform.NameOrUUID{Uuid: &uuid}
-							} else if name := attach[0].Name; name != "" {
+							} else if name := instance.Name; name != "" {
 								req.From = &platform.NameOrUUID{Name: &name}
 							}
 						}

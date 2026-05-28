@@ -105,6 +105,7 @@ func (cmd ResourceCmd[R]) HelpSections() []kingkong.HelpSection {
 				}
 				parts = append(parts, kingkong.DimmedMoreColor(part))
 			}
+
 			paths = append(paths, strings.Join(parts, kingkong.DimmedColor(".")))
 		}
 		fmt.Fprintln(buf, strings.Join(paths, kingkong.DimmedColor(", ")))
@@ -688,8 +689,6 @@ type ResourceSetCmd[R resource.GettableResource] struct {
 	AddArgs
 	DelArgs
 
-	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to edit."`
-
 	Visual bool   `xor:"edit-mode" help:"Open an editor to modify fields visually."`
 	Cmd    string `xor:"edit-mode" help:"Run a command to edit fields (receives YAML on stdin, outputs edited YAML on stdout)."`
 	Load   []byte `xor:"edit-mode" collapse:"file-mode" type:"filecontent" help:"Load fields from a YAML file."`
@@ -723,7 +722,7 @@ func (cmd ResourceSetCmd[R]) HelpSections() []kingkong.HelpSection {
 	return ResourceCmd[R]{}.HelpSections()
 }
 
-func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r resource.SettableResource, createField bool) error {
+func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r resource.SettableResource, target string, createField bool) error {
 	spec, err := cmd.toPatchSpec(createField)
 	if err != nil {
 		return err
@@ -732,7 +731,8 @@ func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r res
 	var empty R
 
 	var res resource.Resource
-	if cmd.Target == "" {
+
+	if target == "" {
 		def, ok := any(empty).(resource.DefaultResource)
 		if !ok {
 			return fmt.Errorf("parsing arguments: no %s specified", empty.Type().Names)
@@ -742,19 +742,19 @@ func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r res
 			return err
 		}
 	} else {
-		resources, err := r.Get(ctx, []string{cmd.Target})
+		resources, err := r.Get(ctx, []string{target})
 		if err != nil {
 			return err
 		}
 		if len(resources) == 0 {
-			return fmt.Errorf("resource not found: %s", cmd.Target)
+			return fmt.Errorf("resource not found: %s", target)
 		}
 		if len(resources) > 1 {
 			var keys []string
 			for _, res := range resources {
 				keys = append(keys, res.Key().String())
 			}
-			return fmt.Errorf("ambiguous resource name: %s (found %v)", cmd.Target, keys)
+			return fmt.Errorf("ambiguous resource name: %s (found %v)", target, keys)
 		}
 		res = resources[0]
 	}
@@ -779,6 +779,7 @@ func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r res
 	if err != nil {
 		return fmt.Errorf("failed to get fields: %w", err)
 	}
+
 	patched, err := patch.PatchedFields(fields, spec)
 	if err != nil {
 		return err
@@ -825,7 +826,7 @@ func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r res
 			return err
 		}
 		// Re-fetch the resource to get the updated state.
-		getKey := cmd.Target
+		getKey := target
 		if getKey == "" {
 			getKey = res.Key().String()
 		}
@@ -846,6 +847,8 @@ func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r res
 
 type ResourceEditCmd[R resource.EditableResource] struct {
 	ResourceSetCmd[R]
+
+	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to edit."`
 }
 
 func (cmd ResourceEditCmd[R]) Examples() []kingkong.Example {
@@ -860,11 +863,13 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 	var empty R
 	r := sandbox.WrapEditable(empty)
 
-	return cmd.ResourceSetCmd.Run(ctx, stdio, r, false)
+	return cmd.ResourceSetCmd.Run(ctx, stdio, r, cmd.Target, false)
 }
 
 type ResourceAttachCmd[R resource.AttachableResource] struct {
 	ResourceSetCmd[R]
+
+	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to attach."`
 }
 
 func (cmd ResourceAttachCmd[R]) Examples() []kingkong.Example {
@@ -879,11 +884,13 @@ func (cmd *ResourceAttachCmd[R]) Run(ctx context.Context, stdio config.Stdio, sa
 	var empty R
 	r := sandbox.WrapAttachable(empty)
 
-	return cmd.ResourceSetCmd.Run(ctx, stdio, r, true)
+	return cmd.ResourceSetCmd.Run(ctx, stdio, r, cmd.Target, true)
 }
 
 type ResourceDetachCmd[R resource.DetachableResource] struct {
 	ResourceSetCmd[R]
+
+	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to detach."`
 }
 
 func (cmd ResourceDetachCmd[R]) Examples() []kingkong.Example {
@@ -898,7 +905,7 @@ func (cmd *ResourceDetachCmd[R]) Run(ctx context.Context, stdio config.Stdio, sa
 	var empty R
 	r := sandbox.WrapDetachable(empty)
 
-	return cmd.ResourceSetCmd.Run(ctx, stdio, r, true)
+	return cmd.ResourceSetCmd.Run(ctx, stdio, r, cmd.Target, true)
 }
 
 type ResourceCreateCmd[R resource.CreatableResource] struct {

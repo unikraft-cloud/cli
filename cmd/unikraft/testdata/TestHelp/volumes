@@ -22,10 +22,6 @@ Resources:
           Clone a volume.
   import
           Import data into a volume.
-  attach
-          Attach a volume.
-  detach
-          Detach a volume.
 
 Templates:
   template, templates
@@ -42,9 +38,14 @@ Fields:
   quota-policy
   persistent
   timestamps, timestamps.created
-  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid, attached-
-  to.*.read-only, attached-to.*.mount-at
-
+  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid
+  mounted-by, mounted-by.*, mounted-by.*.name, mounted-by.*.uuid, mounted-
+  by.*.read-only
+  attach-to
+  attach-at
+  attach-read-only
+  detach-from
+        
 Global flags:
   -h, --help
           Show context-sensitive help.
@@ -88,8 +89,13 @@ Fields:
   quota-policy
   persistent
   timestamps, timestamps.created
-  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid, attached-
-  to.*.read-only, attached-to.*.mount-at
+  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid
+  mounted-by, mounted-by.*, mounted-by.*.name, mounted-by.*.uuid, mounted-
+  by.*.read-only
+  attach-to
+  attach-at
+  attach-read-only
+  detach-from
 
 Flags:
   -w, --watch=<duration>
@@ -142,8 +148,13 @@ Fields:
   quota-policy
   persistent
   timestamps, timestamps.created
-  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid, attached-
-  to.*.read-only, attached-to.*.mount-at
+  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid
+  mounted-by, mounted-by.*, mounted-by.*.name, mounted-by.*.uuid, mounted-
+  by.*.read-only
+  attach-to
+  attach-at
+  attach-read-only
+  detach-from
 
 Flags:
       --filter
@@ -198,8 +209,13 @@ Fields:
   quota-policy
   persistent
   timestamps, timestamps.created
-  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid, attached-
-  to.*.read-only, attached-to.*.mount-at
+  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid
+  mounted-by, mounted-by.*, mounted-by.*.name, mounted-by.*.uuid, mounted-
+  by.*.read-only
+  attach-to
+  attach-at
+  attach-read-only
+  detach-from
 
 Flags:
       --until, --filter
@@ -258,8 +274,13 @@ Fields:
   quota-policy
   persistent
   timestamps, timestamps.created
-  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid, attached-
-  to.*.read-only, attached-to.*.mount-at
+  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid
+  mounted-by, mounted-by.*, mounted-by.*.name, mounted-by.*.uuid, mounted-
+  by.*.read-only
+  attach-to
+  attach-at
+  attach-read-only
+  detach-from
 
 Flags:
       --set=<name>=<value>, --set-file=<name>=<filename>
@@ -430,8 +451,13 @@ Fields:
   quota-policy
   persistent
   timestamps, timestamps.created
-  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid, attached-
-  to.*.read-only, attached-to.*.mount-at
+  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid
+  mounted-by, mounted-by.*, mounted-by.*.name, mounted-by.*.uuid, mounted-
+  by.*.read-only
+  attach-to
+  attach-at
+  attach-read-only
+  detach-from
 
 Flags:
       --set=<name>=<value>, --set-file=<name>=<filename>
@@ -504,8 +530,13 @@ Fields:
   quota-policy
   persistent
   timestamps, timestamps.created
-  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid, attached-
-  to.*.read-only, attached-to.*.mount-at
+  attached-to, attached-to.*, attached-to.*.name, attached-to.*.uuid
+  mounted-by, mounted-by.*, mounted-by.*.name, mounted-by.*.uuid, mounted-
+  by.*.read-only
+  attach-to
+  attach-at
+  attach-read-only
+  detach-from
 
 Flags:
       --all
