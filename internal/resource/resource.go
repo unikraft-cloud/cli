@@ -52,7 +52,7 @@ type EditableResource interface {
 	Edit(ctx context.Context, key string, fields []Field) error
 }
 
-type SettableResource interface {
+type MutableResource interface {
 	GettableResource
 	Set(ctx context.Context, key string, fields []Field) error
 }

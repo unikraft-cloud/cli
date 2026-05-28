@@ -266,24 +266,24 @@ func (s *Sandbox) WrapListable(r ListableResource) ListableResource {
 	}
 }
 
-func (s *Sandbox) WrapEditable(r EditableResource) SettableResource {
-	return sandboxedSettableResource{
+func (s *Sandbox) WrapEditable(r EditableResource) MutableResource {
+	return sandboxedMutableResource{
 		GettableResource: r,
 		setFn:            r.Edit,
 		sandbox:          s,
 	}
 }
 
-func (s *Sandbox) WrapAttachable(r AttachableResource) SettableResource {
-	return sandboxedSettableResource{
+func (s *Sandbox) WrapAttachable(r AttachableResource) MutableResource {
+	return sandboxedMutableResource{
 		GettableResource: r,
 		setFn:            r.Attach,
 		sandbox:          s,
 	}
 }
 
-func (s *Sandbox) WrapDetachable(r DetachableResource) SettableResource {
-	return sandboxedSettableResource{
+func (s *Sandbox) WrapDetachable(r DetachableResource) MutableResource {
+	return sandboxedMutableResource{
 		GettableResource: r,
 		setFn:            r.Detach,
 		sandbox:          s,
@@ -349,20 +349,20 @@ func (r sanboxedListableResource) List(ctx context.Context) ([]Resource, error) 
 	return resources, opErr
 }
 
-type sandboxedSettableResource struct {
+type sandboxedMutableResource struct {
 	GettableResource
 	setFn   func(ctx context.Context, key string, fields []Field) error
 	sandbox *Sandbox
 }
 
-func (r sandboxedSettableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
+func (r sandboxedMutableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
 	return sandboxedGettableResource{
 		GettableResource: r.GettableResource,
 		sandbox:          r.sandbox,
 	}.Get(ctx, keys)
 }
 
-func (r sandboxedSettableResource) Set(ctx context.Context, key string, fields []Field) error {
+func (r sandboxedMutableResource) Set(ctx context.Context, key string, fields []Field) error {
 	if err := r.setFn(ctx, key, fields); err != nil {
 		return err
 	}

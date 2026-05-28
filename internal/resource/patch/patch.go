@@ -46,7 +46,7 @@ func (spec *PatchSpec) Keys() iter.Seq[string] {
 // PatchedFields applies the given PatchSpec to the provided fields, returning
 // only the modified fields or an error if the patching process encounters
 // issues.
-func PatchedFields(fields []resource.Field, spec PatchSpec) ([]resource.Field, error) {
+func PatchedFields(fields []resource.Field, spec *PatchSpec) ([]resource.Field, error) {
 	foundFields := make(map[string]struct{})
 	setForbiddenFields := make(map[string]struct{})
 	addForbiddenFields := make(map[string]struct{})

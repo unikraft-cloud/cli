@@ -682,13 +682,9 @@ func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio
 	}
 }
 
-// ResourceSetCmd is a shared implementation for editing fields of a resource, used by both edit and attach/detach commands.
+// ResourceMutateCmd is a shared implementation for editing fields of a resource, used by both edit and attach/detach commands.
 // The create command is similar but has enough differences that it gets its own implementation.
-type ResourceSetCmd[R resource.GettableResource] struct {
-	SetArgs
-	AddArgs
-	DelArgs
-
+type ResourceMutateCmd[R resource.GettableResource] struct {
 	Visual bool   `xor:"edit-mode" help:"Open an editor to modify fields visually."`
 	Cmd    string `xor:"edit-mode" help:"Run a command to edit fields (receives YAML on stdin, outputs edited YAML on stdout)."`
 	Load   []byte `xor:"edit-mode" collapse:"file-mode" type:"filecontent" help:"Load fields from a YAML file."`
@@ -699,64 +695,180 @@ type ResourceSetCmd[R resource.GettableResource] struct {
 	FormatOpts
 }
 
-func (cmd *ResourceSetCmd[R]) toPatchSpec(createField bool) (patch.PatchSpec, error) {
-	spec := patch.PatchSpec{
-		Create: createField,
-		Set:    make(map[string][]string),
-		Add:    make(map[string][]string),
-		Del:    make(map[string][]string),
+func (cmd ResourceMutateCmd[R]) getDefault(ctx context.Context) (resource.Resource, error) {
+	var empty R
+
+	def, ok := any(empty).(resource.DefaultResource)
+	if !ok {
+		return nil, fmt.Errorf("parsing arguments: no %s specified", empty.Type().Names)
 	}
-	if err := cmd.SetArgs.Apply(&spec); err != nil {
-		return spec, err
-	}
-	if err := cmd.AddArgs.Apply(&spec); err != nil {
-		return spec, err
-	}
-	if err := cmd.DelArgs.Apply(&spec); err != nil {
-		return spec, err
-	}
-	return spec, nil
+
+	return def.Default(ctx)
 }
 
-func (cmd ResourceSetCmd[R]) HelpSections() []kingkong.HelpSection {
+func (cmd ResourceMutateCmd[R]) getFields(ctx context.Context, stdio config.Stdio, spec *patch.PatchSpec, item resource.Resource) ([]resource.Field, error) {
+	var (
+		editor patch.EditorFunc
+		err    error
+	)
+
+	fields, err := item.Fields(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fields: %w", err)
+	}
+
+	patched, err := patch.PatchedFields(fields, spec)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle --save: write YAML to file and exit
+	if cmd.Save != "" {
+		err := saveYAML(cmd.Save, stdio, item, fields, patched, false)
+		return nil, err
+	}
+
+	// Handle different editing modes (mutually exclusive via xor:"edit-mode" tag)
+	switch {
+	case cmd.Visual:
+		editor, err = patch.VisualCommandEditorFunc()
+		if err != nil {
+			return nil, err
+		}
+	case cmd.Cmd != "":
+		editor = patch.CommandEditorFunc(cmd.Cmd)
+	case len(cmd.Load) > 0:
+		editor = patch.ContentEditorFunc(cmd.Load)
+	}
+
+	if editor != nil {
+		if spec.Create {
+			patched, err = patch.Create(ctx, item, fields, patched, editor)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			patched, err = patch.Edit(ctx, item, fields, patched, editor)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if spec.Create {
+		patched = patch.FilterCreateFields(patched)
+	} else {
+		patched = patch.FilterEditFields(patched)
+	}
+
+	if cmd.DryRun {
+		err := PrintPatches(stdio.Stdout, patched, false)
+		return nil, err
+	}
+
+	return patched, nil
+}
+
+func (cmd ResourceMutateCmd[R]) getItemByKey(ctx context.Context, key string, res resource.MutableResource) (resource.Resource, error) {
+	if key == "" {
+		return cmd.getDefault(ctx)
+	}
+
+	items, err := res.Get(ctx, []string{key})
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, fmt.Errorf("resource not found: %s", key)
+	}
+	if len(items) > 1 {
+		var keys []string
+		for _, res := range items {
+			keys = append(keys, res.Key().String())
+		}
+		return nil, fmt.Errorf("ambiguous resource name: %s (found %v)", key, keys)
+	}
+
+	return items[0], nil
+}
+
+func (cmd ResourceMutateCmd[R]) setItem(ctx context.Context, stdio config.Stdio, res resource.MutableResource, fields []resource.Field, item resource.Resource) error {
+	updated := []resource.Resource{item}
+	if len(fields) > 0 {
+		editKey := item.Key().String()
+		if err := res.Set(ctx, editKey, fields); err != nil {
+			return err
+		}
+		// Re-fetch the resource to get the updated state.
+		getKey := item.Key().String()
+
+		results, err := res.Get(ctx, []string{getKey})
+		if err != nil {
+			return err
+		}
+		if len(results) > 0 {
+			updated = results[:1]
+		}
+	} else {
+		log.G(ctx).Warn().
+			Str("resource", item.Key().String()).
+			Msg("no mutates made")
+	}
+
+	var empty R
+	return Diff(ctx, stdio.Stdout, cmd.FormatOpts, empty, []resource.Resource{item}, updated)
+}
+
+func (cmd ResourceMutateCmd[R]) HelpSections() []kingkong.HelpSection {
 	return ResourceCmd[R]{}.HelpSections()
 }
 
-func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r resource.SettableResource, target string, createField bool) error {
-	spec, err := cmd.toPatchSpec(createField)
+func (cmd *ResourceMutateCmd[R]) Run(ctx context.Context, stdio config.Stdio, res resource.MutableResource, target string, spec *patch.PatchSpec) error {
+	item, err := cmd.getItemByKey(ctx, target, res)
 	if err != nil {
 		return err
 	}
 
-	var empty R
+	fields, err := cmd.getFields(ctx, stdio, spec, item)
+	if err != nil {
+		return err
+	}
 
-	var res resource.Resource
+	return cmd.setItem(ctx, stdio, res, fields, item)
+}
 
-	if target == "" {
-		def, ok := any(empty).(resource.DefaultResource)
-		if !ok {
-			return fmt.Errorf("parsing arguments: no %s specified", empty.Type().Names)
-		}
-		res, err = def.Default(ctx)
-		if err != nil {
-			return err
-		}
-	} else {
-		resources, err := r.Get(ctx, []string{target})
-		if err != nil {
-			return err
-		}
-		if len(resources) == 0 {
-			return fmt.Errorf("resource not found: %s", target)
-		}
-		if len(resources) > 1 {
-			var keys []string
-			for _, res := range resources {
-				keys = append(keys, res.Key().String())
-			}
-			return fmt.Errorf("ambiguous resource name: %s (found %v)", target, keys)
-		}
-		res = resources[0]
+type ResourceEditCmd[R resource.EditableResource] struct {
+	ResourceMutateCmd[R]
+
+	SetArgs
+	AddArgs
+	DelArgs
+
+	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to edit."`
+}
+
+func (cmd ResourceEditCmd[R]) Examples() []kingkong.Example {
+	var r R
+	if ep, ok := any(r).(ExampledResource); ok {
+		return ep.Examples()[CmdTypeEdit]
+	}
+	return nil
+}
+
+func (cmd *ResourceEditCmd[R]) toPatchSpec() (*patch.PatchSpec, error) {
+	spec := &patch.PatchSpec{
+		Set: make(map[string][]string),
+		Add: make(map[string][]string),
+		Del: make(map[string][]string),
+	}
+	if err := cmd.SetArgs.Apply(spec); err != nil {
+		return spec, err
+	}
+	if err := cmd.AddArgs.Apply(spec); err != nil {
+		return spec, err
+	}
+	if err := cmd.DelArgs.Apply(spec); err != nil {
+		return spec, err
 	}
 
 	allFields := make(map[string]int)
@@ -771,105 +883,53 @@ func (cmd *ResourceSetCmd[R]) Run(ctx context.Context, stdio config.Stdio, r res
 	}
 	for k, count := range allFields {
 		if count > 1 {
-			return fmt.Errorf("field %s has multiple patch operations", k)
+			return nil, fmt.Errorf("field %s has multiple patch operations", k)
 		}
 	}
 
-	fields, err := res.Fields(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get fields: %w", err)
-	}
-
-	patched, err := patch.PatchedFields(fields, spec)
-	if err != nil {
-		return err
-	}
-
-	// Handle --save: write YAML to file and exit
-	if cmd.Save != "" {
-		return saveYAML(cmd.Save, stdio, res, fields, patched, false)
-	}
-
-	// Handle different editing modes (mutually exclusive via xor:"edit-mode" tag)
-	var editor patch.EditorFunc
-	switch {
-	case cmd.Visual:
-		editor, err = patch.VisualCommandEditorFunc()
-		if err != nil {
-			return err
-		}
-	case cmd.Cmd != "":
-		editor = patch.CommandEditorFunc(cmd.Cmd)
-	case len(cmd.Load) > 0:
-		editor = patch.ContentEditorFunc(cmd.Load)
-	}
-	if editor != nil {
-		patched, err = patch.Edit(ctx, res, fields, patched, editor)
-		if err != nil {
-			return err
-		}
-	}
-	if createField {
-		patched = patch.FilterCreateFields(patched)
-	} else {
-		patched = patch.FilterEditFields(patched)
-	}
-
-	if cmd.DryRun {
-		return PrintPatches(stdio.Stdout, patched, false)
-	}
-
-	updated := []resource.Resource{res}
-	if len(patched) > 0 {
-		editKey := res.Key().String()
-		if err := r.Set(ctx, editKey, patched); err != nil {
-			return err
-		}
-		// Re-fetch the resource to get the updated state.
-		getKey := target
-		if getKey == "" {
-			getKey = res.Key().String()
-		}
-		results, err := r.Get(ctx, []string{getKey})
-		if err != nil {
-			return err
-		}
-		if len(results) > 0 {
-			updated = results[:1]
-		}
-	} else {
-		log.G(ctx).Warn().
-			Str("resource", res.Key().String()).
-			Msg("no edits made")
-	}
-	return Diff(ctx, stdio.Stdout, cmd.FormatOpts, empty, []resource.Resource{res}, updated)
-}
-
-type ResourceEditCmd[R resource.EditableResource] struct {
-	ResourceSetCmd[R]
-
-	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to edit."`
-}
-
-func (cmd ResourceEditCmd[R]) Examples() []kingkong.Example {
-	var r R
-	if ep, ok := any(r).(ExampledResource); ok {
-		return ep.Examples()[CmdTypeEdit]
-	}
-	return nil
+	return spec, nil
 }
 
 func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
 	var empty R
-	r := sandbox.WrapEditable(empty)
+	res := sandbox.WrapEditable(empty)
 
-	return cmd.ResourceSetCmd.Run(ctx, stdio, r, cmd.Target, false)
+	spec, err := cmd.toPatchSpec()
+	if err != nil {
+		return err
+	}
+
+	return cmd.ResourceMutateCmd.Run(ctx, stdio, res, cmd.Target, spec)
 }
 
 type ResourceAttachCmd[R resource.AttachableResource] struct {
-	ResourceSetCmd[R]
+	ResourceMutateCmd[R]
+
+	SetArgs
 
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to attach."`
+}
+
+func (cmd *ResourceAttachCmd[R]) toPatchSpec() (*patch.PatchSpec, error) {
+	spec := &patch.PatchSpec{
+		Create: true,
+		Set:    make(map[string][]string),
+	}
+	if err := cmd.Apply(spec); err != nil {
+		return spec, err
+	}
+
+	allFields := make(map[string]int)
+	for k := range spec.Set {
+		allFields[k]++
+	}
+	for k, count := range allFields {
+		if count > 1 {
+			return nil, fmt.Errorf("field %s has multiple patch operations", k)
+		}
+	}
+
+	return spec, nil
 }
 
 func (cmd ResourceAttachCmd[R]) Examples() []kingkong.Example {
@@ -882,15 +942,44 @@ func (cmd ResourceAttachCmd[R]) Examples() []kingkong.Example {
 
 func (cmd *ResourceAttachCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
 	var empty R
-	r := sandbox.WrapAttachable(empty)
+	res := sandbox.WrapAttachable(empty)
 
-	return cmd.ResourceSetCmd.Run(ctx, stdio, r, cmd.Target, true)
+	spec, err := cmd.toPatchSpec()
+	if err != nil {
+		return err
+	}
+
+	return cmd.ResourceMutateCmd.Run(ctx, stdio, res, cmd.Target, spec)
 }
 
 type ResourceDetachCmd[R resource.DetachableResource] struct {
-	ResourceSetCmd[R]
+	ResourceMutateCmd[R]
+
+	SetArgs
 
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to detach."`
+}
+
+func (cmd *ResourceDetachCmd[R]) toPatchSpec() (*patch.PatchSpec, error) {
+	spec := &patch.PatchSpec{
+		Create: true,
+		Set:    make(map[string][]string),
+	}
+	if err := cmd.Apply(spec); err != nil {
+		return spec, err
+	}
+
+	allFields := make(map[string]int)
+	for k := range spec.Set {
+		allFields[k]++
+	}
+	for k, count := range allFields {
+		if count > 1 {
+			return nil, fmt.Errorf("field %s has multiple patch operations", k)
+		}
+	}
+
+	return spec, nil
 }
 
 func (cmd ResourceDetachCmd[R]) Examples() []kingkong.Example {
@@ -903,22 +992,42 @@ func (cmd ResourceDetachCmd[R]) Examples() []kingkong.Example {
 
 func (cmd *ResourceDetachCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
 	var empty R
-	r := sandbox.WrapDetachable(empty)
+	res := sandbox.WrapDetachable(empty)
 
-	return cmd.ResourceSetCmd.Run(ctx, stdio, r, cmd.Target, true)
+	spec, err := cmd.toPatchSpec()
+	if err != nil {
+		return err
+	}
+
+	return cmd.ResourceMutateCmd.Run(ctx, stdio, res, cmd.Target, spec)
 }
 
 type ResourceCreateCmd[R resource.CreatableResource] struct {
+	ResourceMutateCmd[R]
+
 	SetArgs
+}
 
-	Visual bool   `xor:"edit-mode" help:"Open an editor to modify fields visually."`
-	Cmd    string `xor:"edit-mode" help:"Run a command to edit fields (receives YAML on stdin, outputs edited YAML on stdout)."`
-	Load   []byte `xor:"edit-mode" collapse:"file-mode" type:"filecontent" help:"Load fields from a YAML file."`
-	Save   string `xor:"edit-mode" collapse:"file-mode" placeholder:"FILE" help:"Save creatable fields as YAML to a file (use - for stdout)."`
+func (cmd *ResourceCreateCmd[R]) toPatchSpec() (*patch.PatchSpec, error) {
+	spec := &patch.PatchSpec{
+		Create: true,
+		Set:    make(map[string][]string),
+	}
+	if err := cmd.Apply(spec); err != nil {
+		return spec, err
+	}
 
-	DryRun bool `help:"Print patches without applying them."`
+	allFields := make(map[string]int)
+	for k := range spec.Set {
+		allFields[k]++
+	}
+	for k, count := range allFields {
+		if count > 1 {
+			return nil, fmt.Errorf("field %s has multiple patch operations", k)
+		}
+	}
 
-	FormatOpts
+	return spec, nil
 }
 
 func (cmd ResourceCreateCmd[R]) HelpSections() []kingkong.HelpSection {
@@ -931,17 +1040,6 @@ func (cmd ResourceCreateCmd[R]) Examples() []kingkong.Example {
 		return ep.Examples()[CmdTypeCreate]
 	}
 	return nil
-}
-
-func (cmd *ResourceCreateCmd[R]) toPatchSpec() (patch.PatchSpec, error) {
-	spec := patch.PatchSpec{
-		Create: true,
-		Set:    make(map[string][]string),
-	}
-	if err := cmd.Apply(&spec); err != nil {
-		return spec, err
-	}
-	return spec, nil
 }
 
 func (cmd *ResourceCreateCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {

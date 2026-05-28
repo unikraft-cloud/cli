@@ -650,8 +650,10 @@ func TestPartialResultsPrintedBeforeError(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			SetArgs:    SetArgs{Set: []map[string]string{{"name": "created"}}},
-			FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeQuiet}},
+			ResourceMutateCmd[resourcet.TestResource]{
+				FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeQuiet}},
+			},
+			SetArgs{Set: []map[string]string{{"name": "created"}}},
 		}
 		err := cmd.Run(ctx, testStdio(&out), nil)
 		require.Error(t, err)
@@ -769,8 +771,10 @@ func TestPartialResultsOrderWhenCallerPrintsError(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			SetArgs:    SetArgs{Set: []map[string]string{{"name": "created"}}},
-			FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeKeyValue}},
+			ResourceMutateCmd[resourcet.TestResource]{
+				FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeKeyValue}},
+			},
+			SetArgs{Set: []map[string]string{{"name": "created"}}},
 		}
 		err := cmd.Run(ctx, testStdio(&out), nil)
 		require.Error(t, err)
@@ -1113,15 +1117,17 @@ func TestCreateOutput(t *testing.T) {
 		t.Helper()
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			SetArgs: SetArgs{
+			ResourceMutateCmd[resourcet.TestResource]{
+				FormatOpts: FormatOpts{
+					Output: printer,
+				},
+			},
+			SetArgs{
 				Set: []map[string]string{
 					{"name": "test-output"},
 					{"settings.foo": "100"},
 					{"settings.bar": "created"},
 				},
-			},
-			FormatOpts: FormatOpts{
-				Output: printer,
 			},
 		}
 		err := cmd.Run(ctx, testStdio(&out), sandbox)
@@ -1144,8 +1150,10 @@ func TestCreateDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceCreateCmd[resourcet.TestResource]{
-		DryRun: true,
-		SetArgs: SetArgs{
+		ResourceMutateCmd[resourcet.TestResource]{
+			DryRun: true,
+		},
+		SetArgs{
 			Set: []map[string]string{
 				{"name": "test-dry"},
 				{"settings.foo": "100"},
@@ -1208,8 +1216,10 @@ func TestCreateDryRunWithShortcutZeroValues(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			DryRun:  true,
-			SetArgs: setArgs,
+			ResourceMutateCmd[resourcet.TestResource]{
+				DryRun: true,
+			},
+			setArgs,
 		}
 		err := cmd.Run(ctx, testStdio(&out), sandbox)
 		require.NoError(t, err)
@@ -1235,8 +1245,10 @@ func TestCreateDryRunWithShortcutZeroValues(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			DryRun:  true,
-			SetArgs: setArgs,
+			ResourceMutateCmd[resourcet.TestResource]{
+				DryRun: true,
+			},
+			setArgs,
 		}
 		err := cmd.Run(ctx, testStdio(&out), sandbox)
 		require.NoError(t, err)
@@ -1261,8 +1273,10 @@ func TestCreateDryRunWithShortcutZeroValues(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			DryRun:  true,
-			SetArgs: setArgs,
+			ResourceMutateCmd[resourcet.TestResource]{
+				DryRun: true,
+			},
+			setArgs,
 		}
 		err := cmd.Run(ctx, testStdio(&out), sandbox)
 		require.NoError(t, err)
@@ -1283,7 +1297,8 @@ func TestCreatePatchSpecFileArgs(t *testing.T) {
 	setTextFile := tempFile(t, " created\n")
 
 	cmd := &ResourceCreateCmd[resourcet.TestResource]{
-		SetArgs: SetArgs{
+		ResourceMutateCmd[resourcet.TestResource]{},
+		SetArgs{
 			Set: []map[string]string{{"name": "test-inline"}},
 			SetFile: []map[string]string{
 				{"name": nameFile},
@@ -1312,7 +1327,8 @@ func TestCreateSetFile(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceCreateCmd[resourcet.TestResource]{
-		SetArgs: SetArgs{
+		ResourceMutateCmd[resourcet.TestResource]{},
+		SetArgs{
 			SetFile: []map[string]string{
 				{"name": nameFile},
 				{"settings.foo": setFile},
@@ -1400,14 +1416,14 @@ func TestEditOutput(t *testing.T) {
 		t.Helper()
 		var out bytes.Buffer
 		cmd := &ResourceEditCmd[resourcet.TestResource]{
-			ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
-				SetArgs: SetArgs{
-					Set: []map[string]string{
-						{"settings.foo": "999"},
-					},
-				},
+			ResourceMutateCmd: ResourceMutateCmd[resourcet.TestResource]{
 				FormatOpts: FormatOpts{
 					Output: printer,
+				},
+			},
+			SetArgs: SetArgs{
+				Set: []map[string]string{
+					{"settings.foo": "999"},
 				},
 			},
 			Target: "test-edit",
@@ -1441,13 +1457,13 @@ func TestEditDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
+		ResourceMutateCmd: ResourceMutateCmd[resourcet.TestResource]{
 			DryRun: true,
-			SetArgs: SetArgs{
-				Set: []map[string]string{
-					{"settings.foo": "999"},
-					{"settings.bar": "modified"},
-				},
+		},
+		SetArgs: SetArgs{
+			Set: []map[string]string{
+				{"settings.foo": "999"},
+				{"settings.bar": "modified"},
 			},
 		},
 		Target: "test-edit",
@@ -1487,7 +1503,7 @@ func TestEditCmdNoChangesDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
+		ResourceMutateCmd: ResourceMutateCmd[resourcet.TestResource]{
 			Cmd:    "cat", // pass through unchanged
 			DryRun: true,
 		},
@@ -1521,7 +1537,7 @@ func TestEditCmdWithChangesDryRun(t *testing.T) {
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
+		ResourceMutateCmd: ResourceMutateCmd[resourcet.TestResource]{
 			Cmd:    `sed 's/old-value/new-value/'`, // change settings.bar
 			DryRun: true,
 		},
@@ -1547,23 +1563,22 @@ func TestEditPatchSpecFileArgs(t *testing.T) {
 	delFile := tempFile(t, " old-entry\n")
 
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		ResourceSetCmd: ResourceSetCmd[resourcet.TestResource]{
-			SetArgs: SetArgs{
-				Set:     []map[string]string{{"settings.bar": "inline"}},
-				SetFile: []map[string]string{{"settings.foo": setFile}},
-			},
-			AddArgs: AddArgs{
-				Add:     []map[string]string{{"authors": "inline-entry"}},
-				AddFile: []map[string]string{{"authors": addFile}},
-			},
-			DelArgs: DelArgs{
-				Del:     []map[string]string{{"url": "inline-entry"}},
-				DelFile: []map[string]string{{"url": delFile}},
-			},
+		ResourceMutateCmd: ResourceMutateCmd[resourcet.TestResource]{},
+		SetArgs: SetArgs{
+			Set:     []map[string]string{{"settings.bar": "inline"}},
+			SetFile: []map[string]string{{"settings.foo": setFile}},
+		},
+		AddArgs: AddArgs{
+			Add:     []map[string]string{{"authors": "inline-entry"}},
+			AddFile: []map[string]string{{"authors": addFile}},
+		},
+		DelArgs: DelArgs{
+			Del:     []map[string]string{{"url": "inline-entry"}},
+			DelFile: []map[string]string{{"url": delFile}},
 		},
 	}
 
-	spec, err := cmd.toPatchSpec(false)
+	spec, err := cmd.toPatchSpec()
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"inline"}, spec.Set["settings.bar"])
