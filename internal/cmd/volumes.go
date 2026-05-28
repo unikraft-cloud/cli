@@ -293,7 +293,7 @@ type Volume struct {
 		Created types.RelativeTime `mirror:"volume.created_at" field:",short"`
 	}
 
-	AttachedTo []*struct {
+	AttachedTo []struct {
 		Link[Instance]
 	} `mirror:"volume.attached_to"`
 
