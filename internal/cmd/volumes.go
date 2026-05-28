@@ -302,8 +302,8 @@ type Volume struct {
 		ReadOnly bool `mirror:"read_only" field:",long"`
 	} `mirror:"volume.mounted_by"`
 
-	AttachTo       Link[Instance] `mirror:"volume.attach_to" field:",invisible" create:"set"`
-	AttachAt       string         `mirror:"volume.attach_at" field:",invisible" create:"set"`
+	AttachTo       Link[Instance] `mirror:"volume.attach_to" field:",invisible" create:"set,required"`
+	AttachAt       string         `mirror:"volume.attach_at" field:",invisible" create:"set,required"`
 	AttachReadOnly bool           `mirror:"volume.attach_read_only" field:",invisible" create:"set"`
 
 	DetachFrom Link[Instance] `mirror:"volume.detach_from" field:",invisible" create:"set"`
