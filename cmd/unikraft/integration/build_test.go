@@ -7,7 +7,6 @@ package integration
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/containerd/continuity/fs/fstest"
@@ -25,39 +24,27 @@ func TestBuild(t *testing.T) {
 	for _, romFormat := range []string{"erofs", "cpio"} {
 		t.Run("rom-"+romFormat, func(t *testing.T) {
 			r := runner(t, true, []string{staging, stable})
+			image := integ.Busybox.Build(t, r)
 			romImagePrefix := r.Config.Profile.Organization + "/rom-" + romFormat + "-e2e"
-			baseImagePrefix := r.Config.Profile.Organization + "/busybox-rom-" + romFormat + "-e2e"
-
-			// Only erofs ROMs support kernel automounting via at=.
-			// For CPIO, we extract manually from the block device.
-			entryCmd := []string{"sh", "-c", "cd /tmp && cpio -id < /dev/ukp_rom_myrom && cat hello.txt"}
-			if romFormat == "erofs" {
-				entryCmd = []string{"cat", "/rom/hello.txt"}
-			}
 
 			imageTag := uniq()
 			instName := uniq()
 			romImage := romImagePrefix + ":" + imageTag
-			baseImage := baseImagePrefix + ":" + imageTag
+
+			// Only erofs ROMs support kernel automounting via at=.
+			// For CPIO, we extract manually from the block device.
 			romFlag := "image=" + romImage + ",name=myrom"
+			var args string
 			if romFormat == "erofs" {
 				romFlag += ",at=/rom"
+				args = "cat /rom/hello.txt"
+			} else {
+				args = "sh -c 'cd /tmp && cpio -id < /dev/ukp_rom_myrom && cat hello.txt'"
 			}
 
+			// ROM-only image context: just a directory with a text file.
 			dir := t.TempDir()
 			require.NoError(t, fstest.Apply(
-				fstest.CreateDir("base", 0o755),
-				fstest.CreateFile("base/Dockerfile", []byte(`FROM busybox:latest`), 0o644),
-				fstest.CreateFile("base/Kraftfile", fmt.Appendf(nil, `
-spec: v0.7
-name: busybox-rom-%s-e2e
-runtime: base-compat:latest
-rootfs:
-  format: erofs
-  source: ./Dockerfile
-cmd: ["%s"]
-`, romFormat, strings.Join(entryCmd, `", "`)), 0o644),
-				// ROM-only image context: just a directory with a text file.
 				fstest.CreateDir("rom", 0o755),
 				fstest.CreateDir("rom/myrom", 0o755),
 				fstest.CreateFile("rom/myrom/hello.txt", []byte("Hello from ROM!\n"), 0o644),
@@ -70,9 +57,8 @@ roms:
 `, romFormat, romFormat), 0o644),
 			).Apply(dir))
 
-			r.Run(t, []string{"unikraft", "build", "base", "--output", baseImage}, integ.WithWorkDir(dir))
 			r.Run(t, []string{"unikraft", "build", "rom", "--arch", "x86_64", "--output", romImage}, integ.WithWorkDir(dir))
-			r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", baseImage, "--rom", romFlag})
+			r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image, "--rom", romFlag, "--args", args})
 			r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 			out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
@@ -84,31 +70,17 @@ roms:
 
 	t.Run("rom-dir", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
-		baseImagePrefix := r.Config.Profile.Organization + "/busybox-romdir-e2e"
+		image := integ.Busybox.Build(t, r)
 
-		imageTag := uniq()
 		instName := uniq()
-		baseImage := baseImagePrefix + ":" + imageTag
 
 		dir := t.TempDir()
 		require.NoError(t, fstest.Apply(
-			fstest.CreateDir("base", 0o755),
-			fstest.CreateFile("base/Dockerfile", []byte(`FROM busybox:latest`), 0o644),
-			fstest.CreateFile("base/Kraftfile", []byte(`
-spec: v0.7
-name: busybox-romdir-e2e
-runtime: base-compat:latest
-rootfs:
-  format: erofs
-  source: ./Dockerfile
-cmd: ["cat", "/rom/hello.txt"]
-`), 0o644),
 			fstest.CreateDir("romdata", 0o755),
 			fstest.CreateFile("romdata/hello.txt", []byte("Hello from ROM!\n"), 0o644),
 		).Apply(dir))
 
-		r.Run(t, []string{"unikraft", "build", "base", "--output", baseImage}, integ.WithWorkDir(dir))
-		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", baseImage, "--rom", "dir=romdata,at=/rom"}, integ.WithWorkDir(dir))
+		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image, "--rom", "dir=romdata,at=/rom", "--args", "cat /rom/hello.txt"}, integ.WithWorkDir(dir))
 		r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 		out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
@@ -194,44 +166,18 @@ cmd: ["sh", "/entrypoint.sh"]
 		}
 	})
 
-	t.Run("busybox-custom-dockerfile", func(t *testing.T) {
+	t.Run("shared-run", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
-		imagePrefix := r.Config.Profile.Organization + "/busybox-custom-df-e2e"
-		imageTag := uniq()
+		image := integ.Busybox.Build(t, r)
+
 		instName := uniq()
-		image := imagePrefix + ":" + imageTag
 
-		dir := t.TempDir()
-		require.NoError(t, fstest.Apply(
-			fstest.CreateFile("App.dockerfile", []byte(`
-FROM busybox:latest
-COPY <<EOF /entrypoint.sh
-#!/bin/sh
-echo UNIKRAFT_E2E_OK
-EOF
-RUN chmod +x /entrypoint.sh
-`), 0o644),
-			fstest.CreateFile("Kraftfile", []byte(`
-spec: v0.7
-name: busybox-custom-df-e2e
-runtime: base-compat:latest
-rootfs:
-  format: erofs
-  source:
-    path: .
-    dockerfile: App.dockerfile
-cmd: ["sh", "/entrypoint.sh"]
-`), 0o644),
-		).Apply(dir))
-
-		r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
-		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image})
-		r.Run(t, []string{"unikraft", "instance", "wait", "--until", "state==stopped", "--timeout", "10s", "test-" + instName})
+		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image, "--args", "echo UNIKRAFT_E2E_OK"})
+		r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 		out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
 		assert.Regexp(t, `UNIKRAFT_E2E_OK`, out)
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
-		r.Run(t, []string{"unikraft", "image", "delete", image})
 	})
 }

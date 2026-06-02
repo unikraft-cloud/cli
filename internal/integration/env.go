@@ -61,6 +61,7 @@ type cmdConfig struct {
 	workDir       string
 	expectFail    bool
 	allowFail     bool
+	noSandbox     bool
 	timeout       time.Duration
 	withoutCancel bool
 }
@@ -86,6 +87,12 @@ func WithoutCancel() CmdOption {
 // Use for commands that run indefinitely (e.g. --follow).
 func WithTimeout(d time.Duration) CmdOption {
 	return func(c *cmdConfig) { c.timeout = d }
+}
+
+// WithNoSandbox disables sandbox tracking for the command. The resource is not
+// registered in a test sandbox and stays after individual test cleanup.
+func WithNoSandbox() CmdOption {
+	return func(c *cmdConfig) { c.noSandbox = true }
 }
 
 func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (string, error) {
@@ -125,7 +132,9 @@ func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (stri
 	c.Env = append(c.Env, "NO_COLOR=1")
 	c.Env = append(c.Env, "UNIKRAFT_CONFIG="+env.configPath)
 	c.Env = append(c.Env, "BUILDKIT_PROGRESS=quiet")
-	c.Env = append(c.Env, resource.UnikraftSandboxEnv+"="+env.sandboxPath)
+	if !cfg.noSandbox {
+		c.Env = append(c.Env, resource.UnikraftSandboxEnv+"="+env.sandboxPath)
+	}
 
 	err := c.Run()
 	return ansi.Strip(output.String()), err
