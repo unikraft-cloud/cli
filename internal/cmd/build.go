@@ -16,6 +16,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/images"
 	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/tui/progdl"
 	imagespec "unikraft.com/x/image-spec"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/kraftfile"
@@ -70,7 +71,7 @@ func (ImageBuildCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, sandbox *resource.Sandbox) error {
+func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, stdio config.Stdio, sandbox *resource.Sandbox) error {
 	kf, err := kraftfile.ParseDirectory(c.Input, kraftfile.WithSkippedVersionCheck())
 	if err != nil {
 		return err
@@ -142,7 +143,9 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, sandbox *re
 	if err != nil {
 		return err
 	}
-	err = access.Save(ctx, output, imgs...)
+	err = progdl.TrackImageProgress(ctx, stdio.Stderr, func(ctx context.Context) error {
+		return access.Save(ctx, output, imgs...)
+	})
 	if err != nil {
 		return err
 	}
@@ -176,6 +179,6 @@ func (BuildCmd) Examples() []kingkong.Example {
 	return imageExamples
 }
 
-func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, sandbox *resource.Sandbox) error {
-	return c.ImageBuildCmd.Run(ctx, cfg, sandbox)
+func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, stdio config.Stdio, sandbox *resource.Sandbox) error {
+	return c.ImageBuildCmd.Run(ctx, cfg, stdio, sandbox)
 }
