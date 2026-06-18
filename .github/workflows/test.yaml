@@ -110,6 +110,10 @@ jobs:
         run: |
           mkdir -p ~/.config/unikraft
           echo "${UNIKRAFT_CONFIG_CONTENT}" > ~/.config/unikraft/config.yaml
+          echo "${UNIKRAFT_CONFIG_CONTENT_STABLE}" > ~/.config/unikraft/config-stable.yaml
+          echo "${UNIKRAFT_CONFIG_CONTENT_PROD}" > ~/.config/unikraft/config-prod.yaml
           task --yes integration
         env:
           UNIKRAFT_CONFIG_CONTENT: ${{ secrets.UNIKRAFT_CONFIG_STAGING }}
+          UNIKRAFT_CONFIG_CONTENT_STABLE: ${{ secrets.UNIKRAFT_CONFIG_STABLE }}
+          UNIKRAFT_CONFIG_CONTENT_PROD: ${{ secrets.UNIKRAFT_CONFIG_PROD }}

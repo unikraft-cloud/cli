@@ -44,21 +44,28 @@ func uniq() string {
 	return fmt.Sprintf("%s%06x", uniqSeed, n)
 }
 
-func runner(t *testing.T, online bool) *integ.TestEnv {
+func runner(t *testing.T, online bool, configNames ...string) *integ.TestEnv {
 	t.Helper()
 	integ.SkipUnlessIntegration(t)
 	t.Parallel()
 
 	unikraftPath := integ.BuildUnikraft(t)
 
-	baseCfg, err := integ.LoadConfig(t)
+	baseCfg, err := integ.LoadConfig(t, configNames...)
 	require.NoError(t, err)
 
 	if online && baseCfg == nil {
-		t.Skip("online test requires config, but no config found")
+		if len(configNames) == 0 {
+			t.Skip("online test requires config, but no config found")
+		}
+		t.Skipf("online test requires %q, but no config found", configNames[0])
 	}
 
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configName := "config.yaml"
+	if len(configNames) > 0 {
+		configName = configNames[0]
+	}
+	configPath := filepath.Join(t.TempDir(), configName)
 	var testCfg *integ.Config
 	if baseCfg != nil {
 		cloned, err := copystructure.Copy(baseCfg)
