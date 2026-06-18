@@ -7,6 +7,7 @@ package integration
 
 import (
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -15,7 +16,15 @@ import (
 	"unikraft.com/x/ptr"
 )
 
-func LoadConfig(t *testing.T) (*Config, error) {
+func LoadConfig(t *testing.T, names ...string) (*Config, error) {
+	if len(names) > 0 {
+		configPath, err := config.ConfigFilePath()
+		if err != nil {
+			return nil, err
+		}
+		return loadConfig(filepath.Join(filepath.Dir(configPath), names[0]))
+	}
+
 	return populate()
 }
 
@@ -40,42 +49,7 @@ func populate() (*Config, error) {
 			onceErr = err
 			return
 		}
-		baseCfg, err := config.Load(path)
-		if err != nil || baseCfg == nil {
-			onceErr = err
-			return
-		}
-		if profileName := os.Getenv("UNIKRAFT_PROFILE"); profileName != "" {
-			baseCfg.OverrideCurrentProfile(profileName)
-		}
-
-		profile, err := baseCfg.CurrentProfile()
-		if err != nil {
-			onceErr = err
-			return
-		}
-
-		profile.Name = "default"
-		if len(profile.Metros) == 0 {
-			return
-		}
-		profile.ControlPlane = ""
-		profile.Metros = profile.Metros[:1]
-		profile.Metros[0].Name = "test"
-		profile.Metros[0].Country = "xx"
-		profile.Metros[0].Insecure = new(ptr.ZeroIfNil(profile.Metros[0].Insecure))
-
-		config := &config.Config{
-			DefaultProfile: profile.Name,
-			Profiles:       map[string]config.Profile{profile.Name: *profile},
-		}
-
-		cfg = &Config{
-			Config:    config,
-			Profile:   profile,
-			Metro:     &profile.Metros[0],
-			MetroName: profile.Metros[0].Name,
-		}
+		cfg, onceErr = loadConfig(path)
 	})
 	if onceErr != nil {
 		return nil, onceErr
@@ -86,4 +60,41 @@ func populate() (*Config, error) {
 		return nil, err
 	}
 	return cloned.(*Config), nil
+}
+
+func loadConfig(path string) (*Config, error) {
+	baseCfg, err := config.Load(path)
+	if err != nil || baseCfg == nil {
+		return nil, err
+	}
+	if profileName := os.Getenv("UNIKRAFT_PROFILE"); profileName != "" {
+		baseCfg.OverrideCurrentProfile(profileName)
+	}
+
+	profile, err := baseCfg.CurrentProfile()
+	if err != nil {
+		return nil, err
+	}
+
+	profile.Name = "default"
+	if len(profile.Metros) == 0 {
+		return nil, nil
+	}
+	profile.ControlPlane = ""
+	profile.Metros = profile.Metros[:1]
+	profile.Metros[0].Name = "test"
+	profile.Metros[0].Country = "xx"
+	profile.Metros[0].Insecure = new(ptr.ZeroIfNil(profile.Metros[0].Insecure))
+
+	config := &config.Config{
+		DefaultProfile: profile.Name,
+		Profiles:       map[string]config.Profile{profile.Name: *profile},
+	}
+
+	return &Config{
+		Config:    config,
+		Profile:   profile,
+		Metro:     &profile.Metros[0],
+		MetroName: profile.Metros[0].Name,
+	}, nil
 }
