@@ -560,6 +560,20 @@ func (i Instance) Fields(ctx context.Context) ([]resource.Field, error) {
 		}
 	}
 
+	metrics := &instanceMetrics{
+		metro: string(i.Metro),
+		ref:   group.Ref{Name: i.Name, UUID: i.UUID},
+	}
+	metricsFields, err := resource.FieldsFromStruct(metrics)
+	if err != nil {
+		return nil, err
+	}
+	result = append(result, resource.Field{
+		Name:      "metrics",
+		Verbosity: resource.FieldVerbosityHidden,
+		Subfields: metricsFields,
+	})
+
 	return result, nil
 }
 
@@ -576,6 +590,74 @@ func (i Instance) hyperlink() string {
 		i.Metro,
 		i.Name,
 	)
+}
+
+// instanceMetrics is a LazyLoader that fetches live metrics for a single
+// instance on demand. It is wired into Instance.Fields() as a "metrics"
+// field group so that fields like metrics.rss and metrics.cpu-time are only
+// resolved when explicitly requested (e.g. -f +metrics or -f metrics.cpu-time).
+//
+// TODO: batch GetInstanceMetrics per metro instead of one call per instance
+// (N+1 optimization for `instance list -f +metrics`).
+type instanceMetrics struct {
+	RSS     types.SizeBytes  `field:"rss,long"`
+	CPUTime types.DurationMS `field:"cpu-time,long"`
+	Boot    types.DurationUS `field:"boot-time,long"`
+	Net     types.DurationUS `field:"net-time,long"`
+
+	Network struct {
+		RxBytes   types.SizeBytes `field:"rx,long"`
+		TxBytes   types.SizeBytes `field:"tx,long"`
+		RxPackets uint64          `field:"rx-packets,long"`
+		TxPackets uint64          `field:"tx-packets,long"`
+	} `field:",long"`
+
+	Connections struct {
+		Current uint64 `field:"conns,long"`
+		Reqs    uint64 `field:"reqs,long"`
+		Queued  uint64 `field:"queued,long"`
+		Total   uint64 `field:"total,long"`
+	} `field:",long"`
+
+	metro string
+	ref   group.Ref
+}
+
+func (m *instanceMetrics) Lazy(ctx context.Context) (any, error) {
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		if errors.Is(err, config.ErrNotSetup) {
+			return new(instanceMetrics), nil
+		}
+		return nil, err
+	}
+
+	resp, err := group.CollectMetro(ctx, g, m.metro, func(ctx context.Context, c multimetro.MetroClient) (*platform.Response[platform.GetInstancesMetricsResponseData], error) {
+		log.G(ctx).Trace().Str("instance", m.ref.Name).Msg("fetching instance metrics")
+		return c.GetInstanceMetrics(ctx, []platform.NameOrUUID{m.ref.NameOrUUID()})
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp.Data == nil || len(resp.Data.Instances) == 0 {
+		return new(instanceMetrics), nil
+	}
+
+	metrics := resp.Data.Instances[0]
+	result := new(instanceMetrics)
+	result.RSS = types.SizeBytes(metrics.RssBytes)
+	result.CPUTime = types.DurationMS(metrics.CpuTimeMs)
+	result.Boot = types.DurationUS(metrics.BootTimeUs)
+	result.Net = types.DurationUS(metrics.NetTimeUs)
+	result.Network.RxBytes = types.SizeBytes(metrics.RxBytes)
+	result.Network.TxBytes = types.SizeBytes(metrics.TxBytes)
+	result.Network.RxPackets = metrics.RxPackets
+	result.Network.TxPackets = metrics.TxPackets
+	result.Connections.Current = metrics.Nconns
+	result.Connections.Reqs = metrics.Nreqs
+	result.Connections.Queued = metrics.Nqueued
+	result.Connections.Total = metrics.Ntotal
+	return result, nil
 }
 
 func (Instance) List(ctx context.Context) ([]resource.Resource, error) {

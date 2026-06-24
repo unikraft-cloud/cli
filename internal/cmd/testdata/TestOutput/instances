@@ -102,6 +102,21 @@ stop:
   origin:        kernel
   errno:
   exit-code:     1
+metrics:
+  rss:           0B
+  cpu-time:      0s
+  boot-time:     0s
+  net-time:      0s
+  network:
+    rx:          0B
+    tx:          0B
+    rx-packets:  0
+    tx-packets:  0
+  connections:
+    conns:       0
+    reqs:        0
+    queued:      0
+    total:       0
 
 ==================================== table =====================================
 METRO  NAME         STATE    IMAGE  ARGS              MEMORY  VCPUS  FQDN                  CREATED
@@ -789,5 +804,83 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
       }
     ],
     "verbosity": "long"
+  },
+  {
+    "name": "metrics",
+    "subfields": [
+      {
+        "name": "rss",
+        "value": "0B",
+        "verbosity": "long"
+      },
+      {
+        "name": "cpu-time",
+        "value": "0s",
+        "verbosity": "long"
+      },
+      {
+        "name": "boot-time",
+        "value": "0s",
+        "verbosity": "long"
+      },
+      {
+        "name": "net-time",
+        "value": "0s",
+        "verbosity": "long"
+      },
+      {
+        "name": "network",
+        "subfields": [
+          {
+            "name": "rx",
+            "value": "0B",
+            "verbosity": "long"
+          },
+          {
+            "name": "tx",
+            "value": "0B",
+            "verbosity": "long"
+          },
+          {
+            "name": "rx-packets",
+            "value": 0,
+            "verbosity": "long"
+          },
+          {
+            "name": "tx-packets",
+            "value": 0,
+            "verbosity": "long"
+          }
+        ],
+        "verbosity": "long"
+      },
+      {
+        "name": "connections",
+        "subfields": [
+          {
+            "name": "conns",
+            "value": 0,
+            "verbosity": "long"
+          },
+          {
+            "name": "reqs",
+            "value": 0,
+            "verbosity": "long"
+          },
+          {
+            "name": "queued",
+            "value": 0,
+            "verbosity": "long"
+          },
+          {
+            "name": "total",
+            "value": 0,
+            "verbosity": "long"
+          }
+        ],
+        "verbosity": "long"
+      }
+    ],
+    "verbosity": "hidden"
   }
 ]
