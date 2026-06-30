@@ -63,6 +63,11 @@ Fields:
   vsock
   template
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
+  metrics, metrics.rss, metrics.cpu-time, metrics.boot-time, metrics.net-time,
+  metrics.network, metrics.network.rx, metrics.network.tx, metrics.network.rx-
+  packets, metrics.network.tx-packets, metrics.connections,
+  metrics.connections.conns, metrics.connections.reqs,
+  metrics.connections.queued, metrics.connections.total
 
 Global flags:
   -h, --help
@@ -128,6 +133,11 @@ Fields:
   vsock
   template
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
+  metrics, metrics.rss, metrics.cpu-time, metrics.boot-time, metrics.net-time,
+  metrics.network, metrics.network.rx, metrics.network.tx, metrics.network.rx-
+  packets, metrics.network.tx-packets, metrics.connections,
+  metrics.connections.conns, metrics.connections.reqs,
+  metrics.connections.queued, metrics.connections.total
 
 Flags:
   -w, --watch=<duration>
@@ -201,6 +211,11 @@ Fields:
   vsock
   template
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
+  metrics, metrics.rss, metrics.cpu-time, metrics.boot-time, metrics.net-time,
+  metrics.network, metrics.network.rx, metrics.network.tx, metrics.network.rx-
+  packets, metrics.network.tx-packets, metrics.connections,
+  metrics.connections.conns, metrics.connections.reqs,
+  metrics.connections.queued, metrics.connections.total
 
 Flags:
       --filter
@@ -276,6 +291,11 @@ Fields:
   vsock
   template
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
+  metrics, metrics.rss, metrics.cpu-time, metrics.boot-time, metrics.net-time,
+  metrics.network, metrics.network.rx, metrics.network.tx, metrics.network.rx-
+  packets, metrics.network.tx-packets, metrics.connections,
+  metrics.connections.conns, metrics.connections.reqs,
+  metrics.connections.queued, metrics.connections.total
 
 Flags:
       --until, --filter
@@ -361,6 +381,11 @@ Fields:
   vsock
   template
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
+  metrics, metrics.rss, metrics.cpu-time, metrics.boot-time, metrics.net-time,
+  metrics.network, metrics.network.rx, metrics.network.tx, metrics.network.rx-
+  packets, metrics.network.tx-packets, metrics.connections,
+  metrics.connections.conns, metrics.connections.reqs,
+  metrics.connections.queued, metrics.connections.total
 
 Flags:
       --set=<name>=<value>, --set-file=<name>=<filename>
@@ -512,6 +537,11 @@ Fields:
   vsock
   template
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
+  metrics, metrics.rss, metrics.cpu-time, metrics.boot-time, metrics.net-time,
+  metrics.network, metrics.network.rx, metrics.network.tx, metrics.network.rx-
+  packets, metrics.network.tx-packets, metrics.connections,
+  metrics.connections.conns, metrics.connections.reqs,
+  metrics.connections.queued, metrics.connections.total
 
 Flags:
       --set=<name>=<value>, --set-file=<name>=<filename>
@@ -672,6 +702,11 @@ Fields:
   vsock
   template
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
+  metrics, metrics.rss, metrics.cpu-time, metrics.boot-time, metrics.net-time,
+  metrics.network, metrics.network.rx, metrics.network.tx, metrics.network.rx-
+  packets, metrics.network.tx-packets, metrics.connections,
+  metrics.connections.conns, metrics.connections.reqs,
+  metrics.connections.queued, metrics.connections.total
 
 Flags:
       --set=<name>=<value>, --set-file=<name>=<filename>
@@ -789,6 +824,11 @@ Fields:
   vsock
   template
   stop, stop.reason, stop.origin, stop.errno, stop.exit-code
+  metrics, metrics.rss, metrics.cpu-time, metrics.boot-time, metrics.net-time,
+  metrics.network, metrics.network.rx, metrics.network.tx, metrics.network.rx-
+  packets, metrics.network.tx-packets, metrics.connections,
+  metrics.connections.conns, metrics.connections.reqs,
+  metrics.connections.queued, metrics.connections.total
 
 Flags:
       --all
