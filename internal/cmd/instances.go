@@ -19,15 +19,22 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
+	"charm.land/lipgloss/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/linechart"
+	"github.com/NimbleMarkets/ntcharts/v2/linechart/timeserieslinechart"
 	"github.com/alecthomas/kong"
 	"github.com/distribution/reference"
+	"github.com/docker/go-units"
 	"github.com/go-json-experiment/json/jsontext"
 	"mvdan.cc/sh/v3/shell"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/cloud/sdk/platform/logs"
 	"unikraft.com/cloud/sdk/platform/stop"
+
+	"unikraft.com/x/colors"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
@@ -39,7 +46,9 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/tui/watcher"
 	"unikraft.com/cli/internal/types"
+	xio "unikraft.com/cli/internal/x/io"
 )
 
 type InstancesCmd struct {
@@ -54,6 +63,7 @@ type InstancesCmd struct {
 	Template InstanceTemplatesCmd `cmd:"" group:"cmd-templates" help:"Manage instance templates." aliases:"templates" set:"name=instance-template" set:"names=instance-templates"`
 
 	Logs    InstancesLogsCmd    `cmd:"" help:"Fetch and display instance logs."`
+	Graph   InstancesGraphCmd   `cmd:"" help:"Display instance resource usage graph."` // TODO: check help text
 	Start   InstancesStartCmd   `cmd:"" help:"Start one or more instances."`
 	Stop    InstancesStopCmd    `cmd:"" help:"Stop one or more instances."`
 	Suspend InstancesSuspendCmd `cmd:"" help:"Suspend one or more instances."`
@@ -1424,6 +1434,234 @@ func (cmd *InstancesLogsCmd) Run(ctx context.Context, stdio config.Stdio) error 
 		return nil
 	}
 	return err
+}
+
+type InstancesGraphCmd struct {
+	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instance to graph."`
+
+	Fields   []string      `short:"f" name:"field" help:"Field to graph." placeholder:"path" example:"metrics.rss,metrics.cpu,resources.memory,resources.vcpus"`
+	Interval time.Duration `help:"Poll interval." default:"2s"`
+}
+
+func (cmd InstancesGraphCmd) Examples() []kingkong.Example {
+	return []kingkong.Example{
+		{
+			Description: "Graph memory usage of an instance",
+			Commands: []string{
+				"unikraft instance graph my-instance -f metrics.rss",
+			},
+		},
+		{
+			Description: "Graph the number of allocated vCPUs of an instance",
+			Commands: []string{
+				"unikraft instance graph my-instance -f resources.vcpus",
+			},
+		},
+	}
+}
+
+// instanceGraphSource identifies which API call an instanceGraphField needs
+// its data from.
+type instanceGraphSource int
+
+const (
+	instanceGraphSourceInstance instanceGraphSource = iota
+	instanceGraphSourceMetrics
+)
+
+// instanceGraphAxisFormat identifies how a field's numeric values should be
+// rendered as Y axis labels.
+type instanceGraphAxisFormat int
+
+const (
+	instanceGraphAxisFormatNumber instanceGraphAxisFormat = iota
+	instanceGraphAxisFormatBytes
+	instanceGraphAxisFormatDuration
+)
+
+// instanceGraphAxisFormatter returns a linechart.LabelFormatter that renders
+// Y axis values according to the given format, for use with
+// timeserieslinechart.WithYLabelFormatter.
+func instanceGraphAxisFormatter(format instanceGraphAxisFormat) linechart.LabelFormatter {
+	switch format {
+	case instanceGraphAxisFormatBytes:
+		return func(_ int, v float64) string {
+			return units.BytesSize(v)
+		}
+	case instanceGraphAxisFormatDuration:
+		return func(_ int, v float64) string {
+			return (time.Duration(v) * time.Millisecond).String()
+		}
+	default:
+		return linechart.DefaultLabelFormatter()
+	}
+}
+
+// instanceGraphField describes a single graphable numeric field of an
+// instance and how to extract its current value.
+type instanceGraphField struct {
+	Label        string
+	Source       instanceGraphSource
+	AxisFormat   instanceGraphAxisFormat
+	FromInstance func(Instance) float64
+	FromMetrics  func(platform.GetInstancesMetricsResponseInstanceMetrics) float64
+}
+
+// instanceGraphFieldOrder controls the order fields are listed in error
+// messages.
+var instanceGraphFieldOrder = []string{"metrics.rss", "metrics.cpu", "resources.memory", "resources.vcpus"}
+
+var instanceGraphFields = map[string]instanceGraphField{
+	"metrics.rss": {
+		Label:      "RSS",
+		Source:     instanceGraphSourceMetrics,
+		AxisFormat: instanceGraphAxisFormatBytes,
+		FromMetrics: func(m platform.GetInstancesMetricsResponseInstanceMetrics) float64 {
+			return float64(m.RssBytes)
+		},
+	},
+	"metrics.cpu": {
+		Label:      "CPU time",
+		Source:     instanceGraphSourceMetrics,
+		AxisFormat: instanceGraphAxisFormatDuration,
+		FromMetrics: func(m platform.GetInstancesMetricsResponseInstanceMetrics) float64 {
+			return float64(m.CpuTimeMs)
+		},
+	},
+	"resources.memory": {
+		Label:      "Memory",
+		Source:     instanceGraphSourceInstance,
+		AxisFormat: instanceGraphAxisFormatBytes,
+		FromInstance: func(i Instance) float64 {
+			return float64(i.Resources.Memory) * float64(units.MiB)
+		},
+	},
+	"resources.vcpus": {
+		Label:      "vCPUs",
+		Source:     instanceGraphSourceInstance,
+		AxisFormat: instanceGraphAxisFormatNumber,
+		FromInstance: func(i Instance) float64 {
+			return float64(i.Resources.VCPUs)
+		},
+	},
+}
+
+// resolveInstanceGraphField validates and resolves the requested --field
+// flag(s) into a single graphable field, defaulting to "metrics.rss" when
+// none was given. Graphing more than one field at once is not yet supported.
+func resolveInstanceGraphField(fields []string) (string, instanceGraphField, error) {
+	if len(fields) == 0 {
+		fields = []string{"metrics.rss"}
+	}
+	if len(fields) > 1 {
+		return "", instanceGraphField{}, fmt.Errorf("graphing multiple fields at once is not yet supported, got %d fields", len(fields))
+	}
+	path := fields[0]
+	field, ok := instanceGraphFields[path]
+	if !ok {
+		return "", instanceGraphField{}, fmt.Errorf("unsupported graph field %q, supported fields: %s", path, strings.Join(instanceGraphFieldOrder, ", "))
+	}
+	return path, field, nil
+}
+
+// instanceGraphHeight is the fixed number of rows used for the graph canvas.
+const instanceGraphHeight = 15
+
+func (cmd *InstancesGraphCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+	if len(cmd.Targets) != 1 {
+		return fmt.Errorf("graphing multiple instances at once is not yet supported, got %d targets", len(cmd.Targets))
+	}
+	target := cmd.Targets[0]
+
+	fieldPath, field, err := resolveInstanceGraphField(cmd.Fields)
+	if err != nil {
+		return err
+	}
+
+	keys := multimetro.ParseKeys(cmd.Targets)
+	_, err = Instance{}.Get(ctx, keys.Strings())
+	if err != nil {
+		return err
+	}
+
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+	refs := keys.Refs()
+
+	width := xio.TermWidth(stdio.Stdout)
+	if width <= 0 {
+		width = 80
+	}
+	axisFormatter := instanceGraphAxisFormatter(field.AxisFormat)
+	chart := timeserieslinechart.New(
+		width, instanceGraphHeight,
+		timeserieslinechart.WithYLabelFormatter(axisFormatter),
+	)
+	chart.SetStyle(lipgloss.NewStyle().Foreground(colors.Primary))
+
+	render := func(out io.Writer) error {
+		if w := xio.TermWidth(out); w > 0 && w != chart.Width() {
+			chart.Resize(w, instanceGraphHeight)
+		}
+
+		value, err := pollInstanceGraphValue(ctx, g, refs, target, field)
+		if err != nil {
+			return err
+		}
+		chart.Push(timeserieslinechart.TimePoint{Time: time.Now(), Value: value})
+		chart.DrawBraille()
+
+		fmt.Fprintf(out, "Instance: %s  Field: %s (%s): %s\n", target, fieldPath, field.Label, axisFormatter(0, value))
+		fmt.Fprintln(out, chart.View())
+		return nil
+	}
+
+	return watcher.WatchOutput(ctx, cmd.Interval, stdio.Stdout, render)
+}
+
+// pollInstanceGraphValue fetches the current value of the given field for a
+// single instance, using whichever API call the field requires.
+func pollInstanceGraphValue(ctx context.Context, g *group.Group[multimetro.MetroClient], refs group.Refs, target string, field instanceGraphField) (float64, error) {
+	switch field.Source {
+	case instanceGraphSourceInstance:
+		resources, err := Instance{}.Get(ctx, []string{target})
+		if err != nil {
+			return 0, err
+		}
+		if len(resources) == 0 {
+			return 0, fmt.Errorf("instance %q not found", target)
+		}
+		return field.FromInstance(resources[0].(Instance)), nil
+	case instanceGraphSourceMetrics:
+		var value float64
+		var found bool
+		err := group.DoRefs(ctx, g, refs, func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+			if len(refs) == 0 {
+				return nil, nil
+			}
+			resp, err := c.GetInstanceMetrics(ctx, refs.NameOrUUIDs())
+			if err != nil {
+				return nil, err
+			}
+			if len(resp.Data.Instances) == 0 {
+				return nil, fmt.Errorf("no metrics found for instance %q", target)
+			}
+			value = field.FromMetrics(resp.Data.Instances[0])
+			found = true
+			return refs, nil
+		})
+		if err != nil {
+			return 0, err
+		}
+		if !found {
+			return 0, fmt.Errorf("instance %q not found", target)
+		}
+		return value, nil
+	default:
+		return 0, fmt.Errorf("unsupported graph field source")
+	}
 }
 
 type InstancesStartCmd struct {

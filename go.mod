@@ -8,6 +8,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.4
 	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/Masterminds/sprig/v3 v3.3.0
+	github.com/NimbleMarkets/ntcharts/v2 v2.2.0
 	github.com/alecthomas/kong v1.15.0
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.7
@@ -62,6 +63,8 @@ require (
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
 )
 
+require github.com/lrstanley/bubblezone/v2 v2.0.0 // indirect
+
 require (
 	charm.land/fang/v2 v2.0.1 // indirect
 	dario.cat/mergo v1.0.2 // indirect
@@ -75,7 +78,7 @@ require (
 	github.com/caarlos0/svu/v3 v3.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/harmonica v0.2.0 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20260416155717-489999b90468 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20260525132238-948f4557a654 // indirect
 	github.com/charmbracelet/x/exp/charmtone v0.0.0-20250603201427-c31516f43444 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
