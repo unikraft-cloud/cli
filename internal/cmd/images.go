@@ -43,6 +43,7 @@ type ImagesCmd struct {
 	Get    ImagesGetCmd    `cmd:"" help:"Inspect an image." aliases:"inspect,show"`
 	Delete ImagesDeleteCmd `cmd:"" help:"Remove an image." aliases:"rm,remove"`
 	Copy   ImagesCopyCmd   `cmd:"" help:"Copy images."`
+	Unpack ImagesUnpackCmd `cmd:"" help:"Download an image and unpack its rootfs to a directory." hidden:""`
 }
 
 type Image struct {
