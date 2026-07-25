@@ -71,14 +71,19 @@ tasks:
         CLI_ARGS: "-race"
 
   integration:
-    desc: Run integration tests. Use TEST=<pattern> to filter (e.g., TEST=Instances).
+    desc: >-
+      Run integration tests. Use TEST=<pattern> to filter (e.g., TEST=Instances).
+      Use RERUN_FAILS=<n> to retry individual failed tests up to n times.
     silent: true
+    vars:
+      integration_package: ./cmd/unikraft/integration ./internal/builder
     cmds:
     - task: go:test
       vars:
         go_tags: "integration"
-        package: ./cmd/unikraft/integration ./internal/builder
+        package: "{{.integration_package}}"
         CLI_ARGS: '{{if .TEST}}-run "{{.TEST}}"{{end}}'
+        gotestsum_args: '{{if .RERUN_FAILS}}--rerun-fails={{.RERUN_FAILS}} --packages="{{.integration_package}}"{{end}}'
 
   golden:
     desc: Run offline golden tests.
