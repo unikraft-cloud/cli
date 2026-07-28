@@ -19,7 +19,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/distribution/reference"
@@ -1274,8 +1273,6 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 
 func (Instance) Rollout(ctx context.Context, created []resource.Resource, fields []resource.Field) error {
 	var rolloutRequested bool
-	var waitTimeout time.Duration
-	autostart := false
 	for key, field := range resource.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
@@ -1283,18 +1280,10 @@ func (Instance) Rollout(ctx context.Context, created []resource.Resource, fields
 		switch key.String() {
 		case "rollout":
 			rolloutRequested = field.Create.Set.(bool)
-		case "wait-timeout":
-			waitTimeout = time.Duration(field.Create.Set.(types.DurationS)) * time.Second
-		case "autostart":
-			autostart = field.Create.Set.(bool)
 		}
 	}
 	if !rolloutRequested || len(created) == 0 {
 		return nil
-	}
-
-	if waitTimeout == 0 {
-		waitTimeout = 5 * time.Minute
 	}
 
 	newInstance := created[0].(Instance)
@@ -1305,7 +1294,7 @@ func (Instance) Rollout(ctx context.Context, created []resource.Resource, fields
 		return fmt.Errorf("--rollout requires an image")
 	}
 	newImageName := newInstance.Image.Reference.Name()
-	metro := string(newInstance.MetroName)
+	metro := string(newInstance.Metro)
 
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
@@ -1389,8 +1378,7 @@ func (Instance) Rollout(ctx context.Context, created []resource.Resource, fields
 			newInst = created[i].(Instance)
 		} else {
 			// Create an additional replacement instance with a modified name.
-			rolloutFields := make([]resource.Field, len(fields))
-			copy(rolloutFields, fields)
+			rolloutFields := slices.Clone(fields)
 			for j := range rolloutFields {
 				if rolloutFields[j].Name == "name" && rolloutFields[j].Create != nil && rolloutFields[j].Create.Set != nil {
 					name := rolloutFields[j].Create.Set.(string)
@@ -1409,36 +1397,13 @@ func (Instance) Rollout(ctx context.Context, created []resource.Resource, fields
 			newInst = extra[0].(Instance)
 		}
 
-		if autostart {
-			if waitErr := group.DoMetro(ctx, g, metro, func(ctx context.Context, mc multimetro.MetroClient) error {
-				const apiMaxWait = 10 * time.Second
-				deadline := time.Now().Add(waitTimeout)
-				for {
-					chunkMs := min(apiMaxWait, time.Until(deadline)).Milliseconds()
-					_, err := mc.WaitInstanceByUUID(ctx, newInst.UUID, platform.WaitInstanceByUUIDRequestBody{
-						State:     platform.InstanceStateRunning,
-						TimeoutMs: &chunkMs,
-					})
-					if err == nil {
-						return nil
-					}
-					if time.Now().After(deadline) {
-						return err
-					}
-					getResp, getErr := mc.GetInstanceByUUID(ctx, newInst.UUID, platform.GetInstanceByUUIDOpts{})
-					if getErr == nil && getResp != nil {
-						for _, inst := range getResp.Data.Instances {
-							if inst.State != platform.InstanceStateStarting && inst.State != platform.InstanceStateRunning {
-								return fmt.Errorf("instance %s transitioned to unexpected state %q while waiting to start", newInst.UUID, inst.State)
-							}
-						}
-					}
-				}
-			}); waitErr != nil {
-				return fmt.Errorf("waiting for new instance to be running: %w", waitErr)
-			}
-		} else {
-			log.G(ctx).Debug().Msgf("Not waiting for instance %q to start; deleting old instance %q immediately", newInst.Name, old.Name)
+		if waitErr := group.DoMetro(ctx, g, metro, func(ctx context.Context, mc multimetro.MetroClient) error {
+			_, err := mc.WaitInstanceByUUID(ctx, newInst.UUID, platform.WaitInstanceByUUIDRequestBody{
+				State: platform.InstanceStateRunning,
+			})
+			return err
+		}); waitErr != nil {
+			return fmt.Errorf("waiting for new instance to be running: %w", waitErr)
 		}
 
 		delErr := resource.SandboxFromContext(ctx).WrapDeletable(Instance{}).Delete(ctx, []string{old.Key().String()})
