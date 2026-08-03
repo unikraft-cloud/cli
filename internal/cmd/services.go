@@ -262,16 +262,14 @@ func (ServiceGroup) List(ctx context.Context) ([]resource.Resource, error) {
 	}
 	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
 		log.G(ctx).Trace().Msg("listing service groups")
-		resp, err := c.GetServiceGroups(ctx, nil, platform.GetServiceGroupsOpts{Details: new(true)})
-		if err != nil {
-			return nil, err
+		resp, opErr := c.GetServiceGroups(ctx, nil, platform.GetServiceGroupsOpts{Details: new(true)})
+		var serviceGroups []platform.ServiceGroup
+		if resp != nil && resp.Data != nil {
+			serviceGroups = resp.Data.ServiceGroups
 		}
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil
-		}
-		for _, serviceGroup := range resp.Data.ServiceGroups {
+		errs := []error{opErr}
+		for _, serviceGroup := range serviceGroups {
 			result, err := ServiceGroup{}.load(nil, serviceGroup, &c.Metro)
 			if err != nil {
 				errs = append(errs, err)
@@ -289,17 +287,15 @@ func (ServiceGroup) Get(ctx context.Context, keys []string) ([]resource.Resource
 	}
 	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting service groups")
-		resp, err := c.GetServiceGroups(ctx, refs.NameOrUUIDs(), platform.GetServiceGroupsOpts{Details: new(true)})
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
+		resp, opErr := c.GetServiceGroups(ctx, refs.NameOrUUIDs(), platform.GetServiceGroupsOpts{Details: new(true)})
+		var serviceGroups []platform.ServiceGroup
+		if resp != nil && resp.Data != nil {
+			serviceGroups = resp.Data.ServiceGroups
 		}
 		var found []group.Ref
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, serviceGroup := range resp.Data.ServiceGroups {
+		errs := []error{ignoreNotFound(opErr)}
+		for _, serviceGroup := range serviceGroups {
 			if serviceGroup.Status == nil || *serviceGroup.Status != platform.ResponseStatusSuccess {
 				continue
 			}
@@ -355,11 +351,21 @@ func (ServiceGroup) Delete(ctx context.Context, keys []string) error {
 	}
 	return group.DoRefs(ctx, g, parsedKeys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		log.G(ctx).Trace().Msg("deleting service groups")
-		_, err := c.DeleteServiceGroups(ctx, refs.NameOrUUIDs())
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, err
+		resp, err := c.DeleteServiceGroups(ctx, refs.NameOrUUIDs())
+		var deleted []group.Ref
+		if resp != nil && resp.Data != nil {
+			for _, serviceGroup := range resp.Data.ServiceGroups {
+				if serviceGroup.Status != platform.ResponseStatusSuccess {
+					continue
+				}
+				deleted = append(deleted, group.Ref{
+					Metro: c.Metro.Name,
+					Name:  serviceGroup.Name,
+					UUID:  serviceGroup.Uuid,
+				})
+			}
 		}
-		return refs, nil
+		return deleted, ignoreNotFound(err)
 	})
 }
 
@@ -434,8 +440,11 @@ func (ServiceGroup) Create(ctx context.Context, fields []resource.Field) ([]reso
 		return nil, err
 	}
 	results, err := ServiceGroup{}.Get(ctx, keys.Strings())
-	if err != nil {
+	if err != nil && len(results) == 0 {
 		return nil, err
+	}
+	if err != nil {
+		log.G(ctx).Warn().Err(err).Msg("service group created with partial lookup errors")
 	}
 	return results, nil
 }

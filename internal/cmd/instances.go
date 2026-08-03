@@ -652,16 +652,14 @@ func (Instance) List(ctx context.Context) ([]resource.Resource, error) {
 	}
 	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
 		log.G(ctx).Trace().Msg("listing instances")
-		resp, err := c.GetInstances(ctx, nil, platform.GetInstancesOpts{Details: new(true)})
-		if err != nil {
-			return nil, err
+		resp, opErr := c.GetInstances(ctx, nil, platform.GetInstancesOpts{Details: new(true)})
+		var instances []platform.Instance
+		if resp != nil && resp.Data != nil {
+			instances = resp.Data.Instances
 		}
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil
-		}
-		for _, instance := range resp.Data.Instances {
+		errs := []error{opErr}
+		for _, instance := range instances {
 			result, err := Instance{}.load(nil, instance, &c.Metro, profile)
 			if err != nil {
 				errs = append(errs, err)
@@ -683,17 +681,15 @@ func (Instance) Get(ctx context.Context, keys []string) ([]resource.Resource, er
 	}
 	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting instances")
-		resp, err := c.GetInstances(ctx, refs.NameOrUUIDs(), platform.GetInstancesOpts{Details: new(true)})
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
+		resp, opErr := c.GetInstances(ctx, refs.NameOrUUIDs(), platform.GetInstancesOpts{Details: new(true)})
+		var instances []platform.Instance
+		if resp != nil && resp.Data != nil {
+			instances = resp.Data.Instances
 		}
 		var found []group.Ref
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, instance := range resp.Data.Instances {
+		errs := []error{ignoreNotFound(opErr)}
+		for _, instance := range instances {
 			if instance.Status == nil || *instance.Status != platform.ResponseStatusSuccess {
 				continue
 			}
@@ -774,21 +770,19 @@ func (Instance) Delete(ctx context.Context, keys []string) error {
 			}
 			instances, err = c.DeleteInstances(ctx, reqs)
 		}
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, err
-		}
 		var deleted []group.Ref
-		for _, instance := range instances.Data.Instances {
-			if instance.Status != platform.ResponseStatusSuccess {
-				continue
+		if instances != nil && instances.Data != nil {
+			for _, instance := range instances.Data.Instances {
+				if instance.Status == platform.ResponseStatusSuccess {
+					deleted = append(deleted, group.Ref{
+						Metro: c.Metro.Name,
+						Name:  instance.Name,
+						UUID:  instance.Uuid,
+					})
+				}
 			}
-			deleted = append(deleted, group.Ref{
-				Metro: c.Metro.Name,
-				Name:  instance.Name,
-				UUID:  instance.Uuid,
-			})
 		}
-		return deleted, nil
+		return deleted, ignoreNotFound(err)
 	})
 }
 
@@ -1332,8 +1326,11 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 		return nil, err
 	}
 	results, err := Instance{}.Get(ctx, keys.Strings())
-	if err != nil {
+	if err != nil && len(results) == 0 {
 		return nil, err
+	}
+	if err != nil {
+		log.G(ctx).Warn().Err(err).Msg("instance created with partial lookup errors")
 	}
 	return results, nil
 }
@@ -1836,24 +1833,20 @@ func startInstances(ctx context.Context, g *group.Group[multimetro.MetroClient],
 			})
 		}
 		resp, err := c.StartInstances(ctx, reqs)
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
-		}
 		var started multimetro.Keys
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, instance := range resp.Data.Instances {
-			if instance.Status != platform.ResponseStatusSuccess {
-				continue
+		if resp != nil && resp.Data != nil {
+			for _, instance := range resp.Data.Instances {
+				if instance.Status != platform.ResponseStatusSuccess {
+					continue
+				}
+				started = append(started, multimetro.Key{
+					Metro: c.Metro.Name,
+					Name:  instance.Name,
+					UUID:  instance.Uuid,
+				})
 			}
-			started = append(started, multimetro.Key{
-				Metro: c.Metro.Name,
-				Name:  instance.Name,
-				UUID:  instance.Uuid,
-			})
 		}
-		return started, started.Refs(), nil
+		return started, started.Refs(), ignoreNotFound(err)
 	})
 	return multimetro.Keys(started), err
 }
@@ -1866,24 +1859,20 @@ func stopInstances(ctx context.Context, g *group.Group[multimetro.MetroClient], 
 			reqs = append(reqs, opts.toReq(key.NameOrUUID()))
 		}
 		resp, err := c.StopInstances(ctx, reqs)
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
-		}
 		var stopped multimetro.Keys
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, instance := range resp.Data.Instances {
-			if instance.Status == nil || *instance.Status != platform.ResponseStatusSuccess {
-				continue
+		if resp != nil && resp.Data != nil {
+			for _, instance := range resp.Data.Instances {
+				if instance.Status == nil || *instance.Status != platform.ResponseStatusSuccess {
+					continue
+				}
+				stopped = append(stopped, multimetro.Key{
+					Metro: c.Metro.Name,
+					Name:  instance.Name,
+					UUID:  instance.Uuid,
+				})
 			}
-			stopped = append(stopped, multimetro.Key{
-				Metro: c.Metro.Name,
-				Name:  instance.Name,
-				UUID:  instance.Uuid,
-			})
 		}
-		return stopped, stopped.Refs(), nil
+		return stopped, stopped.Refs(), ignoreNotFound(err)
 	})
 	return multimetro.Keys(stopped), err
 }
@@ -1967,24 +1956,20 @@ func suspendInstances(ctx context.Context, g *group.Group[multimetro.MetroClient
 			reqs = append(reqs, req)
 		}
 		resp, err := c.SuspendInstances(ctx, reqs)
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
-		}
 		var suspended multimetro.Keys
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, instance := range resp.Data.Instances {
-			if instance.Status == nil || *instance.Status != platform.ResponseStatusSuccess {
-				continue
+		if resp != nil && resp.Data != nil {
+			for _, instance := range resp.Data.Instances {
+				if instance.Status == nil || *instance.Status != platform.ResponseStatusSuccess {
+					continue
+				}
+				suspended = append(suspended, multimetro.Key{
+					Metro: c.Metro.Name,
+					Name:  instance.Name,
+					UUID:  instance.Uuid,
+				})
 			}
-			suspended = append(suspended, multimetro.Key{
-				Metro: c.Metro.Name,
-				Name:  instance.Name,
-				UUID:  instance.Uuid,
-			})
 		}
-		return suspended, suspended.Refs(), nil
+		return suspended, suspended.Refs(), ignoreNotFound(err)
 	})
 	return multimetro.Keys(suspended), err
 }

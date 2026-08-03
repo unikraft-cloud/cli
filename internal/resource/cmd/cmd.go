@@ -309,17 +309,27 @@ func (cmd *ResourceWaitCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 	defer ticker.Stop()
 
 	passing := map[string]bool{}
+	var lastWarn string
 	for {
-		resources, err := r.Get(ctx, cmd.Targets)
-		if err != nil {
-			return err
+		resources, getErr := r.Get(ctx, cmd.Targets)
+		if getErr != nil && len(resources) == 0 {
+			return getErr
 		}
+
+		warn := ""
+		if getErr != nil {
+			warn = getErr.Error()
+		}
+		if warn != "" && warn != lastWarn {
+			log.G(ctx).Warn().Err(getErr).Msg("partial lookup errors while waiting")
+		}
+		lastWarn = warn
 
 		filtered, err := filterResources(ctx, resources, filter)
 		if err != nil {
 			return err
 		}
-		if len(filtered) == len(resources) {
+		if getErr == nil && len(filtered) == len(resources) {
 			log.G(ctx).Debug().
 				Strs("resources", cmd.Targets).
 				Msg("all resources match the specified conditions")
@@ -358,7 +368,7 @@ func (cmd *ResourceWaitCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.Join(getErr, ctx.Err())
 		case <-ticker.C:
 		}
 	}
@@ -461,6 +471,12 @@ func (cmd *ResourceRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio, sa
 	printErr := cmd.Output.
 		WithDefault(PrinterTypeQuiet).
 		Print(ctx, stdio.Stdout, cmd.Field, empty, toPrint...)
+	if deleteErr == nil {
+		if getErr != nil {
+			log.G(ctx).Warn().Err(getErr).Msg("delete completed with partial lookup errors")
+		}
+		return printErr
+	}
 	if printErr != nil {
 		return errors.Join(getErr, deleteErr, printErr)
 	}
@@ -574,18 +590,23 @@ func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio
 		r := sandbox.WrapDeletable(empty)
 
 		// Get resources for display purposes.
-		resources, err := r.Get(ctx, cmd.Targets)
-		if err != nil {
-			return err
+		resources, getErr := r.Get(ctx, cmd.Targets)
+		if getErr != nil && len(resources) == 0 {
+			return getErr
 		}
 
-		err = r.Delete(ctx, cmd.Targets)
-		if err != nil {
-			return err
+		deleteErr := r.Delete(ctx, cmd.Targets)
+		if deleteErr != nil {
+			return errors.Join(getErr, deleteErr)
 		}
-		return cmd.Output.
+
+		printErr := cmd.Output.
 			WithDefault(PrinterTypeQuiet).
 			Print(ctx, stdio.Stdout, []string(cmd.Field), empty, resources...)
+		if getErr != nil {
+			log.G(ctx).Warn().Err(getErr).Msg("delete completed with partial lookup errors")
+		}
+		return printErr
 	} else {
 		return fmt.Errorf("no resources specified for deletion")
 	}
@@ -658,9 +679,12 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 			return err
 		}
 	} else {
-		resources, err := r.Get(ctx, []string{cmd.Target})
-		if err != nil {
-			return err
+		resources, getErr := r.Get(ctx, []string{cmd.Target})
+		if getErr != nil && len(resources) == 0 {
+			return getErr
+		}
+		if getErr != nil {
+			log.G(ctx).Warn().Err(getErr).Msg("editing with partial lookup errors")
 		}
 		if len(resources) == 0 {
 			return fmt.Errorf("resource not found: %s", cmd.Target)
@@ -741,9 +765,12 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 		if getKey == "" {
 			getKey = res.Key().String()
 		}
-		results, err := r.Get(ctx, []string{getKey})
-		if err != nil {
-			return err
+		results, getErr := r.Get(ctx, []string{getKey})
+		if getErr != nil && len(results) == 0 {
+			return getErr
+		}
+		if getErr != nil {
+			log.G(ctx).Warn().Err(getErr).Msg("resource edited with partial lookup errors")
 		}
 		if len(results) > 0 {
 			updated = results[:1]

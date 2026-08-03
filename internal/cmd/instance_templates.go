@@ -154,16 +154,14 @@ func (InstanceTemplate) List(ctx context.Context) ([]resource.Resource, error) {
 	}
 	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
 		log.G(ctx).Trace().Msg("listing instance templates")
-		resp, err := c.GetTemplateInstances(ctx, nil, platform.GetTemplateInstancesOpts{Details: new(true)})
-		if err != nil {
-			return nil, err
+		resp, opErr := c.GetTemplateInstances(ctx, nil, platform.GetTemplateInstancesOpts{Details: new(true)})
+		var instances []platform.Instance
+		if resp != nil && resp.Data != nil {
+			instances = resp.Data.Instances
 		}
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil
-		}
-		for _, instance := range resp.Data.Instances {
+		errs := []error{opErr}
+		for _, instance := range instances {
 			result, err := InstanceTemplate{}.load(nil, instance, &c.Metro, profile)
 			if err != nil {
 				errs = append(errs, err)
@@ -186,17 +184,15 @@ func (InstanceTemplate) Get(ctx context.Context, keys []string) ([]resource.Reso
 	}
 	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting instance templates")
-		resp, err := c.GetTemplateInstances(ctx, refs.NameOrUUIDs(), platform.GetTemplateInstancesOpts{Details: new(true)})
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
+		resp, opErr := c.GetTemplateInstances(ctx, refs.NameOrUUIDs(), platform.GetTemplateInstancesOpts{Details: new(true)})
+		var instances []platform.Instance
+		if resp != nil && resp.Data != nil {
+			instances = resp.Data.Instances
 		}
 		var found []group.Ref
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, instance := range resp.Data.Instances {
+		errs := []error{ignoreNotFound(opErr)}
+		for _, instance := range instances {
 			if instance.Status == nil || *instance.Status != platform.ResponseStatusSuccess {
 				continue
 			}
@@ -253,22 +249,21 @@ func (InstanceTemplate) Delete(ctx context.Context, keys []string) error {
 	return group.DoRefs(ctx, g, parsedKeys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		log.G(ctx).Trace().Msg("deleting instance templates")
 		templates, err := c.DeleteTemplateInstances(ctx, refs.NameOrUUIDs())
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, err
-		}
 		var deleted []group.Ref
-		for _, template := range templates.Data.Instances {
-			status := template.Status
-			if status != "" && status != platform.ResponseStatusSuccess {
-				continue
+		if templates != nil && templates.Data != nil {
+			for _, template := range templates.Data.Instances {
+				status := template.Status
+				if status != "" && status != platform.ResponseStatusSuccess {
+					continue
+				}
+				deleted = append(deleted, group.Ref{
+					Metro: c.Metro.Name,
+					Name:  template.Name,
+					UUID:  template.Uuid,
+				})
 			}
-			deleted = append(deleted, group.Ref{
-				Metro: c.Metro.Name,
-				Name:  template.Name,
-				UUID:  template.Uuid,
-			})
 		}
-		return deleted, nil
+		return deleted, ignoreNotFound(err)
 	})
 }
 

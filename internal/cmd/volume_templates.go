@@ -126,16 +126,14 @@ func (VolumeTemplate) List(ctx context.Context) ([]resource.Resource, error) {
 	}
 	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
 		log.G(ctx).Trace().Msg("listing volume templates")
-		resp, err := c.GetTemplateVolumes(ctx, nil, platform.GetTemplateVolumesOpts{Details: new(true)})
-		if err != nil {
-			return nil, err
+		resp, opErr := c.GetTemplateVolumes(ctx, nil, platform.GetTemplateVolumesOpts{Details: new(true)})
+		var volumes []platform.Volume
+		if resp != nil && resp.Data != nil {
+			volumes = resp.Data.Volumes
 		}
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil
-		}
-		for _, volume := range resp.Data.Volumes {
+		errs := []error{opErr}
+		for _, volume := range volumes {
 			result, err := VolumeTemplate{}.load(nil, volume, &c.Metro, profile)
 			if err != nil {
 				errs = append(errs, err)
@@ -158,17 +156,15 @@ func (VolumeTemplate) Get(ctx context.Context, keys []string) ([]resource.Resour
 	}
 	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting volume templates")
-		resp, err := c.GetTemplateVolumes(ctx, refs.NameOrUUIDs(), platform.GetTemplateVolumesOpts{Details: new(true)})
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
+		resp, opErr := c.GetTemplateVolumes(ctx, refs.NameOrUUIDs(), platform.GetTemplateVolumesOpts{Details: new(true)})
+		var volumes []platform.Volume
+		if resp != nil && resp.Data != nil {
+			volumes = resp.Data.Volumes
 		}
 		var found []group.Ref
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, volume := range resp.Data.Volumes {
+		errs := []error{ignoreNotFound(opErr)}
+		for _, volume := range volumes {
 			if volume.Status == nil || *volume.Status != platform.ResponseStatusSuccess {
 				continue
 			}
@@ -225,22 +221,21 @@ func (VolumeTemplate) Delete(ctx context.Context, keys []string) error {
 	return group.DoRefs(ctx, g, parsedKeys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		log.G(ctx).Trace().Msg("deleting volume templates")
 		templates, err := c.DeleteTemplateVolumes(ctx, refs.NameOrUUIDs())
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, err
-		}
 		var deleted []group.Ref
-		for _, template := range templates.Data.Volumes {
-			status := template.Status
-			if status != "" && status != platform.ResponseStatusSuccess {
-				continue
+		if templates != nil && templates.Data != nil {
+			for _, template := range templates.Data.Volumes {
+				status := template.Status
+				if status != "" && status != platform.ResponseStatusSuccess {
+					continue
+				}
+				deleted = append(deleted, group.Ref{
+					Metro: c.Metro.Name,
+					Name:  template.Name,
+					UUID:  template.Uuid,
+				})
 			}
-			deleted = append(deleted, group.Ref{
-				Metro: c.Metro.Name,
-				Name:  template.Name,
-				UUID:  template.Uuid,
-			})
 		}
-		return deleted, nil
+		return deleted, ignoreNotFound(err)
 	})
 }
 

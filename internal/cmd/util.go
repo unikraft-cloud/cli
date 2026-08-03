@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"maps"
 
+	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 
 	"unikraft.com/cli/internal/config"
@@ -144,4 +145,11 @@ func patchRequests[P ~string](fields []resource.Field, specFor func(path string,
 		}
 	}
 	return reqs, nil
+}
+
+func ignoreNotFound(err error) error {
+	if err == nil || platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
+		return nil
+	}
+	return err
 }
