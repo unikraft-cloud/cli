@@ -26,6 +26,7 @@ import (
 	"github.com/distribution/reference"
 	"github.com/go-json-experiment/json/jsontext"
 	"mvdan.cc/sh/v3/shell"
+
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/cloud/sdk/platform/logs"
@@ -65,6 +66,13 @@ type InstancesCmd struct {
 	Restart InstancesRestartCmd `cmd:"" help:"Restart one or more instances."`
 	Tunnel  InstancesTunnelCmd  `cmd:"" aliases:"port-forward" help:"Forward a local port to an unexposed instance."`
 	History InstanceHistoryCmd  `cmd:"" help:"Show checkpoint history for an instance."`
+
+	Exec  ExecSandboxInstanceCmd  `cmd:"" help:"Exec a command on a sandbox instance."`
+	Write WriteSandboxInstanceCmd `cmd:"" help:"Write a file to a sandbox instance."`
+	Read  ReadSandboxInstanceCmd  `cmd:"" help:"Read a file from a sandbox instance."`
+	Mkdir MkdirSandboxInstanceCmd `cmd:"" help:"Create a directory on a sandbox instance."`
+
+	Shell ShellSandboxInstanceCmd `cmd:"" help:"Open an interactive shell on a sandbox instance."`
 }
 
 // InstanceCreateCmd extends the generic resource create command with shortcut
@@ -92,6 +100,8 @@ type InstanceCreateCmd struct {
 
 	Volume []InstanceVolume `group:"flag-create" shortcut:"volumes" short:"v" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
 	Rom    []InstanceRom    `group:"flag-create" shortcut:"roms" sep:"none" help:"Attach ROM." placeholder:"image=<ref>,at=<path>" example:"image=myuser/my-rom:latest\\,at=/rom0\\,name=my-rom,dir=./mydata\\,at=/rom"`
+
+	Plugin []InstancePlugin `group:"flag-create" shortcut:"plugins" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>" example:"name=sandbox,rom=sandbox:latest"`
 
 	Service InstanceService `group:"flag-create" shortcut:"service" help:"Service group name or key." placeholder:"name"`
 	Publish []Service       `group:"flag-create" shortcut:"service.services" short:"p" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls,80:8080/http"`
@@ -190,6 +200,7 @@ type Instance struct {
 	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set"`
 	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings"`
 	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del"`
+	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set"`
 
 	Networks []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
 	Gpus     []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
@@ -413,6 +424,26 @@ func (r *InstanceRom) UnmarshalText(data []byte) error {
 		}
 		r.Name = b.String()
 	}
+	return nil
+}
+
+// InstancePlugin represents a plugin loaded into an instance.
+// Parsed via value.Parse as comma-separated key=value pairs:
+//
+//	name=<name>,image=<ref>[,<key>=<value>...]
+type InstancePlugin struct {
+	Name   string `name:"name" mirror:"name" json:"name" field:",long"`
+	Rom    string `name:"rom" mirror:"rom" json:"rom" field:",long"`
+	Config string `name:"config" mirror:"config" json:"config,omitempty" field:",long"`
+}
+
+func (p *InstancePlugin) UnmarshalText(data []byte) error {
+	type alias InstancePlugin
+	parsed, err := value.Parse[alias]([]string{string(data)})
+	if err != nil {
+		return err
+	}
+	*p = InstancePlugin(parsed)
 	return nil
 }
 
@@ -1124,6 +1155,21 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 				}
 				req.Roms = append(req.Roms, reqRom)
 			}
+		case "plugins":
+			for _, plugin := range field.Create.Set.([]*InstancePlugin) {
+				reqPlugin := platform.CreateInstanceRequestPlugin{
+					Name: plugin.Name,
+					Rom:  plugin.Rom,
+				}
+				if plugin.Config != "" {
+					var config any
+					if err := json.Unmarshal([]byte(plugin.Config), &config); err != nil {
+						return nil, fmt.Errorf("parsing plugin config: %w", err)
+					}
+					reqPlugin.Config = &config
+				}
+				req.Plugins = append(req.Plugins, reqPlugin)
+			}
 		case "service":
 			svc := field.Create.Set.(*InstanceService)
 			if req.ServiceGroup == nil {
@@ -1352,6 +1398,16 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --name new-instance \
 	  --metro fra \
 	  --template my-template`,
+				},
+			},
+			{
+				Description: "Create an instance with a plugin",
+				Commands: []string{
+					`unikraft instance create \
+	  --name demo-instance \
+	  --metro fra \
+	  --image nginx:latest \
+	  --plugin name=sandbox,rom=sandbox:latest`,
 				},
 			},
 		},

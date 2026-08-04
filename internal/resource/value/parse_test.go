@@ -13,8 +13,9 @@ import (
 )
 
 type testStruct struct {
-	Name  string `name:"name" json:"name"`
-	Value int    `name:"value" json:"value"`
+	Name   string `name:"name" json:"name"`
+	Value  int    `name:"value" json:"value"`
+	Config string `name:"config" json:"config,omitempty"`
 }
 
 func TestParseStandalone(t *testing.T) {
@@ -296,5 +297,35 @@ func TestParseCSV(t *testing.T) {
 		got, err := Parse[testStruct]([]string{"name=hello world,value=42"})
 		require.NoError(t, err)
 		assert.Equal(t, testStruct{Name: "hello world", Value: 42}, got)
+	})
+
+	t.Run("struct with json value containing commas", func(t *testing.T) {
+		got, err := Parse[testStruct]([]string{`name=test,config={"a":1,"b":"x,y"}`})
+		require.NoError(t, err)
+		assert.Equal(t, testStruct{Name: "test", Config: `{"a":1,"b":"x,y"}`}, got)
+	})
+
+	t.Run("struct with nested json value", func(t *testing.T) {
+		got, err := Parse[testStruct]([]string{`name=test,config={"db":{"host":"localhost","port":5432}}`})
+		require.NoError(t, err)
+		assert.Equal(t, testStruct{Name: "test", Config: `{"db":{"host":"localhost","port":5432}}`}, got)
+	})
+
+	t.Run("struct with json array value", func(t *testing.T) {
+		got, err := Parse[testStruct]([]string{`name=test,config=[1,2,3]`})
+		require.NoError(t, err)
+		assert.Equal(t, testStruct{Name: "test", Config: `[1,2,3]`}, got)
+	})
+
+	t.Run("map with json value containing commas", func(t *testing.T) {
+		got, err := Parse[map[string]string]([]string{`key={"a":1,"b":"x,y"}`})
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"key": `{"a":1,"b":"x,y"}`}, got)
+	})
+
+	t.Run("slice with json-like non-json content preserves braces", func(t *testing.T) {
+		got, err := Parse[[]string]([]string{`foo,{bar,baz}`})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"foo", "{bar,baz}"}, got)
 	})
 }

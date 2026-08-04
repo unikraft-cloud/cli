@@ -18,6 +18,54 @@ import (
 	xmaps "unikraft.com/cli/internal/x/maps"
 )
 
+// splitFields splits s on commas, but preserves commas inside balanced
+// {}, [] pairs and inside JSON string literals. This allows struct/map/slice
+// values that contain JSON (with internal commas) to be parsed correctly.
+func splitFields(s string) []string {
+	var parts []string
+	var buf strings.Builder
+	depth := 0
+	inStr := false
+	esc := false
+	for _, r := range s {
+		if inStr {
+			buf.WriteRune(r)
+			if esc {
+				esc = false
+			} else if r == '\\' {
+				esc = true
+			} else if r == '"' {
+				inStr = false
+			}
+			continue
+		}
+		switch r {
+		case '"':
+			inStr = true
+			buf.WriteRune(r)
+		case '{', '[':
+			depth++
+			buf.WriteRune(r)
+		case '}', ']':
+			depth--
+			buf.WriteRune(r)
+		case ',':
+			if depth == 0 {
+				parts = append(parts, buf.String())
+				buf.Reset()
+			} else {
+				buf.WriteRune(r)
+			}
+		default:
+			buf.WriteRune(r)
+		}
+	}
+	if buf.Len() > 0 {
+		parts = append(parts, buf.String())
+	}
+	return parts
+}
+
 func Parse[T any](input []string) (T, error) {
 	var t T
 	output, err := ParseNew(input, t)
@@ -144,7 +192,7 @@ func parseReflect(input []string, value reflect.Value) error {
 			}
 
 			// Fall back to comma-separated parsing.
-			for item := range strings.SplitSeq(input, ",") {
+			for _, item := range splitFields(input) {
 				item = strings.TrimSpace(item)
 				if item == "" {
 					continue
@@ -175,12 +223,14 @@ func parseReflect(input []string, value reflect.Value) error {
 				}
 			}
 			// Fall back to comma-separated key=value parsing.
-			for item := range strings.SplitSeq(input, ",") {
+			for _, item := range splitFields(input) {
 				item = strings.TrimSpace(item)
 				if item == "" {
 					continue
 				}
 				k, v, _ := strings.Cut(item, "=")
+				k = strings.TrimSpace(k)
+				v = strings.TrimSpace(v)
 				key := reflect.New(output.Type().Key()).Elem()
 				err := parseReflect([]string{k}, key)
 				if err != nil {
@@ -215,12 +265,14 @@ func parseReflect(input []string, value reflect.Value) error {
 		notFound := make(map[string]struct{})
 		for _, input := range input {
 		process:
-			for item := range strings.SplitSeq(input, ",") {
+			for _, item := range splitFields(input) {
 				item = strings.TrimSpace(item)
 				if item == "" {
 					continue
 				}
 				k, v, _ := strings.Cut(item, "=")
+				k = strings.TrimSpace(k)
+				v = strings.TrimSpace(v)
 
 				for i := range s.NumField() {
 					field := s.Type().Field(i)

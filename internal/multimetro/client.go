@@ -11,6 +11,7 @@ import (
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
+	"unikraft.com/cloud/sdk/sandbox"
 	"unikraft.com/x/iata"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
@@ -21,7 +22,11 @@ import (
 
 type MetroClient struct {
 	platform.Client
-	Metro config.Metro
+	// Sandbox serves the sandbox plugin API of the same metro.  It cannot be
+	// embedded alongside platform.Client, since both name their interface
+	// Client.
+	Sandbox sandbox.Client
+	Metro   config.Metro
 }
 
 func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
@@ -47,9 +52,14 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 			platform.WithToken(profile.Token),
 			platform.WithDefaultMetro(metro.Endpoint),
 		)
+		sandboxClient := sandbox.NewClient(
+			sandbox.WithHTTPClient(httpclient.GetClient(ptr.ZeroIfNil(metro.Insecure))),
+			sandbox.WithToken(profile.Token),
+			sandbox.WithDefaultMetro(metro.Endpoint),
+		)
 		g = g.WithClient(
 			metro.Name,
-			MetroClient{Client: client, Metro: metro},
+			MetroClient{Client: client, Sandbox: sandboxClient, Metro: metro},
 		)
 	}
 
