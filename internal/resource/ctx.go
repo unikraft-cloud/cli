@@ -24,3 +24,18 @@ func FilterFromContext(ctx context.Context) filters.Filter {
 	}
 	return filters.Always
 }
+
+type contextKeySandbox struct{}
+
+// WithSandbox stores a Sandbox in the context so that operations performed
+// during a Rollout can use sandbox-aware create/delete wrappers.
+func WithSandbox(ctx context.Context, s *Sandbox) context.Context {
+	return context.WithValue(ctx, contextKeySandbox{}, s)
+}
+
+// SandboxFromContext retrieves the Sandbox stored by WithSandbox. Returns nil
+// if no sandbox was stored (non-sandboxed execution).
+func SandboxFromContext(ctx context.Context) *Sandbox {
+	s, _ := ctx.Value(contextKeySandbox{}).(*Sandbox)
+	return s
+}

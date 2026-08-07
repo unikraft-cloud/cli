@@ -62,6 +62,13 @@ type DeletableResource interface {
 	Delete(ctx context.Context, keys []string) error
 }
 
+type RolloutableResource interface {
+	CreatableResource
+	DeletableResource
+	ListableResource
+	Rollout(ctx context.Context, created []Resource, fields []Field) error
+}
+
 type DefaultResource interface {
 	GettableResource
 	Default(ctx context.Context) (Resource, error)

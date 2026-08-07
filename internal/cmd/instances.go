@@ -101,6 +101,7 @@ type InstanceCreateCmd struct {
 	Features     []string `group:"flag-create" shortcut:"features" help:"Instance features." placeholder:"feature"`
 	Template     string   `group:"flag-create" shortcut:"template" help:"Create from instance template." placeholder:"name"`
 	DeleteOnStop bool     `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	Rollout      bool     `group:"flag-create" shortcut:"rollout" help:"Replace old instances with new ones matching image name"`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
@@ -212,6 +213,7 @@ type Instance struct {
 	Features      []string                `field:"features,invisible,valueless" create:"set"`
 	Vsock         bool                    `field:"vsock,invisible,valueless" create:"set" edit:"set"`
 	Template      string                  `field:"template,invisible,valueless" create:"set"`
+	EnableRollout bool                    `field:"rollout,invisible,valueless" create:"set"`
 
 	Stop struct {
 		Reason string     `field:",long"`
@@ -999,6 +1001,7 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 	var req platform.CreateInstanceRequest
 	var metro string
 	var pullPolicy *platform.PullPolicy
+	var rollout bool
 	for key, field := range resource.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
@@ -1211,7 +1214,19 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 			} else {
 				req.Template.Name = &template
 			}
+		case "rollout":
+			rollout = field.Create.Set.(bool)
 		}
+	}
+
+	if rollout && req.Replicas != nil && *req.Replicas > 0 {
+		return nil, fmt.Errorf("--replicas cannot be used with --rollout")
+	}
+	if rollout && req.Image == nil && req.Template == nil {
+		return nil, fmt.Errorf("--rollout requires an image or template (use --image or --template)")
+	}
+	if rollout && (req.ServiceGroup == nil || (req.ServiceGroup.Name == nil && req.ServiceGroup.Uuid == nil)) {
+		return nil, fmt.Errorf("--rollout requires a service group with a name or UUID (use --service)")
 	}
 
 	// Validate that either image or template is provided
@@ -1270,6 +1285,150 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 		return nil, err
 	}
 	return results, nil
+}
+
+func (Instance) Rollout(ctx context.Context, created []resource.Resource, fields []resource.Field) error {
+	var rolloutRequested bool
+	for key, field := range resource.IterFields(fields) {
+		if field.Create == nil || field.Create.Set == nil {
+			continue
+		}
+		switch key.String() {
+		case "rollout":
+			rolloutRequested = field.Create.Set.(bool)
+		}
+	}
+	if !rolloutRequested || len(created) == 0 {
+		return nil
+	}
+
+	newInstance := created[0].(Instance)
+	if newInstance.Service == nil || (newInstance.Service.UUID == "" && newInstance.Service.Name == "") {
+		return fmt.Errorf("--rollout requires a service group (use --service)")
+	}
+	if newInstance.Image.Reference == nil {
+		return fmt.Errorf("--rollout requires an image")
+	}
+	newImageName := newInstance.Image.Reference.Name()
+	metro := string(newInstance.Metro)
+
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	createdUUIDs := make(map[string]struct{}, len(created))
+	for _, r := range created {
+		createdUUIDs[r.(Instance).UUID] = struct{}{}
+	}
+
+	// Prefer UUID when available to avoid ambiguity when a service group name is UUID-shaped.
+	var svcKey string
+	if newInstance.Service.UUID != "" {
+		svcKey = multimetro.Key{Metro: metro, UUID: newInstance.Service.UUID}.Canonical()
+	} else {
+		svcKey = multimetro.Key{Metro: metro, Name: newInstance.Service.Name}.Canonical()
+	}
+	svcResults, err := (ServiceGroup{}).Get(ctx, []string{svcKey})
+	if err != nil {
+		return fmt.Errorf("fetching service group: %w", err)
+	}
+	if len(svcResults) == 0 {
+		return fmt.Errorf("service group %q not found", svcKey)
+	}
+	svc := svcResults[0].(ServiceGroup)
+
+	var existingKeys []string
+	for _, inst := range svc.Instances {
+		if _, isNew := createdUUIDs[inst.UUID]; isNew {
+			continue
+		}
+		key := multimetro.Key{Metro: metro, UUID: inst.UUID, Name: inst.Name}
+		existingKeys = append(existingKeys, key.String())
+	}
+	if len(existingKeys) == 0 {
+		return nil
+	}
+
+	existing, err := (Instance{}).Get(ctx, existingKeys)
+	if err != nil {
+		return fmt.Errorf("fetching existing instances: %w", err)
+	}
+
+	var toRemove []Instance
+	for _, r := range existing {
+		inst := r.(Instance)
+		if inst.Image.Reference == nil {
+			continue
+		}
+		if inst.Image.Reference.Name() == newImageName {
+			toRemove = append(toRemove, inst)
+		}
+	}
+	if len(toRemove) == 0 {
+		return nil
+	}
+
+	if extra := len(toRemove) - len(created); extra > 0 {
+		var baseName string
+		for key, field := range resource.IterFields(fields) {
+			if key.String() == "name" && field.Create != nil && field.Create.Set != nil {
+				baseName = field.Create.Set.(string)
+				break
+			}
+		}
+		if baseName != "" {
+			names := make([]string, extra)
+			for i := range extra {
+				names[i] = fmt.Sprintf("%s-%d", baseName, len(created)+i)
+			}
+			log.G(ctx).Info().Msgf("Creating %d additional instance(s): %s", extra, strings.Join(names, " "))
+		} else {
+			log.G(ctx).Info().Msgf("Creating %d additional instance(s)", extra)
+		}
+	}
+
+	for i, old := range toRemove {
+		var newInst Instance
+		if i < len(created) {
+			newInst = created[i].(Instance)
+		} else {
+			// Create an additional replacement instance with a modified name.
+			rolloutFields := slices.Clone(fields)
+			for j := range rolloutFields {
+				if rolloutFields[j].Name == "name" && rolloutFields[j].Create != nil && rolloutFields[j].Create.Set != nil {
+					name := rolloutFields[j].Create.Set.(string)
+					p := *rolloutFields[j].Create
+					p.Set = fmt.Sprintf("%s-%d", name, i)
+					rolloutFields[j].Create = &p
+				}
+			}
+			extra, err := resource.SandboxFromContext(ctx).WrapCreatable(Instance{}).Create(ctx, rolloutFields)
+			if err != nil {
+				return fmt.Errorf("creating replacement instance: %w", err)
+			}
+			if len(extra) == 0 {
+				return fmt.Errorf("no replacement instance created")
+			}
+			newInst = extra[0].(Instance)
+		}
+
+		if waitErr := group.DoMetro(ctx, g, metro, func(ctx context.Context, mc multimetro.MetroClient) error {
+			_, err := mc.WaitInstanceByUUID(ctx, newInst.UUID, platform.WaitInstanceByUUIDRequestBody{
+				State: platform.InstanceStateRunning,
+			})
+			return err
+		}); waitErr != nil {
+			return fmt.Errorf("waiting for new instance to be running: %w", waitErr)
+		}
+
+		delErr := resource.SandboxFromContext(ctx).WrapDeletable(Instance{}).Delete(ctx, []string{old.Key().String()})
+		if delErr != nil {
+			return fmt.Errorf("deleting instance %q: %w", cmp.Or(old.Name, old.UUID), delErr)
+		}
+	}
+
+	return nil
 }
 
 func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
