@@ -86,7 +86,10 @@ func tunnelProxyUUIDs(t *testing.T, cfg *config.Config, metro string) map[string
 
 func TestInstances(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
-		r := runner(t, true, []string{staging, stable, prod})
+		// TODO: Add 'prod' back when it runs platform version 13. Older
+		// versions send a duplicate "status" member that breaks every wait.
+		// See https://github.com/unikraft-cloud/platform/pull/937
+		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 
 		out := r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
@@ -244,7 +247,10 @@ func TestInstances(t *testing.T) {
 	})
 
 	t.Run("create-oom", func(t *testing.T) {
-		r := runner(t, true, []string{staging, stable})
+		// TODO: Add 'stable' back when it runs platform version 13. Older
+		// versions send a duplicate "status" member that breaks every wait.
+		// See https://github.com/unikraft-cloud/platform/pull/937
+		r := runner(t, true, []string{staging})
 		instName := uniq()
 
 		r.Run(t, []string{
@@ -266,7 +272,10 @@ func TestInstances(t *testing.T) {
 	})
 
 	t.Run("connect", func(t *testing.T) {
-		r := runner(t, true, []string{staging, stable, prod})
+		// TODO: Add 'prod' back when it runs platform version 13. Older
+		// versions send a duplicate "status" member that breaks every wait.
+		// See https://github.com/unikraft-cloud/platform/pull/937
+		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		domainName := uniq()
 
@@ -300,7 +309,10 @@ func TestInstances(t *testing.T) {
 	})
 
 	t.Run("getting-started", func(t *testing.T) {
-		r := runner(t, true, []string{staging, stable, prod})
+		// TODO: Add 'prod' back when it runs platform version 13. Older
+		// versions send a duplicate "status" member that breaks every wait.
+		// See https://github.com/unikraft-cloud/platform/pull/937
+		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 
 		r.Run(t, []string{
@@ -421,7 +433,10 @@ func TestInstances(t *testing.T) {
 	})
 
 	t.Run("restart-follow", func(t *testing.T) {
-		r := runner(t, true, []string{staging, stable})
+		// TODO: Add 'stable' back when it runs platform version 13. Older
+		// versions send a duplicate "status" member that breaks every wait.
+		// See https://github.com/unikraft-cloud/platform/pull/937
+		r := runner(t, true, []string{staging})
 		instName := uniq()
 		volName := uniq()
 		baseImage := integ.Busybox.Build(t, r)
