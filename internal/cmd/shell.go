@@ -102,11 +102,46 @@ func newShellState(initialDir string, initialEnv map[string]string, running bool
 	}
 }
 
-var knownBuiltins = map[string]bool{
-	"get": true, "help": true, "restart": true, "start": true,
-	"stop": true, "suspend": true, "mount": true, "unmount": true,
-	"edit": true, "volumes": true, "history": true,
+// shellBuiltins is the parser for the shell's builtin commands together with
+// the set of words it accepts. Both are built once per session: kong.New
+// walks the whole ShellCmd grammar by reflection, and Parse resets every
+// value before binding new ones, so there's nothing to gain from rebuilding
+// it per command. Only the shell's read loop touches it, so it needs no
+// locking.
+type shellBuiltins struct {
+	parser *kong.Kong
+	names  map[string]bool
 }
+
+// newShellBuiltins derives the command set from the parser rather than
+// listing it separately, so adding a command to ShellCmd is all it takes for
+// the shell to route to it, and kong's own name mangling stays authoritative.
+func newShellBuiltins(out, errOut io.Writer) (*shellBuiltins, error) {
+	parser, err := kong.New(&ShellCmd{},
+		kong.Name(""),
+		kong.NoDefaultHelp(),
+		kong.Exit(func(int) {}),
+		kong.Writers(out, errOut),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make(map[string]bool)
+	for _, child := range parser.Model.Children {
+		if child.Type != kong.CommandNode {
+			continue
+		}
+		names[child.Name] = true
+		for _, alias := range child.Aliases {
+			names[alias] = true
+		}
+	}
+
+	return &shellBuiltins{parser: parser, names: names}, nil
+}
+
+func (b *shellBuiltins) has(name string) bool { return b.names[name] }
 
 func (s *shellState) handleBuiltin(sctx *ShellContext, line string) bool {
 	fields := shellFields(line)
@@ -152,23 +187,11 @@ func (s *shellState) handleBuiltin(sctx *ShellContext, line string) bool {
 		}
 	}
 
-	if !knownBuiltins[fields[0]] {
+	if !sctx.Builtins.has(fields[0]) {
 		return false
 	}
 
-	var cmd ShellCmd
-	parser, err := kong.New(&cmd,
-		kong.Name(""),
-		kong.NoDefaultHelp(),
-		kong.Exit(func(int) {}),
-		kong.Writers(sctx.Out, sctx.ErrOut),
-	)
-	if err != nil {
-		fmt.Fprintf(sctx.ErrOut, "%s failed to initialize shell parser: %v\n", shell.ShellErrorStyle.Render("error:"), err)
-		return true
-	}
-
-	kctx, err := parser.Parse(fields)
+	kctx, err := sctx.Builtins.parser.Parse(fields)
 	if err != nil {
 		fmt.Fprintf(sctx.ErrOut, "%s %v\n", shell.ShellErrorStyle.Render("error:"), err)
 		return true
@@ -320,6 +343,7 @@ type ShellContext struct {
 	Cache     *shell.HistoryCache
 	Completer *shell.SandboxCompleter
 	RL        *readline.Instance
+	Builtins  *shellBuiltins
 }
 
 // startBackgroundSync kicks off history and autocomplete syncing against the
@@ -344,6 +368,11 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 	resources, err := Instance{}.Get(ctx, []string{key.String()})
 	if err == nil && len(resources) > 0 {
 		isRunning = instanceSandboxReady(resources[0].(Instance))
+	}
+
+	builtins, err := newShellBuiltins(stdio.Stdout, stdio.Stderr)
+	if err != nil {
+		return fmt.Errorf("failed to initialize shell parser: %w", err)
 	}
 
 	state := newShellState(initialDir, initialEnv, isRunning)
@@ -394,6 +423,7 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 		Cache:     cache,
 		Completer: completer,
 		RL:        rl,
+		Builtins:  builtins,
 	}
 
 	cache.OnSynced = func(entries []shell.HistoryEntry) {

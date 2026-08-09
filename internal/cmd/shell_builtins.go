@@ -20,6 +20,7 @@ import (
 	rescmd "unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/shell"
+	"unikraft.com/cli/internal/tabwriter"
 	"unikraft.com/cli/internal/types"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
@@ -648,30 +649,49 @@ func (c *ShellHistoryDeleteCmd) Run(sctx *ShellContext) error {
 	return nil
 }
 
-// builtinHelp prints the list of available shell builtins.
+// shellBuiltinHelp is the list of builtins shown by `help`, in display order.
+//
+// Some of these are handled by ShellCmd and some by the shell loop itself
+// (cd, clear, exit), so the list can't be derived from the kong grammar
+// alone - it's the user-facing menu, not the parser's command set.
+var shellBuiltinHelp = []struct{ name, desc string }{
+	{"cd", "change the current remote directory"},
+	{"get", "inspect the current instance"},
+	{"edit", "edit instance fields (env, args, memory, vcpus, tags)"},
+	{"volumes", "list volumes mounted on this instance (alias for volumes mounted)"},
+	{"volumes mounted", "list volumes mounted on this instance"},
+	{"volumes list", "list all available volumes"},
+	{"volumes create", "create a new volume"},
+	{"mount", "attach a volume to this instance"},
+	{"unmount", "detach a volume from this instance"},
+	{"start", "start the instance"},
+	{"stop", "stop the instance"},
+	{"suspend", "suspend the instance"},
+	{"restart", "restart the instance"},
+	{"history", "show command history (alias for history list)"},
+	{"history list", "show command history"},
+	{"history rerun <n>", "re-execute history entry N"},
+	{"history clear", "clear all history entries"},
+	{"history delete <n>", "delete history entry N"},
+	{"clear", "clear the screen"},
+	{"exit", "quit the shell"},
+}
+
+// builtinHelp prints the list of available shell builtins. The names are
+// styled, so it goes through the ANSI-aware tabwriter rather than a %-Ns
+// pad, which would count escape sequences towards the column width.
 func builtinHelp(out io.Writer) {
 	fmt.Fprintln(out, shell.ShellTitleStyle.Render("Builtins:"))
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("cd"), shell.ShellHintStyle.Render("change the current remote directory"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("get"), shell.ShellHintStyle.Render("inspect the current instance"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("edit"), shell.ShellHintStyle.Render("edit instance fields (env, args, memory, vcpus, tags)"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("volumes"), shell.ShellHintStyle.Render("list volumes mounted on this instance (alias for volumes mounted)"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("volumes mounted"), shell.ShellHintStyle.Render("list volumes mounted on this instance"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("volumes list"), shell.ShellHintStyle.Render("list all available volumes"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("volumes create"), shell.ShellHintStyle.Render("create a new volume"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("mount"), shell.ShellHintStyle.Render("attach a volume to this instance"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("unmount"), shell.ShellHintStyle.Render("detach a volume from this instance"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("start"), shell.ShellHintStyle.Render("start the instance"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("stop"), shell.ShellHintStyle.Render("stop the instance"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("suspend"), shell.ShellHintStyle.Render("suspend the instance"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("restart"), shell.ShellHintStyle.Render("restart the instance"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("history"), shell.ShellHintStyle.Render("show command history (alias for history list)"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("history list"), shell.ShellHintStyle.Render("show command history"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("history rerun <n>"), shell.ShellHintStyle.Render("re-execute history entry N"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("history clear"), shell.ShellHintStyle.Render("clear all history entries"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("history delete <n>"), shell.ShellHintStyle.Render("delete history entry N"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("clear"), shell.ShellHintStyle.Render("clear the screen"))
-	fmt.Fprintf(out, "  %s %s\n", shell.ShellValueStyle.Render("exit"), shell.ShellHintStyle.Render("quit the shell"))
+
+	tw := tabwriter.TabWriter(out)
+	for _, b := range shellBuiltinHelp {
+		fmt.Fprintf(tw, "  %s\t%s\n", shell.ShellValueStyle.Render(b.name), shell.ShellHintStyle.Render(b.desc))
+	}
+	// Nothing to do if the terminal write fails; every other line here
+	// ignores write errors too.
+	_ = tw.Flush()
+
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, shell.ShellKeyStyle.Render("  ctrl-d quit · ctrl-r history · tab autocomplete · ctrl-c cancel"))
 	fmt.Fprintln(out)

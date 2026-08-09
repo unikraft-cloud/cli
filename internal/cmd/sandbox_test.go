@@ -131,14 +131,14 @@ func TestSandboxCommandParsing(t *testing.T) {
 				Plugin: "sandbox",
 				Dir:    "/app",
 				Env:    map[string]string{"KEY": "val"},
-				Cmd:    cmd.SandboxInstanceCmd{"echo", "hello"},
+				Cmd:    []string{"echo", "hello"},
 			},
 		}
 		assert.Equal(t, "my-instance", c.Target)
 		assert.Equal(t, "sandbox", c.Plugin)
 		assert.Equal(t, "/app", c.Dir)
 		assert.Equal(t, map[string]string{"KEY": "val"}, c.Env)
-		assert.Equal(t, cmd.SandboxInstanceCmd{"echo", "hello"}, c.Cmd)
+		assert.Equal(t, []string{"echo", "hello"}, c.Cmd)
 	})
 
 	t.Run("write command struct fields", func(t *testing.T) {

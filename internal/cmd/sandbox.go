@@ -25,18 +25,15 @@ import (
 	"unikraft.com/cli/internal/multimetro"
 )
 
-type (
-	SandboxInstanceCmd []string
-	ExecOpts           struct {
-		Cmd SandboxInstanceCmd `arg:"" name:"command" help:"Command to pass to the instance." placeholder:"cmd"`
+type ExecOpts struct {
+	Cmd []string `arg:"" name:"command" help:"Command to pass to the instance." placeholder:"cmd"`
 
-		Plugin      string            `name:"plugin" help:"Plugin name from the instance to run the command onto" default:"sandbox"`
-		Dir         string            `name:"dir" help:"Directory to execute the command from"`
-		Env         map[string]string `name:"env"     help:"Environment variables to set (KEY=VALUE)" mapsep:","`
-		TimeoutMsec int               `name:"cmd-timeout" help:"Timeout for waiting the result of the command"`
-		Raw         bool
-	}
-)
+	Plugin      string            `name:"plugin" help:"Plugin name from the instance to run the command onto" default:"sandbox"`
+	Dir         string            `name:"dir" help:"Directory to execute the command from"`
+	Env         map[string]string `name:"env"     help:"Environment variables to set (KEY=VALUE)" mapsep:","`
+	TimeoutMsec int               `name:"cmd-timeout" help:"Timeout for waiting the result of the command"`
+	Raw         bool
+}
 
 type ExecSandboxInstanceCmd struct {
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instances to run the command on."`

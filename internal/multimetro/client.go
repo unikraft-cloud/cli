@@ -22,9 +22,6 @@ import (
 
 type MetroClient struct {
 	platform.Client
-	// Sandbox serves the sandbox plugin API of the same metro.  It cannot be
-	// embedded alongside platform.Client, since both name their interface
-	// Client.
 	Sandbox sandbox.Client
 	Metro   config.Metro
 }
