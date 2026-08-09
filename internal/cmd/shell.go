@@ -69,9 +69,7 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 		return err
 	}
 
-	resolvedKey := instance.Key().(multimetro.Key)
-
-	return runSandboxShell(ctx, g, resolvedKey, c.Plugin, c.Dir, c.Env, stdio)
+	return runSandboxShell(ctx, g, instance, c.Plugin, c.Dir, c.Env, stdio)
 }
 
 // shellState tracks the client-side notion of "current directory" and
@@ -360,15 +358,14 @@ func (sctx *ShellContext) startBackgroundSync() {
 	go fetchRemoteAutocompleteCommands(sctx.Ctx, sctx.G, sctx.Key, sctx.Plugin, sctx.Completer)
 }
 
-func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin, initialDir string, initialEnv map[string]string, stdio config.Stdio) error {
+// runSandboxShell takes the instance the caller already looked up rather than
+// a key, so shell startup doesn't spend a second round trip re-reading what
+// it was just handed.
+func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient], instance Instance, plugin, initialDir string, initialEnv map[string]string, stdio config.Stdio) error {
+	key := instance.Key().(multimetro.Key)
 	cache := &shell.HistoryCache{}
 	ih := interrupt.FromContext(ctx)
-
-	isRunning := false
-	resources, err := Instance{}.Get(ctx, []string{key.String()})
-	if err == nil && len(resources) > 0 {
-		isRunning = instanceSandboxReady(resources[0].(Instance))
-	}
+	isRunning := instanceSandboxReady(instance)
 
 	builtins, err := newShellBuiltins(stdio.Stdout, stdio.Stderr)
 	if err != nil {

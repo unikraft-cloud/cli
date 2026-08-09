@@ -367,207 +367,111 @@ func (c *ShellUnmountCmd) Run(sctx *ShellContext) error {
 	return nil
 }
 
+// shellLifecycle runs a state-changing action against this shell's instance
+// and prints the resulting before/after diff.
+//
+// start, stop, suspend and restart all need the same shape around their one
+// differing call: snapshot the instance, act, re-read whatever actually
+// changed, and diff the two. It returns the keys the action reported so the
+// caller can update the shell's own notion of whether the instance is up.
+func shellLifecycle(sctx *ShellContext, act func(multimetro.Keys) (multimetro.Keys, error)) (multimetro.Keys, error) {
+	keys := multimetro.ParseKeys([]string{sctx.Key.String()})
+
+	before, opErr := Instance{}.Get(sctx.Ctx, keys.Strings())
+	if opErr != nil && len(before) == 0 {
+		return nil, opErr
+	}
+
+	affected, actErr := act(keys)
+	opErr = errors.Join(opErr, actErr)
+	if len(affected) == 0 {
+		return nil, opErr
+	}
+
+	updated, getErr := Instance{}.Get(sctx.Ctx, affected.Strings())
+	opErr = errors.Join(opErr, getErr)
+	if getErr != nil && len(updated) == 0 {
+		return affected, opErr
+	}
+
+	// The action may have touched fewer instances than we snapshotted, so
+	// drop anything it didn't report before diffing.
+	keySet := make(map[string]struct{}, len(affected))
+	for _, k := range affected {
+		keySet[k.Canonical()] = struct{}{}
+	}
+	untouched := func(r resource.Resource) bool {
+		_, ok := keySet[r.Key().Canonical()]
+		return !ok
+	}
+	before = slices.DeleteFunc(slices.Clone(before), untouched)
+	updated = slices.DeleteFunc(slices.Clone(updated), untouched)
+
+	diffErr := rescmd.Diff(sctx.Ctx, sctx.Out, rescmd.FormatOpts{}, Instance{}, before, updated)
+	return affected, errors.Join(opErr, diffErr)
+}
+
+// shellErr gives an error the shell's error styling, passing nil through.
+func shellErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+}
+
 type ShellStartCmd struct{}
 
 func (c *ShellStartCmd) Run(sctx *ShellContext) error {
-	parsedKeys := multimetro.ParseKeys([]string{sctx.Key.String()})
-	before, opErr := Instance{}.Get(sctx.Ctx, parsedKeys.Strings())
-	if opErr != nil && len(before) == 0 {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-	}
-
-	started, startErr := startInstances(sctx.Ctx, sctx.G, parsedKeys)
-	opErr = errors.Join(opErr, startErr)
-	if len(started) == 0 {
-		if opErr != nil {
-			return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-		}
-		return nil
-	}
-	sctx.State.running = true
-	sctx.startBackgroundSync()
-
-	updated, getErr := Instance{}.Get(sctx.Ctx, started.Strings())
-	opErr = errors.Join(opErr, getErr)
-	if getErr != nil && len(updated) == 0 {
-		if opErr != nil {
-			return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-		}
-		return nil
-	}
-
-	keySet := make(map[string]struct{}, len(started))
-	for _, k := range started {
-		keySet[k.Canonical()] = struct{}{}
-	}
-	before = slices.DeleteFunc(slices.Clone(before), func(r resource.Resource) bool {
-		_, ok := keySet[r.Key().Canonical()]
-		return !ok
+	started, err := shellLifecycle(sctx, func(keys multimetro.Keys) (multimetro.Keys, error) {
+		return startInstances(sctx.Ctx, sctx.G, keys)
 	})
-	updated = slices.DeleteFunc(slices.Clone(updated), func(r resource.Resource) bool {
-		_, ok := keySet[r.Key().Canonical()]
-		return !ok
-	})
-
-	diffErr := rescmd.Diff(sctx.Ctx, sctx.Out, rescmd.FormatOpts{}, Instance{}, before, updated)
-	if err := errors.Join(opErr, diffErr); err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+	if len(started) > 0 {
+		sctx.State.running = true
+		sctx.startBackgroundSync()
 	}
-	return nil
+	return shellErr(err)
 }
 
 type ShellStopCmd struct{}
 
 func (c *ShellStopCmd) Run(sctx *ShellContext) error {
-	parsedKeys := multimetro.ParseKeys([]string{sctx.Key.String()})
-	before, opErr := Instance{}.Get(sctx.Ctx, parsedKeys.Strings())
-	if opErr != nil && len(before) == 0 {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-	}
-
-	stopped, stopErr := stopInstances(sctx.Ctx, sctx.G, parsedKeys, StopOpts{DrainTimeout: -1})
-	opErr = errors.Join(opErr, stopErr)
-	if len(stopped) == 0 {
-		if opErr != nil {
-			return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-		}
-		return nil
-	}
-	sctx.State.running = false
-
-	updated, getErr := Instance{}.Get(sctx.Ctx, stopped.Strings())
-	opErr = errors.Join(opErr, getErr)
-	if getErr != nil && len(updated) == 0 {
-		if opErr != nil {
-			return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-		}
-		return nil
-	}
-
-	keySet := make(map[string]struct{}, len(stopped))
-	for _, k := range stopped {
-		keySet[k.Canonical()] = struct{}{}
-	}
-	before = slices.DeleteFunc(slices.Clone(before), func(r resource.Resource) bool {
-		_, ok := keySet[r.Key().Canonical()]
-		return !ok
+	stopped, err := shellLifecycle(sctx, func(keys multimetro.Keys) (multimetro.Keys, error) {
+		return stopInstances(sctx.Ctx, sctx.G, keys, StopOpts{DrainTimeout: -1})
 	})
-	updated = slices.DeleteFunc(slices.Clone(updated), func(r resource.Resource) bool {
-		_, ok := keySet[r.Key().Canonical()]
-		return !ok
-	})
-
-	diffErr := rescmd.Diff(sctx.Ctx, sctx.Out, rescmd.FormatOpts{}, Instance{}, before, updated)
-	if err := errors.Join(opErr, diffErr); err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+	if len(stopped) > 0 {
+		sctx.State.running = false
 	}
-	return nil
+	return shellErr(err)
 }
 
 type ShellSuspendCmd struct{}
 
 func (c *ShellSuspendCmd) Run(sctx *ShellContext) error {
-	parsedKeys := multimetro.ParseKeys([]string{sctx.Key.String()})
-	before, opErr := Instance{}.Get(sctx.Ctx, parsedKeys.Strings())
-	if opErr != nil && len(before) == 0 {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-	}
-
-	suspended, suspendErr := suspendInstances(sctx.Ctx, sctx.G, parsedKeys, -1)
-	opErr = errors.Join(opErr, suspendErr)
-	if len(suspended) == 0 {
-		if opErr != nil {
-			return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-		}
-		return nil
-	}
-	sctx.State.running = false
-
-	updated, getErr := Instance{}.Get(sctx.Ctx, suspended.Strings())
-	opErr = errors.Join(opErr, getErr)
-	if getErr != nil && len(updated) == 0 {
-		if opErr != nil {
-			return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-		}
-		return nil
-	}
-
-	keySet := make(map[string]struct{}, len(suspended))
-	for _, k := range suspended {
-		keySet[k.Canonical()] = struct{}{}
-	}
-	before = slices.DeleteFunc(slices.Clone(before), func(r resource.Resource) bool {
-		_, ok := keySet[r.Key().Canonical()]
-		return !ok
+	suspended, err := shellLifecycle(sctx, func(keys multimetro.Keys) (multimetro.Keys, error) {
+		return suspendInstances(sctx.Ctx, sctx.G, keys, -1)
 	})
-	updated = slices.DeleteFunc(slices.Clone(updated), func(r resource.Resource) bool {
-		_, ok := keySet[r.Key().Canonical()]
-		return !ok
-	})
-
-	diffErr := rescmd.Diff(sctx.Ctx, sctx.Out, rescmd.FormatOpts{}, Instance{}, before, updated)
-	if err := errors.Join(opErr, diffErr); err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+	if len(suspended) > 0 {
+		sctx.State.running = false
 	}
-	return nil
+	return shellErr(err)
 }
 
 type ShellRestartCmd struct{}
 
 func (c *ShellRestartCmd) Run(sctx *ShellContext) error {
-	parsedKeys := multimetro.ParseKeys([]string{sctx.Key.String()})
-	before, opErr := Instance{}.Get(sctx.Ctx, parsedKeys.Strings())
-	if opErr != nil && len(before) == 0 {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-	}
-
-	stopped, stopErr := stopInstances(sctx.Ctx, sctx.G, parsedKeys, StopOpts{DrainTimeout: -1})
-	opErr = errors.Join(opErr, stopErr)
-	if len(stopped) == 0 {
-		if opErr != nil {
-			return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
+	started, err := shellLifecycle(sctx, func(keys multimetro.Keys) (multimetro.Keys, error) {
+		stopped, stopErr := stopInstances(sctx.Ctx, sctx.G, keys, StopOpts{DrainTimeout: -1})
+		if len(stopped) == 0 {
+			return nil, stopErr
 		}
-		return nil
-	}
-
-	started, startErr := startInstances(sctx.Ctx, sctx.G, stopped)
-	opErr = errors.Join(opErr, startErr)
-	if len(started) == 0 {
-		if opErr != nil {
-			return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-		}
-		return nil
-	}
-	sctx.State.running = true
-	sctx.startBackgroundSync()
-
-	updated, getErr := Instance{}.Get(sctx.Ctx, started.Strings())
-	opErr = errors.Join(opErr, getErr)
-	if getErr != nil && len(updated) == 0 {
-		if opErr != nil {
-			return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), opErr)
-		}
-		return nil
-	}
-
-	keySet := make(map[string]struct{}, len(started))
-	for _, k := range started {
-		keySet[k.Canonical()] = struct{}{}
-	}
-	before = slices.DeleteFunc(slices.Clone(before), func(r resource.Resource) bool {
-		_, ok := keySet[r.Key().Canonical()]
-		return !ok
+		started, startErr := startInstances(sctx.Ctx, sctx.G, stopped)
+		return started, errors.Join(stopErr, startErr)
 	})
-	updated = slices.DeleteFunc(slices.Clone(updated), func(r resource.Resource) bool {
-		_, ok := keySet[r.Key().Canonical()]
-		return !ok
-	})
-
-	diffErr := rescmd.Diff(sctx.Ctx, sctx.Out, rescmd.FormatOpts{}, Instance{}, before, updated)
-	if err := errors.Join(opErr, diffErr); err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+	if len(started) > 0 {
+		sctx.State.running = true
+		sctx.startBackgroundSync()
 	}
-	return nil
+	return shellErr(err)
 }
 
 type ShellHistoryCmd struct {
