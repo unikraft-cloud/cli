@@ -24,7 +24,7 @@ import (
 )
 
 func SetShellPrompt(rl *readline.Instance, instanceName, dir string) {
-	prompt := ShellPromptStyle.Render(instanceName) + " " + ShellDirStyle.Render(dir) + " ❯ "
+	prompt := shellPromptStyle.Render(instanceName) + " " + ShellDirStyle.Render(dir) + " ❯ "
 	rl.SetPrompt(prompt)
 }
 
@@ -120,8 +120,20 @@ func (p *ShellPainter) Paint(line []rune, pos int) []rune {
 	return p.lastPass
 }
 
+// highlightParsers hands out bash parsers for highlightShellLine. Building
+// one per call is wasted work on a path that runs on every painter cache
+// miss and every history line printed; a parser is reusable but not safe to
+// share concurrently, hence the pool.
+var highlightParsers = sync.Pool{
+	New: func() any {
+		return syntax.NewParser(syntax.Variant(syntax.LangBash), syntax.KeepComments(true))
+	},
+}
+
 func highlightShellLine(line string) string {
-	p := syntax.NewParser(syntax.Variant(syntax.LangBash), syntax.KeepComments(true))
+	p := highlightParsers.Get().(*syntax.Parser)
+	defer highlightParsers.Put(p)
+
 	f, err := p.Parse(strings.NewReader(line), "")
 	if err != nil {
 		return line
@@ -352,13 +364,11 @@ func (h *HistoryCache) Get(n int) (string, bool) {
 	return "", false
 }
 
-func (h *HistoryCache) Clear() int {
+func (h *HistoryCache) Clear() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	n := len(h.entries)
 	h.entries = h.entries[:0]
-	return n
 }
 
 func (h *HistoryCache) Delete(n int) (string, string, bool) {
@@ -385,25 +395,6 @@ func cleanRemoteHistory(cmd string) string {
 	cmd = injectedWrapperRx.ReplaceAllString(cmd, "")
 
 	return strings.TrimSpace(cmd)
-}
-
-type ReadlineReader struct {
-	S *StdinPump
-}
-
-func (r *ReadlineReader) Read(p []byte) (int, error) {
-	return r.S.Read(p)
-}
-
-func (r *ReadlineReader) Fd() uintptr {
-	if f, ok := r.S.r.(interface{ Fd() uintptr }); ok {
-		return f.Fd()
-	}
-	return ^uintptr(0)
-}
-
-func (r *ReadlineReader) Close() error {
-	return nil
 }
 
 type CmdReader struct {

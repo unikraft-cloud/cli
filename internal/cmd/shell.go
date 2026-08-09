@@ -48,28 +48,15 @@ func (cmd ShellSandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	key := multimetro.ParseKey(c.Target)
-
-	sandbox, opErr := Instance{}.Get(ctx, []string{key.String()})
-	if opErr != nil && len(sandbox) == 0 {
-		return opErr
-	}
-
-	instance := sandbox[0].(Instance)
-
 	// Unlike the other sandbox commands this one doesn't require a running
 	// instance - you can start it from inside the shell. A missing plugin is
-	// worth refusing up front though, since every command would fail.
-	if err := requirePlugin(instance, c.Plugin); err != nil {
-		return err
-	}
-
-	g, err := multimetro.NewClient(ctx)
+	// still refused up front, since every command would fail.
+	target, err := resolveSandboxTarget(ctx, c.Target, c.Plugin, allowStopped)
 	if err != nil {
 		return err
 	}
 
-	return runSandboxShell(ctx, g, instance, c.Plugin, c.Dir, c.Env, stdio)
+	return runSandboxShell(ctx, target.g, target.instance, c.Plugin, c.Dir, c.Env, stdio)
 }
 
 // shellState tracks the client-side notion of "current directory" and
@@ -154,10 +141,9 @@ func (s *shellState) handleBuiltin(sctx *ShellContext, line string) bool {
 			target = strings.Trim(fields[1], `"'`)
 		}
 		newDir := resolveDir(s.dir, target)
-		escapedDir := strings.ReplaceAll(newDir, "'", "'\\''")
 		var buf strings.Builder
 		opts := ExecOpts{
-			Cmd:    []string{fmt.Sprintf("[ -d '%s' ] && echo OK", escapedDir)},
+			Cmd:    []string{fmt.Sprintf("[ -d %s ] && echo OK", QuoteShellArg(newDir))},
 			Raw:    true,
 			Plugin: sctx.Plugin,
 		}
@@ -205,9 +191,14 @@ func (s *shellState) handleBuiltin(sctx *ShellContext, line string) bool {
 // shellFields splits line into shell-style words, honoring quoting so that
 // e.g. `cd "my dir"` keeps "my dir" as a single argument instead of being
 // split on the space. Constructs that can't be reduced to plain text
-// (variables, substitutions, globs, ...) fall back to naive whitespace
-// splitting - this is only used to detect and parse local builtins, and
-// anything else is sent to the remote shell unparsed regardless.
+// (variables, substitutions, unbalanced quotes, ...) fall back to naive
+// whitespace splitting - this is only used to detect and parse local
+// builtins, and anything else is sent to the remote shell unparsed anyway.
+// Note: mvdan.cc/sh/v3/shell.Fields looks like a drop-in here, but it
+// resolves variables through its callback (and probes IFS/PWD through the
+// same one), so it can't distinguish "no variables" from "expanded to
+// empty". Walking the AST for literal-only words is what keeps `cd $FOO`
+// falling through to the remote shell instead of becoming a bare `cd`.
 func shellFields(line string) []string {
 	parser := syntax.NewParser()
 	var fields []string
@@ -290,15 +281,16 @@ func executeRemote(ctx context.Context, stdout io.Writer, stdin io.Reader, g *gr
 
 func fetchRemoteAutocompleteCommands(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin string, completer *shell.SandboxCompleter) {
 	log.G(ctx).Debug().Msg("shell: fetching remote autocomplete commands")
-	fetchCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Derived from ctx, not Background, so the probe stops when the shell
+	// exits rather than outliving it.
+	fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var buf strings.Builder
 	opts := ExecOpts{
-		Cmd:         []string{"sh -c 'IFS=:; for d in $PATH; do ls -1 \"$d\" 2>/dev/null; done | sort -u'"},
-		Raw:         true,
-		Plugin:      plugin,
-		TimeoutMsec: 10000,
+		Cmd:    []string{"sh -c 'IFS=:; for d in $PATH; do ls -1 \"$d\" 2>/dev/null; done | sort -u'"},
+		Raw:    true,
+		Plugin: plugin,
 	}
 
 	err := execSandboxInstance(fetchCtx, &buf, nil, g, key, opts)
@@ -340,7 +332,6 @@ type ShellContext struct {
 	State     *shellState
 	Cache     *shell.HistoryCache
 	Completer *shell.SandboxCompleter
-	RL        *readline.Instance
 	Builtins  *shellBuiltins
 }
 
@@ -377,7 +368,6 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 	defer pump.Close()
 
 	completer := shell.NewSandboxCompleter()
-	readlineReader := &shell.ReadlineReader{S: pump}
 	painter := &shell.ShellPainter{}
 
 	fmt.Fprintln(stdio.Stdout, shell.ShellTitleStyle.Render("▀▀▀ Unikraft Sandbox Shell"))
@@ -396,7 +386,7 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 	defer func() { _ = term.Flush() }()
 
 	rl, err := readline.NewEx(&readline.Config{
-		Stdin:             readlineReader,
+		Stdin:             pump,
 		Stdout:            term,
 		Painter:           painter,
 		AutoComplete:      completer,
@@ -419,7 +409,6 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 		State:     state,
 		Cache:     cache,
 		Completer: completer,
-		RL:        rl,
 		Builtins:  builtins,
 	}
 

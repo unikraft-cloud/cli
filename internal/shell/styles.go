@@ -13,27 +13,27 @@ import (
 )
 
 var (
-	shellHighlightCmdStyle     = lipgloss.NewStyle().Foreground(ShellAccentColor).Bold(true)
+	shellHighlightCmdStyle     = lipgloss.NewStyle().Foreground(shellAccentColor).Bold(true)
 	shellHighlightStrStyle     = lipgloss.NewStyle().Foreground(colors.Success)
 	shellHighlightVarStyle     = lipgloss.NewStyle().Foreground(colors.Warning)
-	shellHighlightOptStyle     = lipgloss.NewStyle().Foreground(ShellDimColor)
-	shellHighlightCommentStyle = lipgloss.NewStyle().Foreground(ShellHintColor).Italic(true)
-	shellHighlightOpStyle      = lipgloss.NewStyle().Foreground(ShellAccentColor)
+	shellHighlightOptStyle     = lipgloss.NewStyle().Foreground(shellDimColor)
+	shellHighlightCommentStyle = lipgloss.NewStyle().Foreground(shellHintColor).Italic(true)
+	shellHighlightOpStyle      = lipgloss.NewStyle().Foreground(shellAccentColor)
 )
 
 var (
-	ShellAccentColor = compat.AdaptiveColor{Light: colors.Blue500, Dark: colors.Blue400}
-	ShellDimColor    = compat.AdaptiveColor{Light: colors.Slate400, Dark: colors.Slate500}
-	ShellHintColor   = compat.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500}
+	shellAccentColor = compat.AdaptiveColor{Light: colors.Blue500, Dark: colors.Blue400}
+	shellDimColor    = compat.AdaptiveColor{Light: colors.Slate400, Dark: colors.Slate500}
+	shellHintColor   = compat.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500}
 
-	ShellTitleStyle  = lipgloss.NewStyle().Foreground(ShellAccentColor).Bold(true)
-	ShellLabelStyle  = lipgloss.NewStyle().Foreground(ShellDimColor)
+	ShellTitleStyle  = lipgloss.NewStyle().Foreground(shellAccentColor).Bold(true)
+	ShellLabelStyle  = lipgloss.NewStyle().Foreground(shellDimColor)
 	ShellValueStyle  = lipgloss.NewStyle().Foreground(colors.Warning)
 	ShellErrorStyle  = lipgloss.NewStyle().Foreground(colors.Error)
-	ShellHintStyle   = lipgloss.NewStyle().Foreground(ShellHintColor)
-	ShellKeyStyle    = lipgloss.NewStyle().Foreground(ShellDimColor).Faint(true)
-	ShellPromptStyle = lipgloss.NewStyle().Foreground(colors.Success).Bold(true)
-	ShellDirStyle    = lipgloss.NewStyle().Foreground(ShellAccentColor)
+	ShellHintStyle   = lipgloss.NewStyle().Foreground(shellHintColor)
+	ShellKeyStyle    = lipgloss.NewStyle().Foreground(shellDimColor).Faint(true)
+	shellPromptStyle = lipgloss.NewStyle().Foreground(colors.Success).Bold(true)
+	ShellDirStyle    = lipgloss.NewStyle().Foreground(shellAccentColor)
 	ShellNoticeStyle = lipgloss.NewStyle().
 				Foreground(colors.Info).
 				Bold(true).

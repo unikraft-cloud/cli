@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"mvdan.cc/sh/v3/syntax"
+
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/cloud/sdk/sandbox"
@@ -32,7 +34,11 @@ type ExecOpts struct {
 	Dir         string            `name:"dir" help:"Directory to execute the command from"`
 	Env         map[string]string `name:"env"     help:"Environment variables to set (KEY=VALUE)" mapsep:","`
 	TimeoutMsec int               `name:"cmd-timeout" help:"Timeout for waiting the result of the command"`
-	Raw         bool
+
+	// Raw sends the command line to the remote shell unquoted. Only the
+	// interactive shell sets it - kong would otherwise expose it as an
+	// undocumented --raw flag.
+	Raw bool `kong:"-"`
 }
 
 type ExecSandboxInstanceCmd struct {
@@ -71,30 +77,69 @@ func (cmd ExecSandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	key := multimetro.ParseKey(c.Target)
-
-	sandbox, opErr := Instance{}.Get(ctx, []string{key.String()})
-	if opErr != nil && len(sandbox) == 0 {
-		return opErr
-	}
-
-	instance := sandbox[0].(Instance)
-	if err := requireRunningInstance(instance); err != nil {
-		return err
-	}
-
-	if err := requirePlugin(instance, c.Plugin); err != nil {
-		return err
-	}
-
-	g, err := multimetro.NewClient(ctx)
+	target, err := resolveSandboxTarget(ctx, c.Target, c.Plugin, requireRunning)
 	if err != nil {
 		return err
 	}
 
-	resolvedKey := instance.Key().(multimetro.Key)
+	return execSandboxInstance(ctx, stdio.Stdout, nil, target.g, target.key, c.ExecOpts)
+}
 
-	return execSandboxInstance(ctx, stdio.Stdout, nil, g, resolvedKey, c.ExecOpts)
+// sandboxTarget is an instance resolved and checked well enough to send
+// plugin requests to.
+type sandboxTarget struct {
+	instance Instance
+	key      multimetro.Key
+	g        *group.Group[multimetro.MetroClient]
+}
+
+type sandboxTargetOpt int
+
+const (
+	// allowStopped skips the running check, for the shell - which lets you
+	// start the instance from inside it.
+	allowStopped sandboxTargetOpt = iota
+	requireRunning
+)
+
+// resolveSandboxTarget looks up target, checks it can serve plugin requests,
+// and builds the metro client group. Every sandbox subcommand opens this way.
+func resolveSandboxTarget(ctx context.Context, target, plugin string, opt sandboxTargetOpt) (sandboxTarget, error) {
+	key := multimetro.ParseKey(target)
+
+	resources, opErr := Instance{}.Get(ctx, []string{key.String()})
+	if len(resources) == 0 {
+		if opErr != nil {
+			return sandboxTarget{}, opErr
+		}
+		return sandboxTarget{}, fmt.Errorf("instance %q not found", target)
+	}
+
+	instance, ok := resources[0].(Instance)
+	if !ok {
+		return sandboxTarget{}, fmt.Errorf("%q is not an instance", target)
+	}
+
+	if opt == requireRunning {
+		if err := requireRunningInstance(instance); err != nil {
+			return sandboxTarget{}, err
+		}
+	}
+
+	if err := requirePlugin(instance, plugin); err != nil {
+		return sandboxTarget{}, err
+	}
+
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return sandboxTarget{}, err
+	}
+
+	return sandboxTarget{
+		instance: instance,
+		key:      instance.Key().(multimetro.Key),
+		g:        g,
+	}, nil
 }
 
 // instanceSandboxReady reports whether an instance's sandbox plugin is
@@ -170,21 +215,54 @@ func pluginError(ctx context.Context, key multimetro.Key, plugin string, err err
 	return fmt.Errorf("instance %q is not serving its %q plugin: the plugin may have failed to start", key.String(), plugin)
 }
 
+// sandboxLogPollInterval is how often the command's output is collected
+// while it runs. It only affects streaming latency: completion is detected by
+// a blocking wait, not by polling.
+const sandboxLogPollInterval = 500 * time.Millisecond
+
+// decodeSandboxPayload decodes a base64 field from the sandbox API, falling
+// back to the raw string when it isn't encoded.
+func decodeSandboxPayload(s string) []byte {
+	decoded, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return []byte(s)
+	}
+	return decoded
+}
+
+// wrapSandboxErr annotates a failed plugin request, upgrading the routing
+// layer's 404 to pluginError's wording where that applies.
+func wrapSandboxErr(ctx context.Context, key multimetro.Key, plugin, msg string, err error) error {
+	if pErr := pluginError(ctx, key, plugin, err); pErr != err {
+		return pErr
+	}
+	return fmt.Errorf("%s: %w", msg, err)
+}
+
+// QuoteShellArg renders s as a single word the remote shell will read back
+// literally. The fallback only triggers for input syntax.Quote can't
+// represent at all (embedded NUL, invalid UTF-8), and single-quoting is the
+// safest thing to do with those.
+func QuoteShellArg(s string) string {
+	if quoted, err := syntax.Quote(s, syntax.LangBash); err == nil {
+		return quoted
+	}
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 // BuildExecCommand constructs the full shell command line from the exec options.
 func BuildExecCommand(dir string, env map[string]string, cmdArgs []string, raw bool) string {
 	var prefix string
 
 	if dir != "" {
-		escapedDir := "'" + strings.ReplaceAll(dir, "'", "'\\''") + "'"
-		prefix += fmt.Sprintf("cd %s && ", escapedDir)
+		prefix += fmt.Sprintf("cd %s && ", QuoteShellArg(dir))
 	}
 
 	if len(env) > 0 {
 		var envBuf strings.Builder
 		envBuf.WriteString("env ")
 		for k, v := range env {
-			escapedVal := "'" + strings.ReplaceAll(v, "'", "'\\''") + "'"
-			fmt.Fprintf(&envBuf, "%s=%s ", k, escapedVal)
+			fmt.Fprintf(&envBuf, "%s=%s ", k, QuoteShellArg(v))
 		}
 		prefix += envBuf.String()
 	}
@@ -193,12 +271,9 @@ func BuildExecCommand(dir string, env map[string]string, cmdArgs []string, raw b
 		return prefix + strings.Join(cmdArgs, " ")
 	}
 
-	var quotedCmd []string
+	quotedCmd := make([]string, 0, len(cmdArgs))
 	for _, arg := range cmdArgs {
-		if strings.ContainsAny(arg, " \t\n*?[]{}()<>|&;\\\"'") || arg == "" {
-			arg = "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
-		}
-		quotedCmd = append(quotedCmd, arg)
+		quotedCmd = append(quotedCmd, QuoteShellArg(arg))
 	}
 	return prefix + strings.Join(quotedCmd, " ")
 }
@@ -218,10 +293,7 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 
 		execResp, err := c.Sandbox.ExecInstanceCommand(ctx, instanceUUID, pluginName, req)
 		if err != nil {
-			if pErr := pluginError(ctx, key, pluginName, err); pErr != err {
-				return struct{}{}, pErr
-			}
-			return struct{}{}, fmt.Errorf("failed to start command: %w", err)
+			return struct{}{}, wrapSandboxErr(ctx, key, pluginName, "failed to start command", err)
 		}
 		cmdUUID := execResp.Data.Uuid
 
@@ -265,10 +337,7 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 			defer cancel()
 			logsResp, err := c.Sandbox.GetInstanceCommandLogs(fetchCtx, instanceUUID, pluginName, cmdUUID, logsReq)
 			if err != nil {
-				if pErr := pluginError(ctx, key, pluginName, err); pErr != err {
-					return pErr
-				}
-				return fmt.Errorf("failed to fetch logs: %w", err)
+				return wrapSandboxErr(ctx, key, pluginName, "failed to fetch logs", err)
 			}
 			log.G(ctx).Trace().
 				Str("cmd", cmdUUID).
@@ -279,28 +348,26 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 				Interface("stdout_available", logsResp.Data.StdoutAvailable).
 				Interface("stderr_available", logsResp.Data.StderrAvailable).
 				Msg("polled command logs")
-			if logsResp.Data.Stdout != "" {
-				stdout, err := base64.StdEncoding.DecodeString(logsResp.Data.Stdout)
-				if err != nil {
-					stdout = []byte(logsResp.Data.Stdout)
+			// Both streams are handled identically; the API reports how much
+			// it has produced so far, and only falls back to advancing by
+			// what we decoded when it doesn't say.
+			for _, stream := range []struct {
+				data      string
+				available *uint64
+				offset    *int64
+			}{
+				{logsResp.Data.Stdout, logsResp.Data.StdoutAvailable, &stdoutOffset},
+				{logsResp.Data.Stderr, logsResp.Data.StderrAvailable, &stderrOffset},
+			} {
+				if stream.data == "" {
+					continue
 				}
-				fmt.Fprint(out, string(stdout))
-				if logsResp.Data.StdoutAvailable != nil {
-					stdoutOffset = int64(*logsResp.Data.StdoutAvailable)
+				decoded := decodeSandboxPayload(stream.data)
+				fmt.Fprint(out, string(decoded))
+				if stream.available != nil {
+					*stream.offset = int64(*stream.available)
 				} else {
-					stdoutOffset += int64(len(stdout))
-				}
-			}
-			if logsResp.Data.Stderr != "" {
-				stderr, err := base64.StdEncoding.DecodeString(logsResp.Data.Stderr)
-				if err != nil {
-					stderr = []byte(logsResp.Data.Stderr)
-				}
-				fmt.Fprint(out, string(stderr))
-				if logsResp.Data.StderrAvailable != nil {
-					stderrOffset = int64(*logsResp.Data.StderrAvailable)
-				} else {
-					stderrOffset += int64(len(stderr))
+					*stream.offset += int64(len(decoded))
 				}
 			}
 			return nil
@@ -309,21 +376,43 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 		log.G(ctx).Trace().
 			Str("cmd", cmdUUID).
 			Str("cmdline", cmdline).
-			Msg("starting poll loop")
+			Msg("waiting for command")
 
-		var deadline time.Time
+		// One blocking wait inside the sandbox tells us when the command is
+		// done - no polling for completion. It runs alongside the log fetches
+		// below so output still streams while the command runs. ^C cancels
+		// ctx, which aborts the in-flight request.
+		waitCtx := ctx
 		if opts.TimeoutMsec > 0 {
-			deadline = time.Now().Add(time.Duration(opts.TimeoutMsec) * time.Millisecond)
+			var cancelWait context.CancelFunc
+			waitCtx, cancelWait = context.WithTimeout(ctx, time.Duration(opts.TimeoutMsec)*time.Millisecond)
+			defer cancelWait()
 		}
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := c.Sandbox.WaitInstanceCommand(waitCtx, instanceUUID, pluginName, cmdUUID)
+			done <- err
+		}()
 
 		for {
 			select {
 			case <-ctx.Done():
-				log.G(ctx).Trace().
-					Str("cmd", cmdUUID).
-					Msg("context cancelled, exiting poll loop")
+				log.G(ctx).Trace().Str("cmd", cmdUUID).Msg("context cancelled, exiting wait")
 				return struct{}{}, ctx.Err()
-			case <-time.After(100 * time.Millisecond):
+
+			case waitErr := <-done:
+				if waitErr != nil {
+					// A deadline on waitCtx that ctx doesn't share is
+					// --cmd-timeout expiring, not a request failure.
+					if ctx.Err() == nil && waitCtx.Err() == context.DeadlineExceeded {
+						return struct{}{}, fmt.Errorf("timed out waiting for command to finish")
+					}
+					return struct{}{}, wrapSandboxErr(ctx, key, pluginName, "failed waiting for command", waitErr)
+				}
+
+				// The plugin pumps the command's pipes to exhaustion before
+				// wait returns, so this final fetch collects everything left.
 				if err := fetchAndPrint(); err != nil {
 					return struct{}{}, err
 				}
@@ -332,25 +421,17 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 				inspectResp, err := c.Sandbox.InspectInstanceCommand(inspectCtx, instanceUUID, pluginName, cmdUUID)
 				cancel()
 				if err != nil {
-					if pErr := pluginError(ctx, key, pluginName, err); pErr != err {
-						return struct{}{}, pErr
-					}
-					return struct{}{}, fmt.Errorf("failed to inspect command: %w", err)
+					return struct{}{}, wrapSandboxErr(ctx, key, pluginName, "failed to inspect command", err)
 				}
+				log.G(ctx).Trace().
+					Str("cmd", cmdUUID).
+					Interface("exitcode", inspectResp.Data.Exitcode).
+					Msg("command finished")
+				return struct{}{}, nil
 
-				if inspectResp.Data.Exitcode != nil {
-					log.G(ctx).Trace().
-						Str("cmd", cmdUUID).
-						Int32("exitcode", *inspectResp.Data.Exitcode).
-						Msg("command finished, doing final fetch")
-					if err := fetchAndPrint(); err != nil {
-						return struct{}{}, err
-					}
-					return struct{}{}, nil
-				}
-
-				if !deadline.IsZero() && time.Now().After(deadline) {
-					return struct{}{}, fmt.Errorf("timed out waiting for command to finish")
+			case <-time.After(sandboxLogPollInterval):
+				if err := fetchAndPrint(); err != nil {
+					return struct{}{}, err
 				}
 			}
 		}
@@ -358,20 +439,11 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 	return err
 }
 
+// feedSandboxStdin pumps in to the remote command's stdin until it drains or
+// ctx is cancelled. The reader is expected to honour ctx itself -
+// shell.CmdReader does - since a Read already in flight can't be interrupted
+// from here.
 func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instanceUUID, pluginName, cmdUUID string, in io.Reader) {
-	if deadliner, ok := in.(interface{ SetReadDeadline(time.Time) error }); ok {
-		stop := make(chan struct{})
-		defer close(stop)
-		go func() {
-			select {
-			case <-ctx.Done():
-				_ = deadliner.SetReadDeadline(time.Now())
-			case <-stop:
-			}
-		}()
-		defer func() { _ = deadliner.SetReadDeadline(time.Time{}) }()
-	}
-
 	buf := make([]byte, 32*1024)
 	for {
 		if ctx.Err() != nil {
@@ -428,28 +500,11 @@ func (cmd WriteSandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	key := multimetro.ParseKey(c.Target)
-
-	sandbox, opErr := Instance{}.Get(ctx, []string{key.String()})
-	if opErr != nil && len(sandbox) == 0 {
-		return opErr
-	}
-
-	instance := sandbox[0].(Instance)
-	if err := requireRunningInstance(instance); err != nil {
-		return err
-	}
-
-	if err := requirePlugin(instance, c.Plugin); err != nil {
-		return err
-	}
-
-	g, err := multimetro.NewClient(ctx)
+	target, err := resolveSandboxTarget(ctx, c.Target, c.Plugin, requireRunning)
 	if err != nil {
 		return err
 	}
-
-	resolvedKey := instance.Key().(multimetro.Key)
+	g, resolvedKey := target.g, target.key
 
 	data, err := os.ReadFile(c.Local)
 	if err != nil {
@@ -491,10 +546,7 @@ func writeSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient
 			Data:     base64.StdEncoding.EncodeToString(data),
 		}
 		if _, err := c.Sandbox.WriteInstanceFile(ctx, key.Ref().UUID, plugin, req); err != nil {
-			if pErr := pluginError(ctx, key, plugin, err); pErr != err {
-				return struct{}{}, pErr
-			}
-			return struct{}{}, fmt.Errorf("failed to write file: %w", err)
+			return struct{}{}, wrapSandboxErr(ctx, key, plugin, "failed to write file", err)
 		}
 		return struct{}{}, nil
 	})
@@ -528,28 +580,11 @@ func (cmd ReadSandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	key := multimetro.ParseKey(c.Target)
-
-	sandbox, opErr := Instance{}.Get(ctx, []string{key.String()})
-	if opErr != nil && len(sandbox) == 0 {
-		return opErr
-	}
-
-	instance := sandbox[0].(Instance)
-	if err := requireRunningInstance(instance); err != nil {
-		return err
-	}
-
-	if err := requirePlugin(instance, c.Plugin); err != nil {
-		return err
-	}
-
-	g, err := multimetro.NewClient(ctx)
+	target, err := resolveSandboxTarget(ctx, c.Target, c.Plugin, requireRunning)
 	if err != nil {
 		return err
 	}
-
-	resolvedKey := instance.Key().(multimetro.Key)
+	g, resolvedKey := target.g, target.key
 
 	data, err := readSandboxFile(ctx, g, resolvedKey, c.Plugin, c.Remote)
 	if err != nil {
@@ -590,17 +625,10 @@ func readSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient]
 		}
 		resp, err := c.Sandbox.ReadInstanceFile(ctx, key.Ref().UUID, plugin, req)
 		if err != nil {
-			if pErr := pluginError(ctx, key, plugin, err); pErr != err {
-				return nil, pErr
-			}
-			return nil, fmt.Errorf("failed to read file: %w", err)
+			return nil, wrapSandboxErr(ctx, key, plugin, "failed to read file", err)
 		}
 
-		data, err := base64.StdEncoding.DecodeString(resp.Data.Contents)
-		if err != nil {
-			return []byte(resp.Data.Contents), nil
-		}
-		return data, nil
+		return decodeSandboxPayload(resp.Data.Contents), nil
 	})
 }
 
@@ -630,28 +658,11 @@ func (cmd MkdirSandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *MkdirSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	key := multimetro.ParseKey(c.Target)
-
-	sandbox, opErr := Instance{}.Get(ctx, []string{key.String()})
-	if opErr != nil && len(sandbox) == 0 {
-		return opErr
-	}
-
-	instance := sandbox[0].(Instance)
-	if err := requireRunningInstance(instance); err != nil {
-		return err
-	}
-
-	if err := requirePlugin(instance, c.Plugin); err != nil {
-		return err
-	}
-
-	g, err := multimetro.NewClient(ctx)
+	target, err := resolveSandboxTarget(ctx, c.Target, c.Plugin, requireRunning)
 	if err != nil {
 		return err
 	}
-
-	resolvedKey := instance.Key().(multimetro.Key)
+	g, resolvedKey := target.g, target.key
 
 	if err := mkdirSandboxInstance(ctx, g, resolvedKey, c.Plugin, c.Path, c.Parents); err != nil {
 		return err
@@ -670,10 +681,7 @@ func mkdirSandboxInstance(ctx context.Context, g *group.Group[multimetro.MetroCl
 			Parents: parents,
 		}
 		if _, err := c.Sandbox.MakeInstanceDirectory(ctx, key.Ref().UUID, plugin, req); err != nil {
-			if pErr := pluginError(ctx, key, plugin, err); pErr != err {
-				return struct{}{}, pErr
-			}
-			return struct{}{}, fmt.Errorf("failed to create directory: %w", err)
+			return struct{}{}, wrapSandboxErr(ctx, key, plugin, "failed to create directory", err)
 		}
 		return struct{}{}, nil
 	})

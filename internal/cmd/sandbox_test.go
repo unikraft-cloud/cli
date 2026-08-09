@@ -50,44 +50,44 @@ func TestBuildExecCommand(t *testing.T) {
 		{
 			name: "command with quotes in arg",
 			cmd:  []string{"echo", `it's`},
-			want: `echo 'it'\''s'`,
+			want: `echo "it's"`,
 		},
 		{
 			name: "with dir",
 			dir:  "/var/lib/app",
 			cmd:  []string{"ls"},
-			want: "cd '/var/lib/app' && ls",
+			want: "cd /var/lib/app && ls",
 		},
 		{
 			name: "with dir containing quotes",
 			dir:  `/path/with's`,
 			cmd:  []string{"ls"},
-			want: `cd '/path/with'\''s' && ls`,
+			want: `cd "/path/with's" && ls`,
 		},
 		{
 			name: "with env",
 			env:  map[string]string{"DEBUG": "true"},
 			cmd:  []string{"./start.sh"},
-			want: "env DEBUG='true' ./start.sh",
+			want: "env DEBUG=true ./start.sh",
 		},
 		{
 			name: "with multiple env vars",
 			env:  map[string]string{"A": "1"},
 			cmd:  []string{"./start.sh"},
-			want: "env A='1' ./start.sh",
+			want: "env A=1 ./start.sh",
 		},
 		{
 			name: "with env containing quotes",
 			env:  map[string]string{"MSG": "it's alive"},
 			cmd:  []string{"echo"},
-			want: `env MSG='it'\''s alive' echo`,
+			want: `env MSG="it's alive" echo`,
 		},
 		{
 			name: "with dir and env",
 			dir:  "/app",
 			env:  map[string]string{"ENV": "prod"},
 			cmd:  []string{"./run"},
-			want: "cd '/app' && env ENV='prod' ./run",
+			want: "cd /app && env ENV=prod ./run",
 		},
 		{
 			name: "raw mode preserves quoting",
@@ -100,7 +100,33 @@ func TestBuildExecCommand(t *testing.T) {
 			raw:  true,
 			dir:  "/tmp",
 			cmd:  []string{"ls -la"},
-			want: "cd '/tmp' && ls -la",
+			want: "cd /tmp && ls -la",
+		},
+		{
+			name: "arg with variable is not expanded remotely",
+			cmd:  []string{"echo", "$HOME"},
+			want: "echo '$HOME'",
+		},
+		{
+			name: "arg with command substitution stays quoted",
+			cmd:  []string{"echo", "$(id -u)"},
+			want: "echo '$(id -u)'",
+		},
+		{
+			name: "arg with backticks stays quoted",
+			cmd:  []string{"echo", "`id -u`"},
+			want: "echo '`id -u`'",
+		},
+		{
+			name: "arg with tilde is not expanded remotely",
+			cmd:  []string{"ls", "~root"},
+			want: "ls '~root'",
+		},
+		{
+			name: "env value with variable is not expanded remotely",
+			env:  map[string]string{"P": "$PATH"},
+			cmd:  []string{"env"},
+			want: "env P='$PATH' env",
 		},
 		{
 			name: "empty command",
@@ -120,75 +146,4 @@ func TestBuildExecCommand(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
-}
-
-func TestSandboxCommandParsing(t *testing.T) {
-	t.Run("exec command struct fields", func(t *testing.T) {
-		// Verify the ExecSandboxInstanceCmd struct has expected fields
-		c := cmd.ExecSandboxInstanceCmd{
-			Target: "my-instance",
-			ExecOpts: cmd.ExecOpts{
-				Plugin: "sandbox",
-				Dir:    "/app",
-				Env:    map[string]string{"KEY": "val"},
-				Cmd:    []string{"echo", "hello"},
-			},
-		}
-		assert.Equal(t, "my-instance", c.Target)
-		assert.Equal(t, "sandbox", c.Plugin)
-		assert.Equal(t, "/app", c.Dir)
-		assert.Equal(t, map[string]string{"KEY": "val"}, c.Env)
-		assert.Equal(t, []string{"echo", "hello"}, c.Cmd)
-	})
-
-	t.Run("write command struct fields", func(t *testing.T) {
-		c := cmd.WriteSandboxInstanceCmd{
-			Target:  "my-instance",
-			Local:   "./config.json",
-			Remote:  "/etc/app/config.json",
-			Plugin:  "sandbox",
-			Parents: true,
-		}
-		assert.Equal(t, "my-instance", c.Target)
-		assert.Equal(t, "./config.json", c.Local)
-		assert.Equal(t, "/etc/app/config.json", c.Remote)
-		assert.Equal(t, "sandbox", c.Plugin)
-		assert.True(t, c.Parents)
-	})
-
-	t.Run("read command struct fields", func(t *testing.T) {
-		c := cmd.ReadSandboxInstanceCmd{
-			Target: "my-instance",
-			Remote: "/etc/app/config.json",
-			Local:  "./config.json",
-			Plugin: "sandbox",
-			Force:  true,
-		}
-		assert.Equal(t, "my-instance", c.Target)
-		assert.Equal(t, "/etc/app/config.json", c.Remote)
-		assert.Equal(t, "./config.json", c.Local)
-		assert.Equal(t, "sandbox", c.Plugin)
-		assert.True(t, c.Force)
-	})
-
-	t.Run("read default local path from remote", func(t *testing.T) {
-		c := cmd.ReadSandboxInstanceCmd{
-			Remote: "/var/log/app.log",
-		}
-		// Local is empty, so caller should use filepath.Base(Remote)
-		assert.Empty(t, c.Local)
-	})
-
-	t.Run("mkdir command struct fields", func(t *testing.T) {
-		c := cmd.MkdirSandboxInstanceCmd{
-			Target:  "my-instance",
-			Path:    "/var/lib/app/data",
-			Plugin:  "sandbox",
-			Parents: true,
-		}
-		assert.Equal(t, "my-instance", c.Target)
-		assert.Equal(t, "/var/lib/app/data", c.Path)
-		assert.Equal(t, "sandbox", c.Plugin)
-		assert.True(t, c.Parents)
-	})
 }

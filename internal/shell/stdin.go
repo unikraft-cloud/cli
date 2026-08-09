@@ -8,8 +8,8 @@ package shell
 // StdinPump bridges a single io.Reader (the terminal stdin) to two
 // consumers in the shell command:
 //
-//  1. ReadlineReader — feeds the readline prompt via the standard Read
-//     method, so the user can type interactive commands.
+//  1. readline — reads the prompt directly off the pump via Read, so the
+//     user can type interactive commands.
 //  2. CmdReader — feeds stdin of the remote-sandbox exec via the
 //     context-aware ReadContext method, so that when a running command
 //     is interrupted (^C) the read respects cmdCtx cancellation.
@@ -25,7 +25,6 @@ import (
 )
 
 type StdinPump struct {
-	r      io.Reader
 	ch     chan []byte
 	mu     sync.Mutex
 	buf    []byte
@@ -36,7 +35,6 @@ type StdinPump struct {
 
 func NewStdinPump(r io.Reader) *StdinPump {
 	p := &StdinPump{
-		r:      r,
 		ch:     make(chan []byte, 64),
 		closed: make(chan struct{}),
 	}

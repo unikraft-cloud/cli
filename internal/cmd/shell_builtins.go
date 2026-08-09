@@ -50,18 +50,33 @@ func (c *ShellHelpCmd) Run(sctx *ShellContext) error {
 	return nil
 }
 
+// instance re-reads this shell's instance. The shell is long-lived and the
+// instance changes underneath it - start, stop and edit all mutate it - so
+// this always goes to the API rather than holding on to a copy.
+func (sctx *ShellContext) instance() (Instance, error) {
+	resources, err := Instance{}.Get(sctx.Ctx, []string{sctx.Key.String()})
+	if err != nil {
+		return Instance{}, shellErr(err)
+	}
+	if len(resources) == 0 {
+		return Instance{}, fmt.Errorf("%s", shell.ShellErrorStyle.Render("instance not found"))
+	}
+	instance, ok := resources[0].(Instance)
+	if !ok {
+		return Instance{}, fmt.Errorf("%s", shell.ShellErrorStyle.Render("instance not found"))
+	}
+	return instance, nil
+}
+
 type ShellGetCmd struct{}
 
 func (c *ShellGetCmd) Run(sctx *ShellContext) error {
-	resources, err := Instance{}.Get(sctx.Ctx, []string{sctx.Key.String()})
+	instance, err := sctx.instance()
 	if err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
-	}
-	if len(resources) == 0 {
-		return fmt.Errorf("%s", shell.ShellErrorStyle.Render("instance not found"))
+		return err
 	}
 	rescmd.Printer{}.WithDefault(rescmd.PrinterTypeKeyValue).
-		Print(sctx.Ctx, sctx.Out, nil, Instance{}, resources...)
+		Print(sctx.Ctx, sctx.Out, nil, Instance{}, instance)
 	return nil
 }
 
@@ -77,15 +92,11 @@ type ShellEditCmd struct {
 type ShellEditShowCmd struct{}
 
 func (c *ShellEditShowCmd) Run(sctx *ShellContext) error {
-	resources, err := Instance{}.Get(sctx.Ctx, []string{sctx.Key.String()})
+	instance, err := sctx.instance()
 	if err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
-	}
-	if len(resources) == 0 {
-		return fmt.Errorf("%s", shell.ShellErrorStyle.Render("instance not found"))
+		return err
 	}
 
-	instance := resources[0].(Instance)
 	if len(instance.Tags) > 0 {
 		fmt.Fprintf(sctx.Out, "  %s %s\n", shell.ShellLabelStyle.Render("tags:"), shell.ShellValueStyle.Render(strings.Join(instance.Tags, ", ")))
 	}
@@ -173,10 +184,10 @@ func (c *ShellEditTagsCmd) Run(sctx *ShellContext) error {
 func applyEditPatch(sctx *ShellContext, fieldName, fieldValue string, fields []resource.Field) error {
 	patches, err := patchRequests(fields, instancePatchSpec)
 	if err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+		return shellErr(err)
 	}
 	if err := instanceApplyPatches(sctx.Ctx, sctx.G, sctx.Key, patches); err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+		return shellErr(err)
 	}
 	fmt.Fprintf(sctx.Out, "  %s %s=%s\n", shell.ShellValueStyle.Render("✓"), shell.ShellDirStyle.Render(fieldName), shell.ShellValueStyle.Render(fieldValue))
 	fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("  Run 'restart' for changes to take effect."))
@@ -192,15 +203,11 @@ type ShellVolumesCmd struct {
 type ShellVolumesMountedCmd struct{}
 
 func (c *ShellVolumesMountedCmd) Run(sctx *ShellContext) error {
-	resources, err := Instance{}.Get(sctx.Ctx, []string{sctx.Key.String()})
+	instance, err := sctx.instance()
 	if err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
-	}
-	if len(resources) == 0 {
-		return fmt.Errorf("%s", shell.ShellErrorStyle.Render("instance not found"))
+		return err
 	}
 
-	instance := resources[0].(Instance)
 	if len(instance.Volumes) == 0 {
 		fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("No volumes mounted."))
 		return nil
@@ -222,7 +229,7 @@ type ShellVolumesListCmd struct{}
 func (c *ShellVolumesListCmd) Run(sctx *ShellContext) error {
 	volumes, err := Volume{}.List(sctx.Ctx)
 	if err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+		return shellErr(err)
 	}
 	if len(volumes) == 0 {
 		fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("No volumes found."))
@@ -279,7 +286,7 @@ func (c *ShellVolumesCreateCmd) Run(sctx *ShellContext) error {
 		return created, nil
 	})
 	if err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+		return shellErr(err)
 	}
 
 	sizeFmt, _ := value.Render(sizeMb, value.RenderOpts{})
@@ -298,11 +305,11 @@ type ShellMountCmd struct {
 func (c *ShellMountCmd) Run(sctx *ShellContext) error {
 	vol := &InstanceVolume{At: c.Path, Readonly: c.Mode == "ro"}
 	if err := vol.Link.UnmarshalText([]byte(c.Volume)); err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+		return shellErr(err)
 	}
 	fmt.Fprintf(sctx.Out, "  %s mounting %s → %s...\n", shell.ShellLabelStyle.Render("■"), shell.ShellValueStyle.Render(c.Volume), shell.ShellDirStyle.Render(c.Path))
 
-	parsedKeys := multimetro.ParseKeys([]string{sctx.Key.String()})
+	parsedKeys := multimetro.Keys{sctx.Key}
 	err := group.DoRefs(sctx.Ctx, sctx.G, parsedKeys.Refs(), func(ctx context.Context, client multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		var attachReqs []platform.AttachVolumesRequestItem
 		for _, ref := range refs {
@@ -325,7 +332,7 @@ func (c *ShellMountCmd) Run(sctx *ShellContext) error {
 		return refs, nil
 	})
 	if err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+		return shellErr(err)
 	}
 
 	fmt.Fprintf(sctx.Out, "  %s mounted %s → %s\n", shell.ShellValueStyle.Render("✓"), shell.ShellValueStyle.Render(c.Volume), shell.ShellDirStyle.Render(c.Path))
@@ -341,7 +348,7 @@ func (c *ShellUnmountCmd) Run(sctx *ShellContext) error {
 	volKey := multimetro.ParseKey(c.Volume)
 	fmt.Fprintf(sctx.Out, "  %s unmounting %s...\n", shell.ShellLabelStyle.Render("■"), shell.ShellValueStyle.Render(c.Volume))
 
-	parsedKeys := multimetro.ParseKeys([]string{sctx.Key.String()})
+	parsedKeys := multimetro.Keys{sctx.Key}
 	err := group.DoRefs(sctx.Ctx, sctx.G, parsedKeys.Refs(), func(ctx context.Context, client multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		var detachReqs []platform.DetachVolumesRequestItem
 		for _, ref := range refs {
@@ -359,7 +366,7 @@ func (c *ShellUnmountCmd) Run(sctx *ShellContext) error {
 		return refs, nil
 	})
 	if err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+		return shellErr(err)
 	}
 
 	fmt.Fprintf(sctx.Out, "  %s unmounted %s\n", shell.ShellValueStyle.Render("✓"), shell.ShellValueStyle.Render(c.Volume))
@@ -375,7 +382,7 @@ func (c *ShellUnmountCmd) Run(sctx *ShellContext) error {
 // changed, and diff the two. It returns the keys the action reported so the
 // caller can update the shell's own notion of whether the instance is up.
 func shellLifecycle(sctx *ShellContext, act func(multimetro.Keys) (multimetro.Keys, error)) (multimetro.Keys, error) {
-	keys := multimetro.ParseKeys([]string{sctx.Key.String()})
+	keys := multimetro.Keys{sctx.Key}
 
 	before, opErr := Instance{}.Get(sctx.Ctx, keys.Strings())
 	if opErr != nil && len(before) == 0 {
@@ -416,7 +423,7 @@ func shellErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+	return shellErr(err)
 }
 
 type ShellStartCmd struct{}
@@ -499,8 +506,8 @@ func (c *ShellHistoryRerunCmd) Run(sctx *ShellContext) error {
 	}
 
 	fmt.Fprintln(sctx.Out, cmd)
-	if err := executeRemote(sctx.Ctx, sctx.Out, strings.NewReader(""), sctx.G, sctx.Key, sctx.Plugin, sctx.State, cmd); err != nil {
-		return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+	if err := executeRemote(sctx.Ctx, sctx.Out, nil, sctx.G, sctx.Key, sctx.Plugin, sctx.State, cmd); err != nil {
+		return shellErr(err)
 	}
 	return nil
 }
