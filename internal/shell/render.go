@@ -22,9 +22,9 @@ import (
 )
 
 type TerminalWriter struct {
-	mu      sync.Mutex
-	w       io.Writer
-	pending []byte
+	mu        sync.Mutex
+	w         io.Writer
+	pending   []byte
 	lastFrame []byte
 }
 
