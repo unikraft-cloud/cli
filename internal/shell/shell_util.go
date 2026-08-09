@@ -274,8 +274,14 @@ func (h *HistoryCache) SyncFromRemote(ctx context.Context, g *group.Group[multim
 	_, err := group.CollectMetro(ctx, g, key.Metro, func(ctx context.Context, c multimetro.MetroClient) (struct{}, error) {
 		resp, reqErr := c.Sandbox.ListInstanceCommands(ctx, key.Ref().UUID, plugin)
 		if reqErr != nil {
-			if strings.Contains(reqErr.Error(), "mime: no media type") {
-				log.G(ctx).Debug().Err(reqErr).Msg("history: no media type on list, treating as empty")
+			// A 404 means there's no plugin of that name answering on the
+			// instance. Syncing history runs in the background at startup, so
+			// saying so here would just dump an error over the prompt before
+			// the user has typed anything - the first command they run
+			// reports it properly (see pluginError in internal/cmd).
+			if strings.Contains(reqErr.Error(), "mime: no media type") ||
+				strings.Contains(reqErr.Error(), "request failed: 404") {
+				log.G(ctx).Debug().Err(reqErr).Msg("history: list unavailable, treating as empty")
 				h.mu.Lock()
 				h.ready = true
 				h.mu.Unlock()

@@ -86,6 +86,10 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) er
 		return err
 	}
 
+	if err := requirePlugin(instance, c.Plugin); err != nil {
+		return err
+	}
+
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return err
@@ -118,6 +122,55 @@ func requireRunningInstance(instance Instance) error {
 		return nil
 	}
 	return fmt.Errorf("instance %q is not running (state: %s); start it with \"unikraft instance start %s\"", instance.Name, string(instance.State), instance.Name)
+}
+
+// requirePlugin returns an error if the instance carries no plugin under the
+// requested name. The instance we already fetched lists its own plugins, so
+// this is answerable before any request goes out - and worth answering here,
+// because the platform's reply to an unknown plugin endpoint is a
+// routing-level 404 that says nothing about which plugins do exist.
+func requirePlugin(instance Instance, plugin string) error {
+	var loaded []string
+	for _, p := range instance.Plugins {
+		if p == nil || p.Name == "" {
+			continue
+		}
+		if p.Name == plugin {
+			return nil
+		}
+		loaded = append(loaded, p.Name)
+	}
+
+	if len(loaded) == 0 {
+		return fmt.Errorf("instance %q has no plugins loaded, so nothing answers to %q; plugins are attached when the instance is created", instance.Name, plugin)
+	}
+	return fmt.Errorf("instance %q has no plugin named %q; it has: %s", instance.Name, plugin, strings.Join(loaded, ", "))
+}
+
+// isPluginNotFound reports whether err is the platform's answer to a request
+// aimed at a plugin endpoint that isn't there.
+//
+// The SDK doesn't expose the HTTP status code, so this matches the message it
+// builds from the status line. The 404 comes from the routing layer rather
+// than the API itself, so the body is an HTML error page instead of JSON;
+// the SDK's failed decode of it ("invalid character '<'") is joined onto the
+// same error, which is why these failures surface as a confusing pair.
+func isPluginNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "request failed: 404")
+}
+
+// pluginError replaces that 404 with something readable. requirePlugin catches
+// the ordinary case up front, so reaching this means the instance does list the
+// plugin but nothing is serving it - it failed to start, or died. Anything that
+// isn't a 404 is passed through untouched.
+func pluginError(ctx context.Context, key multimetro.Key, plugin string, err error) error {
+	if !isPluginNotFound(err) {
+		return err
+	}
+
+	log.G(ctx).Debug().Err(err).Str("plugin", plugin).Msg("plugin endpoint returned 404")
+
+	return fmt.Errorf("instance %q is not serving its %q plugin: the plugin may have failed to start", key.String(), plugin)
 }
 
 // BuildExecCommand constructs the full shell command line from the exec options.
@@ -168,6 +221,9 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 
 		execResp, err := c.Sandbox.ExecInstanceCommand(ctx, instanceUUID, pluginName, req)
 		if err != nil {
+			if pErr := pluginError(ctx, key, pluginName, err); pErr != err {
+				return struct{}{}, pErr
+			}
 			return struct{}{}, fmt.Errorf("failed to start command: %w", err)
 		}
 		cmdUUID := execResp.Data.Uuid
@@ -212,6 +268,9 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 			defer cancel()
 			logsResp, err := c.Sandbox.GetInstanceCommandLogs(fetchCtx, instanceUUID, pluginName, cmdUUID, logsReq)
 			if err != nil {
+				if pErr := pluginError(ctx, key, pluginName, err); pErr != err {
+					return pErr
+				}
 				return fmt.Errorf("failed to fetch logs: %w", err)
 			}
 			log.G(ctx).Trace().
@@ -276,6 +335,9 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 				inspectResp, err := c.Sandbox.InspectInstanceCommand(inspectCtx, instanceUUID, pluginName, cmdUUID)
 				cancel()
 				if err != nil {
+					if pErr := pluginError(ctx, key, pluginName, err); pErr != err {
+						return struct{}{}, pErr
+					}
 					return struct{}{}, fmt.Errorf("failed to inspect command: %w", err)
 				}
 
@@ -381,6 +443,10 @@ func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 		return err
 	}
 
+	if err := requirePlugin(instance, c.Plugin); err != nil {
+		return err
+	}
+
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return err
@@ -428,6 +494,9 @@ func writeSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient
 			Data:     base64.StdEncoding.EncodeToString(data),
 		}
 		if _, err := c.Sandbox.WriteInstanceFile(ctx, key.Ref().UUID, plugin, req); err != nil {
+			if pErr := pluginError(ctx, key, plugin, err); pErr != err {
+				return struct{}{}, pErr
+			}
 			return struct{}{}, fmt.Errorf("failed to write file: %w", err)
 		}
 		return struct{}{}, nil
@@ -471,6 +540,10 @@ func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) er
 
 	instance := sandbox[0].(Instance)
 	if err := requireRunningInstance(instance); err != nil {
+		return err
+	}
+
+	if err := requirePlugin(instance, c.Plugin); err != nil {
 		return err
 	}
 
@@ -520,6 +593,9 @@ func readSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient]
 		}
 		resp, err := c.Sandbox.ReadInstanceFile(ctx, key.Ref().UUID, plugin, req)
 		if err != nil {
+			if pErr := pluginError(ctx, key, plugin, err); pErr != err {
+				return nil, pErr
+			}
 			return nil, fmt.Errorf("failed to read file: %w", err)
 		}
 
@@ -569,6 +645,10 @@ func (c *MkdirSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 		return err
 	}
 
+	if err := requirePlugin(instance, c.Plugin); err != nil {
+		return err
+	}
+
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return err
@@ -593,6 +673,9 @@ func mkdirSandboxInstance(ctx context.Context, g *group.Group[multimetro.MetroCl
 			Parents: parents,
 		}
 		if _, err := c.Sandbox.MakeInstanceDirectory(ctx, key.Ref().UUID, plugin, req); err != nil {
+			if pErr := pluginError(ctx, key, plugin, err); pErr != err {
+				return struct{}{}, pErr
+			}
 			return struct{}{}, fmt.Errorf("failed to create directory: %w", err)
 		}
 		return struct{}{}, nil

@@ -54,12 +54,20 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 		return opErr
 	}
 
+	instance := sandbox[0].(Instance)
+
+	// Unlike the other sandbox commands this one doesn't require a running
+	// instance - you can start it from inside the shell. A missing plugin is
+	// worth refusing up front though, since every command would fail.
+	if err := requirePlugin(instance, c.Plugin); err != nil {
+		return err
+	}
+
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	instance := sandbox[0].(Instance)
 	resolvedKey := instance.Key().(multimetro.Key)
 
 	return runSandboxShell(ctx, g, resolvedKey, c.Plugin, c.Dir, c.Env, stdio)
