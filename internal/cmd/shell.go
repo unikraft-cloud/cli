@@ -354,8 +354,15 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 	builtinHelp(stdio.Stdout)
 	fmt.Fprintln(stdio.Stdout)
 
+	// Readline blanks and redraws the prompt line on every keystroke, in two
+	// separate writes; term coalesces them so the blank never reaches the
+	// screen. See shell.TerminalWriter.
+	term := shell.NewTerminalWriter(stdio.Stdout)
+	defer func() { _ = term.Flush() }()
+
 	rl, err := readline.NewEx(&readline.Config{
 		Stdin:             readlineReader,
+		Stdout:            term,
 		Painter:           painter,
 		AutoComplete:      completer,
 		InterruptPrompt:   "^C",
@@ -391,6 +398,11 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 		shell.SetShellPrompt(rl, key.String(), state.dir)
 
 		line, err := rl.Readline()
+
+		// Take the terminal back from readline before anything below writes
+		// to stdio.Stdout directly.
+		_ = term.Flush()
+
 		if err != nil {
 			if err == readline.ErrInterrupt {
 				continue

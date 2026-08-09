@@ -95,10 +95,29 @@ func (c *SandboxCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	return c.tree.Do(line, pos)
 }
 
-type ShellPainter struct{}
+// ShellPainter syntax-highlights the line being edited. Readline calls Paint
+// on every redraw, including redraws that don't change the text (cursor
+// movement, history search), so the last result is memoised to avoid
+// re-parsing the line each time.
+type ShellPainter struct {
+	mu       sync.Mutex
+	lastLine string
+	lastPass []rune
+}
 
 func (p *ShellPainter) Paint(line []rune, pos int) []rune {
-	return []rune(highlightShellLine(string(line)))
+	s := string(line)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.lastPass != nil && p.lastLine == s {
+		return p.lastPass
+	}
+
+	p.lastLine = s
+	p.lastPass = []rune(highlightShellLine(s))
+	return p.lastPass
 }
 
 func highlightShellLine(line string) string {

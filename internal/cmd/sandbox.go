@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"unikraft.com/cloud/sdk/platform"
@@ -170,6 +171,25 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 			return struct{}{}, fmt.Errorf("failed to start command: %w", err)
 		}
 		cmdUUID := execResp.Data.Uuid
+
+		// If we're leaving this closure because ctx was cancelled (Ctrl+C,
+		// timeout, etc.), the remote command has no idea and keeps running -
+		// signal it to stop. This must be a defer rather than living in the
+		// select's ctx.Done() case below, since cancellation is just as
+		// likely to be observed as a failure from an in-flight request
+		// (fetchAndPrint/InspectInstanceCommand) as from that select case.
+		defer func() {
+			if ctx.Err() == nil {
+				return
+			}
+			signalCtx, cancelSignal := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancelSignal()
+			if _, sigErr := c.Sandbox.SignalInstanceCommand(signalCtx, instanceUUID, pluginName, cmdUUID, sandbox.SignalInstanceCommandRequestBody{
+				Signal: int(syscall.SIGINT),
+			}); sigErr != nil {
+				log.G(ctx).Debug().Err(sigErr).Str("cmd", cmdUUID).Msg("failed to signal remote command")
+			}
+		}()
 
 		if in != nil {
 			feedCtx, cancelFeed := context.WithCancel(ctx)
