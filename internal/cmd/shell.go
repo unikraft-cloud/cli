@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/chzyer/readline"
 	"mvdan.cc/sh/v3/syntax"
 
@@ -428,7 +429,7 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 		}
 
 		if line == "clear" {
-			print("\033[H\033[2J")
+			fmt.Fprint(stdio.Stdout, ansi.CursorHomePosition+ansi.EraseEntireScreen)
 			_ = rl.SaveHistory(line)
 			continue
 		}

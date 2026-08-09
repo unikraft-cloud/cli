@@ -82,11 +82,20 @@ func (t *TerminalWriter) Flush() error {
 	return err
 }
 
+// The sequences readline emits to blank the line before redrawing it. These
+// are matched against, not written, so they're the literal bytes readline
+// produces rather than anything this package composes.
+var (
+	eraseBelow = []byte(ansi.EraseScreenBelow)
+	eraseLine  = []byte(ansi.EraseEntireLine)
+	cursorUp   = []byte(ansi.CUU1)
+)
+
 // isEraseOnly reports whether p consists purely of the cursor and erase
 // sequences readline uses to blank the current line, with nothing drawn.
 // Such a write is never useful on its own — it only ever precedes a redraw.
-// Anything else, including full screen clears ("\033[H\033[2J" on ^L) and
-// cursor position queries, is passed through untouched.
+// Anything else, including full screen clears on ^L and cursor position
+// queries, is passed through untouched.
 func isEraseOnly(p []byte) bool {
 	erases := false
 
@@ -95,14 +104,14 @@ func isEraseOnly(p []byte) bool {
 		switch {
 		case rest[0] == '\r' || rest[0] == '\b':
 			i++
-		case bytes.HasPrefix(rest, []byte("\033[J")): // erase to end of screen
+		case bytes.HasPrefix(rest, eraseBelow):
 			erases = true
-			i += 3
-		case bytes.HasPrefix(rest, []byte("\033[2K")): // erase line
+			i += len(eraseBelow)
+		case bytes.HasPrefix(rest, eraseLine):
 			erases = true
-			i += 4
-		case bytes.HasPrefix(rest, []byte("\033[A")): // cursor up
-			i += 3
+			i += len(eraseLine)
+		case bytes.HasPrefix(rest, cursorUp):
+			i += len(cursorUp)
 		default:
 			return false
 		}

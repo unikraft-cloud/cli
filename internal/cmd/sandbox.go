@@ -142,7 +142,7 @@ func requirePlugin(instance Instance, plugin string) error {
 	}
 
 	if len(loaded) == 0 {
-		return fmt.Errorf("instance %q has no plugins loaded, so nothing answers to %q; plugins are attached when the instance is created", instance.Name, plugin)
+		return fmt.Errorf("instance %q has no plugins loaded, so nothing answers to %q", instance.Name, plugin)
 	}
 	return fmt.Errorf("instance %q has no plugin named %q; it has: %s", instance.Name, plugin, strings.Join(loaded, ", "))
 }
