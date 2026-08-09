@@ -8,13 +8,12 @@ package cmd
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 	"strings"
 
+	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
 	rescmd "unikraft.com/cli/internal/resource/cmd"
@@ -28,7 +27,6 @@ import (
 	"unikraft.com/x/ptr"
 )
 
-// ShellCmd is the root parser for the interactive shell.
 type ShellCmd struct {
 	Get     ShellGetCmd     `cmd:"" help:"Inspect the current instance"`
 	Help    ShellHelpCmd    `cmd:"" help:"Show available commands"`
@@ -309,7 +307,9 @@ func (c *ShellMountCmd) Run(sctx *ShellContext) error {
 	}
 	fmt.Fprintf(sctx.Out, "  %s mounting %s → %s...\n", shell.ShellLabelStyle.Render("■"), shell.ShellValueStyle.Render(c.Volume), shell.ShellDirStyle.Render(c.Path))
 
-	parsedKeys := multimetro.Keys{sctx.Key}
+	// UUID only: sctx.Key carries both a UUID and a name, and the volume
+	// attach/detach API rejects a reference that specifies the two.
+	parsedKeys := multimetro.Keys{{Metro: sctx.Key.Metro, UUID: sctx.Key.UUID}}
 	err := group.DoRefs(sctx.Ctx, sctx.G, parsedKeys.Refs(), func(ctx context.Context, client multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		var attachReqs []platform.AttachVolumesRequestItem
 		for _, ref := range refs {
@@ -348,7 +348,9 @@ func (c *ShellUnmountCmd) Run(sctx *ShellContext) error {
 	volKey := multimetro.ParseKey(c.Volume)
 	fmt.Fprintf(sctx.Out, "  %s unmounting %s...\n", shell.ShellLabelStyle.Render("■"), shell.ShellValueStyle.Render(c.Volume))
 
-	parsedKeys := multimetro.Keys{sctx.Key}
+	// UUID only: sctx.Key carries both a UUID and a name, and the volume
+	// attach/detach API rejects a reference that specifies the two.
+	parsedKeys := multimetro.Keys{{Metro: sctx.Key.Metro, UUID: sctx.Key.UUID}}
 	err := group.DoRefs(sctx.Ctx, sctx.G, parsedKeys.Refs(), func(ctx context.Context, client multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		var detachReqs []platform.DetachVolumesRequestItem
 		for _, ref := range refs {
@@ -374,111 +376,73 @@ func (c *ShellUnmountCmd) Run(sctx *ShellContext) error {
 	return nil
 }
 
-// shellLifecycle runs a state-changing action against this shell's instance
-// and prints the resulting before/after diff.
-//
-// start, stop, suspend and restart all need the same shape around their one
-// differing call: snapshot the instance, act, re-read whatever actually
-// changed, and diff the two. It returns the keys the action reported so the
-// caller can update the shell's own notion of whether the instance is up.
-func shellLifecycle(sctx *ShellContext, act func(multimetro.Keys) (multimetro.Keys, error)) (multimetro.Keys, error) {
-	keys := multimetro.Keys{sctx.Key}
-
-	before, opErr := Instance{}.Get(sctx.Ctx, keys.Strings())
-	if opErr != nil && len(before) == 0 {
-		return nil, opErr
-	}
-
-	affected, actErr := act(keys)
-	opErr = errors.Join(opErr, actErr)
-	if len(affected) == 0 {
-		return nil, opErr
-	}
-
-	updated, getErr := Instance{}.Get(sctx.Ctx, affected.Strings())
-	opErr = errors.Join(opErr, getErr)
-	if getErr != nil && len(updated) == 0 {
-		return affected, opErr
-	}
-
-	// The action may have touched fewer instances than we snapshotted, so
-	// drop anything it didn't report before diffing.
-	keySet := make(map[string]struct{}, len(affected))
-	for _, k := range affected {
-		keySet[k.Canonical()] = struct{}{}
-	}
-	untouched := func(r resource.Resource) bool {
-		_, ok := keySet[r.Key().Canonical()]
-		return !ok
-	}
-	before = slices.DeleteFunc(slices.Clone(before), untouched)
-	updated = slices.DeleteFunc(slices.Clone(updated), untouched)
-
-	diffErr := rescmd.Diff(sctx.Ctx, sctx.Out, rescmd.FormatOpts{}, Instance{}, before, updated)
-	return affected, errors.Join(opErr, diffErr)
-}
-
 // shellErr gives an error the shell's error styling, passing nil through.
 func shellErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	return shellErr(err)
+	return fmt.Errorf("%s %v", shell.ShellErrorStyle.Render("error:"), err)
+}
+
+// The lifecycle builtins are the CLI's own start/stop/suspend/restart
+// commands pointed at this shell's instance, so the diff output and the
+// semantics stay identical to running them from outside. They only add
+// tracking of whether the instance is up, which the shell needs to decide
+// whether a command can be sent at all.
+func (sctx *ShellContext) stdio() config.Stdio {
+	return config.Stdio{Stdout: sctx.Out, Stderr: sctx.ErrOut}
 }
 
 type ShellStartCmd struct{}
 
 func (c *ShellStartCmd) Run(sctx *ShellContext) error {
-	started, err := shellLifecycle(sctx, func(keys multimetro.Keys) (multimetro.Keys, error) {
-		return startInstances(sctx.Ctx, sctx.G, keys)
-	})
-	if len(started) > 0 {
-		sctx.State.running = true
-		sctx.startBackgroundSync()
+	cmd := InstancesStartCmd{Targets: []string{sctx.Key.String()}}
+	if err := cmd.Run(sctx.Ctx, sctx.stdio()); err != nil {
+		return shellErr(err)
 	}
-	return shellErr(err)
+	sctx.State.running = true
+	sctx.startBackgroundSync()
+	return nil
 }
 
 type ShellStopCmd struct{}
 
 func (c *ShellStopCmd) Run(sctx *ShellContext) error {
-	stopped, err := shellLifecycle(sctx, func(keys multimetro.Keys) (multimetro.Keys, error) {
-		return stopInstances(sctx.Ctx, sctx.G, keys, StopOpts{DrainTimeout: -1})
-	})
-	if len(stopped) > 0 {
-		sctx.State.running = false
+	cmd := InstancesStopCmd{
+		Targets:  []string{sctx.Key.String()},
+		StopOpts: StopOpts{DrainTimeout: -1},
 	}
-	return shellErr(err)
+	if err := cmd.Run(sctx.Ctx, sctx.stdio()); err != nil {
+		return shellErr(err)
+	}
+	sctx.State.running = false
+	return nil
 }
 
 type ShellSuspendCmd struct{}
 
 func (c *ShellSuspendCmd) Run(sctx *ShellContext) error {
-	suspended, err := shellLifecycle(sctx, func(keys multimetro.Keys) (multimetro.Keys, error) {
-		return suspendInstances(sctx.Ctx, sctx.G, keys, -1)
-	})
-	if len(suspended) > 0 {
-		sctx.State.running = false
+	cmd := InstancesSuspendCmd{Targets: []string{sctx.Key.String()}, DrainTimeout: -1}
+	if err := cmd.Run(sctx.Ctx, sctx.stdio()); err != nil {
+		return shellErr(err)
 	}
-	return shellErr(err)
+	sctx.State.running = false
+	return nil
 }
 
 type ShellRestartCmd struct{}
 
 func (c *ShellRestartCmd) Run(sctx *ShellContext) error {
-	started, err := shellLifecycle(sctx, func(keys multimetro.Keys) (multimetro.Keys, error) {
-		stopped, stopErr := stopInstances(sctx.Ctx, sctx.G, keys, StopOpts{DrainTimeout: -1})
-		if len(stopped) == 0 {
-			return nil, stopErr
-		}
-		started, startErr := startInstances(sctx.Ctx, sctx.G, stopped)
-		return started, errors.Join(stopErr, startErr)
-	})
-	if len(started) > 0 {
-		sctx.State.running = true
-		sctx.startBackgroundSync()
+	cmd := InstancesRestartCmd{
+		Targets:  []string{sctx.Key.String()},
+		StopOpts: StopOpts{DrainTimeout: -1},
 	}
-	return shellErr(err)
+	if err := cmd.Run(sctx.Ctx, sctx.stdio()); err != nil {
+		return shellErr(err)
+	}
+	sctx.State.running = true
+	sctx.startBackgroundSync()
+	return nil
 }
 
 type ShellHistoryCmd struct {

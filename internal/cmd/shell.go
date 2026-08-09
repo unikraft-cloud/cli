@@ -48,9 +48,6 @@ func (cmd ShellSandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	// Unlike the other sandbox commands this one doesn't require a running
-	// instance - you can start it from inside the shell. A missing plugin is
-	// still refused up front, since every command would fail.
 	target, err := resolveSandboxTarget(ctx, c.Target, c.Plugin, allowStopped)
 	if err != nil {
 		return err
@@ -59,11 +56,6 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 	return runSandboxShell(ctx, target.g, target.instance, c.Plugin, c.Dir, c.Env, stdio)
 }
 
-// shellState tracks the client-side notion of "current directory" and
-// exported environment variables between remote invocations. There is no
-// persistent remote shell process backing this session — every command is
-// a discrete remote exec — so cd/env assignments have to be remembered
-// here and re-applied (via ExecOpts.Dir/Env) on the next call.
 type shellState struct {
 	dir     string
 	env     map[string]string
@@ -87,20 +79,11 @@ func newShellState(initialDir string, initialEnv map[string]string, running bool
 	}
 }
 
-// shellBuiltins is the parser for the shell's builtin commands together with
-// the set of words it accepts. Both are built once per session: kong.New
-// walks the whole ShellCmd grammar by reflection, and Parse resets every
-// value before binding new ones, so there's nothing to gain from rebuilding
-// it per command. Only the shell's read loop touches it, so it needs no
-// locking.
 type shellBuiltins struct {
 	parser *kong.Kong
 	names  map[string]bool
 }
 
-// newShellBuiltins derives the command set from the parser rather than
-// listing it separately, so adding a command to ShellCmd is all it takes for
-// the shell to route to it, and kong's own name mangling stays authoritative.
 func newShellBuiltins(out, errOut io.Writer) (*shellBuiltins, error) {
 	parser, err := kong.New(&ShellCmd{},
 		kong.Name(""),
@@ -125,8 +108,6 @@ func newShellBuiltins(out, errOut io.Writer) (*shellBuiltins, error) {
 
 	return &shellBuiltins{parser: parser, names: names}, nil
 }
-
-func (b *shellBuiltins) has(name string) bool { return b.names[name] }
 
 func (s *shellState) handleBuiltin(sctx *ShellContext, line string) bool {
 	fields := shellFields(line)
@@ -171,7 +152,7 @@ func (s *shellState) handleBuiltin(sctx *ShellContext, line string) bool {
 		}
 	}
 
-	if !sctx.Builtins.has(fields[0]) {
+	if !sctx.Builtins.names[fields[0]] {
 		return false
 	}
 
@@ -188,17 +169,6 @@ func (s *shellState) handleBuiltin(sctx *ShellContext, line string) bool {
 	return true
 }
 
-// shellFields splits line into shell-style words, honoring quoting so that
-// e.g. `cd "my dir"` keeps "my dir" as a single argument instead of being
-// split on the space. Constructs that can't be reduced to plain text
-// (variables, substitutions, unbalanced quotes, ...) fall back to naive
-// whitespace splitting - this is only used to detect and parse local
-// builtins, and anything else is sent to the remote shell unparsed anyway.
-// Note: mvdan.cc/sh/v3/shell.Fields looks like a drop-in here, but it
-// resolves variables through its callback (and probes IFS/PWD through the
-// same one), so it can't distinguish "no variables" from "expanded to
-// empty". Walking the AST for literal-only words is what keeps `cd $FOO`
-// falling through to the remote shell instead of becoming a bare `cd`.
 func shellFields(line string) []string {
 	parser := syntax.NewParser()
 	var fields []string
@@ -266,9 +236,6 @@ func parseAssignment(s string) (key, val string, ok bool) {
 	return key, val, true
 }
 
-// executeRemote sends the raw command line straight to the sandbox,
-// unparsed on the client — quoting, pipes, redirects, and variable
-// expansion are all resolved by the remote shell, not locally.
 func executeRemote(ctx context.Context, stdout io.Writer, stdin io.Reader, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin string, state *shellState, line string) error {
 	return execSandboxInstance(ctx, stdout, stdin, g, key, ExecOpts{
 		Cmd:    []string{line},
@@ -281,8 +248,6 @@ func executeRemote(ctx context.Context, stdout io.Writer, stdin io.Reader, g *gr
 
 func fetchRemoteAutocompleteCommands(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin string, completer *shell.SandboxCompleter) {
 	log.G(ctx).Debug().Msg("shell: fetching remote autocomplete commands")
-	// Derived from ctx, not Background, so the probe stops when the shell
-	// exits rather than outliving it.
 	fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -335,11 +300,6 @@ type ShellContext struct {
 	Builtins  *shellBuiltins
 }
 
-// startBackgroundSync kicks off history and autocomplete syncing against the
-// remote instance. It is a no-op if already started, or if the instance
-// isn't running yet - both would just fail against a stopped instance, so
-// this is called once at shell startup if the instance is already running,
-// and again from the start/restart builtins once it comes up.
 func (sctx *ShellContext) startBackgroundSync() {
 	if sctx.State.synced || !sctx.State.running {
 		return
@@ -349,14 +309,11 @@ func (sctx *ShellContext) startBackgroundSync() {
 	go fetchRemoteAutocompleteCommands(sctx.Ctx, sctx.G, sctx.Key, sctx.Plugin, sctx.Completer)
 }
 
-// runSandboxShell takes the instance the caller already looked up rather than
-// a key, so shell startup doesn't spend a second round trip re-reading what
-// it was just handed.
 func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient], instance Instance, plugin, initialDir string, initialEnv map[string]string, stdio config.Stdio) error {
 	key := instance.Key().(multimetro.Key)
 	cache := &shell.HistoryCache{}
 	ih := interrupt.FromContext(ctx)
-	isRunning := instanceSandboxReady(instance)
+	isRunning := requireRunningInstance(instance) == nil
 
 	builtins, err := newShellBuiltins(stdio.Stdout, stdio.Stderr)
 	if err != nil {
@@ -379,9 +336,6 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 	builtinHelp(stdio.Stdout)
 	fmt.Fprintln(stdio.Stdout)
 
-	// Readline blanks and redraws the prompt line on every keystroke, in two
-	// separate writes; term coalesces them so the blank never reaches the
-	// screen. See shell.TerminalWriter.
 	term := shell.NewTerminalWriter(stdio.Stdout)
 	defer func() { _ = term.Flush() }()
 
@@ -424,8 +378,6 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 
 		line, err := rl.Readline()
 
-		// Take the terminal back from readline before anything below writes
-		// to stdio.Stdout directly.
 		_ = term.Flush()
 
 		if err != nil {
@@ -453,7 +405,6 @@ func runSandboxShell(ctx context.Context, g *group.Group[multimetro.MetroClient]
 		_ = rl.SaveHistory(line)
 		cache.Append(line)
 
-		// Pass execution to the local handler; if it processes it, skip remote execution
 		if state.handleBuiltin(sctx, line) {
 			continue
 		}

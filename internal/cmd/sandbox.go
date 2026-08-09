@@ -96,14 +96,10 @@ type sandboxTarget struct {
 type sandboxTargetOpt int
 
 const (
-	// allowStopped skips the running check, for the shell - which lets you
-	// start the instance from inside it.
 	allowStopped sandboxTargetOpt = iota
 	requireRunning
 )
 
-// resolveSandboxTarget looks up target, checks it can serve plugin requests,
-// and builds the metro client group. Every sandbox subcommand opens this way.
 func resolveSandboxTarget(ctx context.Context, target, plugin string, opt sandboxTargetOpt) (sandboxTarget, error) {
 	key := multimetro.ParseKey(target)
 
@@ -142,35 +138,15 @@ func resolveSandboxTarget(ctx context.Context, target, plugin string, opt sandbo
 	}, nil
 }
 
-// instanceSandboxReady reports whether an instance's sandbox plugin is
-// reachable: either fully running, or standby (scaled to zero, which wakes
-// on the incoming request).
-func instanceSandboxReady(instance Instance) bool {
+func requireRunningInstance(instance Instance) error {
 	switch platform.InstanceState(instance.State) {
 	case platform.InstanceStateRunning, platform.InstanceStateStandby:
-		return true
-	default:
-		return false
-	}
-}
-
-// requireRunningInstance returns an error if the instance is not in a state
-// that can service sandbox requests (exec/write/read/mkdir). Sending these
-// requests to a stopped instance results in an opaque 404 from the routing
-// proxy rather than a useful error, since there's no live sandbox plugin to
-// route to.
-func requireRunningInstance(instance Instance) error {
-	if instanceSandboxReady(instance) {
 		return nil
+	default:
+		return fmt.Errorf("instance %q is not running (state: %s); start it with \"unikraft instance start %s\"", instance.Name, string(instance.State), instance.Name)
 	}
-	return fmt.Errorf("instance %q is not running (state: %s); start it with \"unikraft instance start %s\"", instance.Name, string(instance.State), instance.Name)
 }
 
-// requirePlugin returns an error if the instance carries no plugin under the
-// requested name. The instance we already fetched lists its own plugins, so
-// this is answerable before any request goes out - and worth answering here,
-// because the platform's reply to an unknown plugin endpoint is a
-// routing-level 404 that says nothing about which plugins do exist.
 func requirePlugin(instance Instance, plugin string) error {
 	var loaded []string
 	for _, p := range instance.Plugins {
@@ -189,39 +165,8 @@ func requirePlugin(instance Instance, plugin string) error {
 	return fmt.Errorf("instance %q has no plugin named %q; it has: %s", instance.Name, plugin, strings.Join(loaded, ", "))
 }
 
-// isPluginNotFound reports whether err is the platform's answer to a request
-// aimed at a plugin endpoint that isn't there.
-//
-// The SDK doesn't expose the HTTP status code, so this matches the message it
-// builds from the status line. The 404 comes from the routing layer rather
-// than the API itself, so the body is an HTML error page instead of JSON;
-// the SDK's failed decode of it ("invalid character '<'") is joined onto the
-// same error, which is why these failures surface as a confusing pair.
-func isPluginNotFound(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "request failed: 404")
-}
+const sandboxLogPollInterval = 100 * time.Millisecond
 
-// pluginError replaces that 404 with something readable. requirePlugin catches
-// the ordinary case up front, so reaching this means the instance does list the
-// plugin but nothing is serving it - it failed to start, or died. Anything that
-// isn't a 404 is passed through untouched.
-func pluginError(ctx context.Context, key multimetro.Key, plugin string, err error) error {
-	if !isPluginNotFound(err) {
-		return err
-	}
-
-	log.G(ctx).Debug().Err(err).Str("plugin", plugin).Msg("plugin endpoint returned 404")
-
-	return fmt.Errorf("instance %q is not serving its %q plugin: the plugin may have failed to start", key.String(), plugin)
-}
-
-// sandboxLogPollInterval is how often the command's output is collected
-// while it runs. It only affects streaming latency: completion is detected by
-// a blocking wait, not by polling.
-const sandboxLogPollInterval = 500 * time.Millisecond
-
-// decodeSandboxPayload decodes a base64 field from the sandbox API, falling
-// back to the raw string when it isn't encoded.
 func decodeSandboxPayload(s string) []byte {
 	decoded, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
@@ -230,19 +175,14 @@ func decodeSandboxPayload(s string) []byte {
 	return decoded
 }
 
-// wrapSandboxErr annotates a failed plugin request, upgrading the routing
-// layer's 404 to pluginError's wording where that applies.
 func wrapSandboxErr(ctx context.Context, key multimetro.Key, plugin, msg string, err error) error {
-	if pErr := pluginError(ctx, key, plugin, err); pErr != err {
-		return pErr
+	if err != nil && strings.Contains(err.Error(), "request failed: 404") {
+		log.G(ctx).Debug().Err(err).Str("plugin", plugin).Msg("plugin endpoint returned 404")
+		return fmt.Errorf("instance %q is not serving its %q plugin: the plugin may have failed to start", key.String(), plugin)
 	}
 	return fmt.Errorf("%s: %w", msg, err)
 }
 
-// QuoteShellArg renders s as a single word the remote shell will read back
-// literally. The fallback only triggers for input syntax.Quote can't
-// represent at all (embedded NUL, invalid UTF-8), and single-quoting is the
-// safest thing to do with those.
 func QuoteShellArg(s string) string {
 	if quoted, err := syntax.Quote(s, syntax.LangBash); err == nil {
 		return quoted
@@ -250,7 +190,6 @@ func QuoteShellArg(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
-// BuildExecCommand constructs the full shell command line from the exec options.
 func BuildExecCommand(dir string, env map[string]string, cmdArgs []string, raw bool) string {
 	var prefix string
 
@@ -297,12 +236,6 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 		}
 		cmdUUID := execResp.Data.Uuid
 
-		// If we're leaving this closure because ctx was cancelled (Ctrl+C,
-		// timeout, etc.), the remote command has no idea and keeps running -
-		// signal it to stop. This must be a defer rather than living in the
-		// select's ctx.Done() case below, since cancellation is just as
-		// likely to be observed as a failure from an in-flight request
-		// (fetchAndPrint/InspectInstanceCommand) as from that select case.
 		defer func() {
 			if ctx.Err() == nil {
 				return
@@ -348,9 +281,6 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 				Interface("stdout_available", logsResp.Data.StdoutAvailable).
 				Interface("stderr_available", logsResp.Data.StderrAvailable).
 				Msg("polled command logs")
-			// Both streams are handled identically; the API reports how much
-			// it has produced so far, and only falls back to advancing by
-			// what we decoded when it doesn't say.
 			for _, stream := range []struct {
 				data      string
 				available *uint64
@@ -378,10 +308,6 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 			Str("cmdline", cmdline).
 			Msg("waiting for command")
 
-		// One blocking wait inside the sandbox tells us when the command is
-		// done - no polling for completion. It runs alongside the log fetches
-		// below so output still streams while the command runs. ^C cancels
-		// ctx, which aborts the in-flight request.
 		waitCtx := ctx
 		if opts.TimeoutMsec > 0 {
 			var cancelWait context.CancelFunc
@@ -403,16 +329,12 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 
 			case waitErr := <-done:
 				if waitErr != nil {
-					// A deadline on waitCtx that ctx doesn't share is
-					// --cmd-timeout expiring, not a request failure.
 					if ctx.Err() == nil && waitCtx.Err() == context.DeadlineExceeded {
 						return struct{}{}, fmt.Errorf("timed out waiting for command to finish")
 					}
 					return struct{}{}, wrapSandboxErr(ctx, key, pluginName, "failed waiting for command", waitErr)
 				}
 
-				// The plugin pumps the command's pipes to exhaustion before
-				// wait returns, so this final fetch collects everything left.
 				if err := fetchAndPrint(); err != nil {
 					return struct{}{}, err
 				}
@@ -439,10 +361,6 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 	return err
 }
 
-// feedSandboxStdin pumps in to the remote command's stdin until it drains or
-// ctx is cancelled. The reader is expected to honour ctx itself -
-// shell.CmdReader does - since a Read already in flight can't be interrupted
-// from here.
 func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instanceUUID, pluginName, cmdUUID string, in io.Reader) {
 	buf := make([]byte, 32*1024)
 	for {
