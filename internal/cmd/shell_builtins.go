@@ -44,7 +44,7 @@ type ShellCmd struct {
 type ShellHelpCmd struct{}
 
 func (c *ShellHelpCmd) Run(sctx *ShellContext) error {
-	builtinHelp(sctx.Out)
+	builtinHelp(sctx.Out, sctx.Builtins)
 	return nil
 }
 
@@ -188,7 +188,7 @@ func applyEditPatch(sctx *ShellContext, fieldName, fieldValue string, fields []r
 		return shellErr(err)
 	}
 	fmt.Fprintf(sctx.Out, "  %s %s=%s\n", shell.ShellValueStyle.Render("✓"), shell.ShellDirStyle.Render(fieldName), shell.ShellValueStyle.Render(fieldValue))
-	fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("  Run 'restart' for changes to take effect."))
+	fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("  Run '"+shell.BuiltinSigil+"restart' for changes to take effect."))
 	return nil
 }
 
@@ -336,7 +336,7 @@ func (c *ShellMountCmd) Run(sctx *ShellContext) error {
 	}
 
 	fmt.Fprintf(sctx.Out, "  %s mounted %s → %s\n", shell.ShellValueStyle.Render("✓"), shell.ShellValueStyle.Render(c.Volume), shell.ShellDirStyle.Render(c.Path))
-	fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("  Run 'restart' for changes to take effect."))
+	fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("  Run '"+shell.BuiltinSigil+"restart' for changes to take effect."))
 	return nil
 }
 
@@ -372,7 +372,7 @@ func (c *ShellUnmountCmd) Run(sctx *ShellContext) error {
 	}
 
 	fmt.Fprintf(sctx.Out, "  %s unmounted %s\n", shell.ShellValueStyle.Render("✓"), shell.ShellValueStyle.Render(c.Volume))
-	fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("  Run 'restart' for changes to take effect."))
+	fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("  Run '"+shell.BuiltinSigil+"restart' for changes to take effect."))
 	return nil
 }
 
@@ -524,44 +524,16 @@ func (c *ShellHistoryDeleteCmd) Run(sctx *ShellContext) error {
 	return nil
 }
 
-// shellBuiltinHelp is the list of builtins shown by `help`, in display order.
-//
-// Some of these are handled by ShellCmd and some by the shell loop itself
-// (cd, clear, exit), so the list can't be derived from the kong grammar
-// alone - it's the user-facing menu, not the parser's command set.
-var shellBuiltinHelp = []struct{ name, desc string }{
-	{"cd", "change the current remote directory"},
-	{"get", "inspect the current instance"},
-	{"edit", "edit instance fields (env, args, memory, vcpus, tags)"},
-	{"volumes", "list volumes mounted on this instance (alias for volumes mounted)"},
-	{"volumes mounted", "list volumes mounted on this instance"},
-	{"volumes list", "list all available volumes"},
-	{"volumes create", "create a new volume"},
-	{"mount", "attach a volume to this instance"},
-	{"unmount", "detach a volume from this instance"},
-	{"start", "start the instance"},
-	{"stop", "stop the instance"},
-	{"suspend", "suspend the instance"},
-	{"restart", "restart the instance"},
-	{"history", "show command history (alias for history list)"},
-	{"history list", "show command history"},
-	{"history rerun <n>", "re-execute history entry N"},
-	{"history clear", "clear all history entries"},
-	{"history delete <n>", "delete history entry N"},
-	{"clear", "clear the screen"},
-	{"exit", "quit the shell"},
-}
-
 // builtinHelp prints the list of available shell builtins. The names are
 // styled, so it goes through the ANSI-aware tabwriter rather than a %-Ns
 // pad, which would count escape sequences towards the column width.
-func builtinHelp(out io.Writer) {
+func builtinHelp(out io.Writer, builtins *shellBuiltins) {
 	fmt.Fprintln(out, shell.ShellTitleStyle.Render("Builtins:"))
 	fmt.Fprintln(out)
 
 	tw := tabwriter.TabWriter(out)
-	for _, b := range shellBuiltinHelp {
-		fmt.Fprintf(tw, "  %s\t%s\n", shell.ShellValueStyle.Render(b.name), shell.ShellHintStyle.Render(b.desc))
+	for _, b := range builtins.menu {
+		fmt.Fprintf(tw, "  %s\t%s\n", shell.ShellValueStyle.Render(b.usage), shell.ShellHintStyle.Render(b.desc))
 	}
 	// Nothing to do if the terminal write fails; every other line here
 	// ignores write errors too.
@@ -570,7 +542,30 @@ func builtinHelp(out io.Writer) {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, shell.ShellKeyStyle.Render("  ctrl-d quit · ctrl-r history · tab autocomplete · ctrl-c cancel"))
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, shell.ShellHintStyle.Render("  All command logs are kept in memory unless explicitly cleaned with 'history clear' or 'history delete'."))
+
+	sigil := shell.BuiltinSigil
+	for _, line := range []string{
+		"Builtins are the lines that open with '" + sigil + "', and they turn green as you type them. Every other",
+		"line goes to the instance exactly as written, so the shell never shadows its commands:",
+		"",
+		"  mount vol /mnt      runs the instance's mount",
+		"  " + sigil + "mount vol /mnt     attaches a volume to the instance",
+		"",
+		"A builtin has to be the whole line, because it runs here rather than on the instance -",
+		"there is nothing on this side to pipe it into or chain it with:",
+		"",
+		"  ls && mount vol /mnt    goes to the instance whole; 'mount' is just its own command",
+		"  " + sigil + "mount vol /mnt && ls   is an error, and nothing runs",
+	} {
+		if line == "" {
+			fmt.Fprintln(out)
+			continue
+		}
+		fmt.Fprintln(out, shell.ShellHintStyle.Render("  "+line))
+	}
+
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, shell.ShellHintStyle.Render("  All command logs are kept in memory unless explicitly cleaned with '"+sigil+"history clear' or '"+sigil+"history delete'."))
 }
 
 // instanceApplyPatches sends a set of patch operations to the instance API.

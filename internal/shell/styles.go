@@ -13,7 +13,11 @@ import (
 )
 
 var (
-	shellHighlightCmdStyle     = lipgloss.NewStyle().Foreground(shellAccentColor).Bold(true)
+	shellHighlightCmdStyle = lipgloss.NewStyle().Foreground(shellAccentColor).Bold(true)
+	// Builtins take the prompt's colour rather than a colour of their own:
+	// green in the line means the CLI answers it, blue means the instance
+	// does.
+	shellHighlightBuiltinStyle = lipgloss.NewStyle().Foreground(colors.Success).Bold(true)
 	shellHighlightStrStyle     = lipgloss.NewStyle().Foreground(colors.Success)
 	shellHighlightVarStyle     = lipgloss.NewStyle().Foreground(colors.Warning)
 	shellHighlightOptStyle     = lipgloss.NewStyle().Foreground(shellDimColor)

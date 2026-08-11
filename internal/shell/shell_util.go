@@ -28,46 +28,69 @@ func SetShellPrompt(rl *readline.Instance, instanceName, dir string) {
 	rl.SetPrompt(prompt)
 }
 
+// BuiltinSigil marks a line as a builtin. It is the only thing that does:
+// a line that opens with it is answered here, and every other line is sent
+// to the instance verbatim. That keeps the two namespaces apart without the
+// shell having to shadow any of the instance's commands - `mount` is always
+// the instance's, `:mount` is always ours.
+const BuiltinSigil = ":"
+
+// HasBuiltinSigil reports whether a line invokes a builtin. A bare ":" and a
+// ": " opening are the POSIX null command rather than a sigil, and belong to
+// the instance like any other command.
+func HasBuiltinSigil(line string) bool {
+	line = strings.TrimSpace(line)
+	return len(line) > 1 && strings.HasPrefix(line, BuiltinSigil) && line[1] != ' '
+}
+
+// CompletionNode is one entry in the builtin completion tree. The shell
+// package doesn't know which builtins exist - the caller derives them from
+// the command grammar and passes them in - so this is the shape they arrive
+// in, rather than readline's.
+type CompletionNode struct {
+	Name     string
+	Children []CompletionNode
+}
+
+// fallbackRemoteCommands stand in for the instance's own commands until the
+// real list arrives from SetRemoteCommands, which needs a round trip.
+var fallbackRemoteCommands = []string{"ls", "cat", "echo", "grep", "mkdir", "rm"}
+
 type SandboxCompleter struct {
 	mu       sync.Mutex
 	builtins []readline.PrefixCompleterInterface
 	remote   []readline.PrefixCompleterInterface
-	tree     readline.AutoCompleter
+
+	// The two namespaces don't overlap, so neither do their completions: a
+	// bare word can only be the instance's, and a word behind the sigil can
+	// only be a builtin.
+	tree        readline.AutoCompleter
+	builtinTree readline.AutoCompleter
 }
 
-func NewSandboxCompleter() *SandboxCompleter {
-	c := &SandboxCompleter{
-		builtins: []readline.PrefixCompleterInterface{
-			readline.PcItem("history", readline.PcItem("list"), readline.PcItem("rerun"), readline.PcItem("clear"), readline.PcItem("delete")),
-			readline.PcItem("exit"),
-			readline.PcItem("clear"),
-			readline.PcItem("cd"),
-			readline.PcItem("volumes", readline.PcItem("mounted"), readline.PcItem("list"), readline.PcItem("create")),
-			readline.PcItem("mount"),
-			readline.PcItem("unmount"),
-			readline.PcItem("edit", readline.PcItem("env"), readline.PcItem("args"), readline.PcItem("memory"), readline.PcItem("vcpus"), readline.PcItem("tags")),
-			readline.PcItem("restart"),
-			readline.PcItem("start"),
-			readline.PcItem("stop"),
-			readline.PcItem("suspend"),
-			readline.PcItem("get"),
-			readline.PcItem("help"),
-			readline.PcItem("ls"),
-			readline.PcItem("cat"),
-			readline.PcItem("echo"),
-			readline.PcItem("grep"),
-			readline.PcItem("mkdir"),
-			readline.PcItem("rm"),
-		},
+func NewSandboxCompleter(builtins []CompletionNode) *SandboxCompleter {
+	c := &SandboxCompleter{builtins: completionItems(builtins)}
+
+	c.remote = make([]readline.PrefixCompleterInterface, 0, len(fallbackRemoteCommands))
+	for _, cmd := range fallbackRemoteCommands {
+		c.remote = append(c.remote, readline.PcItem(cmd))
 	}
+
 	c.rebuild()
 	return c
 }
 
+func completionItems(nodes []CompletionNode) []readline.PrefixCompleterInterface {
+	items := make([]readline.PrefixCompleterInterface, 0, len(nodes))
+	for _, node := range nodes {
+		items = append(items, readline.PcItem(node.Name, completionItems(node.Children)...))
+	}
+	return items
+}
+
 func (c *SandboxCompleter) rebuild() {
-	items := append([]readline.PrefixCompleterInterface{}, c.builtins...)
-	items = append(items, c.remote...)
-	c.tree = readline.NewPrefixCompleter(items...)
+	c.tree = readline.NewPrefixCompleter(c.remote...)
+	c.builtinTree = readline.NewPrefixCompleter(c.builtins...)
 }
 
 func (c *SandboxCompleter) SetRemoteCommands(cmds []string) {
@@ -89,6 +112,18 @@ func (c *SandboxCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Dropping the sigil before delegating keeps the builtin completer free
+	// of sigil-prefixed duplicates: readline reports the offset as a length
+	// of the word already typed, not an index into the line, so shifting the
+	// whole line by one leaves the result unchanged.
+	if strings.HasPrefix(string(line), BuiltinSigil) {
+		// pos is the cursor, which readline can place before the sigil.
+		if c.builtinTree == nil || pos < 1 {
+			return nil, 0
+		}
+		return c.builtinTree.Do(line[1:], pos-1)
+	}
+
 	if c.tree == nil {
 		return nil, 0
 	}
@@ -100,6 +135,11 @@ func (c *SandboxCompleter) Do(line []rune, pos int) ([][]rune, int) {
 // movement, history search), so the last result is memoised to avoid
 // re-parsing the line each time.
 type ShellPainter struct {
+	// Builtins names the commands this shell answers itself, so they can be
+	// told apart from the instance's commands as they're typed - the point
+	// at which knowing still lets you change your mind.
+	Builtins map[string]bool
+
 	mu       sync.Mutex
 	lastLine string
 	lastPass []rune
@@ -116,8 +156,21 @@ func (p *ShellPainter) Paint(line []rune, pos int) []rune {
 	}
 
 	p.lastLine = s
-	p.lastPass = []rune(highlightShellLine(s))
+	p.lastPass = []rune(highlightShellLine(s, p.Builtins))
 	return p.lastPass
+}
+
+// isBuiltinWord reports whether the command word spanning [start,end) will
+// be answered here rather than by the instance. Only the first word of a
+// line can be: the sigil is what the shell dispatches on, and it dispatches
+// on the whole line, so the ":mount" in `ls && :mount x` is the instance's
+// problem and isn't coloured as ours.
+func isBuiltinWord(line string, builtins map[string]bool, start, end uint) bool {
+	if strings.TrimSpace(line[:start]) != "" {
+		return false
+	}
+	name, ok := strings.CutPrefix(line[start:end], BuiltinSigil)
+	return ok && builtins[name]
 }
 
 // highlightParsers hands out bash parsers for highlightShellLine. Building
@@ -130,7 +183,7 @@ var highlightParsers = sync.Pool{
 	},
 }
 
-func highlightShellLine(line string) string {
+func highlightShellLine(line string, builtins map[string]bool) string {
 	p := highlightParsers.Get().(*syntax.Parser)
 	defer highlightParsers.Put(p)
 
@@ -142,6 +195,7 @@ func highlightShellLine(line string) string {
 	const (
 		styleNone uint8 = iota
 		styleCmd
+		styleBuiltin
 		styleStr
 		styleVar
 		styleOpt
@@ -170,8 +224,12 @@ func highlightShellLine(line string) string {
 				cStart := n.Args[0].Pos().Offset()
 				cEnd := n.Args[0].End().Offset()
 				if cStart < uint(len(line)) && cEnd <= uint(len(line)) {
+					cmdStyle := styleCmd
+					if isBuiltinWord(line, builtins, cStart, cEnd) {
+						cmdStyle = styleBuiltin
+					}
 					for i := cStart; i < cEnd; i++ {
-						styles[i] = styleCmd
+						styles[i] = cmdStyle
 					}
 				}
 			}
@@ -218,6 +276,8 @@ func highlightShellLine(line string) string {
 			switch currentStyleID {
 			case styleCmd:
 				sb.WriteString(shellHighlightCmdStyle.Render(strChunk))
+			case styleBuiltin:
+				sb.WriteString(shellHighlightBuiltinStyle.Render(strChunk))
 			case styleStr:
 				sb.WriteString(shellHighlightStrStyle.Render(strChunk))
 			case styleVar:
@@ -253,6 +313,10 @@ type HistoryEntry struct {
 }
 
 type HistoryCache struct {
+	// Builtins is the set ShellPainter highlights against, so a listed
+	// entry is coloured the same way it was when it was typed.
+	Builtins map[string]bool
+
 	mu       sync.Mutex
 	entries  []HistoryEntry
 	ready    bool
@@ -277,7 +341,7 @@ func (h *HistoryCache) Print(out io.Writer) {
 	}
 
 	for i, entry := range h.entries {
-		fmt.Fprintf(out, "%4d  %s\n", i+1, highlightShellLine(entry.Cmd))
+		fmt.Fprintf(out, "%4d  %s\n", i+1, highlightShellLine(entry.Cmd, h.Builtins))
 	}
 }
 
