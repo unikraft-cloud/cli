@@ -1,6 +1,6 @@
 module unikraft.com/cli
 
-go 1.26.2
+go 1.26.4
 
 require (
 	charm.land/bubbles/v2 v2.1.0
@@ -49,6 +49,7 @@ require (
 	gotest.tools/v3 v3.5.2
 	mvdan.cc/sh/v3 v3.13.1
 	sigs.k8s.io/yaml v1.6.0
+	unikraft.com/cloud/plugins/sandbox v0.0.0-20260811092103-41990ce1dbdd
 	unikraft.com/cloud/sdk v0.3.1-0.20260806165643-ae45749bfb11
 	unikraft.com/x/colors v0.0.0-20260710212606-b68ba398853d
 	unikraft.com/x/filters v0.0.0-20260804153219-d1b47a40e047

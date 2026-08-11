@@ -17,9 +17,9 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
+	"unikraft.com/cloud/plugins/sandbox"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
-	"unikraft.com/cloud/sdk/sandbox"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 
@@ -221,18 +221,22 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 	log.G(ctx).Trace().Msg("executing command")
 
 	_, err := group.CollectMetro(ctx, g, key.Metro, func(ctx context.Context, c multimetro.MetroClient) (struct{}, error) {
-		instanceUUID := key.Ref().UUID
+		instance := multimetro.SandboxInstance(key)
 		pluginName := opts.Plugin
+		callOpts := c.SandboxOpts(pluginName)
 
 		cmdline := BuildExecCommand(opts.Dir, opts.Env, opts.Cmd, opts.Raw)
 
-		req := sandbox.ExecInstanceCommandRequestBody{
+		req := sandbox.RunCommandRequest{
 			Cmd: cmdline,
 		}
 
-		execResp, err := c.Sandbox.ExecInstanceCommand(ctx, instanceUUID, pluginName, req)
+		execResp, err := c.Sandbox.RunCommand(ctx, instance, &req, callOpts...)
 		if err != nil {
 			return struct{}{}, wrapSandboxErr(ctx, key, pluginName, "failed to start command", err)
+		}
+		if execResp.Data == nil {
+			return struct{}{}, fmt.Errorf("failed to start command: the %q plugin did not report a command UUID", pluginName)
 		}
 		cmdUUID := execResp.Data.Uuid
 
@@ -242,9 +246,9 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 			}
 			signalCtx, cancelSignal := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancelSignal()
-			if _, sigErr := c.Sandbox.SignalInstanceCommand(signalCtx, instanceUUID, pluginName, cmdUUID, sandbox.SignalInstanceCommandRequestBody{
+			if _, sigErr := c.Sandbox.SignalCommand(signalCtx, instance, cmdUUID, &sandbox.CommandSignalRequest{
 				Signal: int(syscall.SIGINT),
-			}); sigErr != nil {
+			}, callOpts...); sigErr != nil {
 				log.G(ctx).Debug().Err(sigErr).Str("cmd", cmdUUID).Msg("failed to signal remote command")
 			}
 		}()
@@ -252,39 +256,42 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 		if in != nil {
 			feedCtx, cancelFeed := context.WithCancel(ctx)
 			defer cancelFeed()
-			go feedSandboxStdin(feedCtx, c, instanceUUID, pluginName, cmdUUID, in)
+			go feedSandboxStdin(feedCtx, c, instance, pluginName, cmdUUID, in)
 		}
 
-		var stdoutOffset, stderrOffset int64
+		var stdoutOffset, stderrOffset uint64
 		fetchAndPrint := func() error {
 			log.G(ctx).Trace().
 				Str("cmd", cmdUUID).
-				Int64("stdout_offset", stdoutOffset).
-				Int64("stderr_offset", stderrOffset).
+				Uint64("stdout_offset", stdoutOffset).
+				Uint64("stderr_offset", stderrOffset).
 				Msg("fetching logs")
-			logsReq := sandbox.GetInstanceCommandLogsRequestBody{
-				Stdout: &sandbox.BodyStreamRange{Offset: &stdoutOffset},
-				Stderr: &sandbox.BodyStreamRange{Offset: &stderrOffset},
+			logsReq := sandbox.CommandLogsRequest{
+				Stdout: sandbox.CommandLogsRange{Offset: stdoutOffset},
+				Stderr: sandbox.CommandLogsRange{Offset: stderrOffset},
 			}
 			fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
-			logsResp, err := c.Sandbox.GetInstanceCommandLogs(fetchCtx, instanceUUID, pluginName, cmdUUID, logsReq)
+			logsResp, err := c.Sandbox.GetCommandLogs(fetchCtx, instance, cmdUUID, &logsReq, callOpts...)
 			if err != nil {
 				return wrapSandboxErr(ctx, key, pluginName, "failed to fetch logs", err)
 			}
+			if logsResp.Data == nil {
+				return nil
+			}
 			log.G(ctx).Trace().
 				Str("cmd", cmdUUID).
-				Int64("stdout_offset", stdoutOffset).
-				Int64("stderr_offset", stderrOffset).
+				Uint64("stdout_offset", stdoutOffset).
+				Uint64("stderr_offset", stderrOffset).
 				Bool("has_stdout", logsResp.Data.Stdout != "").
 				Bool("has_stderr", logsResp.Data.Stderr != "").
-				Interface("stdout_available", logsResp.Data.StdoutAvailable).
-				Interface("stderr_available", logsResp.Data.StderrAvailable).
+				Uint64("stdout_available", logsResp.Data.StdoutAvailable).
+				Uint64("stderr_available", logsResp.Data.StderrAvailable).
 				Msg("polled command logs")
 			for _, stream := range []struct {
 				data      string
-				available *uint64
-				offset    *int64
+				available uint64
+				offset    *uint64
 			}{
 				{logsResp.Data.Stdout, logsResp.Data.StdoutAvailable, &stdoutOffset},
 				{logsResp.Data.Stderr, logsResp.Data.StderrAvailable, &stderrOffset},
@@ -294,10 +301,13 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 				}
 				decoded := decodeSandboxPayload(stream.data)
 				fmt.Fprint(out, string(decoded))
-				if stream.available != nil {
-					*stream.offset = int64(*stream.available)
+				// The plugin reports how much of the stream it has produced, which
+				// is where the next poll picks up from. A plugin that did not say
+				// leaves the offset to advance by what was read.
+				if stream.available > 0 {
+					*stream.offset = stream.available
 				} else {
-					*stream.offset += int64(len(decoded))
+					*stream.offset += uint64(len(decoded))
 				}
 			}
 			return nil
@@ -317,7 +327,7 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 
 		done := make(chan error, 1)
 		go func() {
-			_, err := c.Sandbox.WaitInstanceCommand(waitCtx, instanceUUID, pluginName, cmdUUID)
+			_, err := c.Sandbox.WaitForCommand(waitCtx, instance, cmdUUID, callOpts...)
 			done <- err
 		}()
 
@@ -340,15 +350,17 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 				}
 
 				inspectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				inspectResp, err := c.Sandbox.InspectInstanceCommand(inspectCtx, instanceUUID, pluginName, cmdUUID)
+				inspectResp, err := c.Sandbox.GetCommandByUuid(inspectCtx, instance, cmdUUID, callOpts...)
 				cancel()
 				if err != nil {
 					return struct{}{}, wrapSandboxErr(ctx, key, pluginName, "failed to inspect command", err)
 				}
-				log.G(ctx).Trace().
-					Str("cmd", cmdUUID).
-					Interface("exitcode", inspectResp.Data.Exitcode).
-					Msg("command finished")
+				if inspectResp.Data != nil {
+					log.G(ctx).Trace().
+						Str("cmd", cmdUUID).
+						Int32("exitcode", inspectResp.Data.Exitcode).
+						Msg("command finished")
+				}
 				return struct{}{}, nil
 
 			case <-time.After(sandboxLogPollInterval):
@@ -361,7 +373,9 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 	return err
 }
 
-func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instanceUUID, pluginName, cmdUUID string, in io.Reader) {
+func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instance platform.Instance, pluginName, cmdUUID string, in io.Reader) {
+	callOpts := c.SandboxOpts(pluginName)
+
 	buf := make([]byte, 32*1024)
 	for {
 		if ctx.Err() != nil {
@@ -370,11 +384,11 @@ func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instanceUUI
 
 		n, readErr := in.Read(buf)
 		if n > 0 {
-			req := sandbox.FeedInstanceCommandStdinRequestBody{
+			req := sandbox.CommandStdinRequest{
 				Data: base64.StdEncoding.EncodeToString(buf[:n]),
 				Eof:  false,
 			}
-			if _, err := c.Sandbox.FeedInstanceCommandStdin(ctx, instanceUUID, pluginName, cmdUUID, req); err != nil {
+			if _, err := c.Sandbox.WriteCommandStdin(ctx, instance, cmdUUID, &req, callOpts...); err != nil {
 				return
 			}
 		}
@@ -383,8 +397,8 @@ func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instanceUUI
 			if ctx.Err() != nil {
 				return
 			}
-			eofReq := sandbox.FeedInstanceCommandStdinRequestBody{Eof: true}
-			_, _ = c.Sandbox.FeedInstanceCommandStdin(ctx, instanceUUID, pluginName, cmdUUID, eofReq)
+			eofReq := sandbox.CommandStdinRequest{Eof: true}
+			_, _ = c.Sandbox.WriteCommandStdin(ctx, instance, cmdUUID, &eofReq, callOpts...)
 			return
 		}
 	}
@@ -457,13 +471,13 @@ func writeSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient
 	log.G(ctx).Trace().Msg("writing file")
 
 	_, err := group.CollectMetro(ctx, g, key.Metro, func(ctx context.Context, c multimetro.MetroClient) (struct{}, error) {
-		req := sandbox.WriteInstanceFileRequestBody{
+		req := sandbox.WriteFileRequest{
 			Path:     remotePath,
 			Append:   appendFile,
-			Encoding: "base64",
+			Encoding: sandbox.FileEncodingBase64,
 			Data:     base64.StdEncoding.EncodeToString(data),
 		}
-		if _, err := c.Sandbox.WriteInstanceFile(ctx, key.Ref().UUID, plugin, req); err != nil {
+		if _, err := c.Sandbox.WriteFile(ctx, multimetro.SandboxInstance(key), &req, c.SandboxOpts(plugin)...); err != nil {
 			return struct{}{}, wrapSandboxErr(ctx, key, plugin, "failed to write file", err)
 		}
 		return struct{}{}, nil
@@ -538,12 +552,15 @@ func readSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient]
 	log.G(ctx).Trace().Msg("reading file")
 
 	return group.CollectMetro(ctx, g, key.Metro, func(ctx context.Context, c multimetro.MetroClient) ([]byte, error) {
-		req := sandbox.ReadInstanceFileRequestBody{
+		req := sandbox.ReadFileRequest{
 			Path: remotePath,
 		}
-		resp, err := c.Sandbox.ReadInstanceFile(ctx, key.Ref().UUID, plugin, req)
+		resp, err := c.Sandbox.ReadFile(ctx, multimetro.SandboxInstance(key), &req, c.SandboxOpts(plugin)...)
 		if err != nil {
 			return nil, wrapSandboxErr(ctx, key, plugin, "failed to read file", err)
+		}
+		if resp.Data == nil {
+			return nil, fmt.Errorf("failed to read file: the %q plugin returned no contents", plugin)
 		}
 
 		return decodeSandboxPayload(resp.Data.Contents), nil
@@ -594,11 +611,11 @@ func mkdirSandboxInstance(ctx context.Context, g *group.Group[multimetro.MetroCl
 	log.G(ctx).Trace().Msg("creating directory")
 
 	_, err := group.CollectMetro(ctx, g, key.Metro, func(ctx context.Context, c multimetro.MetroClient) (struct{}, error) {
-		req := sandbox.MakeInstanceDirectoryRequestBody{
+		req := sandbox.MkdirRequest{
 			Path:    path,
 			Parents: parents,
 		}
-		if _, err := c.Sandbox.MakeInstanceDirectory(ctx, key.Ref().UUID, plugin, req); err != nil {
+		if _, err := c.Sandbox.CreateDirectory(ctx, multimetro.SandboxInstance(key), &req, c.SandboxOpts(plugin)...); err != nil {
 			return struct{}{}, wrapSandboxErr(ctx, key, plugin, "failed to create directory", err)
 		}
 		return struct{}{}, nil

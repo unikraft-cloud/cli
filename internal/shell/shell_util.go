@@ -348,7 +348,10 @@ func (h *HistoryCache) Print(out io.Writer) {
 func (h *HistoryCache) SyncFromRemote(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin string) {
 	log.G(ctx).Debug().Str("instance", key.String()).Str("plugin", plugin).Msg("history: starting remote sync")
 	_, err := group.CollectMetro(ctx, g, key.Metro, func(ctx context.Context, c multimetro.MetroClient) (struct{}, error) {
-		resp, reqErr := c.Sandbox.ListInstanceCommands(ctx, key.Ref().UUID, plugin)
+		instance := multimetro.SandboxInstance(key)
+		callOpts := c.SandboxOpts(plugin)
+
+		resp, reqErr := c.Sandbox.ListCommands(ctx, instance, callOpts...)
 		if reqErr != nil {
 			// A 404 means there's no plugin of that name answering on the
 			// instance. Syncing history runs in the background at startup, so
@@ -367,16 +370,21 @@ func (h *HistoryCache) SyncFromRemote(ctx context.Context, g *group.Group[multim
 			return struct{}{}, reqErr
 		}
 
-		log.G(ctx).Debug().Int("count", len(resp.Data.Commands)).Msg("history: fetched remote command list")
-		remoteEntries := make([]HistoryEntry, 0, len(resp.Data.Commands))
+		var commands []string
+		if resp.Data != nil {
+			commands = resp.Data.Commands
+		}
 
-		for i, cmdUUID := range resp.Data.Commands {
+		log.G(ctx).Debug().Int("count", len(commands)).Msg("history: fetched remote command list")
+		remoteEntries := make([]HistoryEntry, 0, len(commands))
+
+		for i, cmdUUID := range commands {
 			if ctx.Err() != nil {
 				log.G(ctx).Debug().Int("processed", i).Msg("history: context cancelled during inspect")
 				return struct{}{}, ctx.Err()
 			}
 
-			inspectResp, inspectErr := c.Sandbox.InspectInstanceCommand(ctx, key.Ref().UUID, plugin, cmdUUID)
+			inspectResp, inspectErr := c.Sandbox.GetCommandByUuid(ctx, instance, cmdUUID, callOpts...)
 			if inspectErr != nil {
 				log.G(ctx).Debug().Err(inspectErr).Str("cmd_uuid", cmdUUID).Msg("history: inspect command failed, skipping")
 				continue

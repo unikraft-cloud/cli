@@ -8,10 +8,11 @@ package multimetro
 import (
 	"context"
 	"fmt"
+	"net/http"
 
+	"unikraft.com/cloud/plugins/sandbox"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
-	"unikraft.com/cloud/sdk/sandbox"
 	"unikraft.com/x/iata"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
@@ -22,8 +23,33 @@ import (
 
 type MetroClient struct {
 	platform.Client
-	Sandbox sandbox.Client
+	Sandbox *sandbox.Client
 	Metro   config.Metro
+
+	// sandboxHTTPClient is the HTTP client sandbox plugin calls on this metro
+	// are made with. The plugin client is built from the platform client's
+	// options, which carry no HTTP client of their own, so it is handed to the
+	// plugin per call instead.
+	sandboxHTTPClient *http.Client
+}
+
+// SandboxOpts returns the options for a call against the named plugin on this
+// metro. An empty plugin name leaves the plugin the client was built with.
+func (c MetroClient) SandboxOpts(plugin string) []sandbox.Option {
+	opts := make([]sandbox.Option, 0, 2)
+	if c.sandboxHTTPClient != nil {
+		opts = append(opts, sandbox.WithHTTPClient(c.sandboxHTTPClient))
+	}
+	if plugin != "" {
+		opts = append(opts, sandbox.WithPluginName(plugin))
+	}
+	return opts
+}
+
+// SandboxInstance addresses the plugin endpoint of the instance a key refers
+// to: a plugin client reaches its plugin through the instance's UUID alone.
+func SandboxInstance(key Key) platform.Instance {
+	return platform.Instance{Uuid: key.Ref().UUID}
 }
 
 func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
@@ -44,19 +70,20 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 	}
 	g := group.New[MetroClient]()
 	for _, metro := range metros {
-		client := platform.NewClient(
-			platform.WithHTTPClient(httpclient.GetClient(ptr.ZeroIfNil(metro.Insecure))),
+		httpClient := httpclient.GetClient(ptr.ZeroIfNil(metro.Insecure))
+		copts := []platform.ClientOption{
+			platform.WithHTTPClient(httpClient),
 			platform.WithToken(profile.Token),
 			platform.WithDefaultMetro(metro.Endpoint),
-		)
-		sandboxClient := sandbox.NewClient(
-			sandbox.WithHTTPClient(httpclient.GetClient(ptr.ZeroIfNil(metro.Insecure))),
-			sandbox.WithToken(profile.Token),
-			sandbox.WithDefaultMetro(metro.Endpoint),
-		)
+		}
 		g = g.WithClient(
 			metro.Name,
-			MetroClient{Client: client, Sandbox: sandboxClient, Metro: metro},
+			MetroClient{
+				Client:            platform.NewClient(copts...),
+				Sandbox:           sandbox.NewClient(copts...),
+				Metro:             metro,
+				sandboxHTTPClient: httpClient,
+			},
 		)
 	}
 

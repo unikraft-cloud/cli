@@ -482,12 +482,18 @@ func (c *ShellHistoryClearCmd) Run(sctx *ShellContext) error {
 	sctx.Cache.Clear()
 	fmt.Fprintln(sctx.Out, shell.ShellHintStyle.Render("Clearing remote history..."))
 	_, _ = group.CollectMetro(sctx.Ctx, sctx.G, sctx.Key.Metro, func(ctx context.Context, client multimetro.MetroClient) (struct{}, error) {
-		resp, listErr := client.Sandbox.ListInstanceCommands(ctx, sctx.Key.Ref().UUID, sctx.Plugin)
+		instance := multimetro.SandboxInstance(sctx.Key)
+		callOpts := client.SandboxOpts(sctx.Plugin)
+
+		resp, listErr := client.Sandbox.ListCommands(ctx, instance, callOpts...)
 		if listErr != nil {
 			return struct{}{}, listErr
 		}
+		if resp.Data == nil {
+			return struct{}{}, nil
+		}
 		for _, cmdUUID := range resp.Data.Commands {
-			_, _ = client.Sandbox.DeleteInstanceCommand(ctx, sctx.Key.Ref().UUID, sctx.Plugin, cmdUUID)
+			_, _ = client.Sandbox.DeleteCommandByUuid(ctx, instance, cmdUUID, callOpts...)
 		}
 		return struct{}{}, nil
 	})
@@ -507,11 +513,11 @@ func (c *ShellHistoryDeleteCmd) Run(sctx *ShellContext) error {
 	if cmdUUID != "" {
 		fmt.Fprintf(sctx.Out, "%s %s\n", shell.ShellHintStyle.Render("Deleting remote entry..."), shell.ShellHintStyle.Render(cmdUUID))
 		_, delErr := group.CollectMetro(sctx.Ctx, sctx.G, sctx.Key.Metro, func(ctx context.Context, client multimetro.MetroClient) (struct{}, error) {
-			resp, err := client.Sandbox.DeleteInstanceCommand(ctx, sctx.Key.Ref().UUID, sctx.Plugin, cmdUUID)
+			resp, err := client.Sandbox.DeleteCommandByUuid(ctx, multimetro.SandboxInstance(sctx.Key), cmdUUID, client.SandboxOpts(sctx.Plugin)...)
 			if err != nil {
 				return struct{}{}, err
 			}
-			if resp.Status != "success" {
+			if !resp.IsSuccess() {
 				return struct{}{}, fmt.Errorf("%s", resp.Message)
 			}
 			return struct{}{}, nil
