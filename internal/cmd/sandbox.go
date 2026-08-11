@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -436,28 +437,10 @@ func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 	if err != nil {
 		return err
 	}
-	g, resolvedKey := target.g, target.key
 
-	data, err := os.ReadFile(c.Local)
+	remote, err := uploadSandboxFile(ctx, target.g, target.key, c.Plugin, c.Local, c.Remote, c.Append, c.Parents)
 	if err != nil {
-		return fmt.Errorf("reading local file %q: %w", c.Local, err)
-	}
-
-	if c.Parents {
-		if err := mkdirSandboxInstance(ctx, g, resolvedKey, c.Plugin, filepath.Dir(c.Remote), true); err != nil {
-			return fmt.Errorf("creating parent directories: %w", err)
-		}
-	}
-
-	remote := c.Remote
-	if err := writeSandboxFile(ctx, g, resolvedKey, c.Plugin, remote, data, c.Append); err != nil {
-		if !strings.Contains(err.Error(), "Is a directory") {
-			return err
-		}
-		remote = filepath.Join(remote, filepath.Base(c.Local))
-		if err := writeSandboxFile(ctx, g, resolvedKey, c.Plugin, remote, data, c.Append); err != nil {
-			return err
-		}
+		return err
 	}
 
 	log.G(ctx).Info().
@@ -465,6 +448,35 @@ func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 		Str("remote", remote).
 		Msg("file written")
 	return nil
+}
+
+// uploadSandboxFile copies a local file to remotePath on the instance and
+// returns the remote path it ended up at: a remotePath that names a directory
+// is written into under the local file's base name, the way scp resolves one.
+// The remote parent directories are created first when parents is set.
+func uploadSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin, local, remotePath string, appendFile, parents bool) (string, error) {
+	data, err := os.ReadFile(local)
+	if err != nil {
+		return "", fmt.Errorf("reading local file %q: %w", local, err)
+	}
+
+	if parents {
+		if err := mkdirSandboxInstance(ctx, g, key, plugin, path.Dir(remotePath), true); err != nil {
+			return "", fmt.Errorf("creating parent directories: %w", err)
+		}
+	}
+
+	if err := writeSandboxFile(ctx, g, key, plugin, remotePath, data, appendFile); err != nil {
+		if !strings.Contains(err.Error(), "Is a directory") {
+			return "", err
+		}
+		remotePath = path.Join(remotePath, filepath.Base(local))
+		if err := writeSandboxFile(ctx, g, key, plugin, remotePath, data, appendFile); err != nil {
+			return "", err
+		}
+	}
+
+	return remotePath, nil
 }
 
 func writeSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin, remotePath string, data []byte, appendFile bool) error {
@@ -516,36 +528,48 @@ func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) er
 	if err != nil {
 		return err
 	}
-	g, resolvedKey := target.g, target.key
 
-	data, err := readSandboxFile(ctx, g, resolvedKey, c.Plugin, c.Remote)
+	local, size, err := downloadSandboxFile(ctx, target.g, target.key, c.Plugin, c.Remote, c.Local, c.Force)
 	if err != nil {
 		return err
-	}
-
-	local := c.Local
-	if local == "" {
-		local = filepath.Base(c.Remote)
-	} else if info, err := os.Stat(local); err == nil && info.IsDir() {
-		local = filepath.Join(local, filepath.Base(c.Remote))
-	}
-
-	if !c.Force {
-		if _, err := os.Stat(local); err == nil {
-			return fmt.Errorf("local file %q already exists (use --force to overwrite)", local)
-		}
-	}
-
-	if err := os.WriteFile(local, data, 0o644); err != nil {
-		return fmt.Errorf("writing local file %q: %w", local, err)
 	}
 
 	log.G(ctx).Info().
 		Str("remote", c.Remote).
 		Str("local", local).
-		Int("size", len(data)).
+		Int("size", size).
 		Msg("file read")
 	return nil
+}
+
+// downloadSandboxFile copies remotePath off the instance to local and returns
+// the local path it was written to, along with the number of bytes written. An
+// empty local path takes the remote file's base name, and one that names a
+// directory is written into, the way scp resolves one. An existing local file
+// is only overwritten when force is set.
+func downloadSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin, remotePath, local string, force bool) (string, int, error) {
+	data, err := readSandboxFile(ctx, g, key, plugin, remotePath)
+	if err != nil {
+		return "", 0, err
+	}
+
+	if local == "" {
+		local = path.Base(remotePath)
+	} else if info, err := os.Stat(local); err == nil && info.IsDir() {
+		local = filepath.Join(local, path.Base(remotePath))
+	}
+
+	if !force {
+		if _, err := os.Stat(local); err == nil {
+			return "", 0, fmt.Errorf("local file %q already exists (use --force to overwrite)", local)
+		}
+	}
+
+	if err := os.WriteFile(local, data, 0o644); err != nil {
+		return "", 0, fmt.Errorf("writing local file %q: %w", local, err)
+	}
+
+	return local, len(data), nil
 }
 
 func readSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin, remotePath string) ([]byte, error) {
@@ -565,6 +589,155 @@ func readSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient]
 
 		return decodeSandboxPayload(resp.Data.Contents), nil
 	})
+}
+
+// CopyPathSeparator separates an instance target from a path in a copy
+// specification, the way scp separates a host from a path.
+const CopyPathSeparator = ":"
+
+// ParseCopyPath splits a copy specification into an instance target and a
+// path. The target is empty when the specification names a local file, which
+// is any specification without a separator, and any whose target reads as a
+// filesystem path rather than an instance: one opening with "/", "." or "~",
+// or a lone Windows drive letter. A relative path whose first element carries
+// a colon is read as a target, as it is by scp, and is written "./back:up.tar"
+// to be read as a path.
+//
+// The target keeps a "name:" or "uuid:" prefix and a "<metro>/" qualifier, so
+// the colon of such a prefix is not mistaken for the separator:
+// "fra0/name:my-instance:/etc/motd" targets "fra0/name:my-instance".
+func ParseCopyPath(spec string) (target, filePath string) {
+	i := strings.Index(spec, CopyPathSeparator)
+	if i < 0 {
+		return "", spec
+	}
+
+	// A "name:" or "uuid:" prefix on the target owns the colon it ends with,
+	// so the separator is the colon after it. A specification that has none is
+	// a local path: an instance with no path of its own is written with the
+	// separator still there, as "<instance>:".
+	head := spec[:i+len(CopyPathSeparator)]
+	for _, prefix := range []string{multimetro.KeyNamePrefix, multimetro.KeyUUIDPrefix} {
+		if head == prefix || strings.HasSuffix(head, multimetro.MetroKeySeparator+prefix) {
+			j := strings.Index(spec[i+len(CopyPathSeparator):], CopyPathSeparator)
+			if j < 0 {
+				return "", spec
+			}
+			i += len(CopyPathSeparator) + j
+			break
+		}
+	}
+
+	target, filePath = spec[:i], spec[i+len(CopyPathSeparator):]
+
+	// A target that opens like a filesystem path, or is a lone Windows drive
+	// letter, is a local file whose name happens to carry a colon.
+	if strings.HasPrefix(target, "/") || strings.HasPrefix(target, ".") || strings.HasPrefix(target, "~") || len(target) < 2 {
+		return "", spec
+	}
+
+	return target, filePath
+}
+
+type CopySandboxInstanceCmd struct {
+	Source      string `arg:"" name:"source" help:"File to copy from, either a local path or <instance>:<path>."`
+	Destination string `arg:"" name:"destination" help:"Where to copy it to, either a local path or <instance>:<path>."`
+
+	Plugin  string `name:"plugin" help:"Plugin name from the instance to copy through." default:"sandbox"`
+	Force   bool   `name:"force" help:"Overwrite the local file if it already exists."`
+	Parents bool   `name:"parents" help:"Create parent directories on the remote path if they don't already exist."`
+}
+
+func (cmd CopySandboxInstanceCmd) Examples() []kingkong.Example {
+	return []kingkong.Example{
+		{
+			Description: "Copy a local file to a sandbox instance",
+			Commands: []string{
+				"unikraft instance copy ./config.json my-instance:/etc/app/config.json",
+			},
+		},
+		{
+			Description: "Copy a file off a sandbox instance",
+			Commands: []string{
+				"unikraft instance copy my-instance:/var/log/app.log ./app.log",
+			},
+		},
+		{
+			Description: "Copy a file into a directory, keeping its name",
+			Commands: []string{
+				"unikraft instance copy my-instance:/var/log/app.log ./logs/",
+			},
+		},
+		{
+			Description: "Copy a file to an instance in a specific metro, creating parent directories as needed",
+			Commands: []string{
+				"unikraft instance copy ./data.bin fra0/my-instance:/var/lib/app/data.bin --parents",
+			},
+		},
+	}
+}
+
+func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) error {
+	srcTarget, srcPath := ParseCopyPath(c.Source)
+	dstTarget, dstPath := ParseCopyPath(c.Destination)
+
+	switch {
+	case srcTarget != "" && dstTarget != "":
+		return fmt.Errorf("cannot copy from one instance to another: copy %q to a local path first", c.Source)
+
+	case srcTarget == "" && dstTarget == "":
+		return fmt.Errorf("neither %q nor %q names an instance: a path on an instance is written as <instance>%s<path>", c.Source, c.Destination, CopyPathSeparator)
+
+	case dstTarget != "":
+		// A destination that names no path at all leaves the file where the
+		// plugin resolves a relative path to, under its own name, like "scp
+		// file host:" does.
+		if dstPath == "" {
+			dstPath = filepath.Base(srcPath)
+		}
+
+		info, err := os.Stat(srcPath)
+		if err != nil {
+			return fmt.Errorf("reading local file %q: %w", srcPath, err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("%q is a directory: only single files can be copied", srcPath)
+		}
+
+		target, err := resolveSandboxTarget(ctx, dstTarget, c.Plugin, requireRunning)
+		if err != nil {
+			return err
+		}
+
+		remote, err := uploadSandboxFile(ctx, target.g, target.key, c.Plugin, srcPath, dstPath, false, c.Parents)
+		if err != nil {
+			return err
+		}
+
+		log.G(ctx).Info().
+			Str("source", srcPath).
+			Str("remote", remote).
+			Msg("file written")
+		return nil
+
+	default:
+		target, err := resolveSandboxTarget(ctx, srcTarget, c.Plugin, requireRunning)
+		if err != nil {
+			return err
+		}
+
+		local, size, err := downloadSandboxFile(ctx, target.g, target.key, c.Plugin, srcPath, dstPath, c.Force)
+		if err != nil {
+			return err
+		}
+
+		log.G(ctx).Info().
+			Str("remote", srcPath).
+			Str("local", local).
+			Int("size", size).
+			Msg("file read")
+		return nil
+	}
 }
 
 type MkdirSandboxInstanceCmd struct {

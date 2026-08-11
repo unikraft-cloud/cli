@@ -68,6 +68,7 @@ type InstancesCmd struct {
 	History InstanceHistoryCmd  `cmd:"" help:"Show checkpoint history for an instance."`
 
 	Exec  ExecSandboxInstanceCmd  `cmd:"" help:"Exec a command on a sandbox instance."`
+	Copy  CopySandboxInstanceCmd  `cmd:"" aliases:"cp" help:"Copy a file to or from a sandbox instance."`
 	Write WriteSandboxInstanceCmd `cmd:"" help:"Write a file to a sandbox instance."`
 	Read  ReadSandboxInstanceCmd  `cmd:"" help:"Read a file from a sandbox instance."`
 	Mkdir MkdirSandboxInstanceCmd `cmd:"" help:"Create a directory on a sandbox instance."`
