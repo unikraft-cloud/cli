@@ -7,75 +7,79 @@ package cmd
 
 import (
 	"io"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/alecthomas/kong"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"unikraft.com/cli/internal/shell"
 )
 
 func TestShellBuiltinsDerivedFromGrammar(t *testing.T) {
-	b, err := newShellBuiltins(io.Discard, io.Discard)
+	b, err := shell.NewBuiltins(&ShellCmd{}, io.Discard, io.Discard)
+	require.NoError(t, err)
+
+	// The grammar is parsed a second time here, so what the builtins derived
+	// from it is checked against the grammar itself rather than against
+	// another view of the same derivation.
+	parser, err := kong.New(&ShellCmd{}, kong.Name(""), kong.NoDefaultHelp(), kong.Exit(func(int) {}))
 	require.NoError(t, err)
 
 	menuNames := func() []string {
 		var out []string
-		for _, entry := range b.menu {
-			out = append(out, entry.name)
+		for _, entry := range b.Menu() {
+			out = append(out, entry.Name)
 		}
 		return out
 	}()
 
 	completionNames := func() []string {
 		var out []string
-		for _, node := range b.completion {
+		for _, node := range b.Completion() {
 			out = append(out, node.Name)
 		}
 		return out
 	}()
 
 	t.Run("every grammar command reaches help and completion", func(t *testing.T) {
-		for _, child := range b.parser.Model.Children {
+		for _, child := range parser.Model.Children {
 			if child.Type != kong.CommandNode || child.Hidden {
 				continue
 			}
-			assert.True(t, b.names[child.Name], "%s missing from parser names", child.Name)
+			assert.True(t, b.HasCommand(child.Name), "%s missing from parser names", child.Name)
 			assert.Contains(t, menuNames, child.Name)
 			assert.Contains(t, completionNames, child.Name)
 		}
 	})
 
 	t.Run("intrinsics reach help and completion but never the parser", func(t *testing.T) {
-		for _, entry := range slices.Concat(shellIntrinsicsHead, shellIntrinsicsTail) {
-			assert.Contains(t, menuNames, entry.name)
-			assert.Contains(t, completionNames, entry.name)
-			// handleBuiltin and the shell loop answer these directly. Adding
-			// them to names would hand them to kong, which has no grammar
-			// for them, so every one would fail to parse.
-			assert.False(t, b.names[entry.name], "%s must not be parsed by kong", entry.name)
+		for _, name := range []string{"cd", "export", "clear", "exit"} {
+			assert.Contains(t, menuNames, name)
+			assert.Contains(t, completionNames, name)
+			assert.True(t, b.IsBuiltin(name), "%s must be recognised as a builtin", name)
+			// handleBuiltin and the shell loop answer these directly. Handing
+			// one to kong, which has no grammar for it, would only fail.
+			assert.False(t, b.HasCommand(name), "%s must not be parsed by kong", name)
 		}
 	})
 
-	t.Run("all covers exactly the top-level builtins", func(t *testing.T) {
-		want := append([]string{}, completionNames...)
-		got := make([]string, 0, len(b.all))
-		for name := range b.all {
-			got = append(got, name)
+	t.Run("only top-level builtins are recognised", func(t *testing.T) {
+		for _, name := range completionNames {
+			assert.True(t, b.IsBuiltin(name), "%s should be recognised as a builtin", name)
 		}
-		assert.ElementsMatch(t, want, got)
 
 		// Subcommands are not commands in their own right: a line starting
 		// with "list" is the instance's, not ours.
-		assert.False(t, b.all["list"])
-		assert.False(t, b.all["env"])
+		assert.False(t, b.IsBuiltin("list"))
+		assert.False(t, b.IsBuiltin("env"))
 	})
 
 	t.Run("help lines carry the sigil and describe their arguments", func(t *testing.T) {
 		usage := map[string]string{}
-		for _, entry := range b.menu {
-			usage[entry.usage] = entry.desc
+		for _, entry := range b.Menu() {
+			usage[entry.Usage] = entry.Desc
 		}
 		assert.Contains(t, usage, ":history rerun <index>")
 		assert.Contains(t, usage, ":mount <volume> <path> [<mode>]")
@@ -84,10 +88,10 @@ func TestShellBuiltinsDerivedFromGrammar(t *testing.T) {
 	})
 
 	t.Run("help descriptions are sentence style", func(t *testing.T) {
-		for _, entry := range b.menu {
-			require.NotEmpty(t, entry.desc, "%s has no description", entry.usage)
-			assert.Equal(t, strings.ToLower(entry.desc[:1]), entry.desc[:1],
-				"%q should start lowercase", entry.desc)
+		for _, entry := range b.Menu() {
+			require.NotEmpty(t, entry.Desc, "%s has no description", entry.Usage)
+			assert.Equal(t, strings.ToLower(entry.Desc[:1]), entry.Desc[:1],
+				"%q should start lowercase", entry.Desc)
 		}
 	})
 }
@@ -146,7 +150,7 @@ func TestBuiltinFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := builtinFields(tt.line)
+			got, ok := shell.ParseBuiltinLine(tt.line)
 			assert.Equal(t, tt.want != nil, ok)
 			assert.Equal(t, tt.want, got)
 		})

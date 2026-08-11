@@ -28,21 +28,6 @@ func SetShellPrompt(rl *readline.Instance, instanceName, dir string) {
 	rl.SetPrompt(prompt)
 }
 
-// BuiltinSigil marks a line as a builtin. It is the only thing that does:
-// a line that opens with it is answered here, and every other line is sent
-// to the instance verbatim. That keeps the two namespaces apart without the
-// shell having to shadow any of the instance's commands - `mount` is always
-// the instance's, `:mount` is always ours.
-const BuiltinSigil = ":"
-
-// HasBuiltinSigil reports whether a line invokes a builtin. A bare ":" and a
-// ": " opening are the POSIX null command rather than a sigil, and belong to
-// the instance like any other command.
-func HasBuiltinSigil(line string) bool {
-	line = strings.TrimSpace(line)
-	return len(line) > 1 && strings.HasPrefix(line, BuiltinSigil) && line[1] != ' '
-}
-
 // CompletionNode is one entry in the builtin completion tree. The shell
 // package doesn't know which builtins exist - the caller derives them from
 // the command grammar and passes them in - so this is the shape they arrive
@@ -138,7 +123,7 @@ type ShellPainter struct {
 	// Builtins names the commands this shell answers itself, so they can be
 	// told apart from the instance's commands as they're typed - the point
 	// at which knowing still lets you change your mind.
-	Builtins map[string]bool
+	Builtins *Builtins
 
 	mu       sync.Mutex
 	lastLine string
@@ -165,12 +150,12 @@ func (p *ShellPainter) Paint(line []rune, pos int) []rune {
 // line can be: the sigil is what the shell dispatches on, and it dispatches
 // on the whole line, so the ":mount" in `ls && :mount x` is the instance's
 // problem and isn't coloured as ours.
-func isBuiltinWord(line string, builtins map[string]bool, start, end uint) bool {
+func isBuiltinWord(line string, builtins *Builtins, start, end uint) bool {
 	if strings.TrimSpace(line[:start]) != "" {
 		return false
 	}
 	name, ok := strings.CutPrefix(line[start:end], BuiltinSigil)
-	return ok && builtins[name]
+	return ok && builtins.IsBuiltin(name)
 }
 
 // highlightParsers hands out bash parsers for highlightShellLine. Building
@@ -183,7 +168,7 @@ var highlightParsers = sync.Pool{
 	},
 }
 
-func highlightShellLine(line string, builtins map[string]bool) string {
+func highlightShellLine(line string, builtins *Builtins) string {
 	p := highlightParsers.Get().(*syntax.Parser)
 	defer highlightParsers.Put(p)
 
@@ -315,7 +300,7 @@ type HistoryEntry struct {
 type HistoryCache struct {
 	// Builtins is the set ShellPainter highlights against, so a listed
 	// entry is coloured the same way it was when it was typed.
-	Builtins map[string]bool
+	Builtins *Builtins
 
 	mu       sync.Mutex
 	entries  []HistoryEntry

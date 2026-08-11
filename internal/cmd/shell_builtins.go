@@ -9,7 +9,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 
@@ -19,7 +18,6 @@ import (
 	rescmd "unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/shell"
-	"unikraft.com/cli/internal/tabwriter"
 	"unikraft.com/cli/internal/types"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
@@ -44,7 +42,7 @@ type ShellCmd struct {
 type ShellHelpCmd struct{}
 
 func (c *ShellHelpCmd) Run(sctx *ShellContext) error {
-	builtinHelp(sctx.Out, sctx.Builtins)
+	sctx.Builtins.Help(sctx.Out)
 	return nil
 }
 
@@ -126,7 +124,7 @@ type ShellEditEnvCmd struct {
 
 func (c *ShellEditEnvCmd) Run(sctx *ShellContext) error {
 	fieldValue := strings.Join(c.KeyValue, " ")
-	k, v, ok := parseAssignment(fieldValue)
+	k, v, ok := shell.ParseAssignment(fieldValue)
 	if !ok {
 		return fmt.Errorf("%s edit env: expected KEY=VALUE", shell.ShellErrorStyle.Render("error:"))
 	}
@@ -400,7 +398,7 @@ func (c *ShellStartCmd) Run(sctx *ShellContext) error {
 	if err := cmd.Run(sctx.Ctx, sctx.stdio()); err != nil {
 		return shellErr(err)
 	}
-	sctx.State.running = true
+	sctx.State.Running = true
 	sctx.startBackgroundSync()
 	return nil
 }
@@ -415,7 +413,7 @@ func (c *ShellStopCmd) Run(sctx *ShellContext) error {
 	if err := cmd.Run(sctx.Ctx, sctx.stdio()); err != nil {
 		return shellErr(err)
 	}
-	sctx.State.running = false
+	sctx.State.Running = false
 	return nil
 }
 
@@ -426,7 +424,7 @@ func (c *ShellSuspendCmd) Run(sctx *ShellContext) error {
 	if err := cmd.Run(sctx.Ctx, sctx.stdio()); err != nil {
 		return shellErr(err)
 	}
-	sctx.State.running = false
+	sctx.State.Running = false
 	return nil
 }
 
@@ -440,7 +438,7 @@ func (c *ShellRestartCmd) Run(sctx *ShellContext) error {
 	if err := cmd.Run(sctx.Ctx, sctx.stdio()); err != nil {
 		return shellErr(err)
 	}
-	sctx.State.running = true
+	sctx.State.Running = true
 	sctx.startBackgroundSync()
 	return nil
 }
@@ -528,50 +526,6 @@ func (c *ShellHistoryDeleteCmd) Run(sctx *ShellContext) error {
 	}
 	fmt.Fprintf(sctx.Out, "Removed: %s\n", cmd)
 	return nil
-}
-
-// builtinHelp prints the list of available shell builtins. The names are
-// styled, so it goes through the ANSI-aware tabwriter rather than a %-Ns
-// pad, which would count escape sequences towards the column width.
-func builtinHelp(out io.Writer, builtins *shellBuiltins) {
-	fmt.Fprintln(out, shell.ShellTitleStyle.Render("Builtins:"))
-	fmt.Fprintln(out)
-
-	tw := tabwriter.TabWriter(out)
-	for _, b := range builtins.menu {
-		fmt.Fprintf(tw, "  %s\t%s\n", shell.ShellValueStyle.Render(b.usage), shell.ShellHintStyle.Render(b.desc))
-	}
-	// Nothing to do if the terminal write fails; every other line here
-	// ignores write errors too.
-	_ = tw.Flush()
-
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, shell.ShellKeyStyle.Render("  ctrl-d quit · ctrl-r history · tab autocomplete · ctrl-c cancel"))
-	fmt.Fprintln(out)
-
-	sigil := shell.BuiltinSigil
-	for _, line := range []string{
-		"Builtins are the lines that open with '" + sigil + "', and they turn green as you type them. Every other",
-		"line goes to the instance exactly as written, so the shell never shadows its commands:",
-		"",
-		"  mount vol /mnt      runs the instance's mount",
-		"  " + sigil + "mount vol /mnt     attaches a volume to the instance",
-		"",
-		"A builtin has to be the whole line, because it runs here rather than on the instance -",
-		"there is nothing on this side to pipe it into or chain it with:",
-		"",
-		"  ls && mount vol /mnt    goes to the instance whole; 'mount' is just its own command",
-		"  " + sigil + "mount vol /mnt && ls   is an error, and nothing runs",
-	} {
-		if line == "" {
-			fmt.Fprintln(out)
-			continue
-		}
-		fmt.Fprintln(out, shell.ShellHintStyle.Render("  "+line))
-	}
-
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, shell.ShellHintStyle.Render("  All command logs are kept in memory unless explicitly cleaned with '"+sigil+"history clear' or '"+sigil+"history delete'."))
 }
 
 // instanceApplyPatches sends a set of patch operations to the instance API.
