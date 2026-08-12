@@ -24,6 +24,7 @@ import (
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/timeouts"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -333,6 +334,7 @@ func (InstanceTemplate) Create(ctx context.Context, fields []resource.Field) ([]
 		return nil, err
 	}
 
+	createdData := make(map[string]createdResource[platform.Instance])
 	created, err := group.CollectMetro(ctx, g, inst.key.Metro, func(ctx context.Context, c multimetro.MetroClient) (multimetro.Keys, error) {
 		var reqItem platform.CreateTemplateInstancesRequestItem
 		if ref.Name != "" {
@@ -341,13 +343,13 @@ func (InstanceTemplate) Create(ctx context.Context, fields []resource.Field) ([]
 			reqItem.Uuid = new(ref.UUID)
 		}
 		log.G(ctx).Trace().Str("ref", refStr).Msg("creating instance template")
-		resp, err := c.CreateTemplateInstances(
+		reqItem.TimeoutS = new(int64(-1))
+		resp, err := timeouts.TryWithFallback(
 			ctx,
-			[]platform.CreateTemplateInstancesRequestItem{
-				reqItem,
-			},
+			[]platform.CreateTemplateInstancesRequestItem{reqItem},
+			c.CreateTemplateInstances,
 		)
-		if err != nil {
+		if _, err = timeouts.Tolerate(ctx, resp, err, "template create did not complete"); err != nil {
 			return nil, fmt.Errorf("failed to create template for %s: %w", refStr, err)
 		}
 		if resp == nil || resp.Data == nil || len(resp.Data.Instances) == 0 {
@@ -356,9 +358,11 @@ func (InstanceTemplate) Create(ctx context.Context, fields []resource.Field) ([]
 		var created multimetro.Keys
 		var errs []error
 		for _, tmpl := range resp.Data.Instances {
+			name := cmp.Or(tmpl.Name, tmpl.Uuid)
 			status := tmpl.Status
-			if status != "" && status != platform.ResponseStatusSuccess {
-				name := cmp.Or(tmpl.Name, tmpl.Uuid)
+			failed := status != "" && status != platform.ResponseStatusSuccess
+			// A UUID means the template exists
+			if tmpl.Uuid == "" && failed {
 				message := ptr.ZeroIfNil(tmpl.Message)
 				if message == "" {
 					message = "unknown error"
@@ -366,22 +370,53 @@ func (InstanceTemplate) Create(ctx context.Context, fields []resource.Field) ([]
 				errs = append(errs, fmt.Errorf("template create failed for %s: %s", name, message))
 				continue
 			}
-			created = append(created, multimetro.Key{
+			if failed {
+				log.G(ctx).Warn().
+					Str("template", name).
+					Str("state", string(tmpl.State)).
+					Str("reason", ptr.ZeroIfNil(tmpl.Message)).
+					Msg("template has not reached the template state yet")
+			}
+			key := multimetro.Key{
 				Metro: c.Metro.Name,
 				UUID:  tmpl.Uuid,
 				Name:  tmpl.Name,
-			})
+			}
+			createdData[key.String()] = createdResource[platform.Instance]{
+				data: platform.Instance{
+					Uuid:  tmpl.Uuid,
+					Name:  tmpl.Name,
+					State: tmpl.State,
+				},
+				metro: c.Metro,
+			}
+			created = append(created, key)
 		}
 		return created, errors.Join(errs...)
 	})
-	if err != nil {
+	if err != nil && len(created) == 0 {
 		return nil, err
 	}
 	if len(created) == 0 {
 		return nil, fmt.Errorf("no template created for %s", refStr)
 	}
 
-	return InstanceTemplate{}.Get(ctx, created.Strings())
+	var errs []error
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	results, err := InstanceTemplate{}.Get(ctx, created.Strings())
+	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
+		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, InstanceTemplate{}.load)
+		results = append(results, recovered...)
+		if len(missing) > 0 {
+			errs = append(errs, group.ErrRefNotFound{Refs: missing})
+		}
+	} else if err != nil {
+		errs = append(errs, err)
+	}
+	return results, errors.Join(errs...)
 }
 
 func (InstanceTemplate) Examples() map[cmd.CmdType][]kingkong.Example {

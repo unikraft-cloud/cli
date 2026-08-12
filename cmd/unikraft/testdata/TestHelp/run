@@ -73,7 +73,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template

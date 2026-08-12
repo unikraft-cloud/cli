@@ -959,6 +959,25 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
 
+	t.Run("create-waits-for-running", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=true",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		})
+		out := r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.Regexp(t, `state:\s+running`, out)
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
 	t.Run("suspend", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()

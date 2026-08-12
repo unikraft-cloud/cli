@@ -938,13 +938,6 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
     }
   },
   {
-    "name": "wait-timeout",
-    "verbosity": "invisible",
-    "create": {
-      "set": "0s"
-    }
-  },
-  {
     "name": "features",
     "verbosity": "invisible",
     "create": {

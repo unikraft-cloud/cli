@@ -25,6 +25,7 @@ import (
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/timeouts"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -79,8 +80,7 @@ type InstanceCheckpoint struct {
 		Policy string `mirror:"instance.restart_policy"`
 	}
 
-	InstanceRef string          `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to create a checkpoint from."`
-	WaitTimeout types.DurationS `field:"wait-timeout,invisible,valueless" create:"set"`
+	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to create a checkpoint from."`
 
 	Instance platform.Instance `field:"-" json:"instance"`
 	Metro    *config.Metro     `field:"-" json:"metro"`
@@ -300,17 +300,12 @@ func instanceCheckpointPatchSpec(path string, op patchOp, value any) (platform.M
 
 func (InstanceCheckpoint) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
 	var instance string
-	var timeoutS *int64
 	for key, field := range resource.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
 		}
-		switch key.String() {
-		case "instance":
+		if key.String() == "instance" {
 			instance = field.Create.Set.(string)
-		case "wait-timeout":
-			timeout := field.Create.Set.(types.DurationS)
-			timeoutS = new(int64(timeout))
 		}
 	}
 	if instance == "" {
@@ -338,14 +333,20 @@ func (InstanceCheckpoint) Create(ctx context.Context, fields []resource.Field) (
 		return nil, err
 	}
 
+	// The checkpoint as the create call reported it, keyed by multimetro key.
+	createdData := make(map[string]createdResource[platform.Instance])
 	created, err := group.CollectMetro(ctx, g, inst.key.Metro, func(ctx context.Context, c multimetro.MetroClient) (multimetro.Keys, error) {
 		log.G(ctx).Trace().Str("ref", refStr).Msg("creating instance checkpoint")
 		req := platform.CreateCheckpointInstancesRequestItem{
 			From:     ref.NameOrUUID(),
-			TimeoutS: timeoutS,
+			TimeoutS: new(int64(-1)),
 		}
-		resp, err := c.CreateCheckpointInstances(ctx, []platform.CreateCheckpointInstancesRequestItem{req})
-		if err != nil {
+		resp, err := timeouts.TryWithFallback(
+			ctx,
+			[]platform.CreateCheckpointInstancesRequestItem{req},
+			c.CreateCheckpointInstances,
+		)
+		if _, err = timeouts.Tolerate(ctx, resp, err, "checkpoint create did not complete"); err != nil {
 			return nil, fmt.Errorf("failed to create checkpoint for %s: %w", refStr, err)
 		}
 		if resp == nil || resp.Data == nil || len(resp.Data.Instances) == 0 {
@@ -354,9 +355,11 @@ func (InstanceCheckpoint) Create(ctx context.Context, fields []resource.Field) (
 		var created multimetro.Keys
 		var errs []error
 		for _, cp := range resp.Data.Instances {
+			name := cmp.Or(cp.Name, cp.Uuid)
 			status := cp.Status
-			if status != "" && status != platform.ResponseStatusSuccess {
-				name := cmp.Or(cp.Name, cp.Uuid)
+			failed := status != "" && status != platform.ResponseStatusSuccess
+			// A UUID means the checkpoint exists
+			if cp.Uuid == "" && failed {
 				message := ptr.ZeroIfNil(cp.Message)
 				if message == "" {
 					message = "unknown error"
@@ -364,22 +367,55 @@ func (InstanceCheckpoint) Create(ctx context.Context, fields []resource.Field) (
 				errs = append(errs, fmt.Errorf("checkpoint create failed for %s: %s", name, message))
 				continue
 			}
-			created = append(created, multimetro.Key{
+			if failed {
+				log.G(ctx).Warn().
+					Str("checkpoint", name).
+					Str("state", string(cp.State)).
+					Str("reason", ptr.ZeroIfNil(cp.Message)).
+					Msg("checkpoint has not reached the checkpoint state yet")
+			}
+			key := multimetro.Key{
 				Metro: c.Metro.Name,
 				UUID:  cp.Uuid,
 				Name:  cp.Name,
-			})
+			}
+			createdData[key.String()] = createdResource[platform.Instance]{
+				data: platform.Instance{
+					Uuid:  cp.Uuid,
+					Name:  cp.Name,
+					State: cp.State,
+				},
+				metro: c.Metro,
+			}
+			created = append(created, key)
 		}
 		return created, errors.Join(errs...)
 	})
-	if err != nil {
+	if err != nil && len(created) == 0 {
 		return nil, err
 	}
 	if len(created) == 0 {
 		return nil, fmt.Errorf("no checkpoint created for %s", refStr)
 	}
 
-	return InstanceCheckpoint{}.Get(ctx, created.Strings())
+	var errs []error
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	results, err := InstanceCheckpoint{}.Get(ctx, created.Strings())
+	// Checkpoint creation is asynchronous, so a checkpoint that was just created
+	// may not be listed yet.
+	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
+		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, InstanceCheckpoint{}.load)
+		results = append(results, recovered...)
+		if len(missing) > 0 {
+			errs = append(errs, group.ErrRefNotFound{Refs: missing})
+		}
+	} else if err != nil {
+		errs = append(errs, err)
+	}
+	return results, errors.Join(errs...)
 }
 
 func (InstanceCheckpoint) Examples() map[cmd.CmdType][]kingkong.Example {

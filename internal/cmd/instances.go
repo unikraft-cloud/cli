@@ -41,6 +41,7 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/timeouts"
 	"unikraft.com/cli/internal/tunnel"
 	"unikraft.com/cli/internal/types"
 )
@@ -152,7 +153,6 @@ type Instance struct {
 	SchedPriority *platform.SchedPriority `mirror:"instance.sched_priority" field:"sched-priority,long" create:"set" edit:"set" flag:"sched-priority" help:"Scheduling priority for the instance." placeholder:"priority" example:"normal,medium,high,admin"`
 	Autostart     bool                    `field:"autostart,invisible,valueless" create:"set" flag:"autostart" help:"Start instance automatically."`
 	Replicas      int64                   `field:"replicas,invisible,valueless" create:"set" flag:"replicas" help:"Number of replicas." placeholder:"n" example:"1,3"`
-	WaitTimeout   types.DurationS         `field:"wait-timeout,invisible,valueless" create:"set"`
 	Features      []string                `field:"features,invisible,valueless" create:"set" flag:"feature" sep:"none" help:"Instance feature." placeholder:"feature"`
 	Vsock         bool                    `field:"vsock,invisible,valueless" create:"set" edit:"set"`
 	Template      string                  `field:"template,invisible,valueless" create:"set" flag:"template" help:"Create from instance template." placeholder:"name"`
@@ -782,21 +782,24 @@ func (Instance) Delete(ctx context.Context, keys []string) error {
 				TimeoutS: new(int64(-1)),
 			}
 		}
-		instances, err := c.DeleteInstances(ctx, reqs)
-		if err != nil && strings.Contains(err.Error(), "timeout_s") && strings.Contains(err.Error(), "is not a valid member") {
-			// HACK: retry without timeout_s for metros that don't support it.
-			for i := range reqs {
-				reqs[i].TimeoutS = nil
-			}
-			instances, err = c.DeleteInstances(ctx, reqs)
-		}
+		instances, err := timeouts.TryWithFallback(ctx, reqs, c.DeleteInstances)
+		timedOut, err := timeouts.Tolerate(ctx, instances, err, "instance delete did not finish in time")
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, err
+		}
+		if instances == nil || instances.Data == nil {
+			return nil, nil
 		}
 		var deleted []group.Ref
 		for _, instance := range instances.Data.Instances {
 			if instance.Status != platform.ResponseStatusSuccess {
-				continue
+				if err != nil && !timedOut {
+					continue
+				}
+				log.G(ctx).Warn().
+					Str("instance", cmp.Or(instance.Name, instance.Uuid)).
+					Str("reason", ptr.ZeroIfNil(instance.Message)).
+					Msg("instance delete has not finished yet")
 			}
 			deleted = append(deleted, group.Ref{
 				Metro: c.Metro.Name,
@@ -1087,6 +1090,7 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 	var metro string
 	var imageURL string
 	var pullPolicy *platform.PullPolicy
+	var autostart bool
 	for key, field := range resource.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
@@ -1281,14 +1285,11 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 				req.ServiceGroup.HardLimit = &limit
 			}
 		case "autostart":
-			autostart := field.Create.Set.(bool)
+			autostart = field.Create.Set.(bool)
 			req.Autostart = &autostart
 		case "replicas":
 			replicas := field.Create.Set.(int64)
 			req.Replicas = &replicas
-		case "wait-timeout":
-			timeout := field.Create.Set.(types.DurationS)
-			req.TimeoutS = new(int64(timeout))
 		case "features":
 			features := field.Create.Set.([]string)
 			for _, f := range features {
@@ -1362,38 +1363,77 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 		return nil, fmt.Errorf("only one of --image, --template, --branch, or --checkpoint may be specified")
 	}
 
+	if autostart {
+		req.TimeoutS = new(int64(-1))
+	}
+
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
+	createdData := make(map[string]createdResource[platform.Instance])
 	keys, err := group.CollectMetro(ctx, g, metro, func(ctx context.Context, c multimetro.MetroClient) (multimetro.Keys, error) {
 		log.G(ctx).Trace().Msg("creating instance")
-		resp, err := c.CreateInstance(ctx, req)
-		if err != nil {
+		resp, err := timeouts.TryWithFallback(ctx, req, c.CreateInstance)
+		if _, err = timeouts.Tolerate(ctx, resp, err, "instance create did not complete in time"); err != nil {
 			return nil, err
 		}
 		if resp == nil || resp.Data == nil || len(resp.Data.Instances) == 0 {
 			return nil, fmt.Errorf("no instances created")
 		}
 		created := make(multimetro.Keys, 0, len(resp.Data.Instances))
+		var errs []error
 		for _, instance := range resp.Data.Instances {
+			name := cmp.Or(instance.Name, instance.Uuid)
+			failed := instance.Status != nil && *instance.Status != platform.ResponseStatusSuccess
+			// A UUID means the instance exists
+			if instance.Uuid == "" && failed {
+				message := ptr.ZeroIfNil(instance.Message)
+				if message == "" {
+					message = "unknown error"
+				}
+				errs = append(errs, fmt.Errorf("instance create failed for %s: %s", name, message))
+				continue
+			}
+			if failed {
+				log.G(ctx).Warn().
+					Str("instance", name).
+					Str("state", string(instance.State)).
+					Str("reason", ptr.ZeroIfNil(instance.Message)).
+					Msg("instance has not reached the running state yet")
+			}
 			key := multimetro.Key{
 				Metro: c.Metro.Name,
 				UUID:  instance.Uuid,
 				Name:  instance.Name,
 			}
+			createdData[key.String()] = createdResource[platform.Instance]{data: instance, metro: c.Metro}
 			created = append(created, key)
 		}
-		return created, nil
+		if len(created) == 0 {
+			return nil, errors.Join(errs...)
+		}
+		return created, errors.Join(errs...)
 	})
-	if err != nil {
+	if err != nil && len(keys) == 0 {
 		return nil, err
 	}
-	results, err := Instance{}.Get(ctx, keys.Strings())
+	var errs []error
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
-	return results, nil
+
+	results, getErr := Instance{}.Get(ctx, keys.Strings())
+	if notFound, ok := errors.AsType[group.ErrRefNotFound](getErr); ok {
+		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, Instance{}.load)
+		results = append(results, recovered...)
+		if len(missing) > 0 {
+			errs = append(errs, group.ErrRefNotFound{Refs: missing})
+		}
+	} else if getErr != nil {
+		errs = append(errs, getErr)
+	}
+	return results, errors.Join(errs...)
 }
 
 func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
@@ -1909,11 +1949,13 @@ func startInstances(ctx context.Context, g *group.Group[multimetro.MetroClient],
 		reqs := make([]platform.StartInstancesRequestItem, 0, len(refs))
 		for _, ref := range refs.NameOrUUIDs() {
 			reqs = append(reqs, platform.StartInstancesRequestItem{
-				Name: ref.Name,
-				Uuid: ref.Uuid,
+				Name:     ref.Name,
+				Uuid:     ref.Uuid,
+				TimeoutS: new(int64(-1)),
 			})
 		}
-		resp, err := c.StartInstances(ctx, reqs)
+		resp, err := timeouts.TryWithFallback(ctx, reqs, c.StartInstances)
+		timedOut, err := timeouts.Tolerate(ctx, resp, err, "instance start did not reach the running state in time")
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
@@ -1923,7 +1965,13 @@ func startInstances(ctx context.Context, g *group.Group[multimetro.MetroClient],
 		}
 		for _, instance := range resp.Data.Instances {
 			if instance.Status != platform.ResponseStatusSuccess {
-				continue
+				if err != nil && !timedOut {
+					continue
+				}
+				log.G(ctx).Warn().
+					Str("instance", cmp.Or(instance.Name, instance.Uuid)).
+					Str("state", instance.State).
+					Msg("instance has not reached the running state yet")
 			}
 			started = append(started, multimetro.Key{
 				Metro: c.Metro.Name,
