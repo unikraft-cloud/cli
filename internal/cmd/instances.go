@@ -102,7 +102,7 @@ type InstanceCreateCmd struct {
 	Volume []InstanceVolume `group:"flag-create" shortcut:"volumes" short:"v" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
 	Rom    []InstanceRom    `group:"flag-create" shortcut:"roms" sep:"none" help:"Attach ROM." placeholder:"image=<ref>,at=<path>" example:"image=myuser/my-rom:latest\\,at=/rom0\\,name=my-rom,dir=./mydata\\,at=/rom"`
 
-	Plugin []InstancePlugin `group:"flag-create" shortcut:"plugins" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>" example:"name=sandbox,rom=sandbox:latest"`
+	Plugin []InstancePlugin `group:"flag-create" shortcut:"plugins" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>" example:"name=sandbox,rom=plugins/sandbox:latest"`
 
 	Service InstanceService `group:"flag-create" shortcut:"service" help:"Service group name or key." placeholder:"name"`
 	Publish []Service       `group:"flag-create" shortcut:"service.services" short:"p" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls,80:8080/http"`
@@ -1408,7 +1408,7 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --name demo-instance \
 	  --metro fra \
 	  --image nginx:latest \
-	  --plugin name=sandbox,rom=sandbox:latest`,
+	  --plugin name=sandbox,rom=plugins/sandbox:latest`,
 				},
 			},
 		},

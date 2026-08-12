@@ -27,7 +27,7 @@ import (
 type ShellSandboxInstanceCmd struct {
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instance to open a shell on."`
 
-	Plugin string            `name:"plugin" help:"Plugin name from the instance to run commands on." default:"sandbox"`
+	Plugin string            `name:"plugin" help:"Plugin name from the instance to run commands on."`
 	Dir    string            `name:"dir" help:"Initial working directory"`
 	Env    map[string]string `name:"env" help:"Initial environment variables to set (KEY=VALUE)" mapsep:","`
 }
@@ -49,7 +49,7 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 		return err
 	}
 
-	return runSandboxShell(ctx, target.g, target.instance, c.Plugin, c.Dir, c.Env, stdio)
+	return runSandboxShell(ctx, target.g, target.instance, target.plugin, c.Dir, c.Env, stdio)
 }
 
 // handleBuiltin runs a sigil-carrying line, reporting whether it asked the

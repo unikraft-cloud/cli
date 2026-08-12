@@ -31,7 +31,7 @@ import (
 type ExecOpts struct {
 	Cmd []string `arg:"" name:"command" help:"Command to pass to the instance." placeholder:"cmd"`
 
-	Plugin      string            `name:"plugin" help:"Plugin name from the instance to run the command onto" default:"sandbox"`
+	Plugin      string            `name:"plugin" help:"Plugin name from the instance to run the command onto"`
 	Dir         string            `name:"dir" help:"Directory to execute the command from"`
 	Env         map[string]string `name:"env"     help:"Environment variables to set (KEY=VALUE)" mapsep:","`
 	TimeoutMsec int               `name:"cmd-timeout" help:"Timeout for waiting the result of the command"`
@@ -83,7 +83,10 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) er
 		return err
 	}
 
-	return execSandboxInstance(ctx, stdio.Stdout, nil, target.g, target.key, c.ExecOpts)
+	opts := c.ExecOpts
+	opts.Plugin = target.plugin
+
+	return execSandboxInstance(ctx, stdio.Stdout, nil, target.g, target.key, opts)
 }
 
 // sandboxTarget is an instance resolved and checked well enough to send
@@ -92,6 +95,7 @@ type sandboxTarget struct {
 	instance Instance
 	key      multimetro.Key
 	g        *group.Group[multimetro.MetroClient]
+	plugin string
 }
 
 type sandboxTargetOpt int
@@ -102,6 +106,10 @@ const (
 )
 
 func resolveSandboxTarget(ctx context.Context, target, plugin string, opt sandboxTargetOpt) (sandboxTarget, error) {
+	if plugin == "" {
+		plugin = sandbox.PluginName
+	}
+
 	key := multimetro.ParseKey(target)
 
 	resources, opErr := Instance{}.Get(ctx, []string{key.String()})
@@ -136,6 +144,7 @@ func resolveSandboxTarget(ctx context.Context, target, plugin string, opt sandbo
 		instance: instance,
 		key:      instance.Key().(multimetro.Key),
 		g:        g,
+		plugin:   plugin,
 	}, nil
 }
 
@@ -410,7 +419,7 @@ type WriteSandboxInstanceCmd struct {
 	Local  string `arg:"" name:"local" help:"Local file path to read from." type:"existingfile"`
 	Remote string `arg:"" name:"remote" help:"Remote destination path on the instance."`
 
-	Plugin  string `name:"plugin" help:"Plugin name from the instance to write the file to." default:"sandbox"`
+	Plugin  string `name:"plugin" help:"Plugin name from the instance to write the file to."`
 	Append  bool   `name:"append" help:"Append to the remote file instead of overwriting it."`
 	Parents bool   `name:"parents" help:"Create parent directories on the remote path if they don't already exist."`
 }
@@ -438,7 +447,7 @@ func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 		return err
 	}
 
-	remote, err := uploadSandboxFile(ctx, target.g, target.key, c.Plugin, c.Local, c.Remote, c.Append, c.Parents)
+	remote, err := uploadSandboxFile(ctx, target.g, target.key, target.plugin, c.Local, c.Remote, c.Append, c.Parents)
 	if err != nil {
 		return err
 	}
@@ -502,7 +511,7 @@ type ReadSandboxInstanceCmd struct {
 	Remote string `arg:"" name:"remote" help:"Remote file path to read."`
 	Local  string `arg:"" name:"local" optional:"" help:"Local destination path to write the file to. Defaults to the remote file's base name."`
 
-	Plugin string `name:"plugin" help:"Plugin name from the instance to read the file from." default:"sandbox"`
+	Plugin string `name:"plugin" help:"Plugin name from the instance to read the file from."`
 	Force  bool   `name:"force" help:"Overwrite the local file if it already exists."`
 }
 
@@ -529,7 +538,7 @@ func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) er
 		return err
 	}
 
-	local, size, err := downloadSandboxFile(ctx, target.g, target.key, c.Plugin, c.Remote, c.Local, c.Force)
+	local, size, err := downloadSandboxFile(ctx, target.g, target.key, target.plugin, c.Remote, c.Local, c.Force)
 	if err != nil {
 		return err
 	}
@@ -643,7 +652,7 @@ type CopySandboxInstanceCmd struct {
 	Source      string `arg:"" name:"source" help:"File to copy from, either a local path or <instance>:<path>."`
 	Destination string `arg:"" name:"destination" help:"Where to copy it to, either a local path or <instance>:<path>."`
 
-	Plugin  string `name:"plugin" help:"Plugin name from the instance to copy through." default:"sandbox"`
+	Plugin  string `name:"plugin" help:"Plugin name from the instance to copy through."`
 	Force   bool   `name:"force" help:"Overwrite the local file if it already exists."`
 	Parents bool   `name:"parents" help:"Create parent directories on the remote path if they don't already exist."`
 }
@@ -709,7 +718,7 @@ func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) er
 			return err
 		}
 
-		remote, err := uploadSandboxFile(ctx, target.g, target.key, c.Plugin, srcPath, dstPath, false, c.Parents)
+		remote, err := uploadSandboxFile(ctx, target.g, target.key, target.plugin, srcPath, dstPath, false, c.Parents)
 		if err != nil {
 			return err
 		}
@@ -726,7 +735,7 @@ func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) er
 			return err
 		}
 
-		local, size, err := downloadSandboxFile(ctx, target.g, target.key, c.Plugin, srcPath, dstPath, c.Force)
+		local, size, err := downloadSandboxFile(ctx, target.g, target.key, target.plugin, srcPath, dstPath, c.Force)
 		if err != nil {
 			return err
 		}
@@ -744,7 +753,7 @@ type MkdirSandboxInstanceCmd struct {
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instance to create the directory on."`
 	Path   string `arg:"" name:"path" help:"Remote directory path to create."`
 
-	Plugin  string `name:"plugin" help:"Plugin name from the instance to create the directory on." default:"sandbox"`
+	Plugin  string `name:"plugin" help:"Plugin name from the instance to create the directory on."`
 	Parents bool   `name:"parents" short:"p" help:"Create parent directories as needed."`
 }
 
@@ -772,7 +781,7 @@ func (c *MkdirSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 	}
 	g, resolvedKey := target.g, target.key
 
-	if err := mkdirSandboxInstance(ctx, g, resolvedKey, c.Plugin, c.Path, c.Parents); err != nil {
+	if err := mkdirSandboxInstance(ctx, g, resolvedKey, target.plugin, c.Path, c.Parents); err != nil {
 		return err
 	}
 
