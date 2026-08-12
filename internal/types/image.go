@@ -54,6 +54,11 @@ func (ir ImageRef[T]) Value() any {
 }
 
 func (ir *ImageRef[T]) UnmarshalText(text []byte) error {
+	if len(text) == 0 {
+		var zero T
+		ir.Reference = zero
+		return nil
+	}
 	ref, err := images.ParseNormalizedNamed(string(text))
 	if err != nil {
 		return err

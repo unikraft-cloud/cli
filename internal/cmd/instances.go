@@ -988,7 +988,11 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 		}
 		return platform.MutableInstancePropertyAnnotations, value.(map[string]string), nil
 	case "image":
-		return platform.MutableInstancePropertyImage, value.(types.ImageRef[reference.Named]).Reference.String(), nil
+		ref := value.(types.ImageRef[reference.Named]).Reference
+		if ref == nil {
+			return zero, nil, fmt.Errorf("image cannot be empty")
+		}
+		return platform.MutableInstancePropertyImage, ref.String(), nil
 	case "runtime.args":
 		return platform.MutableInstancePropertyArgs, []string(value.(InstanceArgs)), nil
 	case "runtime.env":
@@ -1098,7 +1102,9 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 		case "metro":
 			metro = string(field.Create.Set.(LinkName[Metro]))
 		case "image":
-			imageURL = field.Create.Set.(types.ImageRef[reference.Named]).Reference.String()
+			if ref := field.Create.Set.(types.ImageRef[reference.Named]).Reference; ref != nil {
+				imageURL = ref.String()
+			}
 		case "pull-policy":
 			pullPolicy = field.Create.Set.(*platform.PullPolicy)
 		case "type":
