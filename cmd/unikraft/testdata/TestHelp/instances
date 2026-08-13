@@ -36,6 +36,8 @@ Resources:
           Show checkpoint history for an instance.
   exec
           Exec a command on a sandbox instance.
+  copy, cp
+          Copy a file to or from a sandbox instance.
   write
           Write a file to a sandbox instance.
   read
@@ -384,7 +386,7 @@ Examples:
   	  --name demo-instance \
   	  --metro fra \
   	  --image nginx:latest \
-  	  --plugin name=sandbox,rom=sandbox:latest
+  	  --plugin name=sandbox,rom=plugins/sandbox:latest
 
 Fields:
   metro
@@ -499,7 +501,7 @@ Create flags:
           [examples: image=myuser/my-rom:latest,at=/rom0,name=my-rom, dir=./mydata,at=/rom]
       --plugin=name=<name>,rom=<ref>
           Load plugin into the instance.
-          [examples: name=sandbox, rom=sandbox:latest]
+          [examples: name=sandbox, rom=plugins/sandbox:latest]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>]
@@ -565,7 +567,7 @@ Examples:
   	  --name demo-instance \
   	  --metro fra \
   	  --image nginx:latest \
-  	  --plugin name=sandbox,rom=sandbox:latest
+  	  --plugin name=sandbox,rom=plugins/sandbox:latest
 
 Fields:
   metro
@@ -680,7 +682,7 @@ Create flags:
           [examples: image=myuser/my-rom:latest,at=/rom0,name=my-rom, dir=./mydata,at=/rom]
       --plugin=name=<name>,rom=<ref>
           Load plugin into the instance.
-          [examples: name=sandbox, rom=sandbox:latest]
+          [examples: name=sandbox, rom=plugins/sandbox:latest]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>]
@@ -778,6 +780,7 @@ Fields:
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.rom, plugins.*.config
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -872,6 +875,9 @@ Create flags:
       --rom=image=<ref>,at=<path>
           Attach ROM.
           [examples: image=myuser/my-rom:latest,at=/rom0,name=my-rom, dir=./mydata,at=/rom]
+      --plugin=name=<name>,rom=<ref>
+          Load plugin into the instance.
+          [examples: name=sandbox, rom=plugins/sandbox:latest]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>]

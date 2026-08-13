@@ -50,7 +50,7 @@ require (
 	mvdan.cc/sh/v3 v3.13.1
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260811092103-41990ce1dbdd
-	unikraft.com/cloud/sdk v0.3.1-0.20260806165643-ae45749bfb11
+	unikraft.com/cloud/sdk v0.3.1-0.20260810163828-9588bd3de22d
 	unikraft.com/x/colors v0.0.0-20260710212606-b68ba398853d
 	unikraft.com/x/filters v0.0.0-20260804153219-d1b47a40e047
 	unikraft.com/x/fingerprint v0.0.0-20260126094137-ab6e717e5679
@@ -65,6 +65,7 @@ require (
 )
 
 require golang.org/x/net v0.57.0 // indirect
+
 require github.com/chzyer/readline v1.5.1
 
 require (

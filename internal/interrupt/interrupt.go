@@ -10,19 +10,18 @@ import (
 	"sync"
 )
 
-// InterruptHandler lets callers swap out what a SIGINT actually cancels, so that a
-// long-lived root context isn't permanently killed by an interrupt meant for
-// a single foreground operation (e.g. a command running inside the shell).
-type InterruptHandler struct {
+// Handler lets callers swap out what a SIGINT cancels, so a long-lived root
+// context isn't killed by an interrupt meant for one foreground operation.
+type Handler struct {
 	mu      sync.Mutex
 	current func()
 }
 
-func New(rootCancel func()) *InterruptHandler {
-	return &InterruptHandler{current: rootCancel}
+func New(rootCancel func()) *Handler {
+	return &Handler{current: rootCancel}
 }
 
-func (h *InterruptHandler) Fire() {
+func (h *Handler) Fire() {
 	h.mu.Lock()
 	f := h.current
 	h.mu.Unlock()
@@ -31,7 +30,7 @@ func (h *InterruptHandler) Fire() {
 	}
 }
 
-func (h *InterruptHandler) Set(f func()) (restore func()) {
+func (h *Handler) Set(f func()) (restore func()) {
 	h.mu.Lock()
 	prev := h.current
 	h.current = f
@@ -45,11 +44,11 @@ func (h *InterruptHandler) Set(f func()) (restore func()) {
 
 type ctxKey struct{}
 
-func WithHandler(ctx context.Context, h *InterruptHandler) context.Context {
+func WithHandler(ctx context.Context, h *Handler) context.Context {
 	return context.WithValue(ctx, ctxKey{}, h)
 }
 
-func FromContext(ctx context.Context) *InterruptHandler {
-	h, _ := ctx.Value(ctxKey{}).(*InterruptHandler)
+func FromContext(ctx context.Context) *Handler {
+	h, _ := ctx.Value(ctxKey{}).(*Handler)
 	return h
 }

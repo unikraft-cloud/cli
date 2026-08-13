@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/x/term"
 	"mvdan.cc/sh/v3/syntax"
 
 	"unikraft.com/cloud/plugins/sandbox"
@@ -86,7 +87,13 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) er
 	opts := c.ExecOpts
 	opts.Plugin = target.plugin
 
-	return execSandboxInstance(ctx, stdio.Stdout, nil, target.g, target.key, opts)
+	in := stdio.Stdin
+	fd, isFile := in.(interface{ Fd() uintptr })
+	if in == nil || (isFile && term.IsTerminal(fd.Fd())) {
+		in = strings.NewReader("")
+	}
+
+	return execSandboxInstance(ctx, stdio.Stdout, in, target.g, target.key, opts)
 }
 
 // sandboxTarget is an instance resolved and checked well enough to send
@@ -95,7 +102,7 @@ type sandboxTarget struct {
 	instance Instance
 	key      multimetro.Key
 	g        *group.Group[multimetro.MetroClient]
-	plugin string
+	plugin   string
 }
 
 type sandboxTargetOpt int
@@ -193,7 +200,7 @@ func wrapSandboxErr(ctx context.Context, key multimetro.Key, plugin, msg string,
 	return fmt.Errorf("%s: %w", msg, err)
 }
 
-func QuoteShellArg(s string) string {
+func quoteShellArg(s string) string {
 	if quoted, err := syntax.Quote(s, syntax.LangBash); err == nil {
 		return quoted
 	}
@@ -204,14 +211,14 @@ func BuildExecCommand(dir string, env map[string]string, cmdArgs []string, raw b
 	var prefix string
 
 	if dir != "" {
-		prefix += fmt.Sprintf("cd %s && ", QuoteShellArg(dir))
+		prefix += fmt.Sprintf("cd %s && ", quoteShellArg(dir))
 	}
 
 	if len(env) > 0 {
 		var envBuf strings.Builder
 		envBuf.WriteString("env ")
 		for k, v := range env {
-			fmt.Fprintf(&envBuf, "%s=%s ", k, QuoteShellArg(v))
+			fmt.Fprintf(&envBuf, "%s=%s ", k, quoteShellArg(v))
 		}
 		prefix += envBuf.String()
 	}
@@ -222,7 +229,7 @@ func BuildExecCommand(dir string, env map[string]string, cmdArgs []string, raw b
 
 	quotedCmd := make([]string, 0, len(cmdArgs))
 	for _, arg := range cmdArgs {
-		quotedCmd = append(quotedCmd, QuoteShellArg(arg))
+		quotedCmd = append(quotedCmd, quoteShellArg(arg))
 	}
 	return prefix + strings.Join(quotedCmd, " ")
 }
@@ -311,8 +318,8 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 				}
 				decoded := decodeSandboxPayload(stream.data)
 				fmt.Fprint(out, string(decoded))
-				// The plugin reports how much of the stream it has produced, which
-				// is where the next poll picks up from. A plugin that did not say
+				// The plugin reports how much of the stream it has produced,
+				// which is where the next poll picks up. One that doesn't
 				// leaves the offset to advance by what was read.
 				if stream.available > 0 {
 					*stream.offset = stream.available
@@ -459,10 +466,9 @@ func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 	return nil
 }
 
-// uploadSandboxFile copies a local file to remotePath on the instance and
-// returns the remote path it ended up at: a remotePath that names a directory
-// is written into under the local file's base name, the way scp resolves one.
-// The remote parent directories are created first when parents is set.
+// uploadSandboxFile copies a local file to remotePath and returns the remote
+// path it ended up at: a remotePath naming a directory is written into under
+// the local base name, the way scp resolves one.
 func uploadSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin, local, remotePath string, appendFile, parents bool) (string, error) {
 	data, err := os.ReadFile(local)
 	if err != nil {
@@ -551,11 +557,10 @@ func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) er
 	return nil
 }
 
-// downloadSandboxFile copies remotePath off the instance to local and returns
-// the local path it was written to, along with the number of bytes written. An
-// empty local path takes the remote file's base name, and one that names a
-// directory is written into, the way scp resolves one. An existing local file
-// is only overwritten when force is set.
+// downloadSandboxFile copies remotePath off the instance and returns the local
+// path written and its size. An empty local path takes the remote base name,
+// and one naming a directory is written into. An existing file is only
+// overwritten when force is set.
 func downloadSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient], key multimetro.Key, plugin, remotePath, local string, force bool) (string, int, error) {
 	data, err := readSandboxFile(ctx, g, key, plugin, remotePath)
 	if err != nil {
@@ -600,48 +605,41 @@ func readSandboxFile(ctx context.Context, g *group.Group[multimetro.MetroClient]
 	})
 }
 
-// CopyPathSeparator separates an instance target from a path in a copy
-// specification, the way scp separates a host from a path.
-const CopyPathSeparator = ":"
+// copyPathSeparator separates an instance target from a path, the way scp
+// separates a host from one.
+const copyPathSeparator = ":"
 
-// ParseCopyPath splits a copy specification into an instance target and a
-// path. The target is empty when the specification names a local file, which
-// is any specification without a separator, and any whose target reads as a
-// filesystem path rather than an instance: one opening with "/", "." or "~",
-// or a lone Windows drive letter. A relative path whose first element carries
-// a colon is read as a target, as it is by scp, and is written "./back:up.tar"
-// to be read as a path.
-//
-// The target keeps a "name:" or "uuid:" prefix and a "<metro>/" qualifier, so
-// the colon of such a prefix is not mistaken for the separator:
-// "fra0/name:my-instance:/etc/motd" targets "fra0/name:my-instance".
-func ParseCopyPath(spec string) (target, filePath string) {
-	i := strings.Index(spec, CopyPathSeparator)
+// parseCopyPath splits a copy specification into an instance target and a path,
+// returning an empty target for a local file. A target keeps its "name:" or
+// "uuid:" prefix and its "<metro>/" qualifier, so the colon those end with is
+// not mistaken for the separator. A local path whose first element carries a
+// colon has to be written "./back:up.tar", as it does for scp.
+func parseCopyPath(spec string) (target, filePath string) {
+	i := strings.Index(spec, copyPathSeparator)
 	if i < 0 {
 		return "", spec
 	}
 
-	// A "name:" or "uuid:" prefix on the target owns the colon it ends with,
-	// so the separator is the colon after it. A specification that has none is
-	// a local path: an instance with no path of its own is written with the
-	// separator still there, as "<instance>:".
-	head := spec[:i+len(CopyPathSeparator)]
+	// A "name:" or "uuid:" prefix owns the colon it ends with, so the separator
+	// is the colon after it. Without one it is a local path: an instance with
+	// no path of its own still keeps the separator, as "<instance>:".
+	head := spec[:i+len(copyPathSeparator)]
 	for _, prefix := range []string{multimetro.KeyNamePrefix, multimetro.KeyUUIDPrefix} {
 		if head == prefix || strings.HasSuffix(head, multimetro.MetroKeySeparator+prefix) {
-			j := strings.Index(spec[i+len(CopyPathSeparator):], CopyPathSeparator)
+			j := strings.Index(spec[i+len(copyPathSeparator):], copyPathSeparator)
 			if j < 0 {
 				return "", spec
 			}
-			i += len(CopyPathSeparator) + j
+			i += len(copyPathSeparator) + j
 			break
 		}
 	}
 
-	target, filePath = spec[:i], spec[i+len(CopyPathSeparator):]
+	target, filePath = spec[:i], spec[i+len(copyPathSeparator):]
 
-	// A target that opens like a filesystem path, or is a lone Windows drive
-	// letter, is a local file whose name happens to carry a colon.
-	if strings.HasPrefix(target, "/") || strings.HasPrefix(target, ".") || strings.HasPrefix(target, "~") || len(target) < 2 {
+	// A target that opens like a filesystem path is a local file whose name
+	// happens to carry a colon.
+	if target == "" || strings.HasPrefix(target, "/") || strings.HasPrefix(target, ".") || strings.HasPrefix(target, "~") {
 		return "", spec
 	}
 
@@ -687,20 +685,19 @@ func (cmd CopySandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	srcTarget, srcPath := ParseCopyPath(c.Source)
-	dstTarget, dstPath := ParseCopyPath(c.Destination)
+	srcTarget, srcPath := parseCopyPath(c.Source)
+	dstTarget, dstPath := parseCopyPath(c.Destination)
 
 	switch {
 	case srcTarget != "" && dstTarget != "":
 		return fmt.Errorf("cannot copy from one instance to another: copy %q to a local path first", c.Source)
 
 	case srcTarget == "" && dstTarget == "":
-		return fmt.Errorf("neither %q nor %q names an instance: a path on an instance is written as <instance>%s<path>", c.Source, c.Destination, CopyPathSeparator)
+		return fmt.Errorf("neither %q nor %q names an instance: a path on an instance is written as <instance>%s<path>", c.Source, c.Destination, copyPathSeparator)
 
 	case dstTarget != "":
-		// A destination that names no path at all leaves the file where the
-		// plugin resolves a relative path to, under its own name, like "scp
-		// file host:" does.
+		// A destination naming no path leaves the file wherever the plugin
+		// resolves a relative one to, as "scp file host:" does.
 		if dstPath == "" {
 			dstPath = filepath.Base(srcPath)
 		}
@@ -779,9 +776,7 @@ func (c *MkdirSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio) e
 	if err != nil {
 		return err
 	}
-	g, resolvedKey := target.g, target.key
-
-	if err := mkdirSandboxInstance(ctx, g, resolvedKey, target.plugin, c.Path, c.Parents); err != nil {
+	if err := mkdirSandboxInstance(ctx, target.g, target.key, target.plugin, c.Path, c.Parents); err != nil {
 		return err
 	}
 

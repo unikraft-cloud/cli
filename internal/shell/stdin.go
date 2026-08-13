@@ -5,26 +5,19 @@
 
 package shell
 
-// StdinPump bridges a single io.Reader (the terminal stdin) to two
-// consumers in the shell command:
-//
-//  1. readline — reads the prompt directly off the pump via Read, so the
-//     user can type interactive commands.
-//  2. CmdReader — feeds stdin of the remote-sandbox exec via the
-//     context-aware ReadContext method, so that when a running command
-//     is interrupted (^C) the read respects cmdCtx cancellation.
-//
-// Both consumers share the same underlying channel pumped by a single
-// background goroutine.  The Close method signals that goroutine to
-// stop, which is essential for timely terminal raw-mode restoration
-// when the shell exits.
+// stdinPump bridges the terminal's single stdin to two consumers: readline,
+// which reads the prompt off it directly, and the remote command's stdin, which
+// reads through readerFor so that a ^C cancels the read rather than leaving it
+// stuck. Close stops the pumping goroutine, which is what lets the terminal
+// leave raw mode promptly when the shell exits.
+
 import (
 	"context"
 	"io"
 	"sync"
 )
 
-type StdinPump struct {
+type stdinPump struct {
 	ch     chan []byte
 	mu     sync.Mutex
 	buf    []byte
@@ -33,8 +26,8 @@ type StdinPump struct {
 	once   sync.Once
 }
 
-func NewStdinPump(r io.Reader) *StdinPump {
-	p := &StdinPump{
+func newStdinPump(r io.Reader) *stdinPump {
+	p := &stdinPump{
 		ch:     make(chan []byte, 64),
 		closed: make(chan struct{}),
 	}
@@ -42,7 +35,7 @@ func NewStdinPump(r io.Reader) *StdinPump {
 	return p
 }
 
-func (p *StdinPump) run(r io.Reader) {
+func (p *stdinPump) run(r io.Reader) {
 	buf := make([]byte, 4096)
 	for {
 		n, err := r.Read(buf)
@@ -65,37 +58,10 @@ func (p *StdinPump) run(r io.Reader) {
 	}
 }
 
-func (p *StdinPump) Read(b []byte) (int, error) {
-	p.mu.Lock()
-	if len(p.buf) > 0 {
-		n := copy(b, p.buf)
-		p.buf = p.buf[n:]
-		p.mu.Unlock()
-		return n, nil
-	}
-	p.mu.Unlock()
-
-	chunk, ok := <-p.ch
-	if !ok {
-		p.mu.Lock()
-		err := p.err
-		p.mu.Unlock()
-		if err == nil {
-			err = io.EOF
-		}
-		return 0, err
-	}
-
-	n := copy(b, chunk)
-	if n < len(chunk) {
-		p.mu.Lock()
-		p.buf = chunk[n:]
-		p.mu.Unlock()
-	}
-	return n, nil
-}
-
-func (p *StdinPump) ReadContext(ctx context.Context) ([]byte, error) {
+// next returns the next chunk of input, from whatever a previous read left over
+// or else from the pumping goroutine. Cancelling ctx ends the wait; pass
+// context.Background() for a wait that only ends with input or EOF.
+func (p *stdinPump) next(ctx context.Context) ([]byte, error) {
 	p.mu.Lock()
 	if len(p.buf) > 0 {
 		chunk := p.buf
@@ -105,24 +71,74 @@ func (p *StdinPump) ReadContext(ctx context.Context) ([]byte, error) {
 	}
 	p.mu.Unlock()
 
+	var (
+		chunk []byte
+		ok    bool
+	)
 	select {
-	case chunk, ok := <-p.ch:
-		if !ok {
-			p.mu.Lock()
-			err := p.err
-			p.mu.Unlock()
-			if err == nil {
-				err = io.EOF
-			}
-			return nil, err
-		}
-		return chunk, nil
+	case chunk, ok = <-p.ch:
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+	if !ok {
+		p.mu.Lock()
+		err := p.err
+		p.mu.Unlock()
+		if err == nil {
+			err = io.EOF
+		}
+		return nil, err
+	}
+	return chunk, nil
 }
 
-func (p *StdinPump) Close() error {
+// unread puts back what a caller could not fit in its buffer.
+func (p *stdinPump) unread(chunk []byte) {
+	p.mu.Lock()
+	p.buf = append(chunk, p.buf...)
+	p.mu.Unlock()
+}
+
+// Read makes the pump readline's stdin.
+func (p *stdinPump) Read(b []byte) (int, error) {
+	chunk, err := p.next(context.Background())
+	if err != nil {
+		return 0, err
+	}
+	n := copy(b, chunk)
+	if n < len(chunk) {
+		p.unread(chunk[n:])
+	}
+	return n, nil
+}
+
+// readerFor is the pump as the stdin of one foreground command: reads end when
+// ctx is cancelled, so a ^C doesn't leave the command waiting on input.
+func (p *stdinPump) readerFor(ctx context.Context) io.Reader {
+	return &pumpReader{pump: p, ctx: ctx}
+}
+
+type pumpReader struct {
+	pump *stdinPump
+	ctx  context.Context
+}
+
+func (r *pumpReader) Read(b []byte) (int, error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
+	chunk, err := r.pump.next(r.ctx)
+	if err != nil {
+		return 0, err
+	}
+	n := copy(b, chunk)
+	if n < len(chunk) {
+		r.pump.unread(chunk[n:])
+	}
+	return n, nil
+}
+
+func (p *stdinPump) Close() error {
 	p.once.Do(func() { close(p.closed) })
 	return nil
 }

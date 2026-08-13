@@ -8,6 +8,7 @@ package integration
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/containerd/continuity/fs/fstest"
@@ -23,29 +24,19 @@ const (
 	sandboxPlugin    = "sandbox"
 	sandboxPluginRom = "plugins/sandbox:staging"
 
-	// Plugins are started by the Linux runtime's init, which mounts the plugin
-	// ROM at /uk/plugins/<name> and execs its init. The unikernel images the
-	// rest of the suite runs on (nginx:latest, base:latest) have no plugin
-	// framework at all, so the plugin subtests need a base-compat image.
+	// Only the Linux runtime starts plugins, so the images the rest of the
+	// suite runs on (nginx:latest, base:latest) can't serve one.
 	sandboxRuntime = "base-compat"
 
-	// sandboxIdleCmd keeps a rootfs-less base-compat instance up. An instance
-	// lives as long as its application does, and base-compat's embedded rootfs
-	// holds exactly two binaries: init itself and the ukp-fs FUSE server, which
-	// blocks serving its mount. A plugin exiting does not stop the instance, so
-	// the plugin alone cannot hold one open.
+	// sandboxIdleCmd holds the instance open: it lives as long as its
+	// application does, and a plugin exiting does not keep it up.
 	sandboxIdleCmd = "/opt/uk/ukp-fs /keepalive"
 )
 
 // newSandboxInstance creates a running instance serving the sandbox plugin and
-// returns its name.
-//
-// The instance carries no rootfs, which is enough for every operation the plugin
-// implements itself — files and directories — but leaves nothing for it to exec:
-// the plugin runs commands through "/bin/sh -c", so covering "instance exec"
-// needs an image with a shell built on top of this runtime. Remote paths must
-// also stay clear of the /keepalive mount sandboxIdleCmd serves, which answers
-// anything but its own control files with ENOSYS.
+// returns its name. It carries no rootfs, so there is nothing to exec: covering
+// "instance exec" needs an image with a shell. Remote paths must also stay
+// clear of the /keepalive mount, which answers anything else with ENOSYS.
 func newSandboxInstance(t *testing.T, r *integ.TestEnv) string {
 	t.Helper()
 
@@ -125,6 +116,61 @@ func TestSandbox(t *testing.T) {
 			out := r.Run(t, []string{"unikraft", "instance", "copy", "./back:up.tar", "./copy.tar"}, integ.ExpectFail())
 			assert.Regexp(t, `neither "\./back:up\.tar" nor "\./copy\.tar" names an instance`, out)
 		})
+
+		// A "~/" path carrying a colon is a path too, even though its first
+		// element looks like a target.
+		t.Run("colon-in-home-path", func(t *testing.T) {
+			r := runner(t, false, []string{staging, stable, prod})
+
+			out := r.Run(t, []string{"unikraft", "instance", "copy", "~/back:up.tar", "./copy.tar"}, integ.ExpectFail())
+			assert.Regexp(t, `neither "~/back:up\.tar" nor "\./copy\.tar" names an instance`, out)
+		})
+
+		// The specifications below name an instance, so the local source is
+		// stat'd and reported missing before any request is made. That the
+		// error names the local file at all is what shows the destination was
+		// read as a target rather than as a second local path.
+		for _, tt := range []struct {
+			name string
+			dst  string
+		}{
+			{"plain-target", "my-inst:/tmp/x"},
+			{"metro-qualified-target", "fra0/my-inst:/tmp/x"},
+			{"name-prefixed-target", "name:my-inst:/tmp/x"},
+			{"uuid-prefixed-target", "uuid:abc123:/tmp/x"},
+			{"metro-and-name-prefixed-target", "fra0/name:my-inst:/tmp/x"},
+			// The separator is the first colon that isn't the prefix's own, so
+			// later colons stay in the remote path.
+			{"colon-in-remote-path", "my-inst:/tmp/a:b"},
+			// A one-character instance name is addressable: nothing here reads
+			// a lone letter as a drive.
+			{"single-character-target", "a:/tmp/x"},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				r := runner(t, false, []string{staging, stable, prod})
+
+				out := r.Run(t, []string{"unikraft", "instance", "copy", "./nope.txt", tt.dst}, integ.ExpectFail())
+				assert.Regexp(t, `reading local file "\./nope\.txt"`, out)
+				assert.Regexp(t, `no such file or directory`, out)
+			})
+		}
+
+		// A "name:" or "uuid:" prefix with no second colon carries no path, so
+		// there is no separator and the whole specification is a local one.
+		for _, tt := range []struct {
+			name string
+			src  string
+		}{
+			{"name-prefix-without-path", "name:my-inst"},
+			{"uuid-prefix-without-path", "uuid:abc123"},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				r := runner(t, false, []string{staging, stable, prod})
+
+				out := r.Run(t, []string{"unikraft", "instance", "copy", tt.src, "./b.txt"}, integ.ExpectFail())
+				assert.Regexp(t, `neither "`+regexp.QuoteMeta(tt.src)+`" nor "\./b\.txt" names an instance`, out)
+			})
+		}
 
 		t.Run("write-missing-local", func(t *testing.T) {
 			r := runner(t, false, []string{staging, stable, prod})

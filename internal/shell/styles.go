@@ -13,35 +13,34 @@ import (
 )
 
 var (
-	shellHighlightCmdStyle = lipgloss.NewStyle().Foreground(shellAccentColor).Bold(true)
-	// Builtins take the prompt's colour rather than a colour of their own:
-	// green in the line means the CLI answers it, blue means the instance
-	// does.
-	shellHighlightBuiltinStyle = lipgloss.NewStyle().Foreground(colors.Success).Bold(true)
-	shellHighlightStrStyle     = lipgloss.NewStyle().Foreground(colors.Success)
-	shellHighlightVarStyle     = lipgloss.NewStyle().Foreground(colors.Warning)
-	shellHighlightOptStyle     = lipgloss.NewStyle().Foreground(shellDimColor)
-	shellHighlightCommentStyle = lipgloss.NewStyle().Foreground(shellHintColor).Italic(true)
-	shellHighlightOpStyle      = lipgloss.NewStyle().Foreground(shellAccentColor)
+	highlightCmdStyle = lipgloss.NewStyle().Foreground(accentColor).Bold(true)
+	// Builtins take the prompt's colour rather than one of their own: green in
+	// the line means the CLI answers it, blue means the instance does.
+	highlightBuiltinStyle = lipgloss.NewStyle().Foreground(colors.Success).Bold(true)
+	highlightStrStyle     = lipgloss.NewStyle().Foreground(colors.Success)
+	highlightVarStyle     = lipgloss.NewStyle().Foreground(colors.Warning)
+	highlightOptStyle     = lipgloss.NewStyle().Foreground(dimColor)
+	highlightCommentStyle = lipgloss.NewStyle().Foreground(hintColor).Italic(true)
+	highlightOpStyle      = lipgloss.NewStyle().Foreground(accentColor)
 )
 
 var (
-	shellAccentColor = compat.AdaptiveColor{Light: colors.Blue500, Dark: colors.Blue400}
-	shellDimColor    = compat.AdaptiveColor{Light: colors.Slate400, Dark: colors.Slate500}
-	shellHintColor   = compat.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500}
+	accentColor = compat.AdaptiveColor{Light: colors.Blue500, Dark: colors.Blue400}
+	dimColor    = compat.AdaptiveColor{Light: colors.Slate400, Dark: colors.Slate500}
+	hintColor   = compat.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500}
 
-	ShellTitleStyle  = lipgloss.NewStyle().Foreground(shellAccentColor).Bold(true)
-	ShellLabelStyle  = lipgloss.NewStyle().Foreground(shellDimColor)
-	ShellValueStyle  = lipgloss.NewStyle().Foreground(colors.Warning)
-	ShellErrorStyle  = lipgloss.NewStyle().Foreground(colors.Error)
-	ShellHintStyle   = lipgloss.NewStyle().Foreground(shellHintColor)
-	ShellKeyStyle    = lipgloss.NewStyle().Foreground(shellDimColor).Faint(true)
-	shellPromptStyle = lipgloss.NewStyle().Foreground(colors.Success).Bold(true)
-	ShellDirStyle    = lipgloss.NewStyle().Foreground(shellAccentColor)
-	ShellNoticeStyle = lipgloss.NewStyle().
-				Foreground(colors.Info).
-				Bold(true).
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colors.Info).
-				Padding(0, 1)
+	titleStyle  = lipgloss.NewStyle().Foreground(accentColor).Bold(true)
+	labelStyle  = lipgloss.NewStyle().Foreground(dimColor)
+	valueStyle  = lipgloss.NewStyle().Foreground(colors.Warning)
+	errorStyle  = lipgloss.NewStyle().Foreground(colors.Error)
+	hintStyle   = lipgloss.NewStyle().Foreground(hintColor)
+	keyStyle    = lipgloss.NewStyle().Foreground(dimColor).Faint(true)
+	promptStyle = lipgloss.NewStyle().Foreground(colors.Success).Bold(true)
+	dirStyle    = lipgloss.NewStyle().Foreground(accentColor)
+	noticeStyle = lipgloss.NewStyle().
+			Foreground(colors.Info).
+			Bold(true).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colors.Info).
+			Padding(0, 1)
 )

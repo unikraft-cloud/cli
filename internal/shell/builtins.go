@@ -21,65 +21,57 @@ import (
 	"unikraft.com/cli/internal/tabwriter"
 )
 
-// BuiltinSigil marks a line as a builtin. It is the only thing that does:
-// a line that opens with it is answered here, and every other line is sent
-// to the instance verbatim. That keeps the two namespaces apart without the
-// shell having to shadow any of the instance's commands - `mount` is always
-// the instance's, `:mount` is always ours.
-const BuiltinSigil = ":"
+// builtinSigil is the only thing that marks a line as a builtin: a line opening
+// with it is answered here, every other line goes to the instance verbatim, and
+// so the shell never shadows the instance's own commands.
+const builtinSigil = ":"
 
-// HasBuiltinSigil reports whether a line invokes a builtin. A bare ":" and a
-// ": " opening are the POSIX null command rather than a sigil, and belong to
-// the instance like any other command.
-func HasBuiltinSigil(line string) bool {
+// hasBuiltinSigil reports whether a line invokes a builtin. A bare ":" and a
+// ": " opening are the POSIX null command, and belong to the instance.
+func hasBuiltinSigil(line string) bool {
 	line = strings.TrimSpace(line)
-	return len(line) > 1 && strings.HasPrefix(line, BuiltinSigil) && line[1] != ' '
+	return len(line) > 1 && strings.HasPrefix(line, builtinSigil) && line[1] != ' '
 }
 
-// intrinsics are the builtins the shell driver answers from its own switch
-// rather than through the kong grammar, because they change the session's
-// state instead of running a command against the instance.
-//
-// These entries are description only - the driver's switch is what runs them
-// - and exist so the parts derived from the grammar know they are there at
-// all: the `help` menu, the set the painter colours, and tab completion. The
-// split is the order they take in `help`, around the grammar's own commands.
+// intrinsics are the builtins the driver's own switch runs, because they change
+// session state rather than run something against the instance. These entries
+// are description only, so that the parts derived from the kong grammar - the
+// help menu, the painter, tab completion - know they exist. The split is their
+// order in `help`, around the grammar's own commands.
 var (
-	intrinsicsHead = []BuiltinEntry{
+	intrinsicsHead = []builtinEntry{
 		{Usage: ":cd <dir>", Name: "cd", Desc: "change the current remote directory"},
 		{Usage: ":export <KEY=VALUE>", Name: "export", Desc: "set an environment variable for later commands"},
 	}
-	intrinsicsTail = []BuiltinEntry{
+	intrinsicsTail = []builtinEntry{
 		{Usage: ":clear", Name: "clear", Desc: "clear the screen"},
 		{Usage: ":exit", Name: "exit", Desc: "quit the shell"},
 	}
 )
 
-// BuiltinEntry is one line of the `help` menu.
-type BuiltinEntry struct {
-	// Usage carries the arguments and any subcommand path
-	// ("history rerun <index>").
+// builtinEntry is one line of the `help` menu. Usage carries the arguments and
+// any subcommand path ("history rerun <index>"); Name is just the word the
+// painter has to recognise.
+type builtinEntry struct {
 	Usage string
-	// Name is just the word that has to be recognised to colour the line as
-	// a builtin.
-	Name string
-	Desc string
+	Name  string
+	Desc  string
 }
 
-// Builtins is the set of commands the shell answers itself, derived from a
-// kong grammar the caller supplies: the shell knows how to parse, complete
-// and describe them, and nothing about what any of them do.
-type Builtins struct {
+// builtins is the set of commands the shell answers itself, derived from a kong
+// grammar the caller supplies: the shell knows how to parse, complete and
+// describe them, and nothing about what any of them do.
+type builtins struct {
 	parser     *kong.Kong
 	names      map[string]bool
 	all        map[string]bool
-	menu       []BuiltinEntry
-	completion []CompletionNode
+	menu       []builtinEntry
+	completion []completionNode
 }
 
-// NewBuiltins derives the builtins from grammar, a kong command struct, and
-// the shell's own intrinsics.
-func NewBuiltins(grammar any, out, errOut io.Writer) (*Builtins, error) {
+// newBuiltins derives the builtins from grammar, a kong command struct, and the
+// shell's own intrinsics.
+func newBuiltins(grammar any, out, errOut io.Writer) (*builtins, error) {
 	parser, err := kong.New(grammar,
 		kong.Name(""),
 		kong.NoDefaultHelp(),
@@ -90,7 +82,7 @@ func NewBuiltins(grammar any, out, errOut io.Writer) (*Builtins, error) {
 		return nil, err
 	}
 
-	b := &Builtins{
+	b := &builtins{
 		parser: parser,
 		names:  make(map[string]bool),
 		all:    make(map[string]bool),
@@ -110,13 +102,13 @@ func NewBuiltins(grammar any, out, errOut io.Writer) (*Builtins, error) {
 	}
 	b.menu = append(b.menu, intrinsicsTail...)
 
-	// all is only ever consulted for the first word of a line, so it holds
-	// the top-level names alone - "list" is a subcommand of volumes, not a
-	// command the shell answers.
+	// all is only ever consulted for the first word of a line, so it holds the
+	// top-level names alone - "list" is a subcommand of volumes, not a command
+	// the shell answers.
 	maps.Copy(b.all, b.names)
 	for _, entry := range slices.Concat(intrinsicsHead, intrinsicsTail) {
 		b.all[entry.Name] = true
-		b.completion = append(b.completion, CompletionNode{Name: entry.Name})
+		b.completion = append(b.completion, completionNode{Name: entry.Name})
 	}
 
 	return b, nil
@@ -125,40 +117,39 @@ func NewBuiltins(grammar any, out, errOut io.Writer) (*Builtins, error) {
 // Parse hands a builtin's words to the grammar. The caller runs the returned
 // context, so a line that fails to parse and one that fails to run stay
 // tellable apart.
-func (b *Builtins) Parse(fields []string) (*kong.Context, error) {
+func (b *builtins) Parse(fields []string) (*kong.Context, error) {
 	return b.parser.Parse(fields)
 }
 
-// HasCommand reports whether name is one the grammar can parse. The
-// intrinsics are not: the driver answers those itself, and handing one to
-// kong would only fail.
-func (b *Builtins) HasCommand(name string) bool {
+// HasCommand reports whether name is one the grammar can parse. The intrinsics
+// are not: the driver answers those itself.
+func (b *builtins) HasCommand(name string) bool {
 	return b != nil && b.names[name]
 }
 
-// IsBuiltin reports whether name is answered by the shell at all, the
-// grammar's commands and the intrinsics alike.
-func (b *Builtins) IsBuiltin(name string) bool {
+// IsBuiltin reports whether name is answered by the shell at all, the grammar's
+// commands and the intrinsics alike.
+func (b *builtins) IsBuiltin(name string) bool {
 	return b != nil && b.all[name]
 }
 
-// Completion is the builtin completion tree, for NewSandboxCompleter.
-func (b *Builtins) Completion() []CompletionNode {
+// Completion is the builtin completion tree, for newCompleter.
+func (b *builtins) Completion() []completionNode {
 	return b.completion
 }
 
 // Menu is the `help` menu's lines, in the order they are shown.
-func (b *Builtins) Menu() []BuiltinEntry {
+func (b *builtins) Menu() []builtinEntry {
 	return b.menu
 }
 
-// builtinMenu flattens a command and its subcommands into help lines. A
-// command with a visible default subcommand describes itself with that
-// subcommand's help, because that is what running the bare name does.
-func builtinMenu(node *kong.Node, prefix string) []BuiltinEntry {
-	// A top-level builtin carries the sigil, and its subcommands hang off
-	// its usage: ":volumes" and then ":volumes create".
-	usage := BuiltinSigil + node.Name
+// builtinMenu flattens a command and its subcommands into help lines. A command
+// with a visible default subcommand describes itself with that subcommand's
+// help, because that is what running the bare name does.
+func builtinMenu(node *kong.Node, prefix string) []builtinEntry {
+	// A top-level builtin carries the sigil, and its subcommands hang off its
+	// usage: ":volumes" and then ":volumes create".
+	usage := builtinSigil + node.Name
 	if prefix != "" {
 		usage = prefix + " " + node.Name
 	}
@@ -172,7 +163,7 @@ func builtinMenu(node *kong.Node, prefix string) []BuiltinEntry {
 		desc = fmt.Sprintf("%s (alias for %s %s)", desc, usage, described.Name)
 	}
 
-	entries := []BuiltinEntry{{Usage: usage + builtinArgs(described), Name: node.Name, Desc: desc}}
+	entries := []builtinEntry{{Usage: usage + builtinArgs(described), Name: node.Name, Desc: desc}}
 	for _, child := range node.Children {
 		if child.Type != kong.CommandNode || child.Hidden {
 			continue
@@ -182,9 +173,8 @@ func builtinMenu(node *kong.Node, prefix string) []BuiltinEntry {
 	return entries
 }
 
-// lowerFirst puts a kong help string into the menu's sentence style. The
-// grammar's help is capitalised because it also feeds the top-level CLI
-// help, where that is the convention.
+// lowerFirst puts a kong help string into the menu's sentence style: the
+// grammar's help is capitalised because it also feeds the top-level CLI help.
 func lowerFirst(s string) string {
 	if s == "" {
 		return s
@@ -205,8 +195,8 @@ func builtinArgs(node *kong.Node) string {
 	return sb.String()
 }
 
-func builtinCompletion(node *kong.Node) CompletionNode {
-	out := CompletionNode{Name: node.Name}
+func builtinCompletion(node *kong.Node) completionNode {
+	out := completionNode{Name: node.Name}
 	for _, child := range node.Children {
 		if child.Type != kong.CommandNode || child.Hidden {
 			continue
@@ -216,59 +206,59 @@ func builtinCompletion(node *kong.Node) CompletionNode {
 	return out
 }
 
-// Help prints the list of available shell builtins. The names are styled, so
-// it goes through the ANSI-aware tabwriter rather than a %-Ns pad, which
-// would count escape sequences towards the column width.
-func (b *Builtins) Help(out io.Writer) {
-	fmt.Fprintln(out, ShellTitleStyle.Render("Builtins:"))
+// Help prints the list of available shell builtins. The names are styled, so it
+// goes through the ANSI-aware tabwriter rather than a %-Ns pad, which would
+// count escape sequences towards the column width.
+func (b *builtins) Help(out io.Writer) {
+	fmt.Fprintln(out, titleStyle.Render("Builtins:"))
 	fmt.Fprintln(out)
 
 	tw := tabwriter.TabWriter(out)
 	for _, entry := range b.menu {
-		fmt.Fprintf(tw, "  %s\t%s\n", ShellValueStyle.Render(entry.Usage), ShellHintStyle.Render(entry.Desc))
+		fmt.Fprintf(tw, "  %s\t%s\n", valueStyle.Render(entry.Usage), hintStyle.Render(entry.Desc))
 	}
-	// Nothing to do if the terminal write fails; every other line here
-	// ignores write errors too.
+	// Nothing to do if the terminal write fails; every other line here ignores
+	// write errors too.
 	_ = tw.Flush()
 
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, ShellKeyStyle.Render("  ctrl-d quit · ctrl-r history · tab autocomplete · ctrl-c cancel"))
+	fmt.Fprintln(out, keyStyle.Render("  ctrl-d quit · ctrl-r history · tab autocomplete · ctrl-c cancel"))
 	fmt.Fprintln(out)
 
 	for _, line := range []string{
-		"Builtins are the lines that open with '" + BuiltinSigil + "', and they turn green as you type them. Every other",
+		"Builtins are the lines that open with '" + builtinSigil + "', and they turn green as you type them. Every other",
 		"line goes to the instance exactly as written, so the shell never shadows its commands:",
 		"",
 		"  mount vol /mnt      runs the instance's mount",
-		"  " + BuiltinSigil + "mount vol /mnt     attaches a volume to the instance",
+		"  " + builtinSigil + "mount vol /mnt     attaches a volume to the instance",
 		"",
 		"A builtin has to be the whole line, because it runs here rather than on the instance -",
 		"there is nothing on this side to pipe it into or chain it with:",
 		"",
 		"  ls && mount vol /mnt    goes to the instance whole; 'mount' is just its own command",
-		"  " + BuiltinSigil + "mount vol /mnt && ls   is an error, and nothing runs",
+		"  " + builtinSigil + "mount vol /mnt && ls   is an error, and nothing runs",
 	} {
 		if line == "" {
 			fmt.Fprintln(out)
 			continue
 		}
-		fmt.Fprintln(out, ShellHintStyle.Render("  "+line))
+		fmt.Fprintln(out, hintStyle.Render("  "+line))
 	}
 
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, ShellHintStyle.Render("  All command logs are kept in memory unless explicitly cleaned with '"+BuiltinSigil+"history clear' or '"+BuiltinSigil+"history delete'."))
+	fmt.Fprintln(out, hintStyle.Render("  All command logs are kept in memory unless explicitly cleaned with '"+builtinSigil+"history clear' or '"+builtinSigil+"history delete'."))
 }
 
-// State is what a shell session carries between commands: where they run,
-// what they run with, and whether the instance is up to run them at all.
-type State struct {
+// state is what a shell session carries between commands: where they run, what
+// they run with, and whether the instance is up to run them at all.
+type state struct {
 	Dir     string
 	Env     map[string]string
 	Running bool
 	Synced  bool
 }
 
-func NewState(initialDir string, initialEnv map[string]string, running bool) *State {
+func newState(initialDir string, initialEnv map[string]string, running bool) *state {
 	dir := "/"
 	if initialDir != "" {
 		dir = initialDir
@@ -277,22 +267,19 @@ func NewState(initialDir string, initialEnv map[string]string, running bool) *St
 	env := make(map[string]string)
 	maps.Copy(env, initialEnv)
 
-	return &State{
+	return &state{
 		Dir:     path.Clean(dir),
 		Env:     env,
 		Running: running,
 	}
 }
 
-// ParseBuiltinLine splits a builtin line into its words, with the sigil
+// parseBuiltinLine splits a builtin line into its words, with the sigil
 // stripped from the first. It reports false unless the line is one plain
-// command: a builtin runs here rather than on the instance, so there is
-// nothing on this side to pipe it into, redirect it to, or chain it with,
-// and honouring half of `:mount vol /mnt && ls` would be worse than
-// refusing all of it.
-func ParseBuiltinLine(line string) ([]string, bool) {
-	parser := syntax.NewParser()
-	f, err := parser.Parse(strings.NewReader(line), "")
+// command: a builtin runs here rather than on the instance, so honouring half
+// of `:mount vol /mnt && ls` would be worse than refusing all of it.
+func parseBuiltinLine(line string) ([]string, bool) {
+	f, err := parseShell(line)
 	if err != nil || len(f.Stmts) != 1 {
 		return nil, false
 	}
@@ -318,7 +305,7 @@ func ParseBuiltinLine(line string) ([]string, bool) {
 		fields = append(fields, field)
 	}
 
-	name, ok := strings.CutPrefix(fields[0], BuiltinSigil)
+	name, ok := strings.CutPrefix(fields[0], builtinSigil)
 	if !ok || name == "" {
 		return nil, false
 	}
@@ -355,8 +342,8 @@ func literalWordPart(sb *strings.Builder, part syntax.WordPart) bool {
 	return true
 }
 
-// ResolveDir resolves a `cd` target against the session's current directory.
-func ResolveDir(cur, target string) string {
+// resolveDir resolves a `cd` target against the session's current directory.
+func resolveDir(cur, target string) string {
 	if target == "" || target == "~" {
 		return "/"
 	}
@@ -366,9 +353,9 @@ func ResolveDir(cur, target string) string {
 	return path.Clean(path.Join(cur, target))
 }
 
-// ParseAssignment splits a KEY=VALUE word, reporting false when it is not
-// one: an empty or invalid name, or no "=" at all.
-func ParseAssignment(s string) (key, val string, ok bool) {
+// parseAssignment splits a KEY=VALUE word, reporting false when it is not one:
+// an empty or invalid name, or no "=" at all.
+func parseAssignment(s string) (key, val string, ok bool) {
 	parts := strings.SplitN(s, "=", 2)
 	if len(parts) != 2 || parts[0] == "" {
 		return "", "", false

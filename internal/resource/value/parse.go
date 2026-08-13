@@ -18,10 +18,9 @@ import (
 	xmaps "unikraft.com/cli/internal/x/maps"
 )
 
-// splitFields splits s on commas, but preserves commas inside balanced
-// {}, [] pairs and inside JSON string literals. This allows struct/map/slice
-// values that contain JSON (with internal commas) to be parsed correctly.
-func splitFields(s string) []string {
+// splitTopLevel splits s on commas, keeping those inside balanced {} or []
+// pairs and inside JSON string literals, so a value carrying JSON survives.
+func splitTopLevel(s string) []string {
 	var parts []string
 	var buf strings.Builder
 	depth := 0
@@ -192,7 +191,7 @@ func parseReflect(input []string, value reflect.Value) error {
 			}
 
 			// Fall back to comma-separated parsing.
-			for _, item := range splitFields(input) {
+			for _, item := range splitTopLevel(input) {
 				item = strings.TrimSpace(item)
 				if item == "" {
 					continue
@@ -223,7 +222,7 @@ func parseReflect(input []string, value reflect.Value) error {
 				}
 			}
 			// Fall back to comma-separated key=value parsing.
-			for _, item := range splitFields(input) {
+			for _, item := range splitTopLevel(input) {
 				item = strings.TrimSpace(item)
 				if item == "" {
 					continue
@@ -265,7 +264,7 @@ func parseReflect(input []string, value reflect.Value) error {
 		notFound := make(map[string]struct{})
 		for _, input := range input {
 		process:
-			for _, item := range splitFields(input) {
+			for _, item := range splitTopLevel(input) {
 				item = strings.TrimSpace(item)
 				if item == "" {
 					continue

@@ -5,13 +5,10 @@
 
 package shell
 
-// TerminalWriter removes the visible flicker of the readline prompt.
-//
-// TerminalWriter holds erase-only writes back and emits them together with
-// the redraw that follows, as a single write wrapped in DEC mode 2026
-// (synchronized output) so terminals supporting it never present a frame in
-// between. Terminals that don't support the mode ignore it, and still
-// benefit from the erase and the redraw arriving as one write.
+// terminalWriter removes the visible flicker of the readline prompt: it holds
+// erase-only writes back and emits them with the redraw that follows, as one
+// write wrapped in DEC mode 2026 (synchronized output). Terminals without the
+// mode ignore it, and still benefit from erase and redraw arriving together.
 
 import (
 	"bytes"
@@ -21,18 +18,18 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-type TerminalWriter struct {
+type terminalWriter struct {
 	mu        sync.Mutex
 	w         io.Writer
 	pending   []byte
 	lastFrame []byte
 }
 
-func NewTerminalWriter(w io.Writer) *TerminalWriter {
-	return &TerminalWriter{w: w}
+func newTerminalWriter(w io.Writer) *terminalWriter {
+	return &terminalWriter{w: w}
 }
 
-func (t *TerminalWriter) Write(p []byte) (int, error) {
+func (t *terminalWriter) Write(p []byte) (int, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -103,7 +100,7 @@ func splitTrailingBackspaces(frame []byte) ([]byte, int) {
 	return frame[:end], len(frame) - end
 }
 
-func (t *TerminalWriter) Flush() error {
+func (t *terminalWriter) Flush() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
