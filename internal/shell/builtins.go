@@ -6,6 +6,7 @@
 package shell
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -274,44 +275,53 @@ func newState(initialDir string, initialEnv map[string]string, running bool) *st
 	}
 }
 
+// The two ways a builtin line can be refused, both of which come of a builtin
+// running here rather than on the instance: this side can neither chain one nor
+// expand a word.
+var (
+	errBuiltinNotWholeLine = errors.New("a builtin must be the whole line, because it runs here rather than on the instance - there is nothing on this side to redirect, pipe or chain it with")
+	errBuiltinNotLiteral   = errors.New("a builtin runs here rather than on the instance, and nothing on this side expands a $variable or a $(command) - write the value out instead")
+)
+
 // parseBuiltinLine splits a builtin line into its words, with the sigil
-// stripped from the first. It reports false unless the line is one plain
-// command: a builtin runs here rather than on the instance, so honouring half
-// of `:mount vol /mnt && ls` would be worse than refusing all of it.
-func parseBuiltinLine(line string) ([]string, bool) {
+// stripped from the first. It refuses anything but one plain command of literal
+// words, and says which of the two it was: honouring half of
+// `:mount vol /mnt && ls` would be worse than refusing all of it, and a word
+// this side cannot expand is not a word it can act on.
+func parseBuiltinLine(line string) ([]string, error) {
 	f, err := parseShell(line)
 	if err != nil || len(f.Stmts) != 1 {
-		return nil, false
+		return nil, errBuiltinNotWholeLine
 	}
 
 	stmt := f.Stmts[0]
 	if stmt.Background || stmt.Coprocess || stmt.Negated || len(stmt.Redirs) > 0 {
-		return nil, false
+		return nil, errBuiltinNotWholeLine
 	}
 
 	// Anything richer than a plain command - a pipeline, an && or ||, a
 	// subshell, a loop - parses to something other than a CallExpr.
 	call, ok := stmt.Cmd.(*syntax.CallExpr)
 	if !ok || len(call.Args) == 0 || len(call.Assigns) > 0 {
-		return nil, false
+		return nil, errBuiltinNotWholeLine
 	}
 
 	fields := make([]string, 0, len(call.Args))
 	for _, arg := range call.Args {
 		field, ok := literalWord(arg)
 		if !ok {
-			return nil, false
+			return nil, errBuiltinNotLiteral
 		}
 		fields = append(fields, field)
 	}
 
 	name, ok := strings.CutPrefix(fields[0], builtinSigil)
 	if !ok || name == "" {
-		return nil, false
+		return nil, errBuiltinNotWholeLine
 	}
 	fields[0] = name
 
-	return fields, true
+	return fields, nil
 }
 
 func literalWord(w *syntax.Word) (string, bool) {

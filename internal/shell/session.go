@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -421,13 +420,9 @@ func (h *historyCache) Delete(n int) (string, string, bool) {
 	return entry.Cmd, entry.UUID, true
 }
 
-var injectedWrapperRx = regexp.MustCompile(`^(?:cd '.*?' && )?(?:env (?:[a-zA-Z0-9_]+='.*?' )*)?`)
-
-// cleanRemoteHistory strips the cd/env prefix buildExecCommand injects, and
-// drops the shell's own autocomplete probe.
 func cleanRemoteHistory(cmd string) string {
 	if strings.HasPrefix(cmd, "sh -c 'IFS=:") {
 		return ""
 	}
-	return strings.TrimSpace(injectedWrapperRx.ReplaceAllString(cmd, ""))
+	return strings.TrimSpace(cmd)
 }

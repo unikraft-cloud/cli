@@ -207,31 +207,16 @@ func quoteShellArg(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
-func BuildExecCommand(dir string, env map[string]string, cmdArgs []string, raw bool) string {
-	var prefix string
-
-	if dir != "" {
-		prefix += fmt.Sprintf("cd %s && ", quoteShellArg(dir))
-	}
-
-	if len(env) > 0 {
-		var envBuf strings.Builder
-		envBuf.WriteString("env ")
-		for k, v := range env {
-			fmt.Fprintf(&envBuf, "%s=%s ", k, quoteShellArg(v))
-		}
-		prefix += envBuf.String()
-	}
-
+func buildExecCommand(cmdArgs []string, raw bool) string {
 	if raw {
-		return prefix + strings.Join(cmdArgs, " ")
+		return strings.Join(cmdArgs, " ")
 	}
 
-	quotedCmd := make([]string, 0, len(cmdArgs))
+	quoted := make([]string, 0, len(cmdArgs))
 	for _, arg := range cmdArgs {
-		quotedCmd = append(quotedCmd, quoteShellArg(arg))
+		quoted = append(quoted, quoteShellArg(arg))
 	}
-	return prefix + strings.Join(quotedCmd, " ")
+	return strings.Join(quoted, " ")
 }
 
 func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *group.Group[multimetro.MetroClient], key multimetro.Key, opts ExecOpts) error {
@@ -242,10 +227,16 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 		pluginName := opts.Plugin
 		callOpts := c.SandboxOpts(pluginName)
 
-		cmdline := BuildExecCommand(opts.Dir, opts.Env, opts.Cmd, opts.Raw)
+		cmdline := buildExecCommand(opts.Cmd, opts.Raw)
 
 		req := sandbox.RunCommandRequest{
 			Cmd: cmdline,
+		}
+		if opts.Dir != "" {
+			req.Cwd = &opts.Dir
+		}
+		if len(opts.Env) > 0 {
+			req.Env = &opts.Env
 		}
 
 		execResp, err := c.Sandbox.RunCommand(ctx, instance, &req, callOpts...)
@@ -403,7 +394,6 @@ func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instance pl
 		if n > 0 {
 			req := sandbox.CommandStdinRequest{
 				Data: base64.StdEncoding.EncodeToString(buf[:n]),
-				Eof:  false,
 			}
 			if _, err := c.Sandbox.WriteCommandStdin(ctx, instance, cmdUUID, &req, callOpts...); err != nil {
 				return
@@ -414,7 +404,8 @@ func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instance pl
 			if ctx.Err() != nil {
 				return
 			}
-			eofReq := sandbox.CommandStdinRequest{Eof: true}
+			eof := true
+			eofReq := sandbox.CommandStdinRequest{Eof: &eof}
 			_, _ = c.Sandbox.WriteCommandStdin(ctx, instance, cmdUUID, &eofReq, callOpts...)
 			return
 		}

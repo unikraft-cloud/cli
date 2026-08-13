@@ -199,3 +199,5 @@ require (
 )
 
 tool github.com/caarlos0/svu/v3
+
+replace unikraft.com/cloud/plugins/sandbox => ../plugins-sandbox-sdk

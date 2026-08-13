@@ -181,10 +181,10 @@ func (sctx *shellContext) execRemote(ctx context.Context, out io.Writer, in io.R
 // shell to quit. A line that opens with the sigil and doesn't name a builtin is
 // a mistake, not a command to forward to the instance.
 func (sctx *shellContext) handleBuiltin(line string) (exit bool) {
-	fields, ok := parseBuiltinLine(line)
-	if !ok {
-		fmt.Fprintf(sctx.errOut, "%s builtins run here rather than on the instance, so they can't be redirected, piped or chained - %s must be the whole line\n",
-			errorStyle.Render("error:"), valueStyle.Render(strings.TrimSpace(line)))
+	fields, err := parseBuiltinLine(line)
+	if err != nil {
+		fmt.Fprintf(sctx.errOut, "%s %s: %v\n",
+			errorStyle.Render("error:"), valueStyle.Render(strings.TrimSpace(line)), err)
 		return false
 	}
 
