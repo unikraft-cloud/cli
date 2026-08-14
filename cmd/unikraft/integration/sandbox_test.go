@@ -21,24 +21,45 @@ import (
 const (
 	// sandboxPlugin is the plugin name the sandbox commands address by default,
 	// and sandboxPluginRom is the ROM serving it.
-	sandboxPlugin    = "sandbox"
-	sandboxPluginRom = "plugins/sandbox:staging"
+	sandboxPlugin = "sandbox"
+
+	// TODO: sandbox.PluginROM, which the plugin's own specification declares,
+	// once the ROM published there carries the cwd and environment support the
+	// exec subtests need. The one it serves today accepts both and ignores them.
+	sandboxPluginRom = "dragosgheorghioiu/sandbox-rom"
 
 	// Only the Linux runtime starts plugins, so the images the rest of the
-	// suite runs on (nginx:latest, base:latest) can't serve one.
-	sandboxRuntime = "base-compat"
-
-	// sandboxIdleCmd holds the instance open: it lives as long as its
-	// application does, and a plugin exiting does not keep it up.
-	sandboxIdleCmd = "/opt/uk/ukp-fs /keepalive"
+	// suite runs on (nginx:latest, base:latest) can't serve one. The plugin
+	// runs commands through "/bin/sh -c", so the fixture needs a rootfs with
+	// a shell on top of that runtime, and a command that holds the instance
+	// open: it lives as long as its application does, and a plugin exiting
+	// does not keep it up.
+	sandboxKraftfile = `
+spec: v0.7
+name: sandbox-e2e
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+cmd: ["tail", "-f", "/dev/null"]
+`
 )
 
-// newSandboxInstance creates a running instance serving the sandbox plugin and
-// returns its name. It carries no rootfs, so there is nothing to exec: covering
-// "instance exec" needs an image with a shell. Remote paths must also stay
-// clear of the /keepalive mount, which answers anything else with ENOSYS.
+// newSandboxInstance builds the fixture image, creates a running instance
+// serving the sandbox plugin on it, and returns the instance's name.
 func newSandboxInstance(t *testing.T, r *integ.TestEnv) string {
 	t.Helper()
+
+	dir := t.TempDir()
+	require.NoError(t, fstest.Apply(
+		fstest.CreateFile("Dockerfile", []byte("FROM busybox:latest\n"), 0o644),
+		fstest.CreateFile("Kraftfile", []byte(sandboxKraftfile), 0o644),
+	).Apply(dir))
+
+	// The image is registered in the test's resource sandbox, which deletes it
+	// when the test ends.
+	image := r.Config.Profile.Organization + "/sandbox-e2e:" + uniq()
+	r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
 
 	name := "test-" + uniq()
 	r.Run(t, []string{
@@ -46,8 +67,7 @@ func newSandboxInstance(t *testing.T, r *integ.TestEnv) string {
 		"--output", "quiet",
 		"--name", name,
 		"--metro", r.Config.MetroName,
-		"--image", sandboxRuntime,
-		"--args", sandboxIdleCmd,
+		"--image", image,
 		"--plugin", "name=" + sandboxPlugin + ",rom=" + sandboxPluginRom,
 		"--memory", "512",
 		"--vcpus", "1",
@@ -250,6 +270,52 @@ func TestSandbox(t *testing.T) {
 
 			r.Run(t, []string{"unikraft", "instance", "delete", instName})
 		})
+	})
+
+	// One instance covers all of these: they only run commands on it.
+	t.Run("exec", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+		instName := newSandboxInstance(t, r)
+
+		// Both output streams come back, stdout and stderr alike.
+		out := r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "echo to-stdout; echo to-stderr >&2"})
+		assert.Contains(t, out, "to-stdout")
+		assert.Contains(t, out, "to-stderr")
+
+		// The command is a command line by the time it reaches the plugin, so
+		// arguments the shell would otherwise split or expand are quoted first.
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "echo", "two words", "*"})
+		assert.Contains(t, out, "two words *")
+
+		// Naming the plugin explicitly addresses the same one the default does.
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--plugin", sandboxPlugin, "--", "echo", "named-plugin"})
+		assert.Contains(t, out, "named-plugin")
+
+		// --dir runs the command from that directory, and --env is the whole
+		// environment it sees.
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--dir", "/etc", "--", "pwd"})
+		assert.Contains(t, out, "/etc")
+
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--env", "GREETING=hi,WHO=exec", "--", "sh", "-c", "echo $GREETING-$WHO"})
+		assert.Contains(t, out, "hi-exec")
+
+		// Local standard input is fed to the remote command, and closing it is
+		// what lets a command reading to EOF finish.
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "cat"}, integ.WithStdin("fed-by-stdin\n"))
+		assert.Contains(t, out, "fed-by-stdin")
+
+		// A file written by the shell is the same file the plugin reads, so both
+		// see one filesystem.
+		remote := "/sb-exec-" + uniq() + ".txt"
+		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "echo written-by-the-shell > " + remote})
+		assert.Equal(t, "written-by-the-shell\n", remoteContents(t, r, instName, remote))
+
+		// --cmd-timeout bounds the wait for the command to finish, and one that
+		// outlives it is reported as timed out.
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--cmd-timeout", "2000", "--", "sleep", "30"}, integ.ExpectFail())
+		assert.Regexp(t, `timed out waiting for command to finish`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", instName})
 	})
 
 	t.Run("mkdir", func(t *testing.T) {
