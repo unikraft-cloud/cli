@@ -34,10 +34,11 @@ type BuildOpts struct {
 	Labels map[string]string
 
 	// Buildkit params
-	BuildArg []string
-	Target   string
-	Secrets  []*buildflags.Secret
-	SSH      []*buildflags.SSH
+	BuildArg      []string
+	Target        string
+	BuildContexts map[string]string
+	Secrets       []*buildflags.Secret
+	SSH           []*buildflags.SSH
 
 	NoCache bool
 }

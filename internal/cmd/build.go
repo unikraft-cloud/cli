@@ -28,10 +28,11 @@ type ImageBuildCmd struct {
 	Arch   []string `help:"Only build the Kraftfile targets of these architectures. Defaults to every declared target; required when none are declared." example:"x86_64,arm64"`
 
 	// similar to docker compose build
-	BuildArg []string `sep:"none" help:"Set build-time variables."`
-	NoCache  bool     `help:"Do not use cache when building the image."`
-	Secret   []string `sep:"none" help:"Secret to expose to the build (format: \"id=mysecret[,src=/local/secret]\")."`
-	SSH      []string `sep:"none" help:"SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")."`
+	BuildArg     []string `sep:"none" help:"Set build-time variables."`
+	NoCache      bool     `help:"Do not use cache when building the image."`
+	Secret       []string `sep:"none" help:"Secret to expose to the build (format: \"id=mysecret[,src=/local/secret]\")."`
+	SSH          []string `sep:"none" help:"SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")."`
+	BuildContext []string `sep:"none" help:"Additional build contexts (e.g., name=path)."`
 
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 }
@@ -114,6 +115,13 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	buildOpts.NoCache = c.NoCache
 	if len(c.BuildArg) > 0 {
 		buildOpts.BuildArg = append(buildOpts.BuildArg, c.BuildArg...)
+	}
+	if len(c.BuildContext) > 0 {
+		contexts, err := builder.ParseContextNames(c.BuildContext)
+		if err != nil {
+			return err
+		}
+		buildOpts.BuildContexts = contexts
 	}
 	if len(c.Secret) > 0 {
 		secrets, err := buildflags.ParseSecretSpecs(c.Secret)
