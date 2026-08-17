@@ -8,6 +8,7 @@ package main
 import (
 	"io"
 	"iter"
+	"os"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -39,6 +40,16 @@ func TestExamples(t *testing.T) {
 		},
 	}
 	require.NoError(t, cfg.Save())
+
+	// Create files used by the write example (type:existingfile) in a temp dir.
+	tmp := t.TempDir()
+	origDir, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(origDir)) })
+	for _, name := range []string{"config.json", "data.bin"} {
+		require.NoError(t, os.WriteFile(filepath.Join(tmp, name), nil, 0o644))
+	}
 
 	parser, err := cmd.NewParser(&cmd.UnikraftCLI{})
 	require.NoError(t, err)

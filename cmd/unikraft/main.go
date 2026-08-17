@@ -22,6 +22,7 @@ import (
 
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/interrupt"
 	"unikraft.com/cli/internal/logfmt"
 	"unikraft.com/cli/internal/telemetry"
 	"unikraft.com/x/colors"
@@ -32,8 +33,20 @@ func main() {
 	// Recover from panics and report crashes before re-panicking
 	defer telemetry.RecoverAndReport()
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	ih := interrupt.New(rootCancel)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		for range sigCh {
+			ih.Fire()
+		}
+	}()
+	defer signal.Stop(sigCh)
+	defer rootCancel()
+
+	ctx := interrupt.WithHandler(rootCtx, ih)
 
 	var (
 		err error
