@@ -384,6 +384,14 @@ func execSandboxInstance(ctx context.Context, out io.Writer, in io.Reader, g *gr
 func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instance platform.Instance, pluginName, cmdUUID string, in io.Reader) {
 	callOpts := c.SandboxOpts(pluginName)
 
+	// The plugin requires eof on every write, so it is always sent: the SDK
+	// leaves an unset one out of the request, which the plugin rejects.
+	write := func(data string, eof bool) error {
+		req := sandbox.CommandStdinRequest{Data: data, Eof: &eof}
+		_, err := c.Sandbox.WriteCommandStdin(ctx, instance, cmdUUID, &req, callOpts...)
+		return err
+	}
+
 	buf := make([]byte, 32*1024)
 	for {
 		if ctx.Err() != nil {
@@ -392,10 +400,10 @@ func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instance pl
 
 		n, readErr := in.Read(buf)
 		if n > 0 {
-			req := sandbox.CommandStdinRequest{
-				Data: base64.StdEncoding.EncodeToString(buf[:n]),
-			}
-			if _, err := c.Sandbox.WriteCommandStdin(ctx, instance, cmdUUID, &req, callOpts...); err != nil {
+			// A command that never receives what was typed at it usually just
+			// waits, so a failed write is reported rather than swallowed.
+			if err := write(base64.StdEncoding.EncodeToString(buf[:n]), false); err != nil {
+				log.G(ctx).Warn().Err(err).Str("cmd", cmdUUID).Msg("failed to send standard input to the command")
 				return
 			}
 		}
@@ -404,9 +412,9 @@ func feedSandboxStdin(ctx context.Context, c multimetro.MetroClient, instance pl
 			if ctx.Err() != nil {
 				return
 			}
-			eof := true
-			eofReq := sandbox.CommandStdinRequest{Eof: &eof}
-			_, _ = c.Sandbox.WriteCommandStdin(ctx, instance, cmdUUID, &eofReq, callOpts...)
+			if err := write("", true); err != nil {
+				log.G(ctx).Warn().Err(err).Str("cmd", cmdUUID).Msg("failed to close the command's standard input")
+			}
 			return
 		}
 	}
