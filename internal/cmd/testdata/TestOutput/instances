@@ -81,6 +81,7 @@ roms:
 - name:          my-rom
   image:         myuser/my-rom:latest
   at:            /rom
+plugins:
 networks:
 - uuid:          net-uuid-1234
   private-ip:    192.168.1.10
@@ -601,6 +602,34 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
       ],
       "add": null,
       "del": null
+    }
+  },
+  {
+    "name": "plugins",
+    "elem": {
+      "name": "",
+      "subfields": [
+        {
+          "name": "name",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "rom",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "config",
+          "value": "",
+          "verbosity": "long"
+        }
+      ],
+      "verbosity": "long"
+    },
+    "verbosity": "long",
+    "create": {
+      "set": null
     }
   },
   {
