@@ -443,9 +443,9 @@ Create flags:
           [examples: fra, sfo, nyc]
   -n, --name=<name>
           Instance name.
-      --image=<name>:<tag>
+      --image=<image>
           Image to deploy.
-          [examples: nginx:latest, my-app:v1.2.3]
+          [examples: nginx:latest, my-app:v1.2.3, https+oci://cdn.example.com/me/app/latest]
       --pull-policy=<policy>
           Image pull policy.
           [examples: always, never, if_not_present]
@@ -613,9 +613,9 @@ Create flags:
           [examples: fra, sfo, nyc]
   -n, --name=<name>
           Instance name.
-      --image=<name>:<tag>
+      --image=<image>
           Image to deploy.
-          [examples: nginx:latest, my-app:v1.2.3]
+          [examples: nginx:latest, my-app:v1.2.3, https+oci://cdn.example.com/me/app/latest]
       --pull-policy=<policy>
           Image pull policy.
           [examples: always, never, if_not_present]
@@ -804,9 +804,9 @@ Create flags:
           [examples: fra, sfo, nyc]
   -n, --name=<name>
           Instance name.
-      --image=<name>:<tag>
+      --image=<image>
           Image to deploy.
-          [examples: nginx:latest, my-app:v1.2.3]
+          [examples: nginx:latest, my-app:v1.2.3, https+oci://cdn.example.com/me/app/latest]
       --pull-policy=<policy>
           Image pull policy.
           [examples: always, never, if_not_present]
@@ -982,9 +982,9 @@ Global flags:
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
 Edit flags:
-      --image=<name>:<tag>
+      --image=<image>
           Image to deploy.
-          [examples: nginx:latest, my-app:v1.2.3]
+          [examples: nginx:latest, my-app:v1.2.3, https+oci://cdn.example.com/me/app/latest]
       --args=<arg>
           Arguments to pass to the instance.
   -e, --env=<key>=<value>

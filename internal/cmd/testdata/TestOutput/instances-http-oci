@@ -1,0 +1,621 @@
+====================================== kv ======================================
+metro:     fra
+name:      my-instance
+uuid:      a1b2c3d4-e5f6-7890-abcd-ef1234567890
+state:     running
+image:     https+oci://cdn.example.com/me/app/@sha256:43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190
+resources:
+  memory:  256MiB
+  vcpus:   1
+
+==================================== kv-all ====================================
+metro:           fra
+name:            my-instance
+uuid:            a1b2c3d4-e5f6-7890-abcd-ef1234567890
+tags:
+state:           running
+image:           https+oci://cdn.example.com/me/app/@sha256:43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190
+type:
+runtime:
+  args:
+  env:
+resources:
+  memory:        256MiB
+  vcpus:         1
+  gpus:          0
+service:
+  name:
+  uuid:
+  domains:
+volumes:
+roms:
+networks:
+gpus:
+timestamps:
+  created:       never
+  started:       never
+  stopped:       never
+scale-to-zero:
+  enabled:       false
+  policy:
+  stateful:      false
+  cooldown-time: 0s
+  notify-time:   0s
+timing:
+  uptime:        0s
+  boot-time:     0s
+  net-time:      0s
+restart:
+  policy:
+  start-count:   0
+  restart-count: 0
+sched-priority:
+stop:
+  reason:
+  origin:
+  errno:
+  exit-code:
+delete-lock:     false
+
+==================================== table =====================================
+METRO  NAME         STATE    IMAGE                                                                                                        ARGS  MEMORY  VCPUS  FQDN  CREATED
+fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190        256MiB  1            never
+
+==================================== debug =====================================
+[
+  {
+    "name": "metro",
+    "value": "fra",
+    "links": [
+      {
+        "type": "metro",
+        "key": "fra"
+      }
+    ],
+    "verbosity": "short",
+    "create": {
+      "set": "fra",
+      "required": true
+    }
+  },
+  {
+    "name": "name",
+    "value": "my-instance",
+    "verbosity": "short",
+    "create": {
+      "set": "my-instance"
+    }
+  },
+  {
+    "name": "uuid",
+    "value": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "verbosity": "long"
+  },
+  {
+    "name": "tags",
+    "value": null,
+    "verbosity": "long",
+    "create": {
+      "set": null
+    },
+    "edit": {
+      "set": null,
+      "add": null,
+      "del": null
+    }
+  },
+  {
+    "name": "state",
+    "value": "running",
+    "verbosity": "short",
+    "edit": {
+      "set": "running"
+    }
+  },
+  {
+    "name": "image",
+    "value": "https+oci://cdn.example.com/me/app/@sha256:43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190",
+    "links": [
+      {
+        "type": "image",
+        "key": "https+oci://cdn.example.com/me/app/@sha256:43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190"
+      }
+    ],
+    "verbosity": "short",
+    "create": {
+      "set": "https+oci://cdn.example.com/me/app/@sha256:43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190"
+    },
+    "edit": {
+      "set": "https+oci://cdn.example.com/me/app/@sha256:43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190"
+    }
+  },
+  {
+    "name": "pull-policy",
+    "verbosity": "invisible",
+    "create": {
+      "set": null
+    }
+  },
+  {
+    "name": "type",
+    "value": null,
+    "verbosity": "long",
+    "create": {
+      "set": null
+    }
+  },
+  {
+    "name": "runtime",
+    "subfields": [
+      {
+        "name": "args",
+        "value": null,
+        "verbosity": "short",
+        "create": {
+          "set": null
+        },
+        "edit": {
+          "set": null
+        }
+      },
+      {
+        "name": "env",
+        "value": null,
+        "verbosity": "long",
+        "create": {
+          "set": null
+        },
+        "edit": {
+          "set": null,
+          "add": null,
+          "del": null
+        }
+      }
+    ],
+    "verbosity": "short"
+  },
+  {
+    "name": "resources",
+    "subfields": [
+      {
+        "name": "memory",
+        "value": "256MiB",
+        "verbosity": "short",
+        "create": {
+          "set": "256MiB"
+        },
+        "edit": {
+          "set": "256MiB"
+        }
+      },
+      {
+        "name": "vcpus",
+        "value": 1,
+        "verbosity": "short",
+        "create": {
+          "set": 1
+        },
+        "edit": {
+          "set": 1
+        }
+      },
+      {
+        "name": "gpus",
+        "value": 0,
+        "verbosity": "long",
+        "create": {
+          "set": 0
+        }
+      }
+    ],
+    "verbosity": "short"
+  },
+  {
+    "name": "service",
+    "subfields": [
+      {
+        "name": "name",
+        "value": "",
+        "verbosity": "long"
+      },
+      {
+        "name": "uuid",
+        "value": "",
+        "verbosity": "long"
+      },
+      {
+        "name": "services",
+        "verbosity": "invisible",
+        "create": {
+          "set": null
+        }
+      },
+      {
+        "name": "domains",
+        "elem": {
+          "name": "",
+          "subfields": [
+            {
+              "name": "fqdn",
+              "value": "",
+              "verbosity": "short"
+            },
+            {
+              "name": "certificate",
+              "subfields": [
+                {
+                  "name": "name",
+                  "value": "",
+                  "verbosity": "long"
+                },
+                {
+                  "name": "uuid",
+                  "value": "",
+                  "verbosity": "long"
+                }
+              ],
+              "verbosity": "long"
+            }
+          ],
+          "verbosity": "short"
+        },
+        "verbosity": "short",
+        "create": {
+          "set": null
+        }
+      },
+      {
+        "name": "soft-limit",
+        "verbosity": "invisible",
+        "create": {
+          "set": 0
+        }
+      },
+      {
+        "name": "hard-limit",
+        "verbosity": "invisible",
+        "create": {
+          "set": 0
+        }
+      }
+    ],
+    "verbosity": "short",
+    "create": {
+      "set": null
+    }
+  },
+  {
+    "name": "volumes",
+    "elem": {
+      "name": "",
+      "subfields": [
+        {
+          "name": "name",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "uuid",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "at",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "readonly",
+          "value": false,
+          "verbosity": "long"
+        },
+        {
+          "name": "size",
+          "verbosity": "invisible",
+          "create": {
+            "set": "0B"
+          }
+        }
+      ],
+      "verbosity": "long"
+    },
+    "verbosity": "long",
+    "create": {
+      "set": null
+    },
+    "edit": {
+      "add": null,
+      "del": null
+    }
+  },
+  {
+    "name": "roms",
+    "elem": {
+      "name": "",
+      "subfields": [
+        {
+          "name": "name",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "image",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "dir",
+          "value": "",
+          "verbosity": "invisible"
+        },
+        {
+          "name": "at",
+          "value": "",
+          "verbosity": "long"
+        }
+      ],
+      "verbosity": "long"
+    },
+    "verbosity": "long",
+    "create": {
+      "set": null
+    },
+    "edit": {
+      "set": null,
+      "add": null,
+      "del": null
+    }
+  },
+  {
+    "name": "networks",
+    "elem": {
+      "name": "",
+      "subfields": [
+        {
+          "name": "uuid",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "private-ip",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "mac",
+          "value": "",
+          "verbosity": "long"
+        }
+      ],
+      "verbosity": "long"
+    },
+    "verbosity": "long"
+  },
+  {
+    "name": "gpus",
+    "elem": {
+      "name": "",
+      "subfields": [
+        {
+          "name": "uuid",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "model",
+          "value": "",
+          "verbosity": "long"
+        }
+      ],
+      "verbosity": "long"
+    },
+    "verbosity": "long"
+  },
+  {
+    "name": "timestamps",
+    "subfields": [
+      {
+        "name": "created",
+        "value": "never",
+        "verbosity": "short"
+      },
+      {
+        "name": "started",
+        "value": "never",
+        "verbosity": "hidden"
+      },
+      {
+        "name": "stopped",
+        "value": "never",
+        "verbosity": "hidden"
+      }
+    ],
+    "verbosity": "short"
+  },
+  {
+    "name": "scale-to-zero",
+    "subfields": [
+      {
+        "name": "enabled",
+        "value": false,
+        "verbosity": "long"
+      },
+      {
+        "name": "policy",
+        "value": "",
+        "verbosity": "long"
+      },
+      {
+        "name": "stateful",
+        "value": false,
+        "verbosity": "long"
+      },
+      {
+        "name": "cooldown-time",
+        "value": "0s",
+        "verbosity": "long"
+      },
+      {
+        "name": "notify-time",
+        "value": "0s",
+        "verbosity": "long"
+      }
+    ],
+    "verbosity": "long",
+    "create": {
+      "set": {}
+    },
+    "edit": {
+      "set": {}
+    }
+  },
+  {
+    "name": "timing",
+    "subfields": [
+      {
+        "name": "uptime",
+        "value": "0s",
+        "verbosity": "hidden"
+      },
+      {
+        "name": "boot-time",
+        "value": "0s",
+        "verbosity": "long"
+      },
+      {
+        "name": "net-time",
+        "value": "0s",
+        "verbosity": "hidden"
+      }
+    ],
+    "verbosity": "long"
+  },
+  {
+    "name": "restart",
+    "subfields": [
+      {
+        "name": "policy",
+        "value": "",
+        "verbosity": "hidden",
+        "create": {
+          "set": ""
+        }
+      },
+      {
+        "name": "start-count",
+        "value": 0,
+        "verbosity": "hidden"
+      },
+      {
+        "name": "restart-count",
+        "value": 0,
+        "verbosity": "hidden"
+      }
+    ],
+    "verbosity": "hidden"
+  },
+  {
+    "name": "sched-priority",
+    "value": null,
+    "verbosity": "long",
+    "create": {
+      "set": null
+    },
+    "edit": {
+      "set": null
+    }
+  },
+  {
+    "name": "autostart",
+    "verbosity": "invisible",
+    "create": {
+      "set": false
+    }
+  },
+  {
+    "name": "replicas",
+    "verbosity": "invisible",
+    "create": {
+      "set": 0
+    }
+  },
+  {
+    "name": "wait-timeout",
+    "verbosity": "invisible",
+    "create": {
+      "set": "0s"
+    }
+  },
+  {
+    "name": "features",
+    "verbosity": "invisible",
+    "create": {
+      "set": null
+    }
+  },
+  {
+    "name": "vsock",
+    "verbosity": "invisible",
+    "create": {
+      "set": false
+    },
+    "edit": {
+      "set": false
+    }
+  },
+  {
+    "name": "template",
+    "verbosity": "invisible",
+    "create": {
+      "set": ""
+    }
+  },
+  {
+    "name": "branch",
+    "verbosity": "invisible",
+    "create": {
+      "set": ""
+    }
+  },
+  {
+    "name": "checkpoint",
+    "verbosity": "invisible",
+    "create": {
+      "set": ""
+    }
+  },
+  {
+    "name": "stop",
+    "subfields": [
+      {
+        "name": "reason",
+        "value": "",
+        "verbosity": "long"
+      },
+      {
+        "name": "origin",
+        "value": "",
+        "verbosity": "hidden"
+      },
+      {
+        "name": "errno",
+        "value": 0,
+        "verbosity": "hidden"
+      },
+      {
+        "name": "exit-code",
+        "value": null,
+        "verbosity": "long"
+      }
+    ],
+    "verbosity": "long"
+  },
+  {
+    "name": "delete-lock",
+    "value": false,
+    "verbosity": "long",
+    "edit": {
+      "set": false
+    }
+  }
+]

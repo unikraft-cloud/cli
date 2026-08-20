@@ -94,6 +94,7 @@ func TestOutput(t *testing.T) {
 	run("services", servicesOutputTests)
 	run("certificates", certificatesOutputTests)
 	run("images", imagesOutputTests)
+	run("instances-http-oci", instancesHTTPOCIOutputTests)
 }
 
 func instancesOutputTests(t *testing.T) {
@@ -155,6 +156,24 @@ func instancesOutputTests(t *testing.T) {
 	exitCode := uint32(1)
 	sample.Stop.ExitCode = &exitCode
 	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
+
+	integ.Gild[resource.Resource](t, dumpResource, sample)
+}
+
+// Every other sample carries a registry reference, so nothing exercises how an
+// OCI layout served over HTTP renders.
+func instancesHTTPOCIOutputTests(t *testing.T) {
+	sample := cmd.Instance{
+		Metro: "fra",
+		Name:  "my-instance",
+		UUID:  "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		State: types.InstanceState(platform.InstanceStateRunning),
+	}
+	sample.Resources.Memory = 256
+	sample.Resources.VCPUs = 1
+	require.NoError(t, sample.Image.UnmarshalText([]byte(
+		"https+oci://cdn.example.com/me/app/@sha256:"+
+			"43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190")))
 
 	integ.Gild[resource.Resource](t, dumpResource, sample)
 }

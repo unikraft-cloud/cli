@@ -6,9 +6,8 @@
 package types
 
 import (
-	"strings"
-
-	"github.com/distribution/reference"
+	ociref "github.com/distribution/reference"
+	"unikraft.com/x/image-spec/imageref"
 
 	"unikraft.com/cli/internal/images"
 	"unikraft.com/cli/internal/multimetro"
@@ -16,59 +15,74 @@ import (
 	"unikraft.com/cli/internal/resource/value"
 )
 
-// ImageRef is a generic wrapper around a Docker image reference.
-type ImageRef[T interface {
-	reference.Named
-	comparable
-}] struct {
-	Reference T
+// ImageRef is a resource field holding an image reference, which is either an
+// image in a registry or an OCI layout served over HTTP. The distinction is the
+// parsed reference's to make.
+type ImageRef struct {
+	ref imageref.Reference
 }
 
-func (ir ImageRef[T]) MarshalText() ([]byte, error) {
-	var zero T
-	if ir.Reference == zero {
-		return []byte{}, nil
+// NewImageRef returns an ImageRef for an image that is already named, which is
+// always an image in a registry. A nil name yields the unset reference.
+func NewImageRef(named ociref.Named) ImageRef {
+	ref, err := imageref.FromNamed(named)
+	if err != nil {
+		return ImageRef{}
 	}
-	s := images.FamiliarString(ir.Reference)
-	return []byte(s), nil
+	return ImageRef{ref: ref}
 }
 
-// Render implements value.Renderer. In short form (e.g. table output), the
-// digest is elided to keep output concise; in long form (e.g. detail views,
-// JSON/YAML output via MarshalText) the full canonical reference, including
-// any digest, is shown.
-func (ir ImageRef[T]) Render(opts value.RenderOpts) (string, error) {
-	var zero T
-	if ir.Reference == zero {
-		return "", nil
-	}
-	s := images.FamiliarString(ir.Reference)
+// NewImageRefFrom returns an ImageRef for an already-parsed reference.
+func NewImageRefFrom(ref imageref.Reference) ImageRef {
+	return ImageRef{ref: ref}
+}
+
+// Reference returns the parsed reference, which is the zero Reference when the
+// field is unset.
+func (ir ImageRef) Reference() imageref.Reference {
+	return ir.ref
+}
+
+func (ir ImageRef) MarshalText() ([]byte, error) {
+	return []byte(images.Format(ir.ref)), nil
+}
+
+// Render implements value.Renderer. In short form (e.g. table output) the digest
+// is elided to keep output concise.
+func (ir ImageRef) Render(opts value.RenderOpts) (string, error) {
 	if opts.Short {
-		s, _, _ = strings.Cut(s, "@")
+		return images.FormatShort(ir.ref), nil
 	}
-	return s, nil
+	return images.Format(ir.ref), nil
 }
 
-func (ir ImageRef[T]) Value() any {
+func (ir ImageRef) Value() any {
 	return ir
 }
 
-func (ir *ImageRef[T]) UnmarshalText(text []byte) error {
-	ref, err := images.ParseNormalizedNamed(string(text))
+func (ir *ImageRef) UnmarshalText(text []byte) error {
+	ref, err := images.ParseRef(string(text))
 	if err != nil {
 		return err
 	}
-	ref = reference.TagNameOnly(ref)
-	ir.Reference = ref.(T)
+	ir.ref = ref.WithDefaultTag()
 	return nil
 }
 
-func (ir ImageRef[T]) Link() (string, resource.Key, bool) {
-	var zero T
-	if ir.Reference == zero {
+// WireURL returns the identifier to send to the platform API.
+// It differs from MarshalText, which renders the familiar short form a human
+// reads: the API resolves what it is given against its own registry and applies
+// no namespace of its own, so "nginx:latest" there is not the image
+// "unikraft.io/official/nginx:latest" that the CLI means by it.
+func (ir ImageRef) WireURL() string {
+	return ir.ref.String()
+}
+
+func (ir ImageRef) Link() (string, resource.Key, bool) {
+	if ir.ref.IsZero() {
 		return "", nil, false
 	}
 	return "image", multimetro.Key{
-		Name: ir.Reference.String(),
+		Name: ir.WireURL(),
 	}, false
 }
