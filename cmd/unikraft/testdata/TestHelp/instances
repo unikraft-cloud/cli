@@ -1227,6 +1227,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1283,6 +1284,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1347,6 +1349,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1417,6 +1420,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1467,6 +1471,12 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
+Create flags:
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time without a clone before the template is deleted.
+          [example: time=24h]
+
 $ unikraft instance template edit --help
 
 Edit an instance template.
@@ -1489,6 +1499,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1549,6 +1560,10 @@ Edit flags:
           [example: env-dev]
       --delete-lock
           Prevent deletion of the template.
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time without a clone before the template is deleted.
+          [example: time=24h]
 
 $ unikraft instance template delete --help
 
@@ -1572,6 +1587,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
