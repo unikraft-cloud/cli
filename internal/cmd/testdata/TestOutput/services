@@ -26,6 +26,8 @@ autoscale:     true
 limits:
   soft:        5
   hard:        50
+autokill:
+  time:        0s
 timestamps:
   created:     never
 domains:
@@ -113,6 +115,23 @@ fra    my-service  true       never    example.unikraft.app  443     8080       
       }
     ],
     "verbosity": "long"
+  },
+  {
+    "name": "autokill",
+    "subfields": [
+      {
+        "name": "time",
+        "value": "0s",
+        "verbosity": "long"
+      }
+    ],
+    "verbosity": "long",
+    "create": {
+      "set": {}
+    },
+    "edit": {
+      "set": {}
+    }
   },
   {
     "name": "timestamps",

@@ -52,6 +52,8 @@ type ServiceGroup struct {
 		Hard uint64 `mirror:"service_group.hard_limit" field:",long" create:"set" edit:"set" flag:"hard-limit" help:"Hard limit." placeholder:"n" example:"10,100"`
 	}
 
+	Autokill Autokill `field:",embed" mirror:"service_group.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time the group must stay empty before it is deleted" placeholder:"<key>=<value>" example:"time=5m"`
+
 	Timestamps struct {
 		Created types.RelativeTime `mirror:"service_group.created_at" field:",short"`
 	}
@@ -333,6 +335,12 @@ func (ServiceGroup) Create(ctx context.Context, fields []resource.Field) ([]reso
 			case "limits.hard":
 				limit := field.Create.Set.(uint64)
 				req.HardLimit = &limit
+			case "autokill":
+				autokill := field.Create.Set.(Autokill)
+				if autokill.TimeMs > 0 {
+					t := uint64(autokill.TimeMs)
+					req.Autokill = &platform.CreateServiceGroupRequestAutokill{TimeMs: &t}
+				}
 			case "domains":
 				for _, domain := range field.Create.Set.([]Domain) {
 					name := domain.Name
@@ -489,6 +497,13 @@ func serviceGroupPatchSpec(path string, _ patchOp, value any) (platform.MutableS
 		return platform.MutableServiceGroupPropertySoftLimit, value.(uint64), nil
 	case "limits.hard":
 		return platform.MutableServiceGroupPropertyHardLimit, value.(uint64), nil
+	case "autokill":
+		autokill := value.(Autokill)
+		req := map[string]any{}
+		if autokill.TimeMs > 0 {
+			req["time_ms"] = uint64(autokill.TimeMs)
+		}
+		return platform.MutableServiceGroupPropertyAutokill, req, nil
 	case "domains":
 		nvalue := []platform.CreateServiceGroupRequestDomain{}
 		for _, domain := range value.([]Domain) {
