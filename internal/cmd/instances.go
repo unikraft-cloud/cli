@@ -23,7 +23,6 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/alecthomas/kong"
-	"github.com/distribution/reference"
 	"github.com/go-json-experiment/json/jsontext"
 	"mvdan.cc/sh/v3/shell"
 	"unikraft.com/cloud/sdk/platform"
@@ -78,7 +77,7 @@ type InstanceCreateCmd struct {
 	Metro string `group:"flag-create" shortcut:"metro" help:"Metro to deploy in." placeholder:"metro" example:"fra,sfo,nyc"`
 	Name  string `group:"flag-create" shortcut:"name" short:"n" help:"Instance name." placeholder:"name"`
 
-	Image      string                 `group:"flag-create" shortcut:"image" help:"Image to deploy." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
+	Image      string                 `group:"flag-create" shortcut:"image" help:"Image to deploy." placeholder:"<image>" example:"nginx:latest,my-app:v1.2.3,https+oci://cdn.example.com/me/app/latest"`
 	PullPolicy *platform.PullPolicy   `group:"flag-create" shortcut:"pull-policy" help:"Image pull policy." placeholder:"policy" example:"always,never,if_not_present"`
 	Type       *platform.InstanceType `group:"flag-create" shortcut:"type" help:"Type of virtual machine to run. \"full\" requires a plan with full VM support." placeholder:"type" example:"micro,full"`
 
@@ -138,7 +137,7 @@ type InstanceEditCmd struct {
 	cmd.ResourceEditCmd[Instance]
 
 	// Shortcut flags - only fields that support editing.
-	Image string `group:"flag-edit" shortcut:"image" help:"Image to deploy." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
+	Image string `group:"flag-edit" shortcut:"image" help:"Image to deploy." placeholder:"<image>" example:"nginx:latest,my-app:v1.2.3,https+oci://cdn.example.com/me/app/latest"`
 
 	Args InstanceArgs `group:"flag-edit" shortcut:"runtime.args" help:"Arguments to pass to the instance." placeholder:"arg"`
 	Env  []string     `group:"flag-edit" shortcut:"runtime.env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
@@ -172,9 +171,9 @@ type Instance struct {
 
 	State types.InstanceState `mirror:"instance.state" field:",short" edit:"set"`
 
-	Image      types.ImageRef[reference.Named] `mirror:"instance.image" field:",short" create:"set" edit:"set"`
-	PullPolicy *platform.PullPolicy            `field:"pull-policy,invisible,valueless" create:"set"`
-	Type_      *platform.InstanceType          `mirror:"instance.type" field:"type,long" create:"set"`
+	Image      types.ImageRef         `mirror:"instance.image" field:",short" create:"set" edit:"set"`
+	PullPolicy *platform.PullPolicy   `field:"pull-policy,invisible,valueless" create:"set"`
+	Type_      *platform.InstanceType `mirror:"instance.type" field:"type,long" create:"set"`
 
 	Runtime struct {
 		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set"`
@@ -955,7 +954,7 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 	case "tags":
 		return platform.MutableInstancePropertyTags, value.([]string), nil
 	case "image":
-		return platform.MutableInstancePropertyImage, value.(types.ImageRef[reference.Named]).Reference.String(), nil
+		return platform.MutableInstancePropertyImage, value.(types.ImageRef).WireURL(), nil
 	case "runtime.args":
 		return platform.MutableInstancePropertyArgs, []string(value.(InstanceArgs)), nil
 	case "runtime.env":
@@ -1042,7 +1041,7 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 		case "metro":
 			metro = string(field.Create.Set.(LinkName[Metro]))
 		case "image":
-			imageURL = field.Create.Set.(types.ImageRef[reference.Named]).Reference.String()
+			imageURL = field.Create.Set.(types.ImageRef).WireURL()
 		case "pull-policy":
 			pullPolicy = field.Create.Set.(*platform.PullPolicy)
 		case "type":

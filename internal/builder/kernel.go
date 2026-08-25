@@ -12,6 +12,7 @@ import (
 	"github.com/containerd/platforms"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	imagespec "unikraft.com/x/image-spec"
+	"unikraft.com/x/image-spec/imageref"
 
 	"unikraft.com/cli/internal/images"
 )
@@ -26,7 +27,7 @@ func BuildKernel(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error
 	if err != nil {
 		return nil, fmt.Errorf("parsing runtime reference: %w", err)
 	}
-	if runtime.Scheme != imagespec.URISchemeOCI {
+	if runtime.Scheme != imageref.SchemeOCI {
 		return nil, fmt.Errorf("unsupported runtime reference scheme: %s", runtime.Scheme)
 	}
 

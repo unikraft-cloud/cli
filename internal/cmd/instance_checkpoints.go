@@ -13,7 +13,6 @@ import (
 	"io"
 
 	"github.com/alecthomas/kong"
-	"github.com/distribution/reference"
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
@@ -83,8 +82,8 @@ type InstanceCheckpoint struct {
 	Tags       []string `mirror:"instance.tags" field:",long" edit:"set,add,del"`
 	DeleteLock bool     `mirror:"instance.delete_lock" field:"delete-lock,hidden" edit:"set"`
 
-	State types.InstanceState             `mirror:"instance.state" field:",short"`
-	Image types.ImageRef[reference.Named] `mirror:"instance.image" field:",short"`
+	State types.InstanceState `mirror:"instance.state" field:",short"`
+	Image types.ImageRef      `mirror:"instance.image" field:",short"`
 
 	Runtime struct {
 		Args InstanceArgs      `mirror:"instance.args" field:",short"`

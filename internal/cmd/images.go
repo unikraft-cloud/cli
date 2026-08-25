@@ -15,7 +15,7 @@ import (
 
 	"github.com/containerd/errdefs"
 	"github.com/containerd/platforms"
-	"github.com/distribution/reference"
+	ociref "github.com/distribution/reference"
 	"github.com/opencontainers/go-digest"
 	"unikraft.com/cloud/sdk/controlplane"
 	"unikraft.com/cloud/sdk/platform"
@@ -25,6 +25,7 @@ import (
 	"unikraft.com/x/log"
 
 	imagespec "unikraft.com/x/image-spec"
+	"unikraft.com/x/image-spec/imageref"
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/images"
@@ -32,7 +33,6 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
-	xreference "unikraft.com/cli/internal/x/reference"
 )
 
 type ImagesCmd struct {
@@ -46,8 +46,8 @@ type ImagesCmd struct {
 }
 
 type Image struct {
-	Ref    types.ImageRef[reference.Named] `field:",short"`
-	Digest digest.Digest                   `field:",long"`
+	Ref    types.ImageRef `field:",short"`
+	Digest digest.Digest  `field:",long"`
 
 	Config   ImageConfig   `field:",embed"`
 	Metadata ImageMetadata `field:",long,embed"`
@@ -89,7 +89,7 @@ func (Image) Type() resource.Type {
 }
 
 func (i Image) Key() resource.Key {
-	return staticKey(i.Ref.Reference.String())
+	return staticKey(i.Ref.WireURL())
 }
 
 func (i Image) Raw() any {
@@ -169,9 +169,7 @@ func (Image) Get(ctx context.Context, keys []string) ([]resource.Resource, error
 
 				meta := img.Metadata()
 				resource := Image{
-					Ref: types.ImageRef[reference.Named]{
-						Reference: img.Name,
-					},
+					Ref:    types.NewImageRef(img.Name),
 					Digest: img.Descriptor.Digest,
 					Config: ImageConfig{
 						Cmd:      config.Config.Cmd,
@@ -251,12 +249,12 @@ func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
 }
 
 type ImageEntry struct {
-	Ref    types.ImageRef[reference.Named] `field:",short"`
-	Digest digest.Digest                   `field:",short"`
+	Ref    types.ImageRef `field:",short"`
+	Digest digest.Digest  `field:",short"`
 
 	Namespace string
 
-	Canonical reference.Canonical `field:"-"`
+	Canonical ociref.Canonical `field:"-"`
 
 	controlplaneImage *controlplane.Image
 	platformImage     *platform.Image
@@ -270,7 +268,7 @@ func (ImageEntry) Type() resource.Type {
 }
 
 func (i ImageEntry) Key() resource.Key {
-	return staticKey(i.Ref.Reference.String())
+	return staticKey(i.Ref.WireURL())
 }
 
 func (i ImageEntry) Raw() any {
@@ -310,16 +308,28 @@ func (ImageEntry) List(ctx context.Context) ([]resource.Resource, error) {
 		if err != nil {
 			return err
 		}
-		if resp.Data != nil {
-			for _, image := range resp.Data.Images {
-				entries, err := ImageEntry{}.loadFromControlplane(image)
-				if err != nil {
-					return err
-				}
-				for _, entry := range entries {
-					controlplaneResults = append(controlplaneResults, entry)
-				}
+		if resp.Data == nil {
+			return nil
+		}
+
+		var errs []error
+		for _, image := range resp.Data.Images {
+			entries, err := ImageEntry{}.loadFromControlplane(image)
+			if err != nil {
+				errs = append(errs, err)
+				continue
 			}
+			for _, entry := range entries {
+				controlplaneResults = append(controlplaneResults, entry)
+			}
+		}
+		// An image the CLI cannot interpret is warned about and skipped rather
+		// than taking the whole listing down with it.
+		if len(errs) > 0 && len(errs) == len(resp.Data.Images) {
+			return errors.Join(errs...)
+		}
+		for _, err := range errs {
+			log.G(ctx).Warn().Err(err).Msg("skipping image")
 		}
 		return nil
 	})
@@ -332,13 +342,14 @@ func (ImageEntry) List(ctx context.Context) ([]resource.Resource, error) {
 		return nil, err
 	}
 
+	// Deduplicate on the wire identity rather than the reference.
 	seen := make(map[string]struct{}, len(controlplaneResults))
 	for _, r := range controlplaneResults {
-		seen[r.(ImageEntry).Ref.Reference.String()] = struct{}{}
+		seen[r.(ImageEntry).Ref.WireURL()] = struct{}{}
 	}
 	results := controlplaneResults
 	for _, r := range platformResults {
-		ref := r.(ImageEntry).Ref.Reference.String()
+		ref := r.(ImageEntry).Ref.WireURL()
 		if _, ok := seen[ref]; ok {
 			continue
 		}
@@ -391,19 +402,42 @@ func listPlatformImages(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
+// imageKey addresses an image being looked up.
+type imageKey struct {
+	ref imageref.Reference
+}
+
+// String returns the identifier the caller addressed the image by.
+func (k imageKey) String() string {
+	return k.ref.String()
+}
+
+// matches reports whether entry is the image k addresses.
+func (k imageKey) matches(entry ImageEntry) bool {
+	subject := entry.Ref.Reference()
+	// A key naming a digest only matches the digest form, so prefer it where
+	// there is one.
+	if entry.Canonical != nil && !subject.Scheme().IsHTTP() {
+		if canonical, err := imageref.FromNamed(entry.Canonical); err == nil {
+			subject = canonical
+		}
+	}
+	return subject.Matches(k.ref)
+}
+
 func (ImageEntry) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
 	client, err := multimetro.NewControlClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	normalizedKeys := make([]string, 0, len(keys))
+	normalizedKeys := make([]imageKey, 0, len(keys))
 	for _, key := range keys {
-		named, err := images.ParseNormalizedNamed(key)
+		parsed, err := images.ParseRef(key)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse image key %q: %w", key, err)
 		}
-		normalizedKeys = append(normalizedKeys, named.String())
+		normalizedKeys = append(normalizedKeys, imageKey{ref: parsed})
 	}
 
 	log.G(ctx).Trace().Msg("getting images")
@@ -423,16 +457,12 @@ func (ImageEntry) Get(ctx context.Context, keys []string) ([]resource.Resource, 
 				continue
 			}
 			for _, key := range normalizedKeys {
-				if _, ok := found[key]; ok {
+				if _, ok := found[key.String()]; ok {
 					continue
 				}
 				for _, entry := range entries {
-					matchRef := reference.Named(entry.Ref.Reference)
-					if entry.Canonical != nil {
-						matchRef = entry.Canonical
-					}
-					if xreference.MatchNamed(matchRef, key) {
-						found[key] = struct{}{}
+					if key.matches(entry) {
+						found[key.String()] = struct{}{}
 						results = append(results, entry)
 						break
 					}
@@ -448,15 +478,11 @@ func (ImageEntry) Get(ctx context.Context, keys []string) ([]resource.Resource, 
 	for _, r := range platformResults {
 		entry := r.(ImageEntry)
 		for _, key := range normalizedKeys {
-			if _, ok := found[key]; ok {
+			if _, ok := found[key.String()]; ok {
 				continue
 			}
-			matchRef := reference.Named(entry.Ref.Reference)
-			if entry.Canonical != nil {
-				matchRef = entry.Canonical
-			}
-			if xreference.MatchNamed(matchRef, key) {
-				found[key] = struct{}{}
+			if key.matches(entry) {
+				found[key.String()] = struct{}{}
 				results = append(results, r)
 				break
 			}
@@ -465,10 +491,10 @@ func (ImageEntry) Get(ctx context.Context, keys []string) ([]resource.Resource, 
 
 	missing := make(group.Refs, 0, len(normalizedKeys))
 	for _, key := range normalizedKeys {
-		if _, ok := found[key]; ok {
+		if _, ok := found[key.String()]; ok {
 			continue
 		}
-		missing = append(missing, group.Ref{Name: key})
+		missing = append(missing, group.Ref{Name: key.String()})
 	}
 	var missingErr error
 	if len(missing) > 0 {
@@ -482,21 +508,30 @@ func (ImageEntry) loadFromControlplane(image controlplane.Image) ([]ImageEntry, 
 	if name == "" {
 		return nil, fmt.Errorf("image has no name")
 	}
-	base, err := images.ParseNormalizedNamed(name)
+	parsed, err := images.ParseRef(name)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse image name %q: %w", name, err)
 	}
+	if parsed.Scheme().IsHTTP() {
+		// A layout served over HTTP is addressed by its URI alone.
+		return []ImageEntry{{
+			controlplaneImage: &image,
+			Digest:            parsed.Digest(),
+			Ref:               types.NewImageRefFrom(parsed),
+		}}, nil
+	}
+	base := parsed.Named()
 	var baseDigest digest.Digest
-	if d, ok := base.(reference.Digested); ok {
+	if d, ok := base.(ociref.Digested); ok {
 		baseDigest = d.Digest()
 	}
-	base = reference.TrimNamed(base)
+	base = ociref.TrimNamed(base)
 
 	if len(image.Tags) == 0 {
 		return nil, nil
 	}
 
-	tagged := make([]reference.NamedTagged, 0, len(image.Tags))
+	tagged := make([]ociref.NamedTagged, 0, len(image.Tags))
 	tagDigests := make(map[string]digest.Digest, len(image.Tags))
 	for _, tag := range image.Tags {
 		tagName := strings.TrimSpace(tag.Name)
@@ -504,18 +539,18 @@ func (ImageEntry) loadFromControlplane(image controlplane.Image) ([]ImageEntry, 
 			continue
 		}
 
-		var taggedRef reference.NamedTagged
+		var taggedRef ociref.NamedTagged
 		if strings.Contains(tagName, "/") || strings.Contains(tagName, ":") {
-			parsed, err := images.ParseNormalizedNamed(tagName)
+			named, err := images.ParseName(tagName)
 			if err == nil {
-				parsed = reference.TagNameOnly(parsed)
-				if parsedTagged, ok := parsed.(reference.NamedTagged); ok {
+				named = ociref.TagNameOnly(named)
+				if parsedTagged, ok := named.(ociref.NamedTagged); ok {
 					taggedRef = parsedTagged
 				}
 			}
 		}
 		if taggedRef == nil {
-			ref, err := reference.WithTag(base, tagName)
+			ref, err := ociref.WithTag(base, tagName)
 			if err != nil {
 				return nil, fmt.Errorf("could not parse image tag %q: %w", tagName, err)
 			}
@@ -538,7 +573,7 @@ func (ImageEntry) loadFromControlplane(image controlplane.Image) ([]ImageEntry, 
 	}
 
 	// Move latest to front if present.
-	if idx := slices.IndexFunc(tagged, func(t reference.NamedTagged) bool {
+	if idx := slices.IndexFunc(tagged, func(t ociref.NamedTagged) bool {
 		return t.Tag() == "latest"
 	}); idx > 0 {
 		latest := tagged[idx]
@@ -561,14 +596,14 @@ func (ImageEntry) loadFromControlplane(image controlplane.Image) ([]ImageEntry, 
 			Digest:            tagDigest,
 		}
 		if tagDigest != "" {
-			canonical, err := reference.WithDigest(tag, tagDigest)
+			canonical, err := ociref.WithDigest(tag, tagDigest)
 			if err != nil {
 				return nil, fmt.Errorf("could not create image canonical reference: %w", err)
 			}
 			result.Canonical = canonical
 		}
-		result.Ref.Reference = tag
-		if ns, _, ok := strings.Cut(reference.Path(tag), "/"); ok {
+		result.Ref = types.NewImageRef(tag)
+		if ns, _, ok := strings.Cut(ociref.Path(tag), "/"); ok {
 			result.Namespace = ns
 		}
 		results = append(results, result)
@@ -581,22 +616,27 @@ func (ImageEntry) loadFromPlatform(image platform.Image, metro *config.Metro) ([
 	if url == "" {
 		return nil, fmt.Errorf("platform image has no url")
 	}
-	parsed, err := images.ParseNormalizedNamedMetro(metro, url)
+	parsedRef, err := images.ParseRefMetro(metro, url)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse platform image url %q: %w", url, err)
 	}
+	baseDigest := parsedRef.Digest()
 
-	var baseDigest digest.Digest
-	if d, ok := parsed.(reference.Digested); ok {
-		baseDigest = d.Digest()
+	if parsedRef.Scheme().IsHTTP() {
+		// A layout served over HTTP is addressed by its URI alone.
+		return []ImageEntry{{
+			platformImage: &image,
+			Digest:        baseDigest,
+			Ref:           types.NewImageRefFrom(parsedRef),
+		}}, nil
 	}
 
-	base, err := reference.ParseNamed(metro.Index().Host + "/" + reference.Path(parsed))
-	if err != nil {
-		return nil, fmt.Errorf("could not construct platform image ref: %w", err)
-	}
+	// ParseRefMetro has already supplied the metro's index as the default domain
+	// for a name that carried none, and canonicalized that index onto the
+	// default registry so this listing agrees with the controlplane one.
+	base := ociref.TrimNamed(parsedRef.Named())
 
-	var tagged []reference.NamedTagged
+	var tagged []ociref.NamedTagged
 	for _, tag := range image.Tags {
 		if strings.HasPrefix(tag, "sha256:") {
 			// Digest entry, not a tag.
@@ -617,7 +657,7 @@ func (ImageEntry) loadFromPlatform(image platform.Image, metro *config.Metro) ([
 		if tagVal == "" {
 			continue
 		}
-		ref, err := reference.WithTag(base, tagVal)
+		ref, err := ociref.WithTag(base, tagVal)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse platform image tag %q: %w", tag, err)
 		}
@@ -625,7 +665,7 @@ func (ImageEntry) loadFromPlatform(image platform.Image, metro *config.Metro) ([
 	}
 
 	// Move latest to front if present.
-	if idx := slices.IndexFunc(tagged, func(t reference.NamedTagged) bool {
+	if idx := slices.IndexFunc(tagged, func(t ociref.NamedTagged) bool {
 		return t.Tag() == "latest"
 	}); idx > 0 {
 		latest := tagged[idx]
@@ -644,14 +684,14 @@ func (ImageEntry) loadFromPlatform(image platform.Image, metro *config.Metro) ([
 			Digest:        baseDigest,
 		}
 		if baseDigest != "" {
-			canonical, err := reference.WithDigest(tag, baseDigest)
+			canonical, err := ociref.WithDigest(tag, baseDigest)
 			if err != nil {
 				return nil, fmt.Errorf("could not create image canonical reference: %w", err)
 			}
 			result.Canonical = canonical
 		}
-		result.Ref.Reference = tag
-		if ns, _, ok := strings.Cut(reference.Path(tag), "/"); ok {
+		result.Ref = types.NewImageRef(tag)
+		if ns, _, ok := strings.Cut(ociref.Path(tag), "/"); ok {
 			result.Namespace = ns
 		}
 		results = append(results, result)
@@ -767,7 +807,7 @@ func (cmd ImagesCopyCmd) Run(ctx context.Context, sandbox *resource.Sandbox) err
 		return fmt.Errorf("saving image to destination: %w", err)
 	}
 
-	if sandbox != nil && dest.Scheme == imagespec.URISchemeOCI {
+	if sandbox != nil && dest.Scheme == imageref.SchemeOCI {
 		if err := addImageToSandbox(ctx, sandbox, dest.Path); err != nil {
 			return fmt.Errorf("adding copied image to sandbox: %w", err)
 		}
@@ -789,14 +829,12 @@ func (c *ImagesListCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *re
 // addImageToSandbox registers an image reference with the sandbox so it gets
 // cleaned up during teardown.
 func addImageToSandbox(ctx context.Context, sandbox *resource.Sandbox, ref string) error {
-	named, err := images.ParseNormalizedNamed(ref)
+	named, err := images.ParseName(ref)
 	if err != nil {
 		return fmt.Errorf("parsing image reference %q: %w", ref, err)
 	}
 	img := &Image{
-		Ref: types.ImageRef[reference.Named]{
-			Reference: named,
-		},
+		Ref: types.NewImageRef(named),
 	}
 	return sandbox.Add(ctx, img)
 }

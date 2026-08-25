@@ -10,11 +10,11 @@ import (
 	"fmt"
 
 	"github.com/containerd/containerd/v2/core/remotes/docker"
-	"github.com/distribution/reference"
+	ociref "github.com/distribution/reference"
 	imagespec "unikraft.com/x/image-spec"
+	"unikraft.com/x/image-spec/imageref"
 
 	"unikraft.com/cli/internal/config"
-	xreference "unikraft.com/cli/internal/x/reference"
 )
 
 const DefaultRegistry = "unikraft.io"
@@ -56,7 +56,7 @@ func Accessor(ctx context.Context, opts ...AccessorOpt) (*imagespec.Accessor, er
 		imagespec.WithResolver(resolver),
 		imagespec.WithRegistryHosts(options.Hosts),
 		imagespec.WithRegistryHeaders(options.Headers),
-		imagespec.WithReferenceParser(ParseNormalizedNamed),
+		imagespec.WithReferenceParser(ParseName),
 	), nil
 }
 
@@ -80,33 +80,96 @@ func WithInsecureRegistries() AccessorOpt {
 	}
 }
 
-func ParseNormalizedNamed(key string) (reference.Named, error) {
-	return ParseNormalizedNamedMetro(nil, key)
+// officialPrefix is the namespace Unikraft's registry serves its own images
+// from.
+const officialPrefix = "official/"
+
+// Policy is what an image identifier is allowed to leave implicit: the registry
+// it lives in and the namespace within it.
+type Policy struct {
+	// Domain is the registry an identifier without one names.
+	Domain string
+
+	// Prefix is the namespace a single-segment repository on Domain names.
+	Prefix string
 }
 
-func ParseNormalizedNamedMetro(metro *config.Metro, key string) (reference.Named, error) {
-	if uri, err := imagespec.ParseURI(key); err == nil {
-		if uri.Scheme != imagespec.URISchemeOCI {
-			return nil, fmt.Errorf("%w: invalid scheme %q", reference.ErrReferenceInvalidFormat, uri.Scheme)
-		}
-		key = uri.Path
-	}
-
-	index := DefaultRegistry
+// PolicyFor returns the policy for identifiers exchanged with metro, or the
+// default registry's policy when there is no metro in scope.
+func PolicyFor(metro *config.Metro) Policy {
+	domain := DefaultRegistry
 	if metro != nil {
-		index = metro.Index().Host
+		domain = metro.Index().Host
 	}
-	return xreference.ParseNormalizedNamed(
-		key,
-		xreference.WithDefaultDomain(index),
-		xreference.WithDefaultPrefix("official/"),
-	)
+	return Policy{Domain: domain, Prefix: officialPrefix}
 }
 
-func FamiliarString(ref reference.Reference) string {
-	return xreference.FamiliarString(
-		ref,
-		xreference.WithDefaultDomain(DefaultRegistry),
-		xreference.WithDefaultPrefix("official/"),
+// Parse parses an image identifier supplied by the user or returned by the API.
+func (p Policy) Parse(key string) (imageref.Reference, error) {
+	ref, err := imageref.Parse(key,
+		imageref.WithDefaultDomain(p.Domain),
+		imageref.WithDefaultPrefix(p.Prefix),
 	)
+	if err != nil {
+		return imageref.Reference{}, err
+	}
+	return p.canonical(ref)
+}
+
+// canonical returns ref on the canonical spelling of its registry, so that the
+// same image reached through a metro's index and through the default registry
+// deduplicates to one entry rather than being listed twice.
+func (p Policy) canonical(ref imageref.Reference) (imageref.Reference, error) {
+	if p.Domain == DefaultRegistry || ref.Scheme() != imageref.SchemeOCI || ref.Domain() != p.Domain {
+		return ref, nil
+	}
+	return ref.WithDomain(DefaultRegistry)
+}
+
+// Format renders ref the way the CLI displays an image: an HTTP-served layout
+// by the URI it is fetched from, and a registry image in its familiar short
+// form.
+func (p Policy) Format(ref imageref.Reference, short bool) string {
+	// Parse canonicalizes p.Domain onto DefaultRegistry, so eliding
+	// DefaultRegistry here - not p.Domain.
+	return ref.WithoutDefaultTag().Format(imageref.FormatOpts{
+		OmitDigest:    short,
+		DefaultDomain: DefaultRegistry,
+		DefaultPrefix: p.Prefix,
+	})
+}
+
+// ParseRef parses an image identifier without metro context.
+func ParseRef(key string) (imageref.Reference, error) {
+	return PolicyFor(nil).Parse(key)
+}
+
+// ParseRefMetro parses an image identifier exchanged with metro, applying its
+// index as the default registry domain.
+func ParseRefMetro(metro *config.Metro, key string) (imageref.Reference, error) {
+	return PolicyFor(metro).Parse(key)
+}
+
+// ParseName parses an image identifier and returns just the OCI name it
+// decomposes to.
+func ParseName(key string) (ociref.Named, error) {
+	ref, err := ParseRef(key)
+	if err != nil {
+		return nil, err
+	}
+	named := ref.Named()
+	if named == nil {
+		return nil, fmt.Errorf("image %q is served over %s, so it has no registry name", key, ref.Scheme())
+	}
+	return named, nil
+}
+
+// Format renders ref for display, against the default registry's policy.
+func Format(ref imageref.Reference) string {
+	return PolicyFor(nil).Format(ref, false)
+}
+
+// FormatShort renders ref for concise display, eliding the digest.
+func FormatShort(ref imageref.Reference) string {
+	return PolicyFor(nil).Format(ref, true)
 }

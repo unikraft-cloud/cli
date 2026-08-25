@@ -17,6 +17,7 @@ import (
 	"unikraft.com/cli/internal/images"
 	"unikraft.com/cli/internal/resource"
 	imagespec "unikraft.com/x/image-spec"
+	"unikraft.com/x/image-spec/imageref"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/kraftfile"
 	"unikraft.com/x/log"
@@ -166,7 +167,7 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, sandbox *re
 		return err
 	}
 
-	if sandbox != nil && output.Scheme == imagespec.URISchemeOCI {
+	if sandbox != nil && output.Scheme == imageref.SchemeOCI {
 		if err := addImageToSandbox(ctx, sandbox, output.Path); err != nil {
 			return fmt.Errorf("adding built image to sandbox: %w", err)
 		}
