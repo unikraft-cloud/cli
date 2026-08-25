@@ -34,6 +34,8 @@ annotations:
   env:              production
   example.com/team: platform
 delete-lock:        true
+autokill:
+  time:             0s
 state:              checkpoint
 image:              nginx
 type:               micro
@@ -120,6 +122,23 @@ fra    my-checkpoint  checkpoint  nginx  ["arg1", "arg2"]  256MiB  2      never
     "verbosity": "long",
     "edit": {
       "set": true
+    }
+  },
+  {
+    "name": "autokill",
+    "subfields": [
+      {
+        "name": "time",
+        "value": "0s",
+        "verbosity": "long"
+      }
+    ],
+    "verbosity": "long",
+    "create": {
+      "set": {}
+    },
+    "edit": {
+      "set": {}
     }
   },
   {

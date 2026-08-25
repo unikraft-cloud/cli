@@ -1665,6 +1665,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1720,6 +1721,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1783,6 +1785,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1848,6 +1851,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1915,6 +1919,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1964,6 +1969,12 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
+Create flags:
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time without a restore before the checkpoint is deleted.
+          [example: time=24h]
+
 $ unikraft instance checkpoint edit --help
 
 Edit an instance checkpoint.
@@ -1986,6 +1997,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -2045,6 +2057,10 @@ Edit flags:
           [example: env-dev]
       --delete-lock
           Prevent deletion of the checkpoint.
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time without a restore before the checkpoint is deleted.
+          [example: time=24h]
 
 $ unikraft instance checkpoint delete --help
 
@@ -2068,6 +2084,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
