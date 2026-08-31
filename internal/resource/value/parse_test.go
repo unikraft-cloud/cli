@@ -25,6 +25,96 @@ type testStructCollections struct {
 	Env    map[string]string `name:"env"`
 }
 
+type testStructJSON struct {
+	Name   string `name:"name"`
+	Config string `name:"config"`
+}
+
+func TestSplitTopLevel(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    []string
+		wantErr string
+	}{
+		{name: "plain", in: "a=1,b=2", want: []string{"a=1", "b=2"}},
+		{name: "object", in: `a=1,b={"x":2}`, want: []string{"a=1", `b={"x":2}`}},
+		{name: "array", in: "a=1,b=[1,2,3]", want: []string{"a=1", "b=[1,2,3]"}},
+		{name: "nested", in: `a={"x":{"y":[1,2]}},b=2`, want: []string{`a={"x":{"y":[1,2]}}`, "b=2"}},
+		{name: "comma inside string", in: `a={"x":"y,z"},b=2`, want: []string{`a={"x":"y,z"}`, "b=2"}},
+		{name: "brace inside string", in: `a={"x":"}"},b=2`, want: []string{`a={"x":"}"}`, "b=2"}},
+		{name: "escaped quote inside string", in: `a={"x":"y\",z"},b=2`, want: []string{`a={"x":"y\",z"}`, "b=2"}},
+		{name: "trailing comma drops empty tail", in: "a=1,", want: []string{"a=1"}},
+		{name: "unmatched closer still splits", in: "a=1,b=x],c=3", want: []string{"a=1", "b=x]", "c=3"}},
+		{name: "invalid utf-8 passes through", in: "a=\xff\xfe,b=2", want: []string{"a=\xff\xfe", "b=2"}},
+		{name: "quote mid-value stays literal", in: `image=my"img,at=/rom0,name=r`, want: []string{`image=my"img`, "at=/rom0", "name=r"}},
+		{name: "brace mid-value stays literal", in: "name=a{b,rom=c}d", want: []string{"name=a{b", "rom=c}d"}},
+		{name: "bracket mid-value stays literal", in: "image=a[b,at=/x]c", want: []string{"image=a[b", "at=/x]c"}},
+		{name: "spaces are not trimmed around the separator", in: "a= 1 ,b=2", want: []string{"a= 1 ", "b=2"}},
+		{name: "empty", in: "", want: nil},
+
+		{name: "unmatched opener", in: "a=1,b={,c=3", wantErr: `missing "}"`},
+		{name: "unterminated quote at value start", in: `config="oops,name=x`, wantErr: "unterminated quote"},
+		{name: "mismatched pair", in: `a={"x":1],b=2`, wantErr: `missing "}"`},
+		{name: "mismatched pair the other way", in: "a=[1},b=2", wantErr: `missing "]"`},
+		{name: "wrong closer", in: `a={"x":[1}},b=2`, wantErr: `missing "]"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := splitTopLevel(tt.in)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestParseStructJSONValue(t *testing.T) {
+	t.Run("object config", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`name=logger,config={"level":"debug"}`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: `{"level":"debug"}`}, got)
+	})
+
+	t.Run("config keeps its own commas", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`name=logger,config={"a":1,"b":[2,3]}`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: `{"a":1,"b":[2,3]}`}, got)
+	})
+
+	t.Run("config keeps commas inside strings", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`config={"msg":"a,b"},name=logger`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: `{"msg":"a,b"}`}, got)
+	})
+
+	t.Run("array config", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`name=logger,config=[1,2]`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: "[1,2]"}, got)
+	})
+
+	t.Run("scalar config", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`name=logger,config=5`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: "5"}, got)
+	})
+
+	t.Run("a stray closer does not glue later fields together", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{"config=x],name=logger"})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: "x]"}, got)
+	})
+
+	t.Run("a truncated config is reported, not split mid-value", func(t *testing.T) {
+		_, err := Parse[testStructJSON]([]string{`name=logger,config={"level":"debug"`})
+		require.ErrorContains(t, err, `missing "}"`)
+	})
+}
+
 func TestParseStandalone(t *testing.T) {
 	t.Run("string", func(t *testing.T) {
 		got, err := Parse[string]([]string{"hello"})

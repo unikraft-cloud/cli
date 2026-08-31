@@ -53,6 +53,8 @@ cmd: ["python3", "/app/server.py"]
 // instance stays running while the test reads the output of the boot.
 const followArgs = `runtime.args=["sh","-c","n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; sleep 30s"]`
 
+const sandboxPluginRom = "plugins/sandbox:staging"
+
 // tunnelProxyUUIDs queries the platform directly (bypassing the CLI's
 // resource sandbox, which never tracks the tunnel command's internal proxy
 // instance since it's created via the raw platform client rather than
@@ -702,6 +704,145 @@ func TestInstances(t *testing.T) {
 		assert.NotRegexp(t, `roms:`, out)
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("plugin-create", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+		instName := uniq()
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+			"--plugin", "name=sandbox,rom=" + sandboxPluginRom,
+		})
+		assert.Regexp(t, `name:\s+sandbox`, out)
+		assert.Regexp(t, `rom:\s+\S*plugins/sandbox`, out)
+
+		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.Regexp(t, `name:\s+sandbox`, out)
+		assert.Regexp(t, `rom:\s+\S*plugins/sandbox`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("plugin-config", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+		instName := uniq()
+		const config = `{"level":"debug","tags":["a","b"],"msg":"p,q"}`
+
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+			"--plugin", `name=sandbox,rom=` + sandboxPluginRom + `,config=` + config,
+		})
+
+		out := r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName, "--output", "json"})
+		var instances []struct {
+			Plugins []struct {
+				Name   string          `json:"name"`
+				Rom    string          `json:"rom"`
+				Config json.RawMessage `json:"config"`
+			} `json:"plugins"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out), &instances))
+		require.Len(t, instances, 1)
+		require.Len(t, instances[0].Plugins, 1)
+		assert.Equal(t, "sandbox", instances[0].Plugins[0].Name)
+		assert.Contains(t, instances[0].Plugins[0].Rom, "plugins/sandbox")
+		assert.JSONEq(t, config, string(instances[0].Plugins[0].Config))
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("plugin-edit", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+		instName := uniq()
+
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		})
+
+		r.Run(t, []string{
+			"unikraft", "instance", "edit", "test-" + instName,
+			"--output", "quiet",
+			"--plugin", "name=first,rom=" + sandboxPluginRom,
+		})
+		out := r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.Regexp(t, `name:\s+first`, out)
+
+		r.Run(t, []string{
+			"unikraft", "instance", "edit", "test-" + instName,
+			"--output", "quiet",
+			"--add", "plugins=name=second,rom=" + sandboxPluginRom,
+		})
+		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.Regexp(t, `name:\s+first`, out)
+		assert.Regexp(t, `name:\s+second`, out)
+
+		r.Run(t, []string{
+			"unikraft", "instance", "edit", "test-" + instName,
+			"--output", "quiet",
+			"--del", "plugins=first",
+		})
+		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.NotRegexp(t, `name:\s+first`, out)
+		assert.Regexp(t, `name:\s+second`, out)
+
+		r.Run(t, []string{
+			"unikraft", "instance", "edit", "test-" + instName,
+			"--output", "quiet",
+			"--plugin", "name=only,rom=" + sandboxPluginRom,
+		})
+		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.Regexp(t, `name:\s+only`, out)
+		assert.NotRegexp(t, `name:\s+second`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("plugin-invalid", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			plugin string
+			want   string
+		}{
+			{"missing-name", "rom=" + sandboxPluginRom, "must specify name= for a plugin"},
+			{"missing-rom", "name=sandbox", `must specify rom= for plugin "sandbox"`},
+			{"config-only", `config={"level":"debug"}`, "must specify name= for a plugin"},
+			{"invalid-json", "name=sandbox,rom=" + sandboxPluginRom + ",config={oops}", "config is not valid JSON"},
+			{"truncated-json", `name=sandbox,rom=` + sandboxPluginRom + `,config={"level":"debug"`, `missing "}"`},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				r := runner(t, false, []string{staging, stable})
+				out := r.Run(t, []string{
+					"unikraft", "instance", "create",
+					"--set", "name=test-plugin-invalid",
+					"--set", "metro=fra",
+					"--set", "image=nginx:latest",
+					"--plugin", tt.plugin,
+				}, integ.ExpectFail())
+				assert.Contains(t, out, tt.want)
+			})
+		}
 	})
 
 	t.Run("volume-add", func(t *testing.T) {

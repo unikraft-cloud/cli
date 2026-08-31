@@ -26,6 +26,7 @@ import (
 	"github.com/distribution/reference"
 	"github.com/go-json-experiment/json/jsontext"
 	"mvdan.cc/sh/v3/shell"
+
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/cloud/sdk/platform/logs"
@@ -93,6 +94,8 @@ type InstanceCreateCmd struct {
 	Volume []InstanceVolume `group:"flag-create" shortcut:"volumes" short:"v" sep:"none" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
 	Rom    []InstanceRom    `group:"flag-create" shortcut:"roms" sep:"none" help:"Attach ROM." placeholder:"image=<ref>,at=<path>" example:"image=myuser/my-rom:latest\\,at=/rom0\\,name=my-rom,dir=./mydata\\,at=/rom"`
 
+	Plugin []InstancePlugin `group:"flag-create" shortcut:"plugins" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>[,config=<json>]" example:"name=sandbox\\,rom=plugins/sandbox:latest,name=logger\\,rom=plugins/logger:latest\\,config={\"level\":\"debug\"}"`
+
 	Service InstanceService `group:"flag-create" shortcut:"service" help:"Service group name or key." placeholder:"name"`
 	Publish []Service       `group:"flag-create" shortcut:"service.services" short:"p" sep:"none" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
 	Domain  []Domain        `group:"flag-create" shortcut:"service.domains" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
@@ -150,6 +153,8 @@ type InstanceEditCmd struct {
 
 	Rom []InstanceRom `group:"flag-edit" shortcut:"roms" sep:"none" help:"Attach ROM." placeholder:"image=<ref>,at=<path>" example:"image=myuser/my-rom:latest\\,at=/rom0\\,name=my-rom,dir=./mydata\\,at=/rom"`
 
+	Plugin []InstancePlugin `group:"flag-edit" shortcut:"plugins" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>[,config=<json>]" example:"name=sandbox\\,rom=plugins/sandbox:latest,name=logger\\,rom=plugins/logger:latest\\,config={\"level\":\"debug\"}"`
+
 	Tag        []string `group:"flag-edit" shortcut:"tags" sep:"none" help:"Instance tag." placeholder:"tag" example:"env-prod"`
 	Annotation []string `group:"flag-edit" shortcut:"annotations" sep:"none" help:"Instance annotation." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
 
@@ -193,6 +198,7 @@ type Instance struct {
 	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set"`
 	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings"`
 	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings"`
+	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings"`
 
 	Networks []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
 	Gpus     []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
@@ -450,6 +456,90 @@ func (r *InstanceRom) UnmarshalJSON(data []byte) error {
 	}
 	type romJSON InstanceRom // alias to avoid recursion
 	return json.Unmarshal(data, (*romJSON)(r))
+}
+
+// PluginConfig is a plugin's arbitrary JSON configuration, carried as raw JSON
+type PluginConfig string
+
+func (c PluginConfig) Validate() error {
+	if c == "" || json.Valid([]byte(c)) {
+		return nil
+	}
+	return fmt.Errorf("config is not valid JSON: %s", string(c))
+}
+
+func (c *PluginConfig) UnmarshalJSON(data []byte) error {
+	v := PluginConfig(data)
+	if len(data) != 0 && data[0] == '"' {
+		var text string
+		if err := json.Unmarshal(data, &text); err != nil {
+			return err
+		}
+		v = PluginConfig(text)
+	}
+	if err := v.Validate(); err != nil {
+		return err
+	}
+	*c = v
+	return nil
+}
+
+func (c PluginConfig) MarshalJSON() ([]byte, error) {
+	if c == "" {
+		return []byte("null"), nil
+	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	return []byte(c), nil
+}
+
+// InstancePlugin represents a plugin loaded into an instance.
+// Parsed via value.Parse as comma-separated key=value pairs:
+//
+//	name=<name>,rom=<ref>[,config=<json>]
+type InstancePlugin struct {
+	Name   string       `name:"name" mirror:"name" json:"name" field:",long"`
+	Rom    string       `name:"rom" mirror:"image" json:"rom" field:",long"`
+	Config PluginConfig `name:"config" mirror:"config" json:"config,omitempty" field:",long"`
+}
+
+func (p InstancePlugin) Validate() error {
+	if p.Name == "" {
+		return fmt.Errorf("must specify name= for a plugin")
+	}
+	if p.Rom == "" {
+		return fmt.Errorf("must specify rom= for plugin %q", p.Name)
+	}
+	if err := p.Config.Validate(); err != nil {
+		return fmt.Errorf("plugin %q: %w", p.Name, err)
+	}
+	return nil
+}
+
+func (p *InstancePlugin) UnmarshalText(data []byte) error {
+	type alias InstancePlugin
+	parsed, err := value.Parse[alias]([]string{string(data)})
+	if err != nil {
+		return err
+	}
+	*p = InstancePlugin(parsed)
+	return p.Validate()
+}
+
+func (p *InstancePlugin) UnmarshalJSON(data []byte) error {
+	if len(data) != 0 && data[0] == '"' {
+		var text string
+		if err := json.Unmarshal(data, &text); err != nil {
+			return err
+		}
+		return p.UnmarshalText([]byte(text))
+	}
+	type pluginJSON InstancePlugin
+	if err := json.Unmarshal(data, (*pluginJSON)(p)); err != nil {
+		return err
+	}
+	return p.Validate()
 }
 
 // inlineFilesFromDir walks a local directory and returns its contents as
@@ -1034,6 +1124,27 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 			reqRoms = append(reqRoms, reqRom)
 		}
 		return platform.MutableInstancePropertyRoms, reqRoms, nil
+	case "plugins":
+		if op == patchOpDel {
+			return platform.MutableInstancePropertyPlugins, value.([]string), nil
+		}
+		plugins := value.([]*InstancePlugin)
+		var reqPlugins []map[string]any
+		for _, plugin := range plugins {
+			if err := plugin.Validate(); err != nil {
+				return zero, nil, err
+			}
+
+			reqPlugin := map[string]any{
+				"name": plugin.Name,
+				"rom":  plugin.Rom,
+			}
+			if plugin.Config != "" {
+				reqPlugin["config"] = jsontext.Value(plugin.Config)
+			}
+			reqPlugins = append(reqPlugins, reqPlugin)
+		}
+		return platform.MutableInstancePropertyPlugins, reqPlugins, nil
 	case "delete-lock":
 		return platform.MutableInstancePropertyDeleteLock, value.(bool), nil
 	default:
@@ -1161,6 +1272,21 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 					reqRom.AdditionalProperties["at"] = jsontext.Value(atJSON)
 				}
 				req.Roms = append(req.Roms, reqRom)
+			}
+		case "plugins":
+			for _, plugin := range field.Create.Set.([]*InstancePlugin) {
+				if err := plugin.Validate(); err != nil {
+					return nil, err
+				}
+				reqPlugin := platform.CreateInstanceRequestPlugin{
+					Name: plugin.Name,
+					Rom:  platform.ImageReference(plugin.Rom),
+				}
+				if plugin.Config != "" {
+					var config any = jsontext.Value(plugin.Config)
+					reqPlugin.Config = &config
+				}
+				req.Plugins = append(req.Plugins, reqPlugin)
 			}
 		case "service":
 			svc := field.Create.Set.(*InstanceService)
@@ -1379,6 +1505,26 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --name new-instance \
 	  --metro fra \
 	  --template my-template`,
+				},
+			},
+			{
+				Description: "Create an instance with a plugin",
+				Commands: []string{
+					`unikraft instance create \
+	  --name demo-instance \
+	  --metro fra \
+	  --image nginx:latest \
+	  --plugin name=sandbox,rom=plugins/sandbox:latest`,
+				},
+			},
+			{
+				Description: "Create an instance with a configured plugin",
+				Commands: []string{
+					`unikraft instance create \
+	  --name demo-instance \
+	  --metro fra \
+	  --image nginx:latest \
+	  --plugin 'name=logger,rom=plugins/logger:latest,config={"level":"debug"}'`,
 				},
 			},
 		},

@@ -18,6 +18,76 @@ import (
 	xmaps "unikraft.com/cli/internal/x/maps"
 )
 
+// HACK: splitTopLevel splits s on commas, skipping those inside a JSON value. Only a
+// value that opens with {, [ or " immediately after its key's "=" is treated as
+// JSON, so a brace or quote appearing mid-value stays literal and the item
+// separators around it still split.
+func splitTopLevel(s string) ([]string, error) {
+	var parts []string
+	var open []byte
+	start := 0
+	valuePos := -1
+	inStr := false
+	esc := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+
+		if inStr {
+			switch {
+			case esc:
+				esc = false
+			case c == '\\':
+				esc = true
+			case c == '"':
+				inStr = false
+			}
+			continue
+		}
+
+		if len(open) > 0 {
+			switch c {
+			case '"':
+				inStr = true
+			case '{':
+				open = append(open, '}')
+			case '[':
+				open = append(open, ']')
+			case '}', ']':
+				if open[len(open)-1] == c {
+					open = open[:len(open)-1]
+				}
+			}
+			continue
+		}
+
+		switch {
+		case c == ',':
+			parts = append(parts, s[start:i])
+			start = i + 1
+			valuePos = -1
+		case c == '=' && valuePos < 0:
+			valuePos = i + 1
+		case i != valuePos:
+		case c == '{':
+			open = append(open, '}')
+		case c == '[':
+			open = append(open, ']')
+		case c == '"':
+			inStr = true
+		}
+	}
+	if inStr {
+		return nil, fmt.Errorf("unterminated quote in %q", s)
+	}
+	if len(open) > 0 {
+		return nil, fmt.Errorf("missing %q in %q", string(open[len(open)-1]), s)
+	}
+	if start < len(s) {
+		parts = append(parts, s[start:])
+	}
+	return parts, nil
+}
+
 func Parse[T any](input []string) (T, error) {
 	var t T
 	output, err := ParseNew(input, t)
@@ -187,8 +257,12 @@ func parseReflect(input []string, value reflect.Value) error {
 
 		notFound := make(map[string]struct{})
 		for _, input := range input {
+			items, err := splitTopLevel(input)
+			if err != nil {
+				return err
+			}
 		process:
-			for item := range strings.SplitSeq(input, ",") {
+			for _, item := range items {
 				item = strings.TrimSpace(item)
 				if item == "" {
 					continue
