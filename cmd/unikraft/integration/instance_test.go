@@ -27,7 +27,27 @@ import (
 )
 
 //go:embed testdata/counter_server.py
-var counterServerPy []byte
+var counterServerPy string
+
+// sharedCounter serves a counter over HTTP. GET /count reads the count and
+// POST /increment changes it; COUNTER_FILE selects the file that holds it.
+var sharedCounter = &integ.SharedImage{
+	Image: integ.Image{
+		Name: "counter-e2e",
+		Files: map[string]string{
+			"Dockerfile": "FROM python:3.12-slim\nCOPY server.py /app/server.py\n",
+			"server.py":  counterServerPy,
+			"Kraftfile": `spec: v0.7
+name: counter-e2e
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+cmd: ["python3", "/app/server.py"]
+`,
+		},
+	},
+}
 
 // followArgs counts the boots in /data/n, prints the count, then waits. The
 // instance stays running while the test reads the output of the boot.
@@ -1336,13 +1356,7 @@ cmd: ["cat", "/marker.txt"]
 		branchName := uniq()
 		domainName := uniq()
 		domainBranch := uniq()
-		imageTag := uniq()
-		image := r.Config.Profile.Organization + "/counter-e2e:" + imageTag
-
-		dir := t.TempDir()
-		require.NoError(t, applyCounterContext(dir))
-
-		r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
+		image := sharedCounter.Build(t, r)
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
@@ -1382,7 +1396,6 @@ cmd: ["cat", "/marker.txt"]
 		assert.Contains(t, integ.HTTPGet(t, "https://"+fqdnBranch+"/count"), `"count": 0`)
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName, "test-branch-" + branchName})
-		r.Run(t, []string{"unikraft", "image", "delete", image})
 	})
 
 	// branch-state verifies that --branch preserves current in-memory state and
@@ -1395,13 +1408,7 @@ cmd: ["cat", "/marker.txt"]
 		branchName := uniq()
 		domainName := uniq()
 		domainBranch := uniq()
-		imageTag := uniq()
-		image := r.Config.Profile.Organization + "/counter-e2e:" + imageTag
-
-		dir := t.TempDir()
-		require.NoError(t, applyCounterContext(dir))
-
-		r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
+		image := sharedCounter.Build(t, r)
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
@@ -1462,7 +1469,6 @@ cmd: ["cat", "/marker.txt"]
 		assert.Contains(t, integ.HTTPGet(t, "https://"+fqdnBranch+"/count"), `"count": 15`)
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName, "test-branch-" + branchName})
-		r.Run(t, []string{"unikraft", "image", "delete", image})
 	})
 
 	// stop-disk-reset verifies a plain stop/start also resets the root disk (by design, not just a --branch gap).
@@ -1470,13 +1476,7 @@ cmd: ["cat", "/marker.txt"]
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		domainName := uniq()
-		imageTag := uniq()
-		image := r.Config.Profile.Organization + "/counter-e2e:" + imageTag
-
-		dir := t.TempDir()
-		require.NoError(t, applyCounterContext(dir))
-
-		r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
+		image := sharedCounter.Build(t, r)
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
@@ -1511,7 +1511,6 @@ cmd: ["cat", "/marker.txt"]
 		assert.Contains(t, integ.HTTPGet(t, "https://"+fqdn+"/count"), `"count": 0`)
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
-		r.Run(t, []string{"unikraft", "image", "delete", image})
 	})
 
 	// branch-stopped verifies --branch works when the source is stopped. The
@@ -1525,13 +1524,7 @@ cmd: ["cat", "/marker.txt"]
 		volName := uniq()
 		domainName := uniq()
 		domainBranch := uniq()
-		imageTag := uniq()
-		image := r.Config.Profile.Organization + "/counter-e2e:" + imageTag
-
-		dir := t.TempDir()
-		require.NoError(t, applyCounterContext(dir))
-
-		r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
+		image := sharedCounter.Build(t, r)
 
 		r.Run(t, []string{
 			"unikraft", "volume", "create",
@@ -1607,7 +1600,6 @@ cmd: ["cat", "/marker.txt"]
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName, "test-branch-" + branchName})
 		r.Run(t, []string{"unikraft", "--timeout", "30s", "volume", "wait", "--until", "state==available", "test-" + volName})
 		r.Run(t, []string{"unikraft", "volume", "delete", "test-" + volName})
-		r.Run(t, []string{"unikraft", "image", "delete", image})
 	})
 
 	// branch-template verifies --branch works when the source is a template.
@@ -1619,13 +1611,7 @@ cmd: ["cat", "/marker.txt"]
 		branchName := uniq()
 		domainName := uniq()
 		domainBranch := uniq()
-		imageTag := uniq()
-		image := r.Config.Profile.Organization + "/counter-e2e:" + imageTag
-
-		dir := t.TempDir()
-		require.NoError(t, applyCounterContext(dir))
-
-		r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
+		image := sharedCounter.Build(t, r)
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
@@ -1682,28 +1668,5 @@ cmd: ["cat", "/marker.txt"]
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName, "test-branch-" + branchName})
 		r.Run(t, []string{"unikraft", "instance", "template", "delete", templateName})
-		r.Run(t, []string{"unikraft", "image", "delete", image})
 	})
-}
-
-// applyCounterContext writes the build context for a minimal Python HTTP counter
-// server into dir. The server maintains an in-memory counter that can be read
-// via GET /count and incremented via POST /increment with a JSON body.
-func applyCounterContext(dir string) error {
-	return fstest.Apply(
-		fstest.CreateFile("Dockerfile", []byte(`
-FROM python:3.12-slim
-COPY server.py /app/server.py
-`), 0o644),
-		fstest.CreateFile("server.py", counterServerPy, 0o644),
-		fstest.CreateFile("Kraftfile", []byte(`
-spec: v0.7
-name: counter-e2e
-runtime: base-compat:latest
-rootfs:
-  format: erofs
-  source: ./Dockerfile
-cmd: ["python3", "/app/server.py"]
-`), 0o644),
-	).Apply(dir)
 }
