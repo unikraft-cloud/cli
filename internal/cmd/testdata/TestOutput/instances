@@ -31,6 +31,10 @@ roms:
 - name:             my-rom
   image:            myuser/my-rom:latest
   at:               /rom
+plugins:
+- name:             sandbox
+  rom:              plugins/sandbox:latest
+  config:           {"timeout":30}
 networks:
 - uuid:             net-uuid-1234
   private-ip:       192.168.1.10
@@ -87,6 +91,10 @@ roms:
 - name:             my-rom
   image:            myuser/my-rom:latest
   at:               /rom
+plugins:
+- name:             sandbox
+  rom:              plugins/sandbox:latest
+  config:           {"timeout":30}
 networks:
 - uuid:             net-uuid-1234
   private-ip:       192.168.1.10
@@ -629,6 +637,79 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
       ],
       "add": null,
       "del": null
+    }
+  },
+  {
+    "name": "plugins",
+    "subfields": [
+      {
+        "name": "0",
+        "subfields": [
+          {
+            "name": "name",
+            "value": "sandbox",
+            "verbosity": "long"
+          },
+          {
+            "name": "rom",
+            "value": "plugins/sandbox:latest",
+            "verbosity": "long"
+          },
+          {
+            "name": "config",
+            "value": {
+              "timeout": 30
+            },
+            "verbosity": "long"
+          }
+        ],
+        "verbosity": "long"
+      }
+    ],
+    "elem": {
+      "name": "",
+      "subfields": [
+        {
+          "name": "name",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "rom",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "config",
+          "value": null,
+          "verbosity": "long"
+        }
+      ],
+      "verbosity": "long"
+    },
+    "verbosity": "long",
+    "create": {
+      "set": [
+        {
+          "name": "sandbox",
+          "rom": "plugins/sandbox:latest",
+          "config": {
+            "timeout": 30
+          }
+        }
+      ]
+    },
+    "edit": {
+      "set": [
+        {
+          "name": "sandbox",
+          "rom": "plugins/sandbox:latest",
+          "config": {
+            "timeout": 30
+          }
+        }
+      ],
+      "add": null
     }
   },
   {

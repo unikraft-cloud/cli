@@ -18,6 +18,48 @@ import (
 	xmaps "unikraft.com/cli/internal/x/maps"
 )
 
+// splitTopLevel splits s on commas, keeping those inside balanced {} or []
+// pairs and inside JSON string literals, so a value carrying JSON survives.
+func splitTopLevel(s string) []string {
+	var parts []string
+	var open []byte
+	start := 0
+	inStr := false
+	esc := false
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case inStr && esc:
+			esc = false
+		case inStr && c == '\\':
+			esc = true
+		case inStr:
+			if c == '"' {
+				inStr = false
+			}
+		case c == '"':
+			inStr = true
+		case c == '{':
+			open = append(open, '}')
+		case c == '[':
+			open = append(open, ']')
+		case c == '}' || c == ']':
+			if len(open) > 0 && open[len(open)-1] == c {
+				open = open[:len(open)-1]
+			}
+		case c == ',' && len(open) == 0:
+			parts = append(parts, s[start:i])
+			start = i + 1
+		}
+	}
+	if inStr || len(open) > 0 {
+		return strings.Split(s, ",")
+	}
+	if start < len(s) {
+		parts = append(parts, s[start:])
+	}
+	return parts
+}
+
 func Parse[T any](input []string) (T, error) {
 	var t T
 	output, err := ParseNew(input, t)
@@ -188,12 +230,14 @@ func parseReflect(input []string, value reflect.Value) error {
 		notFound := make(map[string]struct{})
 		for _, input := range input {
 		process:
-			for item := range strings.SplitSeq(input, ",") {
+			for _, item := range splitTopLevel(input) {
 				item = strings.TrimSpace(item)
 				if item == "" {
 					continue
 				}
 				k, v, _ := strings.Cut(item, "=")
+				k = strings.TrimSpace(k)
+				v = strings.TrimSpace(v)
 
 				for i := range s.NumField() {
 					field := s.Type().Field(i)

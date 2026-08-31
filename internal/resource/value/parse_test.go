@@ -25,6 +25,85 @@ type testStructCollections struct {
 	Env    map[string]string `name:"env"`
 }
 
+type testStructJSON struct {
+	Name   string `name:"name"`
+	Config string `name:"config"`
+}
+
+func TestSplitTopLevel(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want []string
+	}{
+		{"plain", "a=1,b=2", []string{"a=1", "b=2"}},
+		{"object", `a=1,b={"x":2}`, []string{"a=1", `b={"x":2}`}},
+		{"array", "a=1,b=[1,2,3]", []string{"a=1", "b=[1,2,3]"}},
+		{"nested", `a={"x":{"y":[1,2]}},b=2`, []string{`a={"x":{"y":[1,2]}}`, "b=2"}},
+		{"comma inside string", `a={"x":"y,z"},b=2`, []string{`a={"x":"y,z"}`, "b=2"}},
+		{"brace inside string", `a={"x":"}"},b=2`, []string{`a={"x":"}"}`, "b=2"}},
+		{"escaped quote inside string", `a={"x":"y\",z"},b=2`, []string{`a={"x":"y\",z"}`, "b=2"}},
+		{"trailing comma drops empty tail", "a=1,", []string{"a=1"}},
+		{"unmatched closer still splits", "a=1,b=x],c=3", []string{"a=1", "b=x]", "c=3"}},
+		{"unmatched opener falls back", "a=1,b={,c=3", []string{"a=1", "b={", "c=3"}},
+		{"unmatched quote falls back", `image=my"img,at=/rom0,name=r`, []string{`image=my"img`, "at=/rom0", "name=r"}},
+		{"mismatched pair falls back", `a={"x":1],b=2`, []string{`a={"x":1]`, "b=2"}},
+		{"mismatched pair the other way", "a=[1},b=2", []string{"a=[1}", "b=2"}},
+		{"wrong closer falls back", `a={"x":[1}},b=2`, []string{`a={"x":[1}}`, "b=2"}},
+		{"invalid utf-8 passes through", "a=\xff\xfe,b=2", []string{"a=\xff\xfe", "b=2"}},
+		{"empty", "", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, splitTopLevel(tt.in))
+		})
+	}
+}
+
+func TestParseStructJSONValue(t *testing.T) {
+	t.Run("object config", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`name=logger,config={"level":"debug"}`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: `{"level":"debug"}`}, got)
+	})
+
+	t.Run("config keeps its own commas", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`name=logger,config={"a":1,"b":[2,3]}`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: `{"a":1,"b":[2,3]}`}, got)
+	})
+
+	t.Run("config keeps commas inside strings", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`config={"msg":"a,b"},name=logger`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: `{"msg":"a,b"}`}, got)
+	})
+
+	t.Run("array config", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`name=logger,config=[1,2]`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: "[1,2]"}, got)
+	})
+
+	t.Run("scalar config", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`name=logger,config=5`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: "5"}, got)
+	})
+
+	t.Run("spaces around the separator are trimmed", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{`name = logger , config = {"level":"debug"}`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: `{"level":"debug"}`}, got)
+	})
+
+	t.Run("a stray closer does not glue later fields together", func(t *testing.T) {
+		got, err := Parse[testStructJSON]([]string{"config=x],name=logger"})
+		require.NoError(t, err)
+		assert.Equal(t, testStructJSON{Name: "logger", Config: "x]"}, got)
+	})
+}
+
 func TestParseStandalone(t *testing.T) {
 	t.Run("string", func(t *testing.T) {
 		got, err := Parse[string]([]string{"hello"})

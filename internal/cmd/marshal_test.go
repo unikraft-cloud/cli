@@ -92,6 +92,14 @@ func TestJSONRoundTrip(t *testing.T) {
 			wantText:   &cmd.InstanceRom{Name: "my-rom", Image: "myuser/my-rom:latest", At: "/rom"},
 		},
 		{
+			name:       "InstancePlugin",
+			object:     `{"name":"logger","rom":"plugins/logger:latest","config":{"level":"debug"}}`,
+			text:       `"name=logger,rom=plugins/logger:latest,config={\"level\":\"debug\"}"`,
+			into:       func() any { return &cmd.InstancePlugin{} },
+			wantObject: &cmd.InstancePlugin{Name: "logger", Rom: "plugins/logger:latest", Config: `{"level":"debug"}`},
+			wantText:   &cmd.InstancePlugin{Name: "logger", Rom: "plugins/logger:latest", Config: `{"level":"debug"}`},
+		},
+		{
 			name:   "InstanceScaleToZero",
 			object: `{"policy":"on","stateful":true,"cooldown-time":500,"notify-time":100}`,
 			text:   `"on"`,
@@ -295,6 +303,24 @@ func TestEditPatches(t *testing.T) {
 			res:  cmd.Instance{},
 			spec: patch.PatchSpec{Del: map[string][]string{"roms": {"r1", "r2"}}},
 			want: map[string]string{"roms.del": `["r1", "r2"]`},
+		},
+		{
+			name: "plugins set with config",
+			res:  cmd.Instance{},
+			spec: patch.PatchSpec{Set: map[string][]string{"plugins": {`name=logger,rom=plugins/logger:latest,config={"level":"debug"}`}}},
+			want: map[string]string{"plugins.set": `[name=logger, rom=plugins/logger:latest, config={"level":"debug"}]`},
+		},
+		{
+			name: "plugins add",
+			res:  cmd.Instance{},
+			spec: patch.PatchSpec{Add: map[string][]string{"plugins": {"name=sandbox,rom=plugins/sandbox:latest"}}},
+			want: map[string]string{"plugins.add": "[name=sandbox, rom=plugins/sandbox:latest]"},
+		},
+		{
+			name:    "plugins del not supported",
+			res:     cmd.Instance{},
+			spec:    patch.PatchSpec{Del: map[string][]string{"plugins": {"logger"}}},
+			wantErr: "fields not deletable: [plugins]",
 		},
 		{
 			name: "env keeps commas verbatim",
