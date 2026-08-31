@@ -34,6 +34,14 @@ Resources:
           Forward a local port to an unexposed instance.
   history
           Show checkpoint history for an instance.
+  exec
+          Exec a command on a sandbox instance.
+  copy, cp
+          Copy a file to or from a sandbox instance.
+  write
+          Write a file to a sandbox instance.
+  read
+          Read a file from a sandbox instance.
 
 Templates:
   template, templates

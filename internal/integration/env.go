@@ -59,6 +59,7 @@ type CmdOption func(*cmdConfig)
 
 type cmdConfig struct {
 	workDir       string
+	stdin         string
 	expectFail    bool
 	allowFail     bool
 	timeout       time.Duration
@@ -67,6 +68,11 @@ type cmdConfig struct {
 
 func WithWorkDir(dir string) CmdOption {
 	return func(c *cmdConfig) { c.workDir = dir }
+}
+
+// WithStdin feeds in to the command's standard input, which is otherwise empty.
+func WithStdin(in string) CmdOption {
+	return func(c *cmdConfig) { c.stdin = in }
 }
 
 func ExpectFail() CmdOption {
@@ -118,6 +124,9 @@ func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (stri
 	c.Stdout = &output
 	c.Stderr = &output
 	c.Dir = cfg.workDir
+	if cfg.stdin != "" {
+		c.Stdin = strings.NewReader(cfg.stdin)
+	}
 	c.Env = os.Environ()
 	c.Env = slices.DeleteFunc(c.Env, func(s string) bool {
 		return strings.HasPrefix(s, "UNIKRAFT_")
