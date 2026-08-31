@@ -121,9 +121,7 @@ func (Certificate) List(ctx context.Context) ([]resource.Resource, error) {
 		errs := []error{opErr}
 		for _, certificate := range certificates {
 			result, err := Certificate{}.load(nil, certificate, &c.Metro)
-			if err != nil {
-				errs = append(errs, err)
-			}
+			errs = append(errs, err)
 			results = append(results, result)
 		}
 		return results, errors.Join(errs...)
@@ -265,14 +263,7 @@ func (Certificate) Create(ctx context.Context, fields []resource.Field) ([]resou
 	if err != nil {
 		return nil, err
 	}
-	results, err := Certificate{}.Get(ctx, keys.Strings())
-	if err != nil && len(results) == 0 {
-		return nil, err
-	}
-	if err != nil {
-		log.G(ctx).Warn().Err(err).Msg("certificate created with partial lookup errors")
-	}
-	return results, nil
+	return Certificate{}.Get(ctx, keys.Strings())
 }
 
 func (Certificate) Examples() map[cmd.CmdType][]kingkong.Example {

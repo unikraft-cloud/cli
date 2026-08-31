@@ -316,9 +316,7 @@ func (Volume) List(ctx context.Context) ([]resource.Resource, error) {
 		errs := []error{opErr}
 		for _, volume := range volumes {
 			result, err := Volume{}.load(nil, volume, &c.Metro)
-			if err != nil {
-				errs = append(errs, err)
-			}
+			errs = append(errs, err)
 			results = append(results, result)
 		}
 		return results, errors.Join(errs...)
@@ -493,14 +491,7 @@ func (Volume) Create(ctx context.Context, fields []resource.Field) ([]resource.R
 	if err != nil {
 		return nil, err
 	}
-	results, err := Volume{}.Get(ctx, keys.Strings())
-	if err != nil && len(results) == 0 {
-		return nil, err
-	}
-	if err != nil {
-		log.G(ctx).Warn().Err(err).Msg("volume created with partial lookup errors")
-	}
-	return results, nil
+	return Volume{}.Get(ctx, keys.Strings())
 }
 
 func (Volume) Edit(ctx context.Context, key string, fields []resource.Field) error {

@@ -661,9 +661,7 @@ func (Instance) List(ctx context.Context) ([]resource.Resource, error) {
 		errs := []error{opErr}
 		for _, instance := range instances {
 			result, err := Instance{}.load(nil, instance, &c.Metro, profile)
-			if err != nil {
-				errs = append(errs, err)
-			}
+			errs = append(errs, err)
 			results = append(results, result)
 		}
 		return results, errors.Join(errs...)
@@ -1325,14 +1323,7 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 	if err != nil {
 		return nil, err
 	}
-	results, err := Instance{}.Get(ctx, keys.Strings())
-	if err != nil && len(results) == 0 {
-		return nil, err
-	}
-	if err != nil {
-		log.G(ctx).Warn().Err(err).Msg("instance created with partial lookup errors")
-	}
-	return results, nil
+	return Instance{}.Get(ctx, keys.Strings())
 }
 
 func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {

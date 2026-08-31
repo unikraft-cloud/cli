@@ -101,7 +101,7 @@ func TestWaitPartialLookup(t *testing.T) {
 	})
 }
 
-func TestMutationSucceedsDespitePartialLookup(t *testing.T) {
+func TestMutationReportsPartialLookup(t *testing.T) {
 	newEnv := func() *resourcet.TestEnv {
 		env := resourcet.NewTestEnv()
 		env.Add(resourcet.TestResource{ID: "id-test1", Name: "test1", State: "ready"})
@@ -118,7 +118,9 @@ func TestMutationSucceedsDespitePartialLookup(t *testing.T) {
 			Targets:    []string{"test1"},
 			FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeQuiet}},
 		}
-		require.NoError(t, cmd.Run(ctx, testStdio(&out), &resource.Sandbox{}))
+		err := cmd.Run(ctx, testStdio(&out), &resource.Sandbox{})
+		var notFound group.ErrRefNotFound
+		require.ErrorAs(t, err, &notFound)
 		assert.Contains(t, out.String(), "test1")
 	})
 
@@ -131,7 +133,9 @@ func TestMutationSucceedsDespitePartialLookup(t *testing.T) {
 			Targets:    []string{"test1"},
 			FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeQuiet}},
 		}
-		require.NoError(t, cmd.Run(ctx, testStdio(&out), &resource.Sandbox{}))
+		err := cmd.Run(ctx, testStdio(&out), &resource.Sandbox{})
+		var notFound group.ErrRefNotFound
+		require.ErrorAs(t, err, &notFound)
 		assert.Contains(t, out.String(), "test1")
 	})
 
@@ -145,9 +149,33 @@ func TestMutationSucceedsDespitePartialLookup(t *testing.T) {
 			SetArgs:    SetArgs{Set: []map[string]string{{"settings.foo": "999"}}},
 			FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeQuiet}},
 		}
-		require.NoError(t, cmd.Run(ctx, testStdio(&out), &resource.Sandbox{}))
+		err := cmd.Run(ctx, testStdio(&out), &resource.Sandbox{})
+		var notFound group.ErrRefNotFound
+		require.ErrorAs(t, err, &notFound)
 		assert.Contains(t, out.String(), "test1")
 	})
+}
+
+func TestCreateReportsPartialLookup(t *testing.T) {
+	env := resourcet.NewTestEnv()
+	env.Hooks.Create = func(ctx context.Context, fields []resource.Field, next func(context.Context, []resource.Field) ([]resource.Resource, error)) ([]resource.Resource, error) {
+		resources, err := next(ctx, fields)
+		if err != nil {
+			return resources, err
+		}
+		return resources, group.ErrRefNotFound{Refs: group.Refs{{Name: "missing"}}}
+	}
+	ctx := resourcet.WithTestEnv(context.Background(), env)
+
+	var out bytes.Buffer
+	cmd := &ResourceCreateCmd[resourcet.TestResource]{
+		SetArgs:    SetArgs{Set: []map[string]string{{"name": "test1"}}},
+		FormatOpts: FormatOpts{Output: Printer{Type: PrinterTypeQuiet}},
+	}
+	err := cmd.Run(ctx, testStdio(&out), &resource.Sandbox{})
+	var notFound group.ErrRefNotFound
+	require.ErrorAs(t, err, &notFound)
+	assert.Contains(t, out.String(), "test1")
 }
 
 func TestMutationFailureSurvivesPartialLookup(t *testing.T) {

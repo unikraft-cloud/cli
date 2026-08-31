@@ -48,7 +48,7 @@ func (p predictResourceKey) Predict(a complete.Args) []string {
 		return []string{}
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "warning: partial resource list for autocompletion:", err)
+		fmt.Fprintf(os.Stderr, "warning: could not list all %s for autocompletion: %v\n", p.resourceType.Type().Names, err)
 	}
 
 	completions := make([]string, 0, len(resources))

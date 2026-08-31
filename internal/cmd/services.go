@@ -271,9 +271,7 @@ func (ServiceGroup) List(ctx context.Context) ([]resource.Resource, error) {
 		errs := []error{opErr}
 		for _, serviceGroup := range serviceGroups {
 			result, err := ServiceGroup{}.load(nil, serviceGroup, &c.Metro)
-			if err != nil {
-				errs = append(errs, err)
-			}
+			errs = append(errs, err)
 			results = append(results, result)
 		}
 		return results, errors.Join(errs...)
@@ -439,14 +437,7 @@ func (ServiceGroup) Create(ctx context.Context, fields []resource.Field) ([]reso
 	if err != nil {
 		return nil, err
 	}
-	results, err := ServiceGroup{}.Get(ctx, keys.Strings())
-	if err != nil && len(results) == 0 {
-		return nil, err
-	}
-	if err != nil {
-		log.G(ctx).Warn().Err(err).Msg("service group created with partial lookup errors")
-	}
-	return results, nil
+	return ServiceGroup{}.Get(ctx, keys.Strings())
 }
 
 func (ServiceGroup) Edit(ctx context.Context, key string, fields []resource.Field) error {

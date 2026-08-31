@@ -208,7 +208,7 @@ func (s *Sandbox) add(ctx context.Context, r Resource, visited map[string]struct
 					return fmt.Errorf("failed to get linked resource %s %s: %w", linkType, key, getErr)
 				}
 				if getErr != nil {
-					log.G(ctx).Warn().Err(getErr).Str("type", linkType).Str("key", key).Msg("linked resource lookup returned partial errors")
+					log.G(ctx).Warn().Err(getErr).Str("type", linkType).Str("key", key).Msg("could not fully read the linked resource, so the sandbox may be incomplete")
 				}
 				for _, linkedResource := range linkedResources {
 					if err := s.add(ctx, linkedResource, visited); err != nil {
@@ -350,12 +350,12 @@ func (r sandboxedEditableResource) Edit(ctx context.Context, key string, fields 
 	}
 	// re-fetch, since we may have found new strongly linked dependencies (e.g.
 	// by creating a certificate)
-	resources, err := r.EditableResource.Get(ctx, []string{key})
-	if err != nil && len(resources) == 0 {
-		return err
+	resources, getErr := r.EditableResource.Get(ctx, []string{key})
+	if getErr != nil && len(resources) == 0 {
+		return getErr
 	}
-	if err != nil {
-		log.G(ctx).Warn().Err(err).Str("key", key).Msg("edited resource lookup returned partial errors")
+	if getErr != nil {
+		log.G(ctx).Warn().Err(getErr).Str("key", key).Msg("could not fully read the edited resource, so the sandbox may be incomplete")
 	}
 	for _, res := range resources {
 		if err := r.sandbox.Add(ctx, res); err != nil {
@@ -415,7 +415,10 @@ func (r sandboxedDeletableResource) Delete(ctx context.Context, keys []string) e
 		r.sandbox.Remove(typeName, res.Key().Canonical())
 	}
 	if getErr != nil {
-		log.G(ctx).Warn().Err(getErr).Msg("sandbox delete completed with partial lookup errors")
+		log.G(ctx).Warn().Err(getErr).
+			Str("type", typeName).
+			Strs("keys", keys).
+			Msg("could not fully read the deleted resources, so the sandbox may be incomplete")
 	}
 	return nil
 }
