@@ -136,7 +136,7 @@ func instancesOutputTests(t *testing.T) {
 	sample.Runtime.Env = map[string]string{"KEY1": "val1", "KEY2": "val2"}
 	sample.Resources.Memory = 256
 	sample.Resources.VCPUs = 2
-	sample.Networks = []cmd.InstanceNetwork{
+	sample.Networks = []*cmd.InstanceNetwork{
 		{
 			Name:      "my-instance-eth0",
 			UUID:      "net-uuid-1234",

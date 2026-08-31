@@ -92,6 +92,36 @@ func TestJSONRoundTrip(t *testing.T) {
 			wantText:   &cmd.InstanceRom{Name: "my-rom", Image: "myuser/my-rom:latest", At: "/rom"},
 		},
 		{
+			name:   "InstanceNetwork",
+			object: `{"name":"eth1","mac":"aa:bb:cc:dd:ee:ff","tap-name":"tap0","ip":"10.0.0.5/24","autoconfig":false}`,
+			text:   `"name=eth1,tap-name=tap0"`,
+			into:   func() any { return &cmd.InstanceNetwork{} },
+			wantObject: &cmd.InstanceNetwork{
+				Name:       "eth1",
+				MAC:        "aa:bb:cc:dd:ee:ff",
+				TapName:    "tap0",
+				IP:         "10.0.0.5/24",
+				Autoconfig: new(false),
+			},
+			wantText:         &cmd.InstanceNetwork{Name: "eth1", TapName: "tap0"},
+			marshalsToObject: true,
+		},
+		{
+			name:   "InstanceNetworkRelay",
+			object: `{"relay":{"name":"my-router-eth0","uuid":"9f8e-7d6c","dns":false}}`,
+			text:   `"relay.name=my-router-eth0"`,
+			into:   func() any { return &cmd.InstanceNetwork{} },
+			wantObject: &cmd.InstanceNetwork{
+				Relay: &cmd.InstanceNetworkRelay{
+					Name: "my-router-eth0",
+					UUID: "9f8e-7d6c",
+					DNS:  new(false),
+				},
+			},
+			wantText:         &cmd.InstanceNetwork{Relay: &cmd.InstanceNetworkRelay{Name: "my-router-eth0"}},
+			marshalsToObject: true,
+		},
+		{
 			name:   "InstanceScaleToZero",
 			object: `{"policy":"on","stateful":true,"cooldown-time":500,"notify-time":100}`,
 			text:   `"on"`,
@@ -361,6 +391,138 @@ func TestEditPatches(t *testing.T) {
 				}
 			}
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestCreatePatches covers the create --set path, where a repeated flag
+// carries one whole element each time. Network interfaces only exist here:
+// /v1/instances has no patch property for them.
+func TestCreatePatches(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		spec    map[string][]string
+		want    []*cmd.InstanceNetwork
+		wantErr string
+	}{
+		{
+			name: "relay by name",
+			spec: map[string][]string{"networks": {"relay.name=my-router-eth0"}},
+			want: []*cmd.InstanceNetwork{
+				{Relay: &cmd.InstanceNetworkRelay{Name: "my-router-eth0"}},
+			},
+		},
+		{
+			name: "relay with dns opt-out",
+			spec: map[string][]string{"networks": {"relay.name=my-router-eth0,relay.dns=false"}},
+			want: []*cmd.InstanceNetwork{
+				{Relay: &cmd.InstanceNetworkRelay{Name: "my-router-eth0", DNS: new(false)}},
+			},
+		},
+		{
+			name:    "dns without a relay target rejected",
+			spec:    map[string][]string{"networks": {"name=eth1,relay.dns=false"}},
+			wantErr: "relay requires relay.name or relay.uuid",
+		},
+		{
+			name: "relay by uuid",
+			spec: map[string][]string{"networks": {"relay.uuid=c1d2e3f4-5678-90ab-cdef-1234567890ab"}},
+			want: []*cmd.InstanceNetwork{
+				{Relay: &cmd.InstanceNetworkRelay{UUID: "c1d2e3f4-5678-90ab-cdef-1234567890ab"}},
+			},
+		},
+		{
+			name: "repeated builds one interface each",
+			spec: map[string][]string{"networks": {
+				"relay.name=my-router-eth0",
+				"name=eth1,tap-name=tap0,ip=10.0.0.5/24,mac=aa:bb:cc:dd:ee:ff,autoconfig=false",
+			}},
+			want: []*cmd.InstanceNetwork{
+				{Relay: &cmd.InstanceNetworkRelay{Name: "my-router-eth0"}},
+				{
+					Name:       "eth1",
+					TapName:    "tap0",
+					IP:         "10.0.0.5/24",
+					MAC:        "aa:bb:cc:dd:ee:ff",
+					Autoconfig: new(false),
+				},
+			},
+		},
+		{
+			name:    "unknown key rejected",
+			spec:    map[string][]string{"networks": {"relay.name=r1,gateway=10.0.0.1"}},
+			wantErr: "unknown fields: [gateway]",
+		},
+		{
+			name:    "unknown nested key rejected",
+			spec:    map[string][]string{"networks": {"relay.bogus=1"}},
+			wantErr: "unknown fields: [relay.bogus]",
+		},
+		{
+			// uuid and private-ip are reported by the API, never set.
+			name:    "read-only keys rejected",
+			spec:    map[string][]string{"networks": {"uuid=abc"}},
+			wantErr: "unknown fields: [uuid]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fields, err := cmd.Instance{}.Fields(t.Context())
+			require.NoError(t, err)
+
+			patched, err := patch.PatchedFields(fields, patch.PatchSpec{
+				Create: true,
+				Set:    tt.spec,
+			})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			var got []*cmd.InstanceNetwork
+			for path, f := range resource.IterFields(patched) {
+				if path.String() != "networks" || f.Create == nil {
+					continue
+				}
+				got = f.Create.Set.([]*cmd.InstanceNetwork)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestNetworkTextRoundTrip guards the compact form against the render/parse
+// cycle a shortcut flag goes through: ApplyShortcutFlags renders --network
+// back to a --set string, which PatchedFields then parses again. Anything the
+// rendered form cannot express is silently dropped there.
+func TestNetworkTextRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{
+		"relay.name=my-router-eth0",
+		"relay.name=my-router-eth0,relay.dns=false",
+		"relay.name=my-router-eth0,relay.dns=true",
+		"relay.uuid=c1d2e3f4-5678-90ab-cdef-1234567890ab",
+		"name=eth1,tap-name=tap0,ip=10.0.0.5/24,mac=aa:bb:cc:dd:ee:ff,autoconfig=false",
+	} {
+		t.Run(input, func(t *testing.T) {
+			t.Parallel()
+
+			want, err := value.Parse[cmd.InstanceNetwork]([]string{input})
+			require.NoError(t, err)
+
+			rendered, err := value.Render(&want, value.RenderOpts{})
+			require.NoError(t, err)
+
+			got, err := value.Parse[cmd.InstanceNetwork]([]string{rendered})
+			require.NoError(t, err, "rendered as %q", rendered)
+			assert.Equal(t, want, got, "rendered as %q", rendered)
 		})
 	}
 }

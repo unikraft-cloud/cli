@@ -711,6 +711,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
             "verbosity": "long"
           },
           {
+            "name": "ip",
+            "value": "",
+            "verbosity": "invisible"
+          },
+          {
             "name": "autoconfig",
             "value": null,
             "verbosity": "long"
@@ -766,6 +771,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
               }
             ],
             "verbosity": "long"
+          },
+          {
+            "name": "ip",
+            "value": "",
+            "verbosity": "invisible"
           },
           {
             "name": "autoconfig",
@@ -826,6 +836,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
           "verbosity": "long"
         },
         {
+          "name": "ip",
+          "value": "",
+          "verbosity": "invisible"
+        },
+        {
           "name": "autoconfig",
           "value": null,
           "verbosity": "long"
@@ -833,7 +848,29 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
       ],
       "verbosity": "long"
     },
-    "verbosity": "long"
+    "verbosity": "long",
+    "create": {
+      "set": [
+        {
+          "name": "my-instance-eth0",
+          "uuid": "net-uuid-1234",
+          "private-ip": "192.168.1.10",
+          "mac": "aa:bb:cc:dd:ee:ff",
+          "relay": {
+            "name": "my-router-eth0",
+            "uuid": "net-uuid-5678",
+            "dns": true
+          }
+        },
+        {
+          "name": "my-instance-eth1",
+          "uuid": "net-uuid-9abc",
+          "private-ip": "192.168.1.11",
+          "mac": "aa:bb:cc:dd:ee:00",
+          "tap-name": "tap0"
+        }
+      ]
+    }
   },
   {
     "name": "gpus",

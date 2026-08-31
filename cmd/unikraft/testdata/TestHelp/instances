@@ -64,7 +64,8 @@ Fields:
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
-  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.ip,
+  networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -138,7 +139,8 @@ Fields:
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
-  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.ip,
+  networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -220,7 +222,8 @@ Fields:
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
-  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.ip,
+  networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -304,7 +307,8 @@ Fields:
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
-  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.ip,
+  networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -398,7 +402,8 @@ Fields:
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
-  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.ip,
+  networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -490,6 +495,17 @@ Create flags:
       --rom=image=<ref>,at=<path> ...
           Attach ROM.
           [examples: image=myuser/my-rom:latest,at=/rom0,name=my-rom, dir=./mydata,at=/rom]
+      --network=<key>=<value> ...
+          Attach network interface.
+            name: interface name
+            relay.name: interface to route all traffic through
+            relay.uuid: same, by uuid
+            relay.dns: whether the relay forwards DNS (default true)
+            ip: address in CIDR notation, requires tap-name
+            mac: address, requires tap-name
+            tap-name: TAP device to bring your own interface
+            autoconfig: whether the guest configures the interface itself.
+          [examples: relay.name=my-router-eth0, relay.name=my-router-eth0,relay.dns=false, name=eth1,tap-name=tap0,ip=10.0.0.5/24]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>] ...
@@ -574,7 +590,8 @@ Fields:
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
-  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.ip,
+  networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -666,6 +683,17 @@ Create flags:
       --rom=image=<ref>,at=<path> ...
           Attach ROM.
           [examples: image=myuser/my-rom:latest,at=/rom0,name=my-rom, dir=./mydata,at=/rom]
+      --network=<key>=<value> ...
+          Attach network interface.
+            name: interface name
+            relay.name: interface to route all traffic through
+            relay.uuid: same, by uuid
+            relay.dns: whether the relay forwards DNS (default true)
+            ip: address in CIDR notation, requires tap-name
+            mac: address, requires tap-name
+            tap-name: TAP device to bring your own interface
+            autoconfig: whether the guest configures the interface itself.
+          [examples: relay.name=my-router-eth0, relay.name=my-router-eth0,relay.dns=false, name=eth1,tap-name=tap0,ip=10.0.0.5/24]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>] ...
@@ -769,7 +797,8 @@ Fields:
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
-  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.ip,
+  networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -863,6 +892,17 @@ Create flags:
       --rom=image=<ref>,at=<path> ...
           Attach ROM.
           [examples: image=myuser/my-rom:latest,at=/rom0,name=my-rom, dir=./mydata,at=/rom]
+      --network=<key>=<value> ...
+          Attach network interface.
+            name: interface name
+            relay.name: interface to route all traffic through
+            relay.uuid: same, by uuid
+            relay.dns: whether the relay forwards DNS (default true)
+            ip: address in CIDR notation, requires tap-name
+            mac: address, requires tap-name
+            tap-name: TAP device to bring your own interface
+            autoconfig: whether the guest configures the interface itself.
+          [examples: relay.name=my-router-eth0, relay.name=my-router-eth0,relay.dns=false, name=eth1,tap-name=tap0,ip=10.0.0.5/24]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>] ...
@@ -956,7 +996,8 @@ Fields:
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
-  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.ip,
+  networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -1087,7 +1128,8 @@ Fields:
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
-  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.ip,
+  networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-

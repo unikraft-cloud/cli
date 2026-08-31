@@ -93,6 +93,8 @@ type InstanceCreateCmd struct {
 	Volume []InstanceVolume `group:"flag-create" shortcut:"volumes" short:"v" sep:"none" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
 	Rom    []InstanceRom    `group:"flag-create" shortcut:"roms" sep:"none" help:"Attach ROM." placeholder:"image=<ref>,at=<path>" example:"image=myuser/my-rom:latest\\,at=/rom0\\,name=my-rom,dir=./mydata\\,at=/rom"`
 
+	Network []InstanceNetwork `group:"flag-create" shortcut:"networks" sep:"none" help:"Attach network interface.\n  name: interface name\n  relay.name: interface to route all traffic through\n  relay.uuid: same, by uuid\n  relay.dns: whether the relay forwards DNS (default true)\n  ip: address in CIDR notation, requires tap-name\n  mac: address, requires tap-name\n  tap-name: TAP device to bring your own interface\n  autoconfig: whether the guest configures the interface itself" placeholder:"<key>=<value>" example:"relay.name=my-router-eth0,relay.name=my-router-eth0\\,relay.dns=false,name=eth1\\,tap-name=tap0\\,ip=10.0.0.5/24"`
+
 	Service InstanceService `group:"flag-create" shortcut:"service" help:"Service group name or key." placeholder:"name"`
 	Publish []Service       `group:"flag-create" shortcut:"service.services" short:"p" sep:"none" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
 	Domain  []Domain        `group:"flag-create" shortcut:"service.domains" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
@@ -194,8 +196,8 @@ type Instance struct {
 	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings"`
 	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings"`
 
-	Networks []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
-	Gpus     []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
+	Networks []*InstanceNetwork `mirror:"instance.network_interfaces" field:",embed" create:"set"`
+	Gpus     []InstanceGpu      `mirror:"instance.gpus" field:"gpus,embed"`
 
 	Timestamps struct {
 		Created types.RelativeTime `mirror:"instance.created_at" field:",short"`
@@ -244,22 +246,50 @@ type Instance struct {
 }
 
 type InstanceNetwork struct {
-	Name       string                `mirror:"name" field:",long"`
-	UUID       string                `mirror:"uuid" field:",long"`
-	PrivateIP  string                `mirror:"private_ip" field:",long"`
-	MAC        string                `mirror:"mac" field:",long"`
-	TapName    string                `mirror:"tap_name" field:"tap-name,long"`
-	Relay      *InstanceNetworkRelay `mirror:"relay" field:",embed"`
-	Autoconfig *bool                 `mirror:"autoconfig" field:",long"`
+	Name      string `name:"name" mirror:"name" json:"name,omitempty" field:",long"`
+	UUID      string `name:"-" mirror:"uuid" json:"uuid,omitempty" field:",long"`
+	PrivateIP string `name:"-" mirror:"private_ip" json:"private-ip,omitempty" field:",long"`
+	MAC       string `name:"mac" mirror:"mac" json:"mac,omitempty" field:",long"`
+	TapName   string `name:"tap-name" mirror:"tap_name" json:"tap-name,omitempty" field:"tap-name,long"`
+
+	Relay *InstanceNetworkRelay `name:"relay" mirror:"relay" json:"relay,omitempty" field:",embed"`
+
+	IP         string `name:"ip" json:"ip,omitempty" field:"ip,invisible"`
+	Autoconfig *bool  `name:"autoconfig" mirror:"autoconfig" json:"autoconfig,omitempty" field:",long"`
 }
 
 // InstanceNetworkRelay is the interface all of this interface's traffic is
 // routed through. The target is another instance's interface, which has no
 // API of its own, so this holds plain identifiers rather than a Link.
 type InstanceNetworkRelay struct {
-	Name string `mirror:"name" field:",long"`
-	UUID string `mirror:"uuid" field:",long"`
-	DNS  *bool  `mirror:"relay_dns" field:",long"`
+	Name string `name:"name" mirror:"name" json:"name,omitempty" field:",long"`
+	UUID string `name:"uuid" mirror:"uuid" json:"uuid,omitempty" field:",long"`
+	DNS  *bool  `name:"dns" mirror:"relay_dns" json:"dns,omitempty" field:",long"`
+}
+
+func (n *InstanceNetwork) UnmarshalText(data []byte) error {
+	type alias InstanceNetwork
+	parsed, err := value.Parse[alias]([]string{string(data)})
+	if err != nil {
+		return err
+	}
+	*n = InstanceNetwork(parsed)
+	if n.Relay != nil && n.Relay.Name == "" && n.Relay.UUID == "" {
+		return fmt.Errorf("relay requires relay.name or relay.uuid")
+	}
+	return nil
+}
+
+func (n *InstanceNetwork) UnmarshalJSON(data []byte) error {
+	if len(data) != 0 && data[0] == '"' {
+		var text string
+		if err := json.Unmarshal(data, &text); err != nil {
+			return err
+		}
+		return n.UnmarshalText([]byte(text))
+	}
+	type networkJSON InstanceNetwork // alias to avoid recursion
+	return json.Unmarshal(data, (*networkJSON)(n))
 }
 
 type InstanceGpu struct {
@@ -1174,6 +1204,35 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 					reqRom.AdditionalProperties["at"] = jsontext.Value(atJSON)
 				}
 				req.Roms = append(req.Roms, reqRom)
+			}
+		case "networks":
+			for _, net := range field.Create.Set.([]*InstanceNetwork) {
+				reqNet := platform.CreateInstanceRequestNetworkInterface{
+					Name:       ptr.NilIfZero(net.Name),
+					TapName:    ptr.NilIfZero(net.TapName),
+					Ip:         ptr.NilIfZero(net.IP),
+					Autoconfig: net.Autoconfig,
+				}
+				if net.Relay != nil {
+					if net.Relay.Name == "" && net.Relay.UUID == "" {
+						return nil, fmt.Errorf("relay requires a name or uuid")
+					}
+					reqNet.Relay = &platform.NetworkInterfaceRelay{
+						Name:     ptr.NilIfZero(net.Relay.Name),
+						Uuid:     ptr.NilIfZero(net.Relay.UUID),
+						RelayDns: net.Relay.DNS,
+					}
+				}
+				if net.MAC != "" {
+					// HACK: the spec's network interface omits mac, though
+					// /v1/instances has accepted it since MAC-only custom
+					// interfaces landed.
+					macJSON, _ := json.Marshal(net.MAC)
+					reqNet.AdditionalProperties = map[string]jsontext.Value{
+						"mac": jsontext.Value(macJSON),
+					}
+				}
+				req.NetworkInterfaces = append(req.NetworkInterfaces, reqNet)
 			}
 		case "service":
 			svc := field.Create.Set.(*InstanceService)
