@@ -24,6 +24,10 @@ const (
 
 	sandboxPluginRom = "plugins/sandbox:staging"
 
+	// sandboxHistoryPath is where --sandbox mounts the volume holding the
+	// plugin's command history, and what it hands the plugin as persist_path.
+	sandboxHistoryPath = "/ukp/plugins/sandbox/history"
+
 	sandboxKraftfile = `
 spec: v0.7
 name: sandbox-e2e
@@ -36,8 +40,9 @@ cmd: ["tail", "-f", "/dev/null"]
 )
 
 // newSandboxInstance builds the fixture image, creates a running instance
-// serving the sandbox plugin on it, and returns the instance's name.
-func newSandboxInstance(t *testing.T, r *integ.TestEnv) string {
+// serving the sandbox plugin on it, and returns the instance's name. attach is
+// what puts the plugin on the instance, and defaults to a plain --plugin.
+func newSandboxInstance(t *testing.T, r *integ.TestEnv, attach ...string) string {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -51,18 +56,21 @@ func newSandboxInstance(t *testing.T, r *integ.TestEnv) string {
 	image := r.Config.Profile.Organization + "/sandbox-e2e:" + uniq()
 	r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
 
+	if len(attach) == 0 {
+		attach = []string{"--plugin", "name=" + sandboxPlugin + ",rom=" + sandboxPluginRom}
+	}
+
 	name := "test-" + uniq()
-	r.Run(t, []string{
+	r.Run(t, append([]string{
 		"unikraft", "instance", "create",
 		"--output", "quiet",
 		"--name", name,
 		"--metro", r.Config.MetroName,
 		"--image", image,
-		"--plugin", "name=" + sandboxPlugin + ",rom=" + sandboxPluginRom,
 		"--memory", "512",
 		"--vcpus", "1",
 		"--autostart",
-	})
+	}, attach...))
 	r.Run(t, []string{"unikraft", "--timeout", "60s", "instance", "wait", "--until", "state==running", name})
 
 	return name
@@ -372,5 +380,51 @@ func TestSandbox(t *testing.T) {
 
 			r.Run(t, []string{"unikraft", "instance", "delete", instName})
 		})
+	})
+}
+
+// TestSandboxFlag covers --sandbox, the shorthand that loads the sandbox plugin
+// and gives it a volume to keep its command history in.
+func TestSandboxFlag(t *testing.T) {
+	// The history only outlives a restart if the volume really is mounted where
+	// the plugin was told to persist. It is worth asserting end to end because
+	// the failure is otherwise silent: handed a path it cannot keep, the plugin
+	// still starts and still answers, it just stores nothing.
+	t.Run("history survives a restart", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+		instName := newSandboxInstance(t, r, "--sandbox")
+
+		// The plugin answers, so it loaded and started with the config it got.
+		out := r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "echo", "before-restart"})
+		assert.Contains(t, out, "before-restart")
+
+		// The manifest it writes per command is on the mounted volume.
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "ls", sandboxHistoryPath})
+		assert.Contains(t, out, "manifest")
+
+		r.Run(t, []string{"unikraft", "instance", "restart", instName})
+		r.Run(t, []string{"unikraft", "--timeout", "60s", "instance", "wait", "--until", "state==running", instName})
+
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "ls", sandboxHistoryPath})
+		assert.Contains(t, out, "manifest", "the sandbox history did not survive the restart")
+
+		// The volume was created as part of the instance, so it is named by
+		// the platform and goes away with it.
+		r.Run(t, []string{"unikraft", "instance", "delete", instName})
+	})
+
+	// persist=false is the same plugin with nothing to store, and no volume.
+	t.Run("persist=false attaches no volume", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+		instName := newSandboxInstance(t, r, "--sandbox=persist=false")
+
+		out := r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "echo", "ephemeral"})
+		assert.Contains(t, out, "ephemeral")
+
+		// Nothing was mounted for it: there is no history to keep.
+		out = r.Run(t, []string{"unikraft", "instance", "get", instName})
+		assert.NotContains(t, out, sandboxHistoryPath)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", instName})
 	})
 }
