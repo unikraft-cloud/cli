@@ -25,6 +25,153 @@ type testStructCollections struct {
 	Env    map[string]string `name:"env"`
 }
 
+type testStructNested struct {
+	Name    string              `name:"name"`
+	Inner   testStructInner     `name:"inner"`
+	Ptr     *testStructInner    `name:"ptr"`
+	Hidden  testStructInner     `name:"-"`
+	Text    testStructWithText  `name:"text"`
+	ReadTo  testStructReadOnly  `name:"read-to"`
+	WriteTo testStructWriteOnly `name:"write-to"`
+	TestStructEmbedded
+}
+
+// TestStructEmbedded is exported so that embedding it produces an exported
+// field, which is the only way the anonymous case is reached at all.
+type TestStructEmbedded struct {
+	Label string `name:"label"`
+}
+
+// testStructReadOnly converts only from a string, so parsing takes its whole
+// value while rendering still flattens it.
+type testStructReadOnly struct {
+	Raw string `name:"raw"`
+}
+
+func (t *testStructReadOnly) UnmarshalText(text []byte) error {
+	t.Raw = string(text)
+	return nil
+}
+
+// testStructWriteOnly converts only to a string, the mirror of
+// testStructReadOnly.
+type testStructWriteOnly struct {
+	Raw string `name:"raw"`
+}
+
+func (t testStructWriteOnly) MarshalText() ([]byte, error) {
+	return []byte(t.Raw), nil
+}
+
+type testStructInner struct {
+	Flag  *bool  `name:"flag"`
+	Label string `name:"label"`
+}
+
+// testStructWithText owns its whole value, so a dotted key must not reach
+// past it into its fields.
+type testStructWithText struct {
+	Raw string `name:"raw"`
+}
+
+func (t *testStructWithText) UnmarshalText(text []byte) error {
+	t.Raw = string(text)
+	return nil
+}
+
+func (t testStructWithText) MarshalText() ([]byte, error) {
+	return []byte(t.Raw), nil
+}
+
+// TestParseNestedPaths covers dotted keys, which are how the flat key=value
+// form reaches a nested struct field. Without them a nested field is only
+// settable by giving the outer field a text form of its own, which then has
+// to encode every subfield in one value.
+func TestParseNestedPaths(t *testing.T) {
+	t.Run("nested field", func(t *testing.T) {
+		got, err := Parse[testStructNested]([]string{"name=outer,inner.label=x"})
+		require.NoError(t, err)
+		assert.Equal(t, "outer", got.Name)
+		assert.Equal(t, "x", got.Inner.Label)
+	})
+
+	t.Run("allocates a nil pointer", func(t *testing.T) {
+		got, err := Parse[testStructNested]([]string{"ptr.flag=true"})
+		require.NoError(t, err)
+		require.NotNil(t, got.Ptr)
+		require.NotNil(t, got.Ptr.Flag)
+		assert.True(t, *got.Ptr.Flag)
+	})
+
+	t.Run("several keys reach the same nested struct", func(t *testing.T) {
+		got, err := Parse[testStructNested]([]string{"ptr.label=y,ptr.flag=false"})
+		require.NoError(t, err)
+		require.NotNil(t, got.Ptr)
+		assert.Equal(t, "y", got.Ptr.Label)
+		require.NotNil(t, got.Ptr.Flag)
+		assert.False(t, *got.Ptr.Flag)
+	})
+
+	t.Run("order does not matter", func(t *testing.T) {
+		a, err := Parse[testStructNested]([]string{"inner.label=x,name=outer"})
+		require.NoError(t, err)
+		b, err := Parse[testStructNested]([]string{"name=outer,inner.label=x"})
+		require.NoError(t, err)
+		assert.Equal(t, a, b)
+	})
+
+	t.Run("unknown nested key reports the whole path", func(t *testing.T) {
+		_, err := Parse[testStructNested]([]string{"inner.bogus=1"})
+		require.ErrorContains(t, err, "unknown fields: [inner.bogus]")
+	})
+
+	t.Run("unknown head reports the whole path", func(t *testing.T) {
+		_, err := Parse[testStructNested]([]string{"nope.label=1"})
+		require.ErrorContains(t, err, "unknown fields: [nope.label]")
+	})
+
+	t.Run("name:\"-\" is not reachable", func(t *testing.T) {
+		_, err := Parse[testStructNested]([]string{"hidden.label=x"})
+		require.ErrorContains(t, err, "unknown fields: [hidden.label]")
+	})
+
+	t.Run("a bare word is not a field name", func(t *testing.T) {
+		_, err := Parse[testStructNested]([]string{"inner=x"})
+		require.ErrorContains(t, err, `invalid value "x": expected <key>=<value>`)
+	})
+
+	t.Run("does not descend past a text form", func(t *testing.T) {
+		_, err := Parse[testStructNested]([]string{"text.raw=x"})
+		require.ErrorContains(t, err, "unknown fields: [text.raw]")
+
+		got, err := Parse[testStructNested]([]string{"text=whole value"})
+		require.NoError(t, err)
+		assert.Equal(t, "whole value", got.Text.Raw)
+	})
+
+	// Only UnmarshalText decides this direction. Sharing one check with
+	// Render would let a marshal-only type block parsing, and vice versa.
+	t.Run("opacity follows UnmarshalText alone", func(t *testing.T) {
+		_, err := Parse[testStructNested]([]string{"read-to.raw=x"})
+		require.ErrorContains(t, err, "unknown fields: [read-to.raw]")
+
+		got, err := Parse[testStructNested]([]string{"write-to.raw=x"})
+		require.NoError(t, err)
+		assert.Equal(t, "x", got.WriteTo.Raw)
+	})
+
+	// An embedded field is addressed as a whole under its type name, so a
+	// dotted key must not also reach into it.
+	t.Run("embedded fields are not descended into", func(t *testing.T) {
+		_, err := Parse[testStructNested]([]string{"test-struct-embedded.label=x"})
+		require.ErrorContains(t, err, "unknown fields: [test-struct-embedded.label]")
+
+		got, err := Parse[testStructNested]([]string{"test-struct-embedded=label=x"})
+		require.NoError(t, err)
+		assert.Equal(t, "x", got.Label)
+	})
+}
+
 func TestParseStandalone(t *testing.T) {
 	t.Run("string", func(t *testing.T) {
 		got, err := Parse[string]([]string{"hello"})
