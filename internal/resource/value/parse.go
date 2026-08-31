@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ettle/strcase"
-
 	xmaps "unikraft.com/cli/internal/x/maps"
 )
 
@@ -261,40 +259,23 @@ func parseReflect(input []string, value reflect.Value) error {
 			if err != nil {
 				return err
 			}
-		process:
 			for _, item := range items {
 				item = strings.TrimSpace(item)
 				if item == "" {
 					continue
 				}
-				k, v, _ := strings.Cut(item, "=")
-
-				for i := range s.NumField() {
-					field := s.Type().Field(i)
-					if !field.IsExported() {
-						continue
-					}
-					// Use "name" tag for value parsing, separate from "field" tag
-					// This allows fields to be excluded from the field system (field:"-")
-					// while still being parseable for --set values
-					name := field.Tag.Get("name")
-					if name == "-" {
-						continue
-					}
-					if name == "" {
-						name = field.Name
-						name = strcase.ToKebab(name)
-					}
-					if k == name {
-						fieldVal := s.Field(i)
-						err := parseReflect([]string{v}, fieldVal)
-						if err != nil {
-							return err
-						}
-						continue process
-					}
+				k, v, hasValue := strings.Cut(item, "=")
+				if !hasValue {
+					return fmt.Errorf("invalid value %q: expected <key>=<value>", item)
 				}
-				notFound[k] = struct{}{}
+
+				ok, err := assignField(s, k, v)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					notFound[k] = struct{}{}
+				}
 			}
 		}
 
@@ -306,4 +287,24 @@ func parseReflect(input []string, value reflect.Value) error {
 	default:
 		return fmt.Errorf("unsupported type: %T", value.Interface())
 	}
+}
+
+// assignField sets one key=value pair on struct s, descending into a named
+// struct field when the key is dotted. Reports whether the key matched.
+func assignField(s reflect.Value, k, v string) (bool, error) {
+	head, rest, dotted := strings.Cut(k, ".")
+
+	for field := range namedFields(s) {
+		if k == field.Name {
+			return true, parseReflect([]string{v}, field.Value)
+		}
+		if !dotted || head != field.Name || field.implements(textUnmarshaler) {
+			continue
+		}
+		if sub, ok := field.structValue(true); ok {
+			return assignField(sub, rest, v)
+		}
+	}
+
+	return false, nil
 }
