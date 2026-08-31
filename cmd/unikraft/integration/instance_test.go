@@ -234,6 +234,62 @@ cmd: ["cat", "/sys/class/uio/uio0/device/startdata"]
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
 
+	t.Run("create-relay", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		routerName, clientName, optOutName := uniq(), uniq(), uniq()
+
+		// A relay points at an interface, and the generated interface name is
+		// not predictable - it falls back to eth-<suffix> whenever
+		// network_interfaces is given explicitly - so the router needs one
+		// named up front to aim at.
+		iface := "test-" + routerName + "-eth0"
+		create := func(name string, opts ...string) []string {
+			return append([]string{
+				"unikraft", "instance", "create",
+				"--name", "test-" + name,
+				"--metro", r.Config.MetroName,
+				"--image", "nginx:latest",
+				"--memory", "128",
+				"--vcpus", "1",
+				"--set", "autostart=false",
+			}, opts...)
+		}
+
+		r.Run(t, create(routerName, "--network", "name="+iface, "--output", "quiet"))
+
+		out := r.Run(t, create(clientName, "--network", "relay.name="+iface))
+		assert.Regexp(t, `relay:`, out)
+		assert.Regexp(t, `name:\s+`+regexp.QuoteMeta(iface), out)
+		assert.Regexp(t, `dns:\s+true`, out)
+
+		// relay.dns is a dotted key rather than a nested value because relay=
+		// would take the whole value as the interface name.
+		out = r.Run(t, create(optOutName, "--network", "relay.name="+iface+",relay.dns=false"))
+		assert.Regexp(t, `dns:\s+false`, out)
+
+		out = r.Run(t, create(uniq(), "--network", "relay.name=test-"+routerName+"-nonexistent"), integ.ExpectFail())
+		assert.Regexp(t, `Invalid relay`, out)
+
+		// Relay chains are rejected, so the client's own interface cannot
+		// itself be relayed through.
+		clientIface := strings.TrimSpace(r.Run(t, []string{
+			"unikraft", "instance", "get", "test-" + clientName,
+			"--output", "template={{ (index .networks 0).name }}",
+		}))
+		require.NotEmpty(t, clientIface)
+		out = r.Run(t, create(uniq(), "--network", "relay.name="+clientIface), integ.ExpectFail())
+		assert.Regexp(t, `Invalid relay`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + clientName, "test-" + optOutName})
+
+		// The relay's datapath is torn down asynchronously after its last
+		// client goes, and until it is the target instance deletes as -EBUSY.
+		require.Eventually(t, func() bool {
+			_, err := r.RunRaw(t, []string{"unikraft", "instance", "delete", "test-" + routerName}, integ.WithoutCancel())
+			return err == nil
+		}, 2*time.Minute, 5*time.Second, "relay target never became deletable")
+	})
+
 	t.Run("create-oom", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
