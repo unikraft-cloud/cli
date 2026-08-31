@@ -16,6 +16,7 @@ import (
 
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model/patch"
 )
 
 func TestInstancePluginUnmarshalText(t *testing.T) {
@@ -184,6 +185,62 @@ func TestInstanceRomName(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantName, got.Name)
+		})
+	}
+}
+
+// TestInstanceCreateRejectsNetworks checks that create stops a bad --network
+// before it sends a request.
+func TestInstanceCreateRejectsNetworks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		spec    map[string][]string
+		wantErr string
+	}{
+		{
+			name: "relay without a target in the json form",
+			spec: map[string][]string{
+				"image":    {"nginx:latest"},
+				"networks": {`[{"relay":{"dns":false}}]`},
+			},
+			wantErr: "relay requires relay.name or relay.uuid",
+		},
+		{
+			name: "null interface in the json form",
+			spec: map[string][]string{
+				"image":    {"nginx:latest"},
+				"networks": {`[null]`},
+			},
+			wantErr: "network interface cannot be null",
+		},
+		{
+			name: "replicas with a named interface",
+			spec: map[string][]string{
+				"image":    {"nginx:latest"},
+				"networks": {"name=my-relay"},
+				"replicas": {"2"},
+			},
+			wantErr: "--replicas cannot be used with a --network",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fields, err := cmd.Instance{}.Fields(t.Context())
+			require.NoError(t, err)
+
+			patched, err := patch.PatchedFields(t.Context(), fields, patch.PatchSpec{
+				Create: true,
+				Set:    tt.spec,
+			})
+			require.NoError(t, err)
+
+			_, err = cmd.Instance{}.Create(t.Context(), patched)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }

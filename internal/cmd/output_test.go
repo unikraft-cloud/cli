@@ -139,7 +139,7 @@ func instancesOutputTests(t *testing.T) {
 	sample.Resources.Memory = 256
 	sample.Resources.VCPUs = 2
 	sample.PrivateFQDN = "my-instance.internal"
-	sample.Networks = []cmd.InstanceNetwork{
+	sample.Networks = []*cmd.InstanceNetwork{
 		{
 			Name:      "my-instance-eth0",
 			UUID:      "net-uuid-1234",

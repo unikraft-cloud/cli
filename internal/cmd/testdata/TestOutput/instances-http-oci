@@ -496,6 +496,11 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
           "verbosity": "long"
         },
         {
+          "name": "ip",
+          "value": "",
+          "verbosity": "invisible"
+        },
+        {
           "name": "autoconfig",
           "value": null,
           "verbosity": "long"
@@ -503,7 +508,10 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
       ],
       "verbosity": "long"
     },
-    "verbosity": "long"
+    "verbosity": "long",
+    "create": {
+      "set": null
+    }
   },
   {
     "name": "gpus",

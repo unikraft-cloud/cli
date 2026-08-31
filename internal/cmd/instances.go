@@ -130,9 +130,9 @@ type Instance struct {
 	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest." placeholder:"name=<name>,image=<ref>,at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
 	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance." placeholder:"name=<name>,image=<ref>[,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
 
-	PrivateFQDN string            `mirror:"instance.private_fqdn" field:"private-fqdn,long" help:"Private hostname, reachable only from your other instances in the metro."`
-	Networks    []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed" help:"Network interfaces of the instance."`
-	Gpus        []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed" help:"GPUs attached to the instance, only for type full."`
+	PrivateFQDN string             `mirror:"instance.private_fqdn" field:"private-fqdn,long" help:"Private hostname, reachable only from your other instances in the metro."`
+	Networks    []*InstanceNetwork `mirror:"instance.network_interfaces" field:",embed" create:"set" flag:"network" sep:"none" help:"Network interface to attach, one per flag and up to 4. The first one is the primary interface. Needs the net_manager permission.\n  name: interface name, unique in the account. Set it on a relay, so that other instances can refer to it. While its clients run, the relay instance stops only with --force and cannot be deleted\n  relay.name: name of the interface, not of the instance, that gets all the traffic of this one. It must be a platform interface of another instance, with no relay of its own\n  relay.uuid: the same, by UUID\n  relay.dns: false sends DNS requests to the platform's DNS server instead of the relay (default true)\n  tap-name: host TAP device, to bring your own interface\n  ip: address in CIDR notation, needs tap-name\n  mac: unicast MAC address, needs tap-name\n  autoconfig: whether the platform configures the interface inside the guest" placeholder:"<key>=<value>" example:"name=my-relay,relay.name=my-relay,relay.name=my-relay\\,relay.dns=false,name=my-vpc\\,tap-name=tap0\\,ip=10.0.0.5/24"`
+	Gpus        []InstanceGpu      `mirror:"instance.gpus" field:"gpus,embed" help:"GPUs attached to the instance, only for type full."`
 
 	Timestamps struct {
 		Created types.RelativeTime `mirror:"instance.created_at" field:",short" help:"Creation time."`
@@ -190,25 +190,60 @@ type Instance struct {
 }
 
 type InstanceNetwork struct {
-	Name       string                `mirror:"name" field:",long" help:"Interface name, unique in the account. Other instances use it as their relay."`
-	UUID       string                `mirror:"uuid" field:",long" help:"Unique identifier of the network interface."`
-	PrivateIP  string                `mirror:"private_ip" field:",long" help:"Private IP address, reachable only from your other instances in the metro."`
-	MAC        string                `mirror:"mac" field:",long" help:"MAC address of the network interface."`
-	TapName    string                `mirror:"tap_name" field:"tap-name,long" help:"Host TAP device of an interface that you bring yourself."`
-	Relay      *InstanceNetworkRelay `mirror:"relay" field:",embed" help:"Interface that all traffic of this interface goes through."`
-	Autoconfig *bool                 `mirror:"autoconfig" field:",long" help:"Whether the platform configures the interface inside the guest."`
+	Name      string `name:"name" mirror:"name" json:"name,omitempty" field:",long" help:"Interface name, unique in the account. Other instances use it as their relay."`
+	UUID      string `name:"-" mirror:"uuid" json:"-" field:",long" help:"Unique identifier of the network interface."`
+	PrivateIP string `name:"-" mirror:"private_ip" json:"-" field:",long" help:"Private IP address, reachable only from your other instances in the metro."`
+	MAC       string `name:"mac" mirror:"mac" json:"mac,omitempty" field:",long" help:"MAC address of the network interface."`
+	TapName   string `name:"tap-name" mirror:"tap_name" json:"tap-name,omitempty" field:"tap-name,long" help:"Host TAP device of an interface that you bring yourself."`
+
+	Relay *InstanceNetworkRelay `name:"relay" mirror:"relay" json:"relay,omitempty" field:",embed" help:"Interface that all traffic of this interface goes through."`
+
+	IP         string `name:"ip" json:"ip,omitempty" field:"ip,invisible" help:"Interface address in CIDR notation. Needs tap-name."`
+	Autoconfig *bool  `name:"autoconfig" mirror:"autoconfig" json:"autoconfig,omitempty" field:",long" help:"Whether the platform configures the interface inside the guest."`
 }
 
 // InstanceNetworkRelay is the interface of another instance that gets all the
 // traffic of a network interface.
 type InstanceNetworkRelay struct {
-	Name string `mirror:"name" field:",long" help:"Name of the relay interface."`
-	UUID string `mirror:"uuid" field:",long" help:"Unique identifier of the relay interface."`
+	Name string `name:"name" mirror:"name" json:"name,omitempty" field:",long" help:"Name of the relay interface."`
+	UUID string `name:"uuid" mirror:"uuid" json:"uuid,omitempty" field:",long" help:"Unique identifier of the relay interface."`
 	// The API names this member relay_dns, inside the relay object itself.
-	DNS      *bool `mirror:"relay_dns" field:",long" help:"Whether DNS requests go through the relay. Defaults to true."`
+	DNS      *bool `name:"dns" mirror:"relay_dns" json:"dns,omitempty" field:",long" help:"Whether DNS requests go through the relay. Defaults to true."`
 	Instance *struct {
 		Link[Instance]
 	} `name:"-" mirror:"instance" json:"-" field:",long" help:"Instance that owns the relay interface."`
+}
+
+func (n *InstanceNetwork) Validate() error {
+	if n == nil {
+		return fmt.Errorf("network interface cannot be null")
+	}
+	if n.Relay != nil && n.Relay.Name == "" && n.Relay.UUID == "" {
+		return fmt.Errorf("relay requires relay.name or relay.uuid")
+	}
+	return nil
+}
+
+func (n *InstanceNetwork) UnmarshalText(data []byte) error {
+	type alias InstanceNetwork
+	parsed, err := value.Parse[alias]([]string{string(data)})
+	if err != nil {
+		return err
+	}
+	*n = InstanceNetwork(parsed)
+	return n.Validate()
+}
+
+func (n *InstanceNetwork) UnmarshalJSON(data []byte) error {
+	if len(data) != 0 && data[0] == '"' {
+		var text string
+		if err := json.Unmarshal(data, &text); err != nil {
+			return err
+		}
+		return n.UnmarshalText([]byte(text))
+	}
+	type networkJSON InstanceNetwork // alias to avoid recursion
+	return json.Unmarshal(data, (*networkJSON)(n))
 }
 
 type InstanceGpu struct {
@@ -1356,6 +1391,27 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 				}
 				req.Plugins = append(req.Plugins, reqPlugin)
 			}
+		case "networks":
+			for _, net := range field.Create.Set.([]*InstanceNetwork) {
+				if err := net.Validate(); err != nil {
+					return nil, err
+				}
+				reqNet := platform.CreateInstanceRequestNetworkInterface{
+					Name:       ptr.NilIfZero(net.Name),
+					TapName:    ptr.NilIfZero(net.TapName),
+					Ip:         ptr.NilIfZero(net.IP),
+					Mac:        ptr.NilIfZero(net.MAC),
+					Autoconfig: net.Autoconfig,
+				}
+				if net.Relay != nil {
+					reqNet.Relay = &platform.NetworkInterfaceRelay{
+						Name:     ptr.NilIfZero(net.Relay.Name),
+						Uuid:     ptr.NilIfZero(net.Relay.UUID),
+						RelayDns: net.Relay.DNS,
+					}
+				}
+				req.NetworkInterfaces = append(req.NetworkInterfaces, reqNet)
+			}
 		case "service":
 			svc := field.Create.Set.(*InstanceService)
 			if req.ServiceGroup == nil {
@@ -1495,6 +1551,12 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 		return nil, fmt.Errorf("only one of --image, --template, --branch, or --checkpoint may be specified")
 	}
 
+	if req.Replicas != nil && *req.Replicas > 0 && slices.ContainsFunc(req.NetworkInterfaces, func(n platform.CreateInstanceRequestNetworkInterface) bool {
+		return n.Name != nil || n.TapName != nil || n.Ip != nil || n.Mac != nil
+	}) {
+		return nil, fmt.Errorf("--replicas cannot be used with a --network that sets name, tap-name, ip or mac, because each replica needs its own")
+	}
+
 	if autostart {
 		req.TimeoutS = new(int64(-1))
 	}
@@ -1508,6 +1570,9 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 		log.G(ctx).Trace().Msg("creating instance")
 		resp, err := timeouts.TryWithFallback(ctx, req, c.CreateInstance)
 		if _, err = timeouts.Tolerate(ctx, resp, err, "instance create did not complete in time"); err != nil {
+			if len(req.NetworkInterfaces) > 0 && strings.Contains(err.Error(), "Unknown member 'network_interfaces'") {
+				return nil, fmt.Errorf("%w\nhint: --network needs the net_manager permission, contact support to enable it", err)
+			}
 			return nil, err
 		}
 		if resp == nil || resp.Data == nil || len(resp.Data.Instances) == 0 {

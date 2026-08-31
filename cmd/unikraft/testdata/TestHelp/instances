@@ -77,7 +77,7 @@ Fields:
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
   networks.*.relay.uuid, networks.*.relay.dns, networks.*.relay.instance,
-  networks.*.relay.instance.name, networks.*.relay.instance.uuid,
+  networks.*.relay.instance.name, networks.*.relay.instance.uuid, networks.*.ip,
   networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -157,7 +157,7 @@ Fields:
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
   networks.*.relay.uuid, networks.*.relay.dns, networks.*.relay.instance,
-  networks.*.relay.instance.name, networks.*.relay.instance.uuid,
+  networks.*.relay.instance.name, networks.*.relay.instance.uuid, networks.*.ip,
   networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -245,7 +245,7 @@ Fields:
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
   networks.*.relay.uuid, networks.*.relay.dns, networks.*.relay.instance,
-  networks.*.relay.instance.name, networks.*.relay.instance.uuid,
+  networks.*.relay.instance.name, networks.*.relay.instance.uuid, networks.*.ip,
   networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -335,7 +335,7 @@ Fields:
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
   networks.*.relay.uuid, networks.*.relay.dns, networks.*.relay.instance,
-  networks.*.relay.instance.name, networks.*.relay.instance.uuid,
+  networks.*.relay.instance.name, networks.*.relay.instance.uuid, networks.*.ip,
   networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -450,7 +450,7 @@ Fields:
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
   networks.*.relay.uuid, networks.*.relay.dns, networks.*.relay.instance,
-  networks.*.relay.instance.name, networks.*.relay.instance.uuid,
+  networks.*.relay.instance.name, networks.*.relay.instance.uuid, networks.*.ip,
   networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -567,6 +567,17 @@ Create flags:
       --plugin=name=<name>,image=<ref>[,config=<json>] ...
           Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance.
           [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
+      --network=<key>=<value> ...
+          Network interface to attach, one per flag and up to 4. The first one is the primary interface. Needs the net_manager permission.
+            name: interface name, unique in the account. Set it on a relay, so that other instances can refer to it. While its clients run, the relay instance stops only with --force and cannot be deleted
+            relay.name: name of the interface, not of the instance, that gets all the traffic of this one. It must be a platform interface of another instance, with no relay of its own
+            relay.uuid: the same, by UUID
+            relay.dns: false sends DNS requests to the platform's DNS server instead of the relay (default true)
+            tap-name: host TAP device, to bring your own interface
+            ip: address in CIDR notation, needs tap-name
+            mac: unicast MAC address, needs tap-name
+            autoconfig: whether the platform configures the interface inside the guest.
+          [examples: name=my-relay, relay.name=my-relay, relay.name=my-relay,relay.dns=false, name=my-vpc,tap-name=tap0,ip=10.0.0.5/24]
       --scale-to-zero=<key>=<value>
           Scale-to-zero options. Traffic through a service or to the private IP wakes the instance.
             policy: on | idle (also while open TCP connections are idle, needs stateful=true) | off
@@ -669,7 +680,7 @@ Fields:
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
   networks.*.relay.uuid, networks.*.relay.dns, networks.*.relay.instance,
-  networks.*.relay.instance.name, networks.*.relay.instance.uuid,
+  networks.*.relay.instance.name, networks.*.relay.instance.uuid, networks.*.ip,
   networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -786,6 +797,17 @@ Create flags:
       --plugin=name=<name>,image=<ref>[,config=<json>] ...
           Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance.
           [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
+      --network=<key>=<value> ...
+          Network interface to attach, one per flag and up to 4. The first one is the primary interface. Needs the net_manager permission.
+            name: interface name, unique in the account. Set it on a relay, so that other instances can refer to it. While its clients run, the relay instance stops only with --force and cannot be deleted
+            relay.name: name of the interface, not of the instance, that gets all the traffic of this one. It must be a platform interface of another instance, with no relay of its own
+            relay.uuid: the same, by UUID
+            relay.dns: false sends DNS requests to the platform's DNS server instead of the relay (default true)
+            tap-name: host TAP device, to bring your own interface
+            ip: address in CIDR notation, needs tap-name
+            mac: unicast MAC address, needs tap-name
+            autoconfig: whether the platform configures the interface inside the guest.
+          [examples: name=my-relay, relay.name=my-relay, relay.name=my-relay,relay.dns=false, name=my-vpc,tap-name=tap0,ip=10.0.0.5/24]
       --scale-to-zero=<key>=<value>
           Scale-to-zero options. Traffic through a service or to the private IP wakes the instance.
             policy: on | idle (also while open TCP connections are idle, needs stateful=true) | off
@@ -896,7 +918,7 @@ Fields:
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
   networks.*.relay.uuid, networks.*.relay.dns, networks.*.relay.instance,
-  networks.*.relay.instance.name, networks.*.relay.instance.uuid,
+  networks.*.relay.instance.name, networks.*.relay.instance.uuid, networks.*.ip,
   networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -1015,6 +1037,17 @@ Create flags:
       --plugin=name=<name>,image=<ref>[,config=<json>] ...
           Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance.
           [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
+      --network=<key>=<value> ...
+          Network interface to attach, one per flag and up to 4. The first one is the primary interface. Needs the net_manager permission.
+            name: interface name, unique in the account. Set it on a relay, so that other instances can refer to it. While its clients run, the relay instance stops only with --force and cannot be deleted
+            relay.name: name of the interface, not of the instance, that gets all the traffic of this one. It must be a platform interface of another instance, with no relay of its own
+            relay.uuid: the same, by UUID
+            relay.dns: false sends DNS requests to the platform's DNS server instead of the relay (default true)
+            tap-name: host TAP device, to bring your own interface
+            ip: address in CIDR notation, needs tap-name
+            mac: unicast MAC address, needs tap-name
+            autoconfig: whether the platform configures the interface inside the guest.
+          [examples: name=my-relay, relay.name=my-relay, relay.name=my-relay,relay.dns=false, name=my-vpc,tap-name=tap0,ip=10.0.0.5/24]
       --scale-to-zero=<key>=<value>
           Scale-to-zero options. Traffic through a service or to the private IP wakes the instance.
             policy: on | idle (also while open TCP connections are idle, needs stateful=true) | off
@@ -1111,7 +1144,7 @@ Fields:
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
   networks.*.relay.uuid, networks.*.relay.dns, networks.*.relay.instance,
-  networks.*.relay.instance.name, networks.*.relay.instance.uuid,
+  networks.*.relay.instance.name, networks.*.relay.instance.uuid, networks.*.ip,
   networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -1257,7 +1290,7 @@ Fields:
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
   networks.*.relay.uuid, networks.*.relay.dns, networks.*.relay.instance,
-  networks.*.relay.instance.name, networks.*.relay.instance.uuid,
+  networks.*.relay.instance.name, networks.*.relay.instance.uuid, networks.*.ip,
   networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
