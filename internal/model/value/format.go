@@ -8,12 +8,11 @@ package value
 import (
 	"encoding"
 	"fmt"
+	"iter"
 	"reflect"
 	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/ettle/strcase"
 )
 
 // RenderOpts controls how a value is rendered to a string via Render.
@@ -103,33 +102,46 @@ func Render(value any, opt RenderOpts) (string, error) {
 		return strings.Join(result, ", "), nil
 	case reflect.Struct:
 		var result []string
-		for i := range v.NumField() {
-			field := v.Type().Field(i)
-			if !field.IsExported() {
-				continue
-			}
-			val := v.Field(i)
-			valStr, err := Render(val.Interface(), opt)
+		for path, leaf := range walkFields(v, "") {
+			str, err := Render(leaf.Interface(), opt)
 			if err != nil {
 				return "", err
 			}
-			if valStr == "" {
+			if str == "" {
 				continue
 			}
-			// Use "name" tag for value formatting, separate from "field" tag
-			// This allows fields to be excluded from the field system (field:"-")
-			// while still being formattable for --set values
-			name := field.Tag.Get("name")
-			if name == "-" {
-				continue
-			}
-			if name == "" {
-				name = strcase.ToKebab(field.Name)
-			}
-			result = append(result, fmt.Sprintf("%s=%s", name, valStr))
+			result = append(result, fmt.Sprintf("%s=%s", path, str))
 		}
 		return strings.Join(result, ", "), nil
 	default:
 		return fmt.Sprintf("%v", value), nil
+	}
+}
+
+var (
+	textMarshaler = reflect.TypeFor[encoding.TextMarshaler]()
+	stringer      = reflect.TypeFor[fmt.Stringer]()
+	renderer      = reflect.TypeFor[Renderer]()
+)
+
+// walkFields gives each leaf field of struct v with its dotted key.
+// Parse can then read the rendered nested fields back.
+func walkFields(v reflect.Value, prefix string) iter.Seq2[string, reflect.Value] {
+	return func(yield func(string, reflect.Value) bool) {
+		for field := range namedFields(v) {
+			path := prefix + field.Name
+			if sub, ok := field.structValue(false); ok &&
+				!field.implements(renderer, stringer, textMarshaler) {
+				for path, leaf := range walkFields(sub, path+".") {
+					if !yield(path, leaf) {
+						return
+					}
+				}
+				continue
+			}
+			if !yield(path, field.Value) {
+				return
+			}
+		}
 	}
 }
