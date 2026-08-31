@@ -5,8 +5,10 @@
 package cmd
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -27,7 +29,160 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/types"
 )
+
+const (
+	// defaultSandboxRom is the plugin ROM that --sandbox loads by default.
+	//
+	// TODO: point this back at "plugins/sandbox:staging" once the sandbox API
+	// changes being exercised here are published.
+	defaultSandboxRom = "dragosgheorghioiu/sandbox-api"
+
+	// defaultSandboxPath is where --sandbox mounts the volume backing the
+	// plugin's command history. It is handed to the plugin verbatim as its
+	// persist_path, and the two have to be the same path: the plugin refuses to
+	// start if the directory is missing and never creates one itself, while a
+	// mount point - but not a subdirectory of one - is created for us.
+	defaultSandboxPath = "/ukp/plugins/sandbox/history"
+
+	// defaultSandboxSize is the size of the volume --sandbox creates when it is
+	// not pointed at an existing one.
+	defaultSandboxSize = types.SizeMebibytes(1024)
+)
+
+// InstanceSandbox is the value of the --sandbox flag: a request to load the
+// sandbox plugin onto a new instance, persistent unless asked otherwise.
+//
+// Parsed via value.Parse as comma-separated key=value pairs, with the bare
+// words on/off (and true/false) as shorthand for persist=true/false:
+//
+//	on
+//	path=/data,size=2GiB
+//	persist=false
+type InstanceSandbox struct {
+	Persist *bool               `name:"persist"`
+	Path    string              `name:"path"`
+	Volume  string              `name:"volume"`
+	Size    types.SizeMebibytes `name:"size"`
+	Rom     string              `name:"rom"`
+	Plugin  string              `name:"plugin"`
+}
+
+func (s *InstanceSandbox) UnmarshalText(data []byte) error {
+	str := strings.TrimSpace(string(data))
+	if str == "" {
+		return nil
+	}
+
+	switch strings.ToLower(str) {
+	case "on", "true":
+		s.Persist = new(true)
+		return nil
+	case "off", "false":
+		s.Persist = new(false)
+		return nil
+	}
+
+	// The alias is what keeps value.Parse from calling this method again.
+	type sandboxAlias InstanceSandbox
+	parsed, err := value.Parse[sandboxAlias]([]string{str})
+	if err != nil {
+		return err
+	}
+	*s = InstanceSandbox(parsed)
+	return nil
+}
+
+// persistent reports whether the sandbox should be given a volume to keep its
+// command history in. Unset means yes.
+func (s *InstanceSandbox) persistent() bool {
+	return s.Persist == nil || *s.Persist
+}
+
+// sets renders the --set entries that --sandbox stands in for: a plugin, and,
+// when persisting, a volume mounted at exactly the path the plugin is told to
+// persist into. plugins and volumes are what the user asked for through
+// --plugin and --volume, and are read only to report a conflict.
+func (s *InstanceSandbox) sets(plugins []InstancePlugin, volumes []InstanceVolume) ([]map[string]string, error) {
+	name := cmp.Or(s.Plugin, sandbox.PluginName)
+	rom := cmp.Or(s.Rom, defaultSandboxRom)
+
+	for _, p := range plugins {
+		if p.Name == name {
+			return nil, fmt.Errorf("--plugin already loads a plugin named %q; drop it, or rename the sandbox with --sandbox=plugin=<name>", name)
+		}
+	}
+
+	if !s.persistent() {
+		if s.Path != "" || s.Volume != "" || s.Size > 0 {
+			return nil, fmt.Errorf("--sandbox=persist=false leaves nothing to store, so path=, volume= and size= cannot be given with it")
+		}
+		return []map[string]string{
+			{"plugins": fmt.Sprintf("name=%s,rom=%s", name, rom)},
+		}, nil
+	}
+
+	at := cmp.Or(s.Path, defaultSandboxPath)
+	if !path.IsAbs(at) {
+		return nil, fmt.Errorf("--sandbox path must be absolute, got %q", at)
+	}
+	for _, v := range volumes {
+		if v.At == at {
+			return nil, fmt.Errorf("--volume already mounts at %q, where the sandbox keeps its history; mount it elsewhere, or move the sandbox with --sandbox=path=<path>", at)
+		}
+	}
+
+	volume, err := s.volume(at)
+	if err != nil {
+		return nil, err
+	}
+
+	// Marshalled rather than concatenated: the plugin reads this config as JSON
+	// on its stdin and silently falls back to storing nothing at all when it
+	// does not parse, so a path carrying a quote must not be able to break it.
+	config, err := json.Marshal(struct {
+		PersistPath string `json:"persist_path"`
+	}{PersistPath: at})
+	if err != nil {
+		return nil, fmt.Errorf("encoding sandbox plugin config: %w", err)
+	}
+
+	return []map[string]string{
+		{"plugins": fmt.Sprintf("name=%s,rom=%s,config=%s", name, rom, config)},
+		{"volumes": volume},
+	}, nil
+}
+
+// volume renders the volume holding the sandbox's history, in the grammar
+// InstanceVolume parses back.
+//
+// A name is a reference to a volume that already exists, and a size asks for a
+// new one; the platform takes exactly one of the two and names anything it
+// creates itself, so the two are never sent together.
+func (s *InstanceSandbox) volume(at string) (string, error) {
+	vol := InstanceVolume{At: at}
+
+	switch {
+	case s.Volume == "":
+		vol.Size = cmp.Or(s.Size, defaultSandboxSize)
+	case s.Size > 0:
+		return "", fmt.Errorf("--sandbox volume=%s names a volume that already exists, so size= cannot be given with it; drop size= to attach it, or drop volume= to have one created", s.Volume)
+	default:
+		link, err := ParseLink[Volume]([]byte(s.Volume))
+		if err != nil {
+			return "", err
+		}
+		vol.Link = link
+	}
+
+	text, err := vol.MarshalText()
+	if err != nil {
+		return "", err
+	}
+	return string(text), nil
+}
 
 type ExecOpts struct {
 	Cmd []string `arg:"" name:"command" help:"Command to pass to the instance." placeholder:"cmd"`

@@ -386,6 +386,20 @@ Examples:
   	  --image nginx:latest \
   	  --plugin name=sandbox,rom=plugins/sandbox:latest
 
+  # Create an instance with a persistent sandbox
+  unikraft instance create \
+  	  --name demo-instance \
+  	  --metro fra \
+  	  --image nginx:latest \
+  	  --sandbox
+
+  # Create an instance with a sandbox on a larger volume
+  unikraft instance create \
+  	  --name demo-instance \
+  	  --metro fra \
+  	  --image nginx:latest \
+  	  --sandbox=size=10GiB
+
 Fields:
   metro
   name
@@ -500,6 +514,15 @@ Create flags:
       --plugin=name=<name>,rom=<ref>
           Load plugin into the instance.
           [examples: name=sandbox, rom=plugins/sandbox:latest]
+      --sandbox=<key>=<value>
+          Load the sandbox plugin, with a volume to keep its command history in.
+            persist: true | false
+            path: where the history is mounted and stored
+            volume: attach this existing volume instead of creating one
+            size: size of the volume to create
+            rom: plugin ROM image
+            plugin: plugin name.
+          [examples: on, path=/data,size=2GiB, volume=my-vol, persist=false]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>]
@@ -567,6 +590,20 @@ Examples:
   	  --image nginx:latest \
   	  --plugin name=sandbox,rom=plugins/sandbox:latest
 
+  # Create an instance with a persistent sandbox
+  unikraft instance create \
+  	  --name demo-instance \
+  	  --metro fra \
+  	  --image nginx:latest \
+  	  --sandbox
+
+  # Create an instance with a sandbox on a larger volume
+  unikraft instance create \
+  	  --name demo-instance \
+  	  --metro fra \
+  	  --image nginx:latest \
+  	  --sandbox=size=10GiB
+
 Fields:
   metro
   name
@@ -681,6 +718,15 @@ Create flags:
       --plugin=name=<name>,rom=<ref>
           Load plugin into the instance.
           [examples: name=sandbox, rom=plugins/sandbox:latest]
+      --sandbox=<key>=<value>
+          Load the sandbox plugin, with a volume to keep its command history in.
+            persist: true | false
+            path: where the history is mounted and stored
+            volume: attach this existing volume instead of creating one
+            size: size of the volume to create
+            rom: plugin ROM image
+            plugin: plugin name.
+          [examples: on, path=/data,size=2GiB, volume=my-vol, persist=false]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>]
@@ -876,6 +922,15 @@ Create flags:
       --plugin=name=<name>,rom=<ref>
           Load plugin into the instance.
           [examples: name=sandbox, rom=plugins/sandbox:latest]
+      --sandbox=<key>=<value>
+          Load the sandbox plugin, with a volume to keep its command history in.
+            persist: true | false
+            path: where the history is mounted and stored
+            volume: attach this existing volume instead of creating one
+            size: size of the volume to create
+            rom: plugin ROM image
+            plugin: plugin name.
+          [examples: on, path=/data,size=2GiB, volume=my-vol, persist=false]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>]

@@ -102,6 +102,8 @@ type InstanceCreateCmd struct {
 
 	Plugin []InstancePlugin `group:"flag-create" shortcut:"plugins" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>" example:"name=sandbox,rom=plugins/sandbox:latest"`
 
+	Sandbox *InstanceSandbox `group:"flag-create" type:"optional" help:"Load the sandbox plugin, with a volume to keep its command history in.\n  persist: true | false\n  path: where the history is mounted and stored\n  volume: attach this existing volume instead of creating one\n  size: size of the volume to create\n  rom: plugin ROM image\n  plugin: plugin name" placeholder:"<key>=<value>" example:"on,path=/data\\,size=2GiB,volume=my-vol,persist=false"`
+
 	Service InstanceService `group:"flag-create" shortcut:"service" help:"Service group name or key." placeholder:"name"`
 	Publish []Service       `group:"flag-create" shortcut:"service.services" short:"p" sep:"none" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
 	Domain  []Domain        `group:"flag-create" shortcut:"service.domains" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
@@ -127,6 +129,13 @@ func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox
 	}
 	if c.DeleteOnStop {
 		c.Set = append(c.Set, map[string]string{"features": string(platform.InstanceFeatureDeleteOnStop)})
+	}
+	if c.Sandbox != nil {
+		sets, err := c.Sandbox.sets(c.Plugin, c.Volume)
+		if err != nil {
+			return err
+		}
+		c.Set = append(c.Set, sets...)
 	}
 	if c.Service.Name != "" || c.Service.UUID != "" {
 		if len(c.Publish) > 0 {
@@ -1415,6 +1424,26 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --metro fra \
 	  --image nginx:latest \
 	  --plugin name=sandbox,rom=plugins/sandbox:latest`,
+				},
+			},
+			{
+				Description: "Create an instance with a persistent sandbox",
+				Commands: []string{
+					`unikraft instance create \
+	  --name demo-instance \
+	  --metro fra \
+	  --image nginx:latest \
+	  --sandbox`,
+				},
+			},
+			{
+				Description: "Create an instance with a sandbox on a larger volume",
+				Commands: []string{
+					`unikraft instance create \
+	  --name demo-instance \
+	  --metro fra \
+	  --image nginx:latest \
+	  --sandbox=size=10GiB`,
 				},
 			},
 		},
