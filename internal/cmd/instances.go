@@ -244,9 +244,22 @@ type Instance struct {
 }
 
 type InstanceNetwork struct {
-	UUID      string `mirror:"uuid" field:",long"`
-	PrivateIP string `mirror:"private_ip" field:",long"`
-	MAC       string `mirror:"mac" field:",long"`
+	Name       string                `mirror:"name" field:",long"`
+	UUID       string                `mirror:"uuid" field:",long"`
+	PrivateIP  string                `mirror:"private_ip" field:",long"`
+	MAC        string                `mirror:"mac" field:",long"`
+	TapName    string                `mirror:"tap_name" field:"tap-name,long"`
+	Relay      *InstanceNetworkRelay `mirror:"relay" field:",embed"`
+	Autoconfig *bool                 `mirror:"autoconfig" field:",long"`
+}
+
+// InstanceNetworkRelay is the interface all of this interface's traffic is
+// routed through. The target is another instance's interface, which has no
+// API of its own, so this holds plain identifiers rather than a Link.
+type InstanceNetworkRelay struct {
+	Name string `mirror:"name" field:",long"`
+	UUID string `mirror:"uuid" field:",long"`
+	DNS  *bool  `mirror:"relay_dns" field:",long"`
 }
 
 type InstanceGpu struct {

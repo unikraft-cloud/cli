@@ -32,9 +32,19 @@ roms:
   image:            myuser/my-rom:latest
   at:               /rom
 networks:
-- uuid:             net-uuid-1234
+- name:             my-instance-eth0
+  uuid:             net-uuid-1234
   private-ip:       192.168.1.10
   mac:              aa:bb:cc:dd:ee:ff
+  relay:
+    name:           my-router-eth0
+    uuid:           net-uuid-5678
+    dns:            true
+- name:             my-instance-eth1
+  uuid:             net-uuid-9abc
+  private-ip:       192.168.1.11
+  mac:              aa:bb:cc:dd:ee:00
+  tap-name:         tap0
 gpus:
 - uuid:             gpu-uuid-1234
   model:            10de:1eb8
@@ -88,9 +98,26 @@ roms:
   image:            myuser/my-rom:latest
   at:               /rom
 networks:
-- uuid:             net-uuid-1234
+- name:             my-instance-eth0
+  uuid:             net-uuid-1234
   private-ip:       192.168.1.10
   mac:              aa:bb:cc:dd:ee:ff
+  tap-name:
+  relay:
+    name:           my-router-eth0
+    uuid:           net-uuid-5678
+    dns:            true
+  autoconfig:
+- name:             my-instance-eth1
+  uuid:             net-uuid-9abc
+  private-ip:       192.168.1.11
+  mac:              aa:bb:cc:dd:ee:00
+  tap-name:         tap0
+  relay:
+    name:
+    uuid:
+    dns:
+  autoconfig:
 gpus:
 - uuid:             gpu-uuid-1234
   model:            10de:1eb8
@@ -638,6 +665,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
         "name": "0",
         "subfields": [
           {
+            "name": "name",
+            "value": "my-instance-eth0",
+            "verbosity": "long"
+          },
+          {
             "name": "uuid",
             "value": "net-uuid-1234",
             "verbosity": "long"
@@ -651,6 +683,94 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
             "name": "mac",
             "value": "aa:bb:cc:dd:ee:ff",
             "verbosity": "long"
+          },
+          {
+            "name": "tap-name",
+            "value": "",
+            "verbosity": "long"
+          },
+          {
+            "name": "relay",
+            "subfields": [
+              {
+                "name": "name",
+                "value": "my-router-eth0",
+                "verbosity": "long"
+              },
+              {
+                "name": "uuid",
+                "value": "net-uuid-5678",
+                "verbosity": "long"
+              },
+              {
+                "name": "dns",
+                "value": true,
+                "verbosity": "long"
+              }
+            ],
+            "verbosity": "long"
+          },
+          {
+            "name": "autoconfig",
+            "value": null,
+            "verbosity": "long"
+          }
+        ],
+        "verbosity": "long"
+      },
+      {
+        "name": "1",
+        "subfields": [
+          {
+            "name": "name",
+            "value": "my-instance-eth1",
+            "verbosity": "long"
+          },
+          {
+            "name": "uuid",
+            "value": "net-uuid-9abc",
+            "verbosity": "long"
+          },
+          {
+            "name": "private-ip",
+            "value": "192.168.1.11",
+            "verbosity": "long"
+          },
+          {
+            "name": "mac",
+            "value": "aa:bb:cc:dd:ee:00",
+            "verbosity": "long"
+          },
+          {
+            "name": "tap-name",
+            "value": "tap0",
+            "verbosity": "long"
+          },
+          {
+            "name": "relay",
+            "subfields": [
+              {
+                "name": "name",
+                "value": "",
+                "verbosity": "long"
+              },
+              {
+                "name": "uuid",
+                "value": "",
+                "verbosity": "long"
+              },
+              {
+                "name": "dns",
+                "value": null,
+                "verbosity": "long"
+              }
+            ],
+            "verbosity": "long"
+          },
+          {
+            "name": "autoconfig",
+            "value": null,
+            "verbosity": "long"
           }
         ],
         "verbosity": "long"
@@ -659,6 +779,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
     "elem": {
       "name": "",
       "subfields": [
+        {
+          "name": "name",
+          "value": "",
+          "verbosity": "long"
+        },
         {
           "name": "uuid",
           "value": "",
@@ -672,6 +797,37 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
         {
           "name": "mac",
           "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "tap-name",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "relay",
+          "subfields": [
+            {
+              "name": "name",
+              "value": "",
+              "verbosity": "long"
+            },
+            {
+              "name": "uuid",
+              "value": "",
+              "verbosity": "long"
+            },
+            {
+              "name": "dns",
+              "value": null,
+              "verbosity": "long"
+            }
+          ],
+          "verbosity": "long"
+        },
+        {
+          "name": "autoconfig",
+          "value": null,
           "verbosity": "long"
         }
       ],
