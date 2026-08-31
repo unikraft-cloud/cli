@@ -190,9 +190,25 @@ type Instance struct {
 }
 
 type InstanceNetwork struct {
-	UUID      string `mirror:"uuid" field:",long" help:"Unique identifier of the network interface."`
-	PrivateIP string `mirror:"private_ip" field:",long" help:"Private IP address, reachable only from your other instances in the metro."`
-	MAC       string `mirror:"mac" field:",long" help:"MAC address of the network interface."`
+	Name       string                `mirror:"name" field:",long" help:"Interface name, unique in the account. Other instances use it as their relay."`
+	UUID       string                `mirror:"uuid" field:",long" help:"Unique identifier of the network interface."`
+	PrivateIP  string                `mirror:"private_ip" field:",long" help:"Private IP address, reachable only from your other instances in the metro."`
+	MAC        string                `mirror:"mac" field:",long" help:"MAC address of the network interface."`
+	TapName    string                `mirror:"tap_name" field:"tap-name,long" help:"Host TAP device of an interface that you bring yourself."`
+	Relay      *InstanceNetworkRelay `mirror:"relay" field:",embed" help:"Interface that all traffic of this interface goes through."`
+	Autoconfig *bool                 `mirror:"autoconfig" field:",long" help:"Whether the platform configures the interface inside the guest."`
+}
+
+// InstanceNetworkRelay is the interface of another instance that gets all the
+// traffic of a network interface.
+type InstanceNetworkRelay struct {
+	Name string `mirror:"name" field:",long" help:"Name of the relay interface."`
+	UUID string `mirror:"uuid" field:",long" help:"Unique identifier of the relay interface."`
+	// The API names this member relay_dns, inside the relay object itself.
+	DNS      *bool `mirror:"relay_dns" field:",long" help:"Whether DNS requests go through the relay. Defaults to true."`
+	Instance *struct {
+		Link[Instance]
+	} `name:"-" mirror:"instance" json:"-" field:",long" help:"Instance that owns the relay interface."`
 }
 
 type InstanceGpu struct {

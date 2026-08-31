@@ -434,6 +434,11 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
       "name": "",
       "subfields": [
         {
+          "name": "name",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
           "name": "uuid",
           "value": "",
           "verbosity": "long"
@@ -446,6 +451,53 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
         {
           "name": "mac",
           "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "tap-name",
+          "value": "",
+          "verbosity": "long"
+        },
+        {
+          "name": "relay",
+          "subfields": [
+            {
+              "name": "name",
+              "value": "",
+              "verbosity": "long"
+            },
+            {
+              "name": "uuid",
+              "value": "",
+              "verbosity": "long"
+            },
+            {
+              "name": "dns",
+              "value": null,
+              "verbosity": "long"
+            },
+            {
+              "name": "instance",
+              "subfields": [
+                {
+                  "name": "name",
+                  "value": "",
+                  "verbosity": "long"
+                },
+                {
+                  "name": "uuid",
+                  "value": "",
+                  "verbosity": "long"
+                }
+              ],
+              "verbosity": "long"
+            }
+          ],
+          "verbosity": "long"
+        },
+        {
+          "name": "autoconfig",
+          "value": null,
           "verbosity": "long"
         }
       ],
