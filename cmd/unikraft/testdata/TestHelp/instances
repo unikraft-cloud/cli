@@ -73,7 +73,9 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
-  networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
+  networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
+  networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -146,7 +148,9 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
-  networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
+  networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
+  networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -227,7 +231,9 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
-  networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
+  networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
+  networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -310,7 +316,9 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
-  networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
+  networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
+  networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -418,7 +426,9 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
-  networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
+  networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
+  networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -616,7 +626,9 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
-  networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
+  networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
+  networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -822,7 +834,9 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
-  networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
+  networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
+  networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -1016,7 +1030,9 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
-  networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
+  networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
+  networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
@@ -1154,7 +1170,9 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
-  networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
+  networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
+  networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
+  networks.*.relay.uuid, networks.*.relay.dns, networks.*.autoconfig
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
