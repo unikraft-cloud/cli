@@ -29,6 +29,10 @@ import (
 //go:embed testdata/counter_server.py
 var counterServerPy []byte
 
+// followArgs counts the boots in /data/n, prints the count, then waits. The
+// instance stays running while the test reads the output of the boot.
+const followArgs = `runtime.args=["sh","-c","n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; sleep 30s"]`
+
 // tunnelProxyUUIDs queries the platform directly (bypassing the CLI's
 // resource sandbox, which never tracks the tunnel command's internal proxy
 // instance since it's created via the raw platform client rather than
@@ -191,33 +195,18 @@ func TestInstances(t *testing.T) {
 	t.Run("annotations-guest", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
-		image := r.Config.Profile.Organization + "/startdata-e2e:" + uniq()
+		image := integ.Busybox.Build(t, r)
 
-		dir := t.TempDir()
-		require.NoError(t, fstest.Apply(
-			fstest.CreateDir("base", 0o755),
-			fstest.CreateFile("base/Dockerfile", []byte(`FROM busybox:latest`), 0o644),
-			fstest.CreateFile("base/Kraftfile", []byte(`
-spec: v0.7
-name: startdata-e2e
-runtime: base-compat:latest
-rootfs:
-  format: erofs
-  source: ./Dockerfile
-cmd: ["cat", "/sys/class/uio/uio0/device/startdata"]
-`), 0o644),
-		).Apply(dir))
-
-		r.Run(t, []string{"unikraft", "build", "base", "--output", image}, integ.WithWorkDir(dir))
 		r.Run(t, []string{
 			"unikraft", "run",
 			"--name", "test-" + instName,
 			"--metro", r.Config.MetroName,
 			"--output", "quiet",
 			"--image", image,
+			"--args", "cat /sys/class/uio/uio0/device/startdata",
 			"--annotation", "my-key=value1",
 			"--annotation", "example.com/annotation2=value2",
-		}, integ.WithWorkDir(dir))
+		})
 		r.Run(t, []string{"unikraft", "--timeout", "30s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 		out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
@@ -365,31 +354,7 @@ cmd: ["cat", "/sys/class/uio/uio0/device/startdata"]
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		volName := uniq()
-		imageTag := uniq()
-
-		baseImagePrefix := r.Config.Profile.Organization + "/busybox-start-follow-e2e"
-		baseImage := baseImagePrefix + ":" + imageTag
-
-		dir := t.TempDir()
-		require.NoError(t, fstest.Apply(
-			fstest.CreateDir("base", 0o755),
-			fstest.CreateFile("base/Dockerfile", []byte(`
-FROM busybox:latest
-
-RUN echo 'n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; sleep 30s' > /start.sh
-RUN chmod +x /start.sh
-`), 0o644),
-			fstest.CreateFile("base/Kraftfile", []byte(`
-spec: v0.7
-name: busybox-start-follow-e2e
-runtime: base-compat:latest
-rootfs:
-  format: erofs
-  source: ./Dockerfile
-`), 0o644),
-		).Apply(dir))
-
-		r.Run(t, []string{"unikraft", "build", "base", "--output", baseImage}, integ.WithWorkDir(dir))
+		baseImage := integ.Busybox.Build(t, r)
 
 		// Volume provides persistent counter across boots.
 		r.Run(t, []string{
@@ -411,7 +376,7 @@ rootfs:
 			"--set", "resources.memory=128",
 			"--set", "resources.vcpus=1",
 			"--set", "volumes=test-" + volName + ":/data",
-			"--set", `runtime.args=["sh","-c","/start.sh"]`,
+			"--set", followArgs,
 		})
 
 		// First boot ("starting 1"): start, wait running, then stop.
@@ -439,31 +404,7 @@ rootfs:
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		volName := uniq()
-		imageTag := uniq()
-
-		baseImagePrefix := r.Config.Profile.Organization + "/busybox-restart-follow-e2e"
-		baseImage := baseImagePrefix + ":" + imageTag
-
-		dir := t.TempDir()
-		require.NoError(t, fstest.Apply(
-			fstest.CreateDir("base", 0o755),
-			fstest.CreateFile("base/Dockerfile", []byte(`
-FROM busybox:latest
-
-RUN echo 'n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; sleep 30s' > /start.sh
-RUN chmod +x /start.sh
-`), 0o644),
-			fstest.CreateFile("base/Kraftfile", []byte(`
-spec: v0.7
-name: busybox-restart-follow-e2e
-runtime: base-compat:latest
-rootfs:
-  format: erofs
-  source: ./Dockerfile
-`), 0o644),
-		).Apply(dir))
-
-		r.Run(t, []string{"unikraft", "build", "base", "--output", baseImage}, integ.WithWorkDir(dir))
+		baseImage := integ.Busybox.Build(t, r)
 
 		// Volume provides persistent counter across boots.
 		r.Run(t, []string{
@@ -485,7 +426,7 @@ rootfs:
 			"--set", "resources.memory=128",
 			"--set", "resources.vcpus=1",
 			"--set", "volumes=test-" + volName + ":/data",
-			"--set", `runtime.args=["sh","-c","/start.sh"]`,
+			"--set", followArgs,
 		})
 		r.Run(t, []string{"unikraft", "instance", "wait", "--until", "state==running", "--timeout", "30s", "test-" + instName})
 
