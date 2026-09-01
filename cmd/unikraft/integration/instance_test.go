@@ -245,7 +245,7 @@ cmd: ["cat", "/sys/class/uio/uio0/device/startdata"]
 			"--set", "metro=" + r.Config.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
-			"--set", "resources.memory=16Mib",
+			"--set", "resources.memory=24Mib",
 			"--set", "resources.vcpus=1",
 		})
 
