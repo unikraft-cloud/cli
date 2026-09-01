@@ -106,6 +106,21 @@ type Field struct {
 	// settings for creating or patching resources
 	Create *Patch `json:"create,omitempty"`
 	Edit   *Patch `json:"edit,omitempty"`
+
+	// Flag exposes the field as a flag on create and edit commands.
+	Flag *FlagSpec `json:"-"`
+}
+
+// FlagSpec describes the flag synthesised for a field. Tag is the field's own
+// struct tag, whose kong keys are forwarded to that flag verbatim.
+type FlagSpec struct {
+	Name string
+	// File marks a flag whose value is a path, and whose contents become the
+	// field's value.
+	File bool
+	// Arg makes the field a positional argument rather than a flag.
+	Arg bool
+	Tag reflect.StructTag
 }
 
 func (f Field) HasChildren() bool {

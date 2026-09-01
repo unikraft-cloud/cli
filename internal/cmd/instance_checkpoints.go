@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/alecthomas/kong"
 	"github.com/distribution/reference"
 
 	"unikraft.com/cloud/sdk/platform"
@@ -36,43 +35,9 @@ type InstanceCheckpointsCmd struct {
 	cmd.WaitableResourceCmd[InstanceCheckpoint]
 	cmd.BulkDeletableResourceCmd[InstanceCheckpoint]
 
-	Create  InstanceCheckpointCreateCmd  `cmd:"" help:"Create a checkpoint from an instance."`
-	Edit    InstanceCheckpointEditCmd    `cmd:"" help:"Edit an instance checkpoint."`
-	History InstanceCheckpointHistoryCmd `cmd:"" help:"Show the history of a checkpoint."`
-}
-
-// InstanceCheckpointCreateCmd extends the generic resource create command with
-// positional instance IDs.
-type InstanceCheckpointCreateCmd struct {
-	cmd.ResourceCreateCmd[InstanceCheckpoint]
-
-	Target string `arg:"" name:"instance" optional:"" completion-predictor:"resource-key-instance" help:"Instance to create a checkpoint from."`
-}
-
-func (c *InstanceCheckpointCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	if c.Target != "" {
-		c.Set = append(c.Set, map[string]string{"instance": c.Target})
-	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
-}
-
-// InstanceCheckpointEditCmd extends the generic resource edit command with
-// shortcut flags for commonly used editable checkpoint fields.
-type InstanceCheckpointEditCmd struct {
-	cmd.ResourceEditCmd[InstanceCheckpoint]
-
-	Tag        []string `group:"flag-edit" shortcut:"tags" sep:"none" help:"Checkpoint tag." placeholder:"tag" example:"env-dev"`
-	DeleteLock *bool    `group:"flag-edit" shortcut:"delete-lock" help:"Prevent deletion of the checkpoint."`
-}
-
-func (c *InstanceCheckpointEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceEditCmd.Run(ctx, stdio, partition)
+	Create  cmd.ResourceCreateCmd[InstanceCheckpoint] `cmd:"" help:"Create a checkpoint from an instance."`
+	Edit    cmd.ResourceEditCmd[InstanceCheckpoint]   `cmd:"" help:"Edit an instance checkpoint."`
+	History InstanceCheckpointHistoryCmd              `cmd:"" help:"Show the history of a checkpoint."`
 }
 
 type InstanceCheckpoint struct {
@@ -80,9 +45,9 @@ type InstanceCheckpoint struct {
 	Name      string          `mirror:"instance.name" field:",short"`
 	UUID      string          `mirror:"instance.uuid" field:",long"`
 
-	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del"`
+	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Checkpoint tag." placeholder:"tag" example:"env-dev"`
 	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
-	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set"`
+	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the checkpoint."`
 
 	State types.InstanceState             `mirror:"instance.state" field:",short"`
 	Image types.ImageRef[reference.Named] `mirror:"instance.image" field:",short"`
@@ -114,7 +79,7 @@ type InstanceCheckpoint struct {
 		Policy string `mirror:"instance.restart_policy"`
 	}
 
-	InstanceRef string          `field:"instance,invisible,valueless" create:"set,required"`
+	InstanceRef string          `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to create a checkpoint from."`
 	WaitTimeout types.DurationS `field:"wait-timeout,invisible,valueless" create:"set"`
 
 	Instance platform.Instance `field:"-" json:"instance"`

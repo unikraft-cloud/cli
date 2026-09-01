@@ -293,7 +293,7 @@ Global flags:
 Create flags:
       --metro=<metro>
           Metro to create in.
-          [examples: fra, sfo, nyc]
+          [examples: fra, sfo]
       --name=<name>
           Service group name.
       --soft-limit=<n>

@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
-	"github.com/alecthomas/kong"
 	"github.com/distribution/reference"
 	"github.com/go-json-experiment/json/jsontext"
 	"mvdan.cc/sh/v3/shell"
@@ -53,11 +52,11 @@ type InstancesCmd struct {
 	cmd.ListableResourceCmd[Instance]
 	cmd.BulkDeletableResourceCmd[Instance]
 
-	Create     InstanceCreateCmd      `cmd:"" aliases:"new" help:"Create an instance."`
-	Run        InstanceRunCmd         `cmd:"" help:"Create an instance and optionally follow its logs."`
-	Edit       InstanceEditCmd        `cmd:"" help:"Edit an instance."`
-	Template   InstanceTemplatesCmd   `cmd:"" group:"cmd-templates" help:"Manage instance templates." aliases:"templates" set:"name=instance-template" set:"names=instance-templates"`
-	Checkpoint InstanceCheckpointsCmd `cmd:"" group:"cmd-checkpoints" help:"Manage instance checkpoints." aliases:"checkpoints" set:"name=instance-checkpoint" set:"names=instance-checkpoints"`
+	Create     InstanceCreateCmd             `cmd:"" aliases:"new" help:"Create an instance."`
+	Run        InstanceRunCmd                `cmd:"" help:"Create an instance and optionally follow its logs."`
+	Edit       cmd.ResourceEditCmd[Instance] `cmd:"" help:"Edit an instance."`
+	Template   InstanceTemplatesCmd          `cmd:"" group:"cmd-templates" help:"Manage instance templates." aliases:"templates" set:"name=instance-template" set:"names=instance-templates"`
+	Checkpoint InstanceCheckpointsCmd        `cmd:"" group:"cmd-checkpoints" help:"Manage instance checkpoints." aliases:"checkpoints" set:"name=instance-checkpoint" set:"names=instance-checkpoints"`
 
 	Logs    InstancesLogsCmd    `cmd:"" help:"Fetch and display instance logs."`
 	Start   InstancesStartCmd   `cmd:"" help:"Start one or more instances."`
@@ -73,137 +72,59 @@ type InstancesCmd struct {
 	Read  ReadSandboxInstanceCmd  `cmd:"" help:"Read a file from a sandbox instance."`
 }
 
-// InstanceCreateCmd extends the generic resource create command with shortcut
-// flags for commonly used instance fields. Each field tagged with
-// `shortcut:"<path>"` is translated into a --set <path>=<value> entry before
-// the standard create pipeline runs.
+// InstanceCreateCmd extends the generic resource create command with flags
+// that do not map onto a single schema field.
 type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
-	// Shortcut flags - ordered to match Instance struct layout.
-	Metro string `group:"flag-create" shortcut:"metro" help:"Metro to deploy in." placeholder:"metro" example:"fra,sfo,nyc"`
-	Name  string `group:"flag-create" shortcut:"name" short:"n" help:"Instance name." placeholder:"name"`
-
-	Image      string                 `group:"flag-create" shortcut:"image" help:"Image to deploy." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
-	PullPolicy *platform.PullPolicy   `group:"flag-create" shortcut:"pull-policy" help:"Image pull policy." placeholder:"policy" example:"always,never,if_not_present"`
-	Type       *platform.InstanceType `group:"flag-create" shortcut:"type" help:"Type of virtual machine to run. \"full\" requires a plan with full VM support." placeholder:"type" example:"micro,full"`
-
-	Args InstanceArgs `group:"flag-create" shortcut:"runtime.args" help:"Arguments to pass to the instance." placeholder:"arg"`
-	Env  []string     `group:"flag-create" shortcut:"runtime.env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
-
-	Memory        types.SizeMebibytes     `group:"flag-create" shortcut:"resources.memory" short:"m" help:"Memory allocation." placeholder:"size" example:"128MiB,1GiB"`
-	Vcpus         int                     `group:"flag-create" shortcut:"resources.vcpus" help:"Number of vCPUs." placeholder:"n" example:"1,2,4"`
-	Gpus          int                     `group:"flag-create" shortcut:"resources.gpus" help:"Number of GPUs to attach. Requires type \"full\" and a plan with GPU support. Currently limited to 1." placeholder:"n" example:"0,1"`
-	SchedPriority *platform.SchedPriority `group:"flag-create" shortcut:"sched-priority" help:"Scheduling priority for the instance." placeholder:"priority" example:"normal,medium,high,admin"`
-
-	Volume []InstanceVolume `group:"flag-create" shortcut:"volumes" short:"v" sep:"none" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
-	Rom    []InstanceRom    `group:"flag-create" shortcut:"roms" sep:"none" help:"Attach ROM." placeholder:"image=<ref>,at=<path>" example:"image=myuser/my-rom:latest\\,at=/rom0\\,name=my-rom,dir=./mydata\\,at=/rom"`
-
-	Plugin []InstancePlugin `group:"flag-create" shortcut:"plugins" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>[,config=<json>]" example:"name=sandbox\\,rom=plugins/sandbox:latest,name=logger\\,rom=plugins/logger:latest\\,config={\"level\":\"debug\"}"`
-
-	Service InstanceService `group:"flag-create" shortcut:"service" help:"Service group name or key." placeholder:"name"`
-	Publish []Service       `group:"flag-create" shortcut:"service.services" short:"p" sep:"none" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
-	Domain  []Domain        `group:"flag-create" shortcut:"service.domains" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
-
-	ScaleToZero InstanceScaleToZero `group:"flag-create" shortcut:"scale-to-zero" help:"Scale-to-zero options.\n  policy: on | idle | off\n  cooldown-time: cooldown in ms before scaling to zero\n  notify-time: notification time in ms before scaling to zero\n  stateful: true | false" placeholder:"<key>=<value>" example:"on,policy=on\\,cooldown-time=300,policy=on\\,stateful=true\\,cooldown-time=500\\,notify-time=100"`
-
-	Tag        []string `group:"flag-create" shortcut:"tags" sep:"none" help:"Instance tag." placeholder:"tag" example:"env-prod"`
-	Annotation []string `group:"flag-create" shortcut:"annotations" sep:"none" help:"Instance annotation." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
-
-	Restart string `group:"flag-create" shortcut:"restart.policy" help:"Restart policy." placeholder:"policy" example:"always,on-failure,never"`
-
-	Autostart    *bool          `group:"flag-create" shortcut:"autostart" help:"Start instance automatically."`
-	Replicas     int64          `group:"flag-create" shortcut:"replicas" help:"Number of replicas." placeholder:"n" example:"1,3"`
-	Feature      []string       `group:"flag-create" shortcut:"features" sep:"none" help:"Instance feature." placeholder:"feature"`
-	Template     string         `group:"flag-create" shortcut:"template" help:"Create from instance template." placeholder:"name"`
-	Branch       multimetro.Key `group:"flag-create" shortcut:"branch" help:"Branch from an existing instance." placeholder:"instance"`
-	Checkpoint   multimetro.Key `group:"flag-create" shortcut:"checkpoint" help:"Create from a checkpoint." placeholder:"checkpoint"`
-	DeleteOnStop bool           `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	DeleteOnStop bool `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
 }
 
-func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
+func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	if c.DeleteOnStop {
 		c.Set = append(c.Set, map[string]string{"features": string(platform.InstanceFeatureDeleteOnStop)})
 	}
-	if c.Service.Name != "" || c.Service.UUID != "" {
-		if len(c.Publish) > 0 {
+	flags := c.GeneratedFlags()
+	if flags.IsSet("service") {
+		if flags.IsSet("service.services") {
 			return fmt.Errorf("--publish cannot be used with --service")
 		}
-		if len(c.Domain) > 0 {
+		if flags.IsSet("service.domains") {
 			return fmt.Errorf("--domain cannot be used with --service")
 		}
 	}
 	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
 }
 
-// InstanceEditCmd extends the generic resource edit command with shortcut
-// flags for commonly used editable instance fields. Each field tagged with
-// `shortcut:"<path>"` is translated into a --set <path>=<value> entry before
-// the standard edit pipeline runs.
-type InstanceEditCmd struct {
-	cmd.ResourceEditCmd[Instance]
-
-	// Shortcut flags - only fields that support editing.
-	Image string `group:"flag-edit" shortcut:"image" help:"Image to deploy." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
-
-	Args InstanceArgs `group:"flag-edit" shortcut:"runtime.args" help:"Arguments to pass to the instance." placeholder:"arg"`
-	Env  []string     `group:"flag-edit" shortcut:"runtime.env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
-
-	Memory        types.SizeMebibytes     `group:"flag-edit" shortcut:"resources.memory" short:"m" help:"Memory allocation." placeholder:"size" example:"128MiB,1GiB"`
-	Vcpus         int                     `group:"flag-edit" shortcut:"resources.vcpus" help:"Number of vCPUs." placeholder:"n" example:"1,2,4"`
-	SchedPriority *platform.SchedPriority `group:"flag-edit" shortcut:"sched-priority" help:"Scheduling priority for the instance." placeholder:"priority" example:"normal,medium,high,admin"`
-
-	Rom []InstanceRom `group:"flag-edit" shortcut:"roms" sep:"none" help:"Attach ROM." placeholder:"image=<ref>,at=<path>" example:"image=myuser/my-rom:latest\\,at=/rom0\\,name=my-rom,dir=./mydata\\,at=/rom"`
-
-	Plugin []InstancePlugin `group:"flag-edit" shortcut:"plugins" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>[,config=<json>]" example:"name=sandbox\\,rom=plugins/sandbox:latest,name=logger\\,rom=plugins/logger:latest\\,config={\"level\":\"debug\"}"`
-
-	Tag        []string `group:"flag-edit" shortcut:"tags" sep:"none" help:"Instance tag." placeholder:"tag" example:"env-prod"`
-	Annotation []string `group:"flag-edit" shortcut:"annotations" sep:"none" help:"Instance annotation." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
-
-	ScaleToZero InstanceScaleToZero `group:"flag-edit" shortcut:"scale-to-zero" help:"Scale-to-zero options.\n  policy: on | idle | off\n  cooldown-time: cooldown in ms before scaling to zero\n  notify-time: notification time in ms before scaling to zero\n  stateful: true | false" placeholder:"<key>=<value>" example:"on,policy=on\\,cooldown-time=300,policy=on\\,stateful=true\\,cooldown-time=500\\,notify-time=100"`
-
-	DeleteLock *bool `group:"flag-edit" shortcut:"delete-lock" help:"Prevent instance deletion until the lock is removed."`
-}
-
-func (c *InstanceEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceEditCmd.Run(ctx, stdio, partition)
-}
-
 type Instance struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required"`
-	Name  string          `mirror:"instance.name" field:",short" create:"set"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to deploy in." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"instance.name" field:",short" create:"set" flag:"name" short:"n" help:"Instance name." placeholder:"name"`
 	UUID  string          `mirror:"instance.uuid" field:",long"`
 
-	Tags        []string          `mirror:"instance.tags" field:",long" create:"set" edit:"set,add,del"`
-	Annotations map[string]string `mirror:"instance.annotations" field:",long" create:"set" edit:"set,add,del=keys"`
+	Tags        []string          `mirror:"instance.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Instance tag." placeholder:"tag" example:"env-prod"`
+	Annotations map[string]string `mirror:"instance.annotations" field:",long" create:"set" edit:"set,add,del=keys" flag:"annotation" sep:"none" mapsep:"none" help:"Instance annotation." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
 
 	State types.InstanceState `mirror:"instance.state" field:",short" edit:"set"`
 
-	Image      types.ImageRef[reference.Named] `mirror:"instance.image" field:",short" create:"set" edit:"set"`
-	PullPolicy *platform.PullPolicy            `field:"pull-policy,invisible,valueless" create:"set"`
-	Type_      *platform.InstanceType          `mirror:"instance.type" field:"type,long" create:"set"`
+	Image      types.ImageRef[reference.Named] `mirror:"instance.image" field:",short" create:"set" edit:"set" flag:"image" help:"Image to deploy." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
+	PullPolicy *platform.PullPolicy            `field:"pull-policy,invisible,valueless" create:"set" flag:"pull-policy" help:"Image pull policy." placeholder:"policy" example:"always,never,if_not_present"`
+	Type_      *platform.InstanceType          `mirror:"instance.type" field:"type,long" create:"set" flag:"type" help:"Type of virtual machine to run. \"full\" requires a plan with full VM support." placeholder:"type" example:"micro,full"`
 
 	Runtime struct {
-		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set"`
-		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys"`
+		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set" flag:"args" help:"Arguments to pass to the instance." placeholder:"arg"`
+		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" short:"e" sep:"none" mapsep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
 	}
 
 	Resources struct {
-		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short" create:"set" edit:"set"`
-		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short" create:"set" edit:"set"`
-		GPUs   int                 `field:"gpus,long" create:"set"`
+		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short" create:"set" edit:"set" flag:"memory" short:"m" help:"Memory allocation." placeholder:"size" example:"128MiB,1GiB"`
+		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short" create:"set" edit:"set" flag:"vcpus" help:"Number of vCPUs." placeholder:"n" example:"1,2,4"`
+		GPUs   int                 `field:"gpus,long" create:"set" flag:"gpus" help:"Number of GPUs to attach. Requires type \"full\" and a plan with GPU support. Currently limited to 1." placeholder:"n" example:"0,1"`
 	}
 
-	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set"`
-	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings"`
-	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings"`
-	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings"`
+	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set" flag:"service" help:"Service group name or key." placeholder:"name"`
+	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings" flag:"volume" short:"v" sep:"none" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
+	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Attach ROM." placeholder:"image=<ref>,at=<path>" example:"image=myuser/my-rom:latest\\,at=/rom0\\,name=my-rom,dir=./mydata\\,at=/rom"`
+	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>[,config=<json>]" example:"name=sandbox\\,rom=plugins/sandbox:latest,name=logger\\,rom=plugins/logger:latest\\,config={\"level\":\"debug\"}"`
 
 	Networks []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
 	Gpus     []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
@@ -214,7 +135,7 @@ type Instance struct {
 		Stopped types.RelativeTime `mirror:"instance.stopped_at"`
 	}
 
-	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" create:"set" edit:"set"`
+	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" create:"set" edit:"set" flag:"scale-to-zero" help:"Scale-to-zero options.\n  policy: on | idle | off\n  cooldown-time: cooldown in ms before scaling to zero\n  notify-time: notification time in ms before scaling to zero\n  stateful: true | false" placeholder:"<key>=<value>" example:"on,policy=on\\,cooldown-time=300,policy=on\\,stateful=true\\,cooldown-time=500\\,notify-time=100"`
 
 	Timing struct {
 		Uptime   types.DurationMS `mirror:"instance.uptime_ms"`
@@ -223,20 +144,20 @@ type Instance struct {
 	}
 
 	Restart struct {
-		Policy       string `mirror:"instance.restart_policy" create:"set"`
+		Policy       string `mirror:"instance.restart_policy" create:"set" flag:"restart" help:"Restart policy." placeholder:"policy" example:"always,on-failure,never"`
 		StartCount   int    `mirror:"instance.start_count"`
 		RestartCount int    `mirror:"instance.restart_count"`
 	}
 
-	SchedPriority *platform.SchedPriority `mirror:"instance.sched_priority" field:"sched-priority,long" create:"set" edit:"set"`
-	Autostart     bool                    `field:"autostart,invisible,valueless" create:"set"`
-	Replicas      int64                   `field:"replicas,invisible,valueless" create:"set"`
+	SchedPriority *platform.SchedPriority `mirror:"instance.sched_priority" field:"sched-priority,long" create:"set" edit:"set" flag:"sched-priority" help:"Scheduling priority for the instance." placeholder:"priority" example:"normal,medium,high,admin"`
+	Autostart     bool                    `field:"autostart,invisible,valueless" create:"set" flag:"autostart" help:"Start instance automatically."`
+	Replicas      int64                   `field:"replicas,invisible,valueless" create:"set" flag:"replicas" help:"Number of replicas." placeholder:"n" example:"1,3"`
 	WaitTimeout   types.DurationS         `field:"wait-timeout,invisible,valueless" create:"set"`
-	Features      []string                `field:"features,invisible,valueless" create:"set"`
+	Features      []string                `field:"features,invisible,valueless" create:"set" flag:"feature" sep:"none" help:"Instance feature." placeholder:"feature"`
 	Vsock         bool                    `field:"vsock,invisible,valueless" create:"set" edit:"set"`
-	Template      string                  `field:"template,invisible,valueless" create:"set"`
-	Branch        multimetro.Key          `field:"branch,invisible,valueless" create:"set"`
-	Checkpoint    multimetro.Key          `field:"checkpoint,invisible,valueless" create:"set"`
+	Template      string                  `field:"template,invisible,valueless" create:"set" flag:"template" help:"Create from instance template." placeholder:"name"`
+	Branch        multimetro.Key          `field:"branch,invisible,valueless" create:"set" flag:"branch" help:"Branch from an existing instance." placeholder:"instance"`
+	Checkpoint    multimetro.Key          `field:"checkpoint,invisible,valueless" create:"set" flag:"checkpoint" help:"Create from a checkpoint." placeholder:"checkpoint"`
 
 	Stop struct {
 		Reason string     `field:",long"`
@@ -251,7 +172,7 @@ type Instance struct {
 
 	key multimetro.Key
 
-	DeleteLock bool `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set"`
+	DeleteLock bool `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent instance deletion until the lock is removed."`
 }
 
 type InstanceNetwork struct {
@@ -267,8 +188,8 @@ type InstanceGpu struct {
 
 type InstanceService struct {
 	Link[ServiceGroup]
-	Services  []*Service `mirror:"services" json:"services,omitempty" field:",invisible,valueless" create:"set"`
-	Domains   []Domain   `mirror:"domains" json:"domains,omitempty" field:",short,embed" create:"set"`
+	Services  []*Service `mirror:"services" json:"services,omitempty" field:",invisible,valueless" create:"set" flag:"publish" short:"p" sep:"none" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
+	Domains   []Domain   `mirror:"domains" json:"domains,omitempty" field:",short,embed" create:"set" flag:"domain" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
 	SoftLimit uint32     `json:"soft-limit,omitempty" field:"soft-limit,invisible,valueless" create:"set"`
 	HardLimit uint32     `json:"hard-limit,omitempty" field:"hard-limit,invisible,valueless" create:"set"`
 }

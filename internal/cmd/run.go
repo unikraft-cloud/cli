@@ -16,12 +16,10 @@ import (
 	"unikraft.com/cloud/sdk/platform/logs"
 	"unikraft.com/x/kingkong"
 
-	"github.com/alecthomas/kong"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/muxreader"
 	"unikraft.com/cli/internal/resource"
-	resourcecmd "unikraft.com/cli/internal/resource/cmd"
 )
 
 // InstanceRunCmd is a convenience wrapper around `instance create` that adds
@@ -105,15 +103,9 @@ func (InstanceRunCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	// Apply shortcut flags first (only user-set flags)
-	if err := resourcecmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	// Default autostart to true for run command if not explicitly set by user.
-	// We add this to SetArgs rather than setting the field directly, because
-	// RunResources uses toPatchSpec() which reads from SetArgs.
-	if c.Autostart == nil {
+func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+	// Unlike create, run starts the instance unless told otherwise.
+	if !c.GeneratedFlags().IsSet("autostart") {
 		c.Set = append(c.Set, map[string]string{"autostart": "true"})
 	}
 	created, err := c.RunResources(ctx, stdio, partition)
@@ -170,8 +162,8 @@ func (RunCmd) Examples() []kingkong.Example {
 	return instanceExamples
 }
 
-func (c *RunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	return c.InstanceRunCmd.Run(ctx, stdio, partition, kctx)
+func (c *RunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+	return c.InstanceRunCmd.Run(ctx, stdio, partition)
 }
 
 func newInstanceLogMux(ctx context.Context, keys multimetro.Keys, tail *int, follow bool) (*muxreader.Mux, context.CancelFunc, error) {

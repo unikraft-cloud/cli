@@ -1160,109 +1160,43 @@ func TestCreateDryRun(t *testing.T) {
 	}
 }
 
-func TestCreateDryRunWithShortcutZeroValues(t *testing.T) {
-	// Test that shortcut flags correctly handle zero values when explicitly set.
-	// This validates that we use flag.Set instead of IsZero() to determine
-	// whether a flag was provided.
-	//
-	// The test uses a Kong CLI struct with shortcut tags and calls
-	// ApplyShortcutFlags to populate SetArgs, mirroring how real commands work.
-
-	// shortcutCLI is a Kong-parseable CLI struct that mirrors shortcut flags
-	// for TestResource create fields (settings.foo and settings.bar).
-	type shortcutCLI struct {
-		Foo int    `name:"foo" shortcut:"settings.foo"`
-		Bar string `name:"bar" shortcut:"settings.bar"`
-	}
-
-	// applyShortcuts parses cliArgs via Kong, applies shortcut flags into
-	// baseArgs, and returns the resulting SetArgs.
-	applyShortcuts := func(t *testing.T, baseArgs SetArgs, cliArgs ...string) SetArgs {
+func TestCreateDryRunWithGeneratedZeroValues(t *testing.T) {
+	// Generated flags key off kong's flag.Set, not the value being non-zero,
+	// so an explicitly-set zero must still reach the patch.
+	run := func(t *testing.T, name string, args ...string) string {
 		t.Helper()
-		cli := &shortcutCLI{}
-		flags := parseFlags(t, cli, cliArgs...)
-		require.NoError(t, ApplyShortcutFlags(&baseArgs, flags))
-		return baseArgs
+		env := resourcet.NewTestEnv()
+		ctx := resourcet.WithTestEnv(context.Background(), env)
+
+		cmd := &ResourceCreateCmd[resourcet.TestResource]{
+			DryRun: true,
+			Set:    []map[string]string{{"name": name}},
+		}
+		set, err := cmd.BuildFlags()
+		require.NoError(t, err)
+		require.NoError(t, parseInto(t, set, args...))
+
+		var out bytes.Buffer
+		require.NoError(t, cmd.Run(ctx, testStdio(&out), &resource.Partition{}))
+		assert.NotContains(t, env.Store, name)
+		return out.String()
 	}
 
 	t.Run("zero int value is applied when explicitly set", func(t *testing.T) {
-		setArgs := applyShortcuts(t,
-			SetArgs{Set: []map[string]string{{"name": "test-zero"}}},
-			"--foo=0",
-		)
-
-		env := resourcet.NewTestEnv()
-		ctx := resourcet.WithTestEnv(context.Background(), env)
-		partition := &resource.Partition{}
-
-		var out bytes.Buffer
-		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			DryRun:  true,
-			SetArgs: setArgs,
-		}
-		err := cmd.Run(ctx, testStdio(&out), partition)
-		require.NoError(t, err)
-
-		// Resource should not be created (dry-run)
-		assert.NotContains(t, env.Store, "test-zero")
-
-		// Output should show the zero value being set
-		output := out.String()
-		assert.Contains(t, output, "settings.foo")
-		assert.Contains(t, output, "0")
+		out := run(t, "test-zero", "--foo=0")
+		assert.Contains(t, out, "settings.foo")
+		assert.Contains(t, out, "0")
 	})
 
 	t.Run("empty string value is applied when explicitly set", func(t *testing.T) {
-		setArgs := applyShortcuts(t,
-			SetArgs{Set: []map[string]string{{"name": "test-empty"}}},
-			"--bar=",
-		)
-
-		env := resourcet.NewTestEnv()
-		ctx := resourcet.WithTestEnv(context.Background(), env)
-		partition := &resource.Partition{}
-
-		var out bytes.Buffer
-		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			DryRun:  true,
-			SetArgs: setArgs,
-		}
-		err := cmd.Run(ctx, testStdio(&out), partition)
-		require.NoError(t, err)
-
-		// Resource should not be created (dry-run)
-		assert.NotContains(t, env.Store, "test-empty")
-
-		// Output should show the empty string being set
-		output := out.String()
-		assert.Contains(t, output, "settings.bar")
+		out := run(t, "test-empty", "--bar=")
+		assert.Contains(t, out, "settings.bar")
 	})
 
 	t.Run("unprovided fields are not included in patches", func(t *testing.T) {
-		// Neither --foo nor --bar provided; shortcut flags should not add them.
-		setArgs := applyShortcuts(t,
-			SetArgs{Set: []map[string]string{{"name": "test-minimal"}}},
-		)
-
-		env := resourcet.NewTestEnv()
-		ctx := resourcet.WithTestEnv(context.Background(), env)
-		partition := &resource.Partition{}
-
-		var out bytes.Buffer
-		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			DryRun:  true,
-			SetArgs: setArgs,
-		}
-		err := cmd.Run(ctx, testStdio(&out), partition)
-		require.NoError(t, err)
-
-		// Resource should not be created (dry-run)
-		assert.NotContains(t, env.Store, "test-minimal")
-
-		// Output should only show the name, not settings.foo
-		output := out.String()
-		assert.Contains(t, output, "name")
-		assert.NotContains(t, output, "settings.foo")
+		out := run(t, "test-minimal")
+		assert.Contains(t, out, "name")
+		assert.NotContains(t, out, "settings.foo")
 	})
 }
 

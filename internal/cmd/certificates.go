@@ -11,8 +11,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alecthomas/kong"
-
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/kingkong"
@@ -33,34 +31,12 @@ type CertificatesCmd struct {
 	cmd.ListableResourceCmd[Certificate]
 	cmd.BulkDeletableResourceCmd[Certificate]
 
-	Create CertificateCreateCmd `cmd:"" help:"Create a certificate."`
-}
-
-// CertificateCreateCmd extends the generic resource create command with shortcut
-// flags for commonly used certificate fields. Each field tagged with
-// `shortcut:"<path>"` or `shortcut-file:"<path>"` is translated into a --set or
-// --set-file entry before the standard create pipeline runs.
-type CertificateCreateCmd struct {
-	cmd.ResourceCreateCmd[Certificate]
-
-	Metro string `group:"flag-create" shortcut:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo,nyc"`
-	Name  string `group:"flag-create" shortcut:"name" help:"Certificate name." placeholder:"name"`
-
-	CommonName string `group:"flag-create" shortcut:"cn" help:"Certificate common name." placeholder:"fqdn" example:"demo.unikraft.dev." aliases:"cn"`
-	Chain      string `group:"flag-create" shortcut-file:"chain" help:"Certificate chain file." placeholder:"file"`
-	PrivateKey string `group:"flag-create" shortcut-file:"pkey" help:"Certificate private key file." placeholder:"file" aliases:"pkey"`
-}
-
-func (c *CertificateCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
+	Create cmd.ResourceCreateCmd[Certificate] `cmd:"" help:"Create a certificate."`
 }
 
 type Certificate struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required"`
-	Name  string          `mirror:"certificate.name" field:",short" create:"set"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"certificate.name" field:",short" create:"set" flag:"name" help:"Certificate name." placeholder:"name"`
 	UUID  string          `mirror:"certificate.uuid" field:",long"`
 
 	CommonName   string `mirror:"certificate.common_name" field:",short"`
@@ -70,9 +46,9 @@ type Certificate struct {
 
 	State types.CertificateState `mirror:"certificate.state" field:",short"`
 
-	CN    string `field:"cn,invisible,valueless" create:"set,required"`
-	Chain string `field:"chain,invisible,valueless" create:"set,required"`
-	Pkey  string `field:"pkey,invisible,valueless" create:"set,required"`
+	CN    string `field:"cn,invisible,valueless" create:"set,required" flag:"common-name" aliases:"cn" help:"Certificate common name." placeholder:"fqdn" example:"demo.unikraft.dev."`
+	Chain string `field:"chain,invisible,valueless" create:"set,required" flag-file:"chain" help:"Certificate chain file." placeholder:"file"`
+	Pkey  string `field:"pkey,invisible,valueless" create:"set,required" flag-file:"private-key" aliases:"pkey" help:"Certificate private key file." placeholder:"file"`
 
 	Timestamps struct {
 		Created   types.RelativeTime `mirror:"certificate.created_at" field:",short"`

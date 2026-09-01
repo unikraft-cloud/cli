@@ -339,15 +339,15 @@ Global flags:
 Create flags:
       --metro=<metro>
           Metro to create in.
-          [examples: fra, sfo, nyc]
+          [examples: fra, sfo]
   -n, --name=<name>
           Volume name.
-      --size=<size>
-          Volume size.
-          [examples: 10GiB, 100MiB]
       --tag=<tag> ...
           Volume tag.
           [example: env-prod]
+      --size=<size>
+          Volume size.
+          [examples: 10GiB, 100MiB]
       --filesystem=<filesystem>
           Volume filesystem.
           [example: ext4]
@@ -626,12 +626,12 @@ Global flags:
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
 Edit flags:
-      --size=<size>
-          Volume size.
-          [examples: 20GiB, 100MiB]
       --tag=<tag> ...
           Volume tag.
           [example: env-prod]
+      --size=<size>
+          Volume size.
+          [examples: 10GiB, 100MiB]
       --quota-policy=<quota-policy>
           Volume quota policy.
           [examples: static, dynamic]

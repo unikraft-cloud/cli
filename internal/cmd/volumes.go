@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alecthomas/kong"
 	"github.com/containerd/platforms"
 	"github.com/docker/go-units"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -49,9 +48,9 @@ type VolumesCmd struct {
 	cmd.ListableResourceCmd[Volume]
 	cmd.BulkDeletableResourceCmd[Volume]
 
-	Create   VolumeCreateCmd    `cmd:"" help:"Create a volume."`
-	Edit     VolumeEditCmd      `cmd:"" help:"Edit a volume."`
-	Template VolumeTemplatesCmd `cmd:"" group:"cmd-templates" help:"Manage volume templates." aliases:"templates" set:"name=volume-template" set:"names=volume-templates"`
+	Create   cmd.ResourceCreateCmd[Volume] `cmd:"" help:"Create a volume."`
+	Edit     cmd.ResourceEditCmd[Volume]   `cmd:"" help:"Edit a volume."`
+	Template VolumeTemplatesCmd            `cmd:"" group:"cmd-templates" help:"Manage volume templates." aliases:"templates" set:"name=volume-template" set:"names=volume-templates"`
 
 	Clone  VolumesCloneCmd `cmd:"" help:"Clone a volume."`
 	Attach VolumeAttachCmd `cmd:"" help:"Attach a volume to an instance."`
@@ -59,55 +58,11 @@ type VolumesCmd struct {
 	Import VolumeImportCmd `cmd:"" help:"Import data into a volume."`
 }
 
-// VolumeCreateCmd extends the generic resource create command with shortcut
-// flags for commonly used volume fields. Each field tagged with
-// `shortcut:"<path>"` is translated into a --set <path>=<value> entry before
-// the standard create pipeline runs.
-type VolumeCreateCmd struct {
-	cmd.ResourceCreateCmd[Volume]
-
-	Metro       string              `group:"flag-create" shortcut:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo,nyc"`
-	Name        string              `group:"flag-create" shortcut:"name" short:"n" help:"Volume name." placeholder:"name"`
-	Size        types.SizeMebibytes `group:"flag-create" shortcut:"size" help:"Volume size." placeholder:"size" example:"10GiB,100MiB"`
-	Tag         []string            `group:"flag-create" shortcut:"tags" sep:"none" help:"Volume tag." placeholder:"tag" example:"env-prod"`
-	Filesystem  string              `group:"flag-create" shortcut:"filesystem" help:"Volume filesystem." placeholder:"filesystem" example:"ext4"`
-	QuotaPolicy string              `group:"flag-create" shortcut:"quota-policy" help:"Volume quota policy." placeholder:"quota-policy" example:"static,dynamic"`
-	AccessMode  types.AccessMode    `group:"flag-create" shortcut:"access-mode" help:"Volume access mode." placeholder:"access-mode" example:"rwo,rox,rwx"`
-	Template    string              `group:"flag-create" shortcut:"template" help:"Create from volume template." placeholder:"name"`
-}
-
-func (c *VolumeCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
-}
-
-// VolumeEditCmd extends the generic resource edit command with shortcut
-// flags for commonly used editable volume fields. Each field tagged with
-// `shortcut:"<path>"` is translated into a --set <path>=<value> entry before
-// the standard edit pipeline runs.
-type VolumeEditCmd struct {
-	cmd.ResourceEditCmd[Volume]
-
-	Size        types.SizeMebibytes `group:"flag-edit" shortcut:"size" help:"Volume size." placeholder:"size" example:"20GiB,100MiB"`
-	Tag         []string            `group:"flag-edit" shortcut:"tags" sep:"none" help:"Volume tag." placeholder:"tag" example:"env-prod"`
-	QuotaPolicy string              `group:"flag-edit" shortcut:"quota-policy" help:"Volume quota policy." placeholder:"quota-policy" example:"static,dynamic"`
-	DeleteLock  *bool               `group:"flag-edit" shortcut:"delete-lock" help:"Prevent volume deletion until the lock is removed."`
-}
-
-func (c *VolumeEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceEditCmd.Run(ctx, stdio, partition)
-}
-
 type VolumesCloneCmd struct {
 	Source string `arg:"" completion-predictor:"resource-key-volume" help:"Name or UUID of the volume to clone."`
 
-	Name string   `group:"flag-clone" shortcut:"name" short:"n" help:"New volume name." placeholder:"name"`
-	Tag  []string `group:"flag-clone" shortcut:"tags" sep:"none" help:"Volume tag." placeholder:"tag" example:"env-prod"`
+	Name string   `group:"flag-clone" short:"n" help:"New volume name." placeholder:"name"`
+	Tag  []string `group:"flag-clone" sep:"none" help:"Volume tag." placeholder:"tag" example:"env-prod"`
 
 	cmd.SetArgs
 
@@ -126,10 +81,7 @@ func (VolumesCloneCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
+func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	spec := patch.PatchSpec{
 		Set: make(map[string][]string),
 	}
@@ -137,6 +89,10 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition
 		return err
 	}
 	req := platform.CloneVolumesRequestItem{}
+	if c.Name != "" {
+		req.VolName = new(c.Name)
+	}
+	req.Tags = c.Tag
 	var unknownFields []string
 	for key, values := range spec.Set {
 		switch key {
@@ -243,22 +199,22 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition
 }
 
 type Volume struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required"`
-	Name  string          `mirror:"volume.name" field:",short" create:"set"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"volume.name" field:",short" create:"set" flag:"name" short:"n" help:"Volume name." placeholder:"name"`
 	UUID  string          `mirror:"volume.uuid" field:",long"`
 
-	Tags []string `mirror:"volume.tags" field:",long" create:"set" edit:"set,add,del"`
+	Tags []string `mirror:"volume.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Volume tag." placeholder:"tag" example:"env-prod"`
 
 	State       types.VolumeState                     `mirror:"volume.state" field:",short"`
 	Usage       types.MeterUsage[types.SizeMebibytes] `field:"usage,short"`
 	Free        *types.SizeMebibytes                  `mirror:"volume.free_mb" field:"free,short"`
-	Size        types.SizeMebibytes                   `mirror:"volume.size_mb" field:",short" create:"set" edit:"set"`
-	Filesystem  string                                `mirror:"volume.filesystem" field:",long" create:"set"`
-	QuotaPolicy string                                `mirror:"volume.quota_policy" field:"quota-policy,long" create:"set" edit:"set"`
+	Size        types.SizeMebibytes                   `mirror:"volume.size_mb" field:",short" create:"set" edit:"set" flag:"size" help:"Volume size." placeholder:"size" example:"10GiB,100MiB"`
+	Filesystem  string                                `mirror:"volume.filesystem" field:",long" create:"set" flag:"filesystem" help:"Volume filesystem." placeholder:"filesystem" example:"ext4"`
+	QuotaPolicy string                                `mirror:"volume.quota_policy" field:"quota-policy,long" create:"set" edit:"set" flag:"quota-policy" help:"Volume quota policy." placeholder:"quota-policy" example:"static,dynamic"`
 	Persistent  bool                                  `mirror:"volume.persistent" field:",long"`
-	AccessMode  *types.AccessMode                     `mirror:"volume.access_mode" field:",long" create:"set"`
+	AccessMode  *types.AccessMode                     `mirror:"volume.access_mode" field:",long" create:"set" flag:"access-mode" help:"Volume access mode." placeholder:"access-mode" example:"rwo,rox,rwx"`
 	HostPath    *string                               `mirror:"volume.host_path" field:"host-path,long"`
-	Template    string                                `field:"template,invisible,valueless" create:"set"`
+	Template    string                                `field:"template,invisible,valueless" create:"set" flag:"template" help:"Create from volume template." placeholder:"name"`
 
 	Timestamps struct {
 		Created types.RelativeTime `mirror:"volume.created_at" field:",short"`
@@ -277,7 +233,7 @@ type Volume struct {
 
 	key multimetro.Key
 
-	DeleteLock bool `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set"`
+	DeleteLock bool `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent volume deletion until the lock is removed."`
 }
 
 func (Volume) Type() resource.Type {

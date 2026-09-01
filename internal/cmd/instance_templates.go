@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alecthomas/kong"
 	"github.com/distribution/reference"
 
 	"unikraft.com/cloud/sdk/platform"
@@ -34,42 +33,8 @@ type InstanceTemplatesCmd struct {
 	cmd.ListableResourceCmd[InstanceTemplate]
 	cmd.BulkDeletableResourceCmd[InstanceTemplate]
 
-	Create InstanceTemplateCreateCmd `cmd:"" help:"Create an instance template."`
-	Edit   InstanceTemplateEditCmd   `cmd:"" help:"Edit an instance template."`
-}
-
-// InstanceTemplateCreateCmd extends the generic resource create command with
-// positional instance IDs.
-type InstanceTemplateCreateCmd struct {
-	cmd.ResourceCreateCmd[InstanceTemplate]
-
-	Target string `arg:"" name:"instance" optional:"" completion-predictor:"resource-key-instance" help:"Instance to convert into a template."`
-}
-
-func (c *InstanceTemplateCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	if c.Target != "" {
-		c.Set = append(c.Set, map[string]string{"instance": c.Target})
-	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
-}
-
-// InstanceTemplateEditCmd extends the generic resource edit command with
-// shortcut flags for commonly used editable template fields.
-type InstanceTemplateEditCmd struct {
-	cmd.ResourceEditCmd[InstanceTemplate]
-
-	Tag        []string `group:"flag-edit" shortcut:"tags" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
-	DeleteLock *bool    `group:"flag-edit" shortcut:"delete-lock" help:"Prevent deletion of the template."`
-}
-
-func (c *InstanceTemplateEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceEditCmd.Run(ctx, stdio, partition)
+	Create cmd.ResourceCreateCmd[InstanceTemplate] `cmd:"" help:"Create an instance template."`
+	Edit   cmd.ResourceEditCmd[InstanceTemplate]   `cmd:"" help:"Edit an instance template."`
 }
 
 type InstanceTemplate struct {
@@ -77,9 +42,9 @@ type InstanceTemplate struct {
 	Name  string          `mirror:"instance.name" field:",short"`
 	UUID  string          `mirror:"instance.uuid" field:",long"`
 
-	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del"`
+	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
 	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
-	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set"`
+	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the template."`
 
 	State types.InstanceState             `mirror:"instance.state" field:",short"`
 	Image types.ImageRef[reference.Named] `mirror:"instance.image" field:",short"`
@@ -116,7 +81,7 @@ type InstanceTemplate struct {
 		Policy string `mirror:"instance.restart_policy"`
 	}
 
-	InstanceRef string `field:"instance,invisible,valueless" create:"set,required"`
+	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to convert into a template."`
 
 	Instance platform.Instance `field:"-" json:"instance"`
 	Profile  *config.Profile   `field:"-" json:"profile"`

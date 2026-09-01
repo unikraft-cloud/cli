@@ -371,7 +371,7 @@ func TestEditPatches(t *testing.T) {
 			fields, err := tt.res.Fields(t.Context())
 			require.NoError(t, err)
 
-			patched, err := patch.PatchedFields(fields, tt.spec)
+			patched, err := patch.PatchedFields(t.Context(), fields, tt.spec)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -458,7 +458,7 @@ func TestVisualNestedShortcuts(t *testing.T) {
 	fields, err := cmd.Instance{}.Fields(t.Context())
 	require.NoError(t, err)
 
-	pending, err := patch.PatchedFields(fields, patch.PatchSpec{
+	pending, err := patch.PatchedFields(t.Context(), fields, patch.PatchSpec{
 		Create: true,
 		Set: map[string][]string{
 			"metro":            {"fra"},
