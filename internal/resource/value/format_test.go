@@ -93,3 +93,72 @@ func TestFormat(t *testing.T) {
 		})
 	}
 }
+
+// TestFormatNestedPaths pairs with TestParseNestedPaths: a rendered struct is
+// fed straight back to Parse (a shortcut flag becomes a --set string), so a
+// nested struct has to come out under dotted keys. Rendered inline, its commas
+// would reparse as fields of the outer struct.
+func TestFormatNestedPaths(t *testing.T) {
+	t.Run("nested struct flattens to dotted keys", func(t *testing.T) {
+		v := testStructNested{Name: "outer"}
+		v.Inner.Label = "x"
+		v.Ptr = &testStructInner{Flag: new(true), Label: "y"}
+
+		got, err := Render(&v, RenderOpts{})
+		require.NoError(t, err)
+		assert.Equal(t, "name=outer, inner.label=x, ptr.flag=true, ptr.label=y", got)
+	})
+
+	t.Run("round-trips through Parse", func(t *testing.T) {
+		want := testStructNested{Name: "outer"}
+		want.Ptr = &testStructInner{Flag: new(false), Label: "y"}
+		want.Text.Raw = "whole value"
+
+		rendered, err := Render(&want, RenderOpts{})
+		require.NoError(t, err)
+
+		got, err := Parse[testStructNested]([]string{rendered})
+		require.NoError(t, err, "rendered as %q", rendered)
+		assert.Equal(t, want, got, "rendered as %q", rendered)
+	})
+
+	// The mirror of the parse-side check: only the marshalling interfaces
+	// decide this direction.
+	t.Run("opacity follows MarshalText alone", func(t *testing.T) {
+		v := testStructNested{}
+		v.WriteTo.Raw = "opaque"
+		v.ReadTo.Raw = "flattened"
+
+		got, err := Render(&v, RenderOpts{})
+		require.NoError(t, err)
+		assert.Equal(t, "read-to.raw=flattened, write-to=opaque", got)
+	})
+
+	t.Run("embedded fields render whole, under their type name", func(t *testing.T) {
+		v := testStructNested{}
+		v.Label = "x"
+
+		got, err := Render(&v, RenderOpts{})
+		require.NoError(t, err)
+		assert.Equal(t, "test-struct-embedded=label=x", got)
+
+		back, err := Parse[testStructNested]([]string{got})
+		require.NoError(t, err)
+		assert.Equal(t, v, back)
+	})
+
+	t.Run("a text form stays whole", func(t *testing.T) {
+		v := testStructNested{}
+		v.Text.Raw = "opaque"
+
+		got, err := Render(&v, RenderOpts{})
+		require.NoError(t, err)
+		assert.Equal(t, "text=opaque", got)
+	})
+
+	t.Run("nil pointer renders nothing", func(t *testing.T) {
+		got, err := Render(&testStructNested{Name: "outer"}, RenderOpts{})
+		require.NoError(t, err)
+		assert.Equal(t, "name=outer", got)
+	})
+}

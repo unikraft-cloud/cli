@@ -136,10 +136,26 @@ func instancesOutputTests(t *testing.T) {
 	sample.Runtime.Env = map[string]string{"KEY1": "val1", "KEY2": "val2"}
 	sample.Resources.Memory = 256
 	sample.Resources.VCPUs = 2
-	sample.Networks = append(sample.Networks, cmd.InstanceNetwork{})
-	sample.Networks[0].UUID = "net-uuid-1234"
-	sample.Networks[0].PrivateIP = "192.168.1.10"
-	sample.Networks[0].MAC = "aa:bb:cc:dd:ee:ff"
+	sample.Networks = []*cmd.InstanceNetwork{
+		{
+			Name:      "my-instance-eth0",
+			UUID:      "net-uuid-1234",
+			PrivateIP: "192.168.1.10",
+			MAC:       "aa:bb:cc:dd:ee:ff",
+			Relay: &cmd.InstanceNetworkRelay{
+				Name: "my-router-eth0",
+				UUID: "net-uuid-5678",
+				DNS:  new(true),
+			},
+		},
+		{
+			Name:      "my-instance-eth1",
+			UUID:      "net-uuid-9abc",
+			PrivateIP: "192.168.1.11",
+			MAC:       "aa:bb:cc:dd:ee:00",
+			TapName:   "tap0",
+		},
+	}
 	vmType := platform.InstanceTypeFull
 	sample.Type_ = &vmType
 	sample.Gpus = []cmd.InstanceGpu{

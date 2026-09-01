@@ -12,8 +12,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/ettle/strcase"
 )
 
 // RenderOpts controls how a value is rendered to a string via Render.
@@ -102,34 +100,29 @@ func Render(value any, opt RenderOpts) (string, error) {
 		slices.Sort(result)
 		return strings.Join(result, ", "), nil
 	case reflect.Struct:
-		var result []string
-		for i := range v.NumField() {
-			field := v.Type().Field(i)
-			if !field.IsExported() {
-				continue
-			}
-			val := v.Field(i)
-			valStr, err := Render(val.Interface(), opt)
-			if err != nil {
-				return "", err
-			}
-			if valStr == "" {
-				continue
-			}
-			// Use "name" tag for value formatting, separate from "field" tag
-			// This allows fields to be excluded from the field system (field:"-")
-			// while still being formattable for --set values
-			name := field.Tag.Get("name")
-			if name == "-" {
-				continue
-			}
-			if name == "" {
-				name = strcase.ToKebab(field.Name)
-			}
-			result = append(result, fmt.Sprintf("%s=%s", name, valStr))
+		result, err := renderStructFields(v, opt)
+		if err != nil {
+			return "", err
 		}
 		return strings.Join(result, ", "), nil
 	default:
 		return fmt.Sprintf("%v", value), nil
 	}
+}
+
+// renderStructFields renders a struct as the flat key=value pairs that
+// value.Parse reads back.
+func renderStructFields(v reflect.Value, opt RenderOpts) ([]string, error) {
+	var result []string
+	for path, leaf := range walkFields(v, "") {
+		str, err := Render(leaf.Interface(), opt)
+		if err != nil {
+			return nil, err
+		}
+		if str == "" {
+			continue
+		}
+		result = append(result, fmt.Sprintf("%s=%s", path, str))
+	}
+	return result, nil
 }
