@@ -26,6 +26,12 @@ import (
 	"unikraft.com/cli/internal/resource"
 )
 
+func TestMain(m *testing.M) {
+	code := m.Run()
+	integ.CleanupSharedImages()
+	os.Exit(code)
+}
+
 var (
 	uniqSeed    string
 	uniqCounter atomic.Uint64

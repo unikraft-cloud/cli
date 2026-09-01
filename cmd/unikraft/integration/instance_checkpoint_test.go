@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	integ "unikraft.com/cli/internal/integration"
 )
@@ -343,13 +342,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 		restoredName := uniq()
 		domainName := uniq()
 		domainRestored := uniq()
-		imageTag := uniq()
-		image := r.Config.Profile.Organization + "/counter-e2e:" + imageTag
-
-		dir := t.TempDir()
-		require.NoError(t, applyCounterContext(dir))
-
-		r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
+		image := sharedCounter.Build(t, r)
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
@@ -425,6 +418,5 @@ func TestInstanceCheckpoints(t *testing.T) {
 
 		r.Run(t, []string{"unikraft", "instance", "checkpoint", "delete", checkpointName})
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName, "test-restored-" + restoredName})
-		r.Run(t, []string{"unikraft", "image", "delete", image})
 	})
 }
