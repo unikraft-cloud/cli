@@ -34,6 +34,14 @@ Resources:
           Forward a local port to an unexposed instance.
   history
           Show checkpoint history for an instance.
+  exec
+          Execute a command on a sandbox instance.
+  copy, cp
+          Copy a file to or from a sandbox instance.
+  write
+          Write a file to a sandbox instance.
+  read
+          Read a file from a sandbox instance.
 
 Templates:
   template, templates
@@ -2434,6 +2442,240 @@ Flags:
           Specify which fields to include in the output.
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle anonymous usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft instance exec --help
+
+Execute a command on an instance which has the sandbox plugin
+loaded.
+
+The environment given with `--env` is the whole environment the
+command sees, not an addition to it.
+
+Standard input is forwarded to the command only when it is
+redirected from a file or a pipe. Run from a terminal, the command
+sees an empty standard input and cannot be typed at.
+
+Usage:
+  unikraft instances exec <target> <command> ... [flags]
+
+Arguments:
+  <target>
+          Target instance to run the command on.
+  <command> ...
+          Command to pass to the instance.
+
+Examples:
+  # Execute a command on an instance
+  unikraft instance exec my-instance -- echo hello
+
+  # Execute a command in a specific working directory
+  unikraft instance exec my-instance --dir /var/lib/app -- ls -la
+
+  # Execute a command with environment variables set
+  unikraft instance exec my-instance -e DEBUG=true -- ./start.sh
+
+Flags:
+      --plugin=<name>
+          Name of the sandbox plugin to use.
+          [default: sandbox]
+  -w, --dir=<dir>
+          Directory to execute the command from.
+  -e, --env=<key>=<value> ...
+          Environment variable.
+          [example: DEBUG=true]
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle anonymous usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft instance copy --help
+
+Copy a single file to or from an instance which has the sandbox
+plugin loaded.
+
+A path on an instance is written as `<instance>:<path>`, optionally
+prefixed with a metro as `<metro>/<instance>:<path>`. Exactly one of
+the two paths may name an instance.
+
+Copying to an instance always overwrites the remote file. Copying
+from one writes a regular local file, without the permissions it
+had on the instance.
+
+Usage:
+  unikraft instances copy <source> <destination> [flags]
+
+Arguments:
+  <source>
+          File to copy from, either a local path or <instance>:<path>.
+  <destination>
+          Where to copy it to, either a local path or <instance>:<path>.
+
+Examples:
+  # Copy a local file to an instance
+  unikraft instance copy ./config.json my-instance:/etc/app.json
+
+  # Copy a file off an instance
+  unikraft instance copy my-instance:/var/log/app.log ./app.log
+
+  # Copy a file into a directory, keeping its name
+  unikraft instance copy my-instance:/var/log/app.log ./logs/
+
+  # Copy a file to an instance in a specific metro
+  unikraft instance copy ./data.bin fra/my-instance:/var/lib/app.bin
+
+Flags:
+      --plugin=<name>
+          Name of the sandbox plugin to use.
+          [default: sandbox]
+      --force
+          Overwrite the local file if it already exists.
+  -p, --parents
+          Create missing parent directories on the destination path.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle anonymous usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft instance write --help
+
+Write a single local file to an instance which has the sandbox
+plugin loaded.
+
+Usage:
+  unikraft instances write <target> <local> <remote> [flags]
+
+Arguments:
+  <target>
+          Target instance to write the file to.
+  <local>
+          Local file path to read from.
+  <remote>
+          Remote destination path on the instance.
+
+Examples:
+  # Write a local file to an instance
+  unikraft instance write my-instance ./config.json /etc/app.json
+
+  # Write a file, creating parent directories as needed
+  unikraft instance write my-instance ./data.bin /var/lib/app.bin -p
+
+  # Append to a file on an instance
+  unikraft instance write my-instance ./extra.log /var/log/app.log --append
+
+Flags:
+      --plugin=<name>
+          Name of the sandbox plugin to use.
+          [default: sandbox]
+      --append
+          Append to the remote file instead of overwriting it.
+  -p, --parents
+          Create missing parent directories on the remote path.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle anonymous usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft instance read --help
+
+Read a single file from an instance which has the sandbox plugin
+loaded.
+
+The local file is always written as a regular file. Permissions are
+not carried across from the instance.
+
+Usage:
+  unikraft instances read <target> <remote> [<local>] [flags]
+
+Arguments:
+  <target>
+          Target instance to read the file from.
+  <remote>
+          Remote file path to read.
+  [<local>]
+          Local destination path. Defaults to the remote file's base name.
+
+Examples:
+  # Read a file from an instance
+  unikraft instance read my-instance /etc/app.json ./config.json
+
+  # Read a file into the current directory
+  unikraft instance read my-instance /var/log/app.log
+
+  # Read a file, overwriting the local file if it exists
+  unikraft instance read my-instance /var/log/app.log --force
+
+Flags:
+      --plugin=<name>
+          Name of the sandbox plugin to use.
+          [default: sandbox]
+      --force
+          Overwrite the local file if it already exists.
+  -p, --parents
+          Create missing parent directories on the local path.
 
 Global flags:
   -h, --help

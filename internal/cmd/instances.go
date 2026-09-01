@@ -66,6 +66,11 @@ type InstancesCmd struct {
 	Restart InstancesRestartCmd `cmd:"" help:"Restart one or more instances."`
 	Tunnel  InstancesTunnelCmd  `cmd:"" aliases:"port-forward" help:"Forward a local port to an unexposed instance."`
 	History InstanceHistoryCmd  `cmd:"" help:"Show checkpoint history for an instance."`
+
+	Exec  ExecSandboxInstanceCmd  `cmd:"" help:"Execute a command on a sandbox instance."`
+	Copy  CopySandboxInstanceCmd  `cmd:"" aliases:"cp" help:"Copy a file to or from a sandbox instance."`
+	Write WriteSandboxInstanceCmd `cmd:"" help:"Write a file to a sandbox instance."`
+	Read  ReadSandboxInstanceCmd  `cmd:"" help:"Read a file from a sandbox instance."`
 }
 
 // InstanceCreateCmd extends the generic resource create command with shortcut

@@ -126,6 +126,10 @@ func instancesHelpTests(t *testing.T, unikraftPath string) {
 		[]string{"unikraft", "instance", "restart", "--help"},
 		[]string{"unikraft", "instance", "tunnel", "--help"},
 		[]string{"unikraft", "instance", "history", "--help"},
+		[]string{"unikraft", "instance", "exec", "--help"},
+		[]string{"unikraft", "instance", "copy", "--help"},
+		[]string{"unikraft", "instance", "write", "--help"},
+		[]string{"unikraft", "instance", "read", "--help"},
 	)
 }
 

@@ -21,7 +21,8 @@ import (
 
 type MetroClient struct {
 	platform.Client
-	Metro config.Metro
+	Metro   config.Metro
+	sandbox *SandboxClient
 }
 
 func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
@@ -42,14 +43,19 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 	}
 	g := group.New[MetroClient]()
 	for _, metro := range metros {
-		client := platform.NewClient(
-			platform.WithHTTPClient(httpclient.GetClient(ptr.ZeroIfNil(metro.Insecure))),
+		httpClient := httpclient.GetClient(ptr.ZeroIfNil(metro.Insecure))
+		copts := []platform.ClientOption{
+			platform.WithHTTPClient(httpClient),
 			platform.WithToken(profile.Token),
 			platform.WithDefaultMetro(metro.Endpoint),
-		)
+		}
 		g = g.WithClient(
 			metro.Name,
-			MetroClient{Client: client, Metro: metro},
+			MetroClient{
+				Client:  platform.NewClient(copts...),
+				Metro:   metro,
+				sandbox: newSandboxClient(copts, httpClient),
+			},
 		)
 	}
 

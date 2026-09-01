@@ -25,15 +25,23 @@ func Unwrap(w io.Writer) io.Writer {
 	}
 }
 
-// IsTTY reports whether the writer ultimately targets a terminal, transparently
-// peeling off known wrappers via Unwrap.
-func IsTTY(w io.Writer) bool {
-	inner := Unwrap(w)
-	fdWriter, ok := inner.(interface{ Fd() uintptr })
+func isTerminal(v any) bool {
+	fd, ok := v.(interface{ Fd() uintptr })
 	if !ok {
 		return false
 	}
-	return term.IsTerminal(fdWriter.Fd())
+	return term.IsTerminal(fd.Fd())
+}
+
+// IsTTY reports whether the writer ultimately targets a terminal, transparently
+// peeling off known wrappers via Unwrap.
+func IsTTY(w io.Writer) bool {
+	return isTerminal(Unwrap(w))
+}
+
+// IsTTYReader reports whether the reader ultimately draws from a terminal.
+func IsTTYReader(r io.Reader) bool {
+	return isTerminal(r)
 }
 
 // TermWidth returns the terminal width for the writer, transparently peeling
