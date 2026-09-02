@@ -13,10 +13,11 @@ Fields:
   path
   profile
   profiles, profiles.*, profiles.*.name, profiles.*.type, profiles.*.token,
-  profiles.*.organization, profiles.*.control-plane, profiles.*.insecure,
-  profiles.*.metros, profiles.*.metros.*, profiles.*.metros.*.name,
-  profiles.*.metros.*.endpoint, profiles.*.metros.*.location,
-  profiles.*.metros.*.insecure, profiles.*.metro-default
+  profiles.*.organization, profiles.*.user-uuid, profiles.*.organization-uuid,
+  profiles.*.control-plane, profiles.*.insecure, profiles.*.metros,
+  profiles.*.metros.*, profiles.*.metros.*.name, profiles.*.metros.*.endpoint,
+  profiles.*.metros.*.location, profiles.*.metros.*.insecure, profiles.*.metro-
+  default
 
 Global flags:
   -h, --help
@@ -56,10 +57,11 @@ Fields:
   path
   profile
   profiles, profiles.*, profiles.*.name, profiles.*.type, profiles.*.token,
-  profiles.*.organization, profiles.*.control-plane, profiles.*.insecure,
-  profiles.*.metros, profiles.*.metros.*, profiles.*.metros.*.name,
-  profiles.*.metros.*.endpoint, profiles.*.metros.*.location,
-  profiles.*.metros.*.insecure, profiles.*.metro-default
+  profiles.*.organization, profiles.*.user-uuid, profiles.*.organization-uuid,
+  profiles.*.control-plane, profiles.*.insecure, profiles.*.metros,
+  profiles.*.metros.*, profiles.*.metros.*.name, profiles.*.metros.*.endpoint,
+  profiles.*.metros.*.location, profiles.*.metros.*.insecure, profiles.*.metro-
+  default
 
 Flags:
   -w, --watch=<duration>
