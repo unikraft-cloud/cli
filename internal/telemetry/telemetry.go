@@ -22,6 +22,8 @@ import (
 
 	"unikraft.com/x/fingerprint"
 	"unikraft.com/x/version"
+
+	"unikraft.com/cli/internal/config"
 )
 
 var (
@@ -37,6 +39,7 @@ var (
 var (
 	distinctID string
 	sessionID  string
+	groups     posthog.Groups
 	enabled    bool
 	mu         sync.Mutex
 
@@ -55,11 +58,13 @@ type EventPayload struct {
 	DistinctID string         `json:"distinct_id"`
 	SessionID  string         `json:"session_id"`
 	Properties map[string]any `json:"properties"`
+	Groups     posthog.Groups `json:"groups,omitempty"`
 	Timestamp  time.Time      `json:"timestamp"`
 }
 
-// Init initializes the PostHog analytics client.
-func Init() error {
+// Init initializes the PostHog analytics client for the given profile.
+// If profile is nil, Init uses the anonymous machine fingerprint.
+func Init(profile *config.Profile) error {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -74,8 +79,17 @@ func Init() error {
 		return fmt.Errorf("no API key set for PostHog; use UNIKRAFT_POSTHOG_API_KEY environment variable")
 	}
 
-	// Generate anonymous distinct ID from machine fingerprint
+	// Use the user UUID when known, otherwise the machine fingerprint.
 	distinctID = generateDistinctID()
+	groups = nil
+	if profile != nil {
+		if profile.UserUUID != "" {
+			distinctID = profile.UserUUID
+		}
+		if profile.OrganizationUUID != "" {
+			groups = posthog.Groups{"organization": profile.OrganizationUUID}
+		}
+	}
 
 	// Generate unique session ID for this CLI invocation.
 	sessionID = generateSessionID()
@@ -175,6 +189,7 @@ func SendEvent(payloadJSON string) error {
 		DistinctId: payload.DistinctID,
 		Event:      payload.Event,
 		Properties: props,
+		Groups:     payload.Groups,
 		Timestamp:  payload.Timestamp,
 	})
 }

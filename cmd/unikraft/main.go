@@ -143,12 +143,12 @@ func run(ctx context.Context, args []string, stdio config.Stdio) (context.Contex
 
 	// Initialize analytics if telemetry is enabled.
 	//
-	// These are anonymous usage analytics, and no personally identifiable
-	// information is collected.  This information is used to help us understand
-	// how the CLI is being used and to improve it over time.  We may collect
-	// information such as which commands are used, how often they are used, and
-	// any errors that occur.  This data is aggregated and analyzed to identify
-	// trends and areas for improvement.
+	// These usage analytics are keyed to the logged-in account when there is
+	// one, and anonymous otherwise.  This information is used to help us
+	// understand how the CLI is being used and to improve it over time.  We may
+	// collect information such as which commands are used, how often they are
+	// used, and any errors that occur.  This data is aggregated and analyzed to
+	// identify trends and areas for improvement.
 	//
 	// Unikraft is committed to user privacy and data protection; visit[0] for
 	// more information.
@@ -162,7 +162,8 @@ func run(ctx context.Context, args []string, stdio config.Stdio) (context.Contex
 	// for our CLI.
 	_, doNotTrack := os.LookupEnv("DO_NOT_TRACK")
 	if !doNotTrack && opts.Telemetry && !isSendAnalytics {
-		if err := telemetry.Init(); err != nil {
+		profile, _ := config.G(ctx).CurrentProfile()
+		if err := telemetry.Init(profile); err != nil {
 			log.G(ctx).
 				Debug().
 				Err(err).
@@ -170,7 +171,7 @@ func run(ctx context.Context, args []string, stdio config.Stdio) (context.Contex
 		} else {
 			log.G(ctx).
 				Debug().
-				Msg("collecting anonymous usage analytics, set `UNIKRAFT_TELEMETRY=false` to disable")
+				Msg("collecting usage analytics, set `UNIKRAFT_TELEMETRY=false` to disable")
 		}
 	}
 
