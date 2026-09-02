@@ -61,7 +61,7 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 	}
 
 	// Get the token either from file or via browser authentication
-	var token, organization string
+	var token, organization, userUUID, orgUUID string
 	if cmd.Token != nil {
 		log.G(ctx).Info().
 			Msg("reading authentication token from file")
@@ -88,20 +88,30 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 		}
 		token = resp.Data.Token
 		organization = cmp.Or(resp.Data.OrganizationName, cmd.Organization)
+		userUUID = resp.Data.UserUuid
+		orgUUID = resp.Data.OrganizationUuid
 	}
 	tempProfile.Token = token
 
-	if organization == "" {
-		var err error
-		organization, err = cmd.getOrg(ctx, tempProfile)
-		if err != nil {
+	if orgUUID == "" || organization == "" {
+		auth, err := cmd.getOrg(ctx, tempProfile)
+		switch {
+		case err != nil && organization == "":
 			log.G(ctx).Error().
 				Msg("could not determine organization from control plane, specify organization with --organization flag")
 			return err
-		} else {
-			log.G(ctx).Info().
-				Str("organization", organization).
-				Msg("found organization from control plane")
+		case err != nil:
+			log.G(ctx).Warn().
+				Err(err).
+				Msg("could not fetch organization details from control plane")
+		default:
+			if organization == "" {
+				log.G(ctx).Info().
+					Str("organization", auth.OrganizationName).
+					Msg("found organization from control plane")
+			}
+			organization = cmp.Or(organization, auth.OrganizationName)
+			orgUUID = auth.OrganizationUuid
 		}
 	}
 
@@ -120,6 +130,8 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 	}
 	profile.Token = token
 	profile.Organization = organization
+	profile.UserUUID = userUUID
+	profile.OrganizationUUID = orgUUID
 	profile.ControlPlane = loginControlPlane
 	profile.Insecure = cmd.AllowInsecure
 
@@ -293,22 +305,22 @@ func (cmd *LoginCmd) getAuth(ctx context.Context, profile *config.Profile) (*con
 	}
 }
 
-func (cmd *LoginCmd) getOrg(ctx context.Context, profile *config.Profile) (string, error) {
+func (cmd *LoginCmd) getOrg(ctx context.Context, profile *config.Profile) (*controlplane.GetAuthorizationResponseData, error) {
 	log.G(ctx).Trace().
 		Str("controlplane", profile.ControlPlane).
 		Msg("fetching organization")
 
 	client, err := multimetro.NewControlClientFromProfile(profile)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	resp, err := client.GetAuthorization(ctx)
 	if err != nil {
-		return "", jujuerrors.Annotate(err, "getting authorization")
+		return nil, jujuerrors.Annotate(err, "getting authorization")
 	}
 	if resp.Data == nil || resp.Data.OrganizationName == "" {
-		return "", jujuerrors.New("no organization name received from control plane")
+		return nil, jujuerrors.New("no organization name received from control plane")
 	}
-	return resp.Data.OrganizationName, nil
+	return resp.Data, nil
 }
