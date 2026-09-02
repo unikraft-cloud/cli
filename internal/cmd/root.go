@@ -110,7 +110,7 @@ type globalFlags struct {
 
 	Profile string `group:"flag-global" name:"profile" env:"UNIKRAFT_PROFILE" help:"Set the current profile." placeholder:"name"`
 
-	Telemetry bool          `group:"flag-global" name:"telemetry" env:"UNIKRAFT_TELEMETRY" help:"Toggle anonymous usage analytics." default:"true" negatable:""`
+	Telemetry bool          `group:"flag-global" name:"telemetry" env:"UNIKRAFT_TELEMETRY" help:"Toggle usage analytics." default:"true" negatable:""`
 	Timeout   time.Duration `group:"flag-global" name:"timeout" env:"UNIKRAFT_TIMEOUT" help:"Set a deadline for the command (e.g. 30s, 5m, 1h)." placeholder:"duration" optional:""`
 }
 
