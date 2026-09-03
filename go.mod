@@ -1,6 +1,6 @@
 module unikraft.com/cli
 
-go 1.26.2
+go 1.27.0
 
 tool github.com/caarlos0/svu/v3
 
@@ -51,7 +51,7 @@ require (
 	gotest.tools/v3 v3.5.2
 	mvdan.cc/sh/v3 v3.13.1
 	sigs.k8s.io/yaml v1.6.0
-	unikraft.com/cloud/sdk v0.3.1-0.20260827142638-66f94ac21bcb
+	unikraft.com/cloud/sdk v0.3.1-0.20260903152413-b82b2d8e3cfd
 	unikraft.com/x/colors v0.0.0-20260813113709-544c471e0bc9
 	unikraft.com/x/filters v0.0.0-20260804153219-d1b47a40e047
 	unikraft.com/x/fingerprint v0.0.0-20260126094137-ab6e717e5679
