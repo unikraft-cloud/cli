@@ -39,6 +39,10 @@ Examples:
   # Deploy a new instance with specific restart policy
   unikraft run --metro=dal --image=my-app:latest --restart=on-failure
 
+  # Deploy a new instance with a configured plugin
+  unikraft run --metro=fra --image=my-app:latest --plugin
+  'name=logger,rom=plugins/logger:latest,config={"level":"debug"}'
+
 Fields:
   metro
   name
@@ -58,6 +62,7 @@ Fields:
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.rom, plugins.*.config
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -152,6 +157,9 @@ Create flags:
       --rom=image=<ref>,at=<path> ...
           Attach ROM.
           [examples: image=myuser/my-rom:latest,at=/rom0,name=my-rom, dir=./mydata,at=/rom]
+      --plugin=name=<name>,rom=<ref>[,config=<json>] ...
+          Load plugin into the instance.
+          [examples: name=sandbox,rom=plugins/sandbox:latest, name=logger,rom=plugins/logger:latest,config={"level":"debug"}]
       --service=<name>
           Service group name or key.
   -p, --publish=<src>:<dest>[/<handlers>] ...

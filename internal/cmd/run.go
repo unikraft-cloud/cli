@@ -96,6 +96,12 @@ func (InstanceRunCmd) Examples() []kingkong.Example {
 				"unikraft instance run --metro=dal --image=my-app:latest --restart=on-failure",
 			},
 		},
+		{
+			Description: "Deploy a new instance with a configured plugin",
+			Commands: []string{
+				`unikraft instance run --metro=fra --image=my-app:latest --plugin 'name=logger,rom=plugins/logger:latest,config={"level":"debug"}'`,
+			},
+		},
 	}
 }
 
