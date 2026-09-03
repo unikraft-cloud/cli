@@ -108,10 +108,8 @@ func instancesOutputTests(t *testing.T) {
 		},
 		State: types.InstanceState(platform.InstanceStateRunning),
 		Service: &cmd.InstanceService{
-			Link: cmd.Link[cmd.ServiceGroup]{
-				Name: "my-service",
-				UUID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-			},
+			Name: "my-service",
+			UUID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 			Services: []*cmd.Service{
 				{Source: 443, Destination: 8080, Handlers: []platform.ConnectionHandler{"tls", "http"}},
 			},
@@ -120,7 +118,7 @@ func instancesOutputTests(t *testing.T) {
 			},
 		},
 		Volumes: []*cmd.InstanceVolume{
-			{Link: cmd.Link[cmd.Volume]{Name: "my-volume"}, At: "/data", Readonly: true},
+			{Name: "my-volume", At: "/data", Readonly: true},
 		},
 		Roms: []*cmd.InstanceRom{
 			{Name: "my-rom", Image: "myuser/my-rom:latest", At: "/rom"},
@@ -202,7 +200,7 @@ func instanceCheckpointsOutputTests(t *testing.T) {
 		State:      types.InstanceState(platform.InstanceStateCheckpoint),
 		Type_:      new(platform.InstanceTypeMicro),
 		Volumes: []cmd.InstanceTemplateVolume{
-			{Link: cmd.Link[cmd.VolumeTemplate]{Name: "my-volume"}, At: "/data", Readonly: true},
+			{Name: "my-volume", At: "/data", Readonly: true},
 		},
 	}
 	sample.Runtime.Args = cmd.InstanceArgs{"arg1", "arg2"}

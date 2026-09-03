@@ -230,8 +230,8 @@ func TestParseTargets(t *testing.T) {
 
 func TestFormatProxyArgs(t *testing.T) {
 	targets := []resolvedTarget{
-		{Target: Target{dest: 80, exposedProxyPort: 4444, network: "tcp"}, ip: "10.0.0.1"},
-		{Target: Target{dest: 8080, exposedProxyPort: 4445, network: "tcp"}, ip: "10.0.0.2"},
+		{dest: 80, exposedProxyPort: 4444, network: "tcp", ip: "10.0.0.1"},
+		{dest: 8080, exposedProxyPort: 4445, network: "tcp", ip: "10.0.0.2"},
 	}
 	args := formatProxyArgs(targets, "authcookie", 4443)
 	require.Len(t, args, 4)

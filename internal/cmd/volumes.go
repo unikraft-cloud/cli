@@ -647,7 +647,7 @@ func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 	}
 	editCmd := &cmd.ResourceEditCmd[Instance]{
 		Target:     c.To,
-		AddArgs:    cmd.AddArgs{Add: []map[string]string{{"volumes": string(volStr)}}},
+		Add:        []map[string]string{{"volumes": string(volStr)}},
 		FormatOpts: c.FormatOpts,
 	}
 	return editCmd.Run(ctx, stdio, sandbox)
@@ -673,7 +673,7 @@ func (VolumeDetachCmd) Examples() []kingkong.Example {
 func (c *VolumeDetachCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
 	editCmd := &cmd.ResourceEditCmd[Instance]{
 		Target:     c.From,
-		DelArgs:    cmd.DelArgs{Del: []map[string]string{{"volumes": c.Volume}}},
+		Del:        []map[string]string{{"volumes": c.Volume}},
 		FormatOpts: c.FormatOpts,
 	}
 	return editCmd.Run(ctx, stdio, sandbox)
