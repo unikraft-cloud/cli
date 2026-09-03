@@ -682,7 +682,7 @@ type ImagesDeleteCmd struct {
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 }
 
-func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	if c.Insecure != nil {
 		var opts []images.AccessorOpt
 		if len(c.Insecure) > 0 {
@@ -692,8 +692,8 @@ func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 		}
 		ctx = images.WithInsecureContext(ctx, opts...)
 	}
-	// HACK: don't sandbox-filter the delete: image references may not match the
-	// canonical form stored in the sandbox. The sandbox teardown handles cleanup
+	// HACK: don't partition-filter the delete: image references may not match the
+	// canonical form stored in the partition. The partition teardown handles cleanup
 	// of images that weren't manually deleted.
 	return c.ResourceRemoveCmd.Run(ctx, stdio, nil)
 }
@@ -728,7 +728,7 @@ func (cmd ImagesCopyCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (cmd ImagesCopyCmd) Run(ctx context.Context, sandbox *resource.Sandbox) error {
+func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *resource.Partition) error {
 	var opts []images.AccessorOpt
 	if cmd.Insecure != nil {
 		if len(cmd.Insecure) > 0 {
@@ -767,9 +767,9 @@ func (cmd ImagesCopyCmd) Run(ctx context.Context, sandbox *resource.Sandbox) err
 		return fmt.Errorf("saving image to destination: %w", err)
 	}
 
-	if sandbox != nil && dest.Scheme == imagespec.URISchemeOCI {
-		if err := addImageToSandbox(ctx, sandbox, dest.Path); err != nil {
-			return fmt.Errorf("adding copied image to sandbox: %w", err)
+	if partition != nil && dest.Scheme == imagespec.URISchemeOCI {
+		if err := addImageToPartition(ctx, partition, dest.Path); err != nil {
+			return fmt.Errorf("adding copied image to partition: %w", err)
 		}
 	}
 
@@ -782,13 +782,13 @@ type ImagesListCmd struct {
 	Namespace []string `help:"Only list images in this namespace."`
 }
 
-func (c *ImagesListCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
-	return c.ResourceListCmd.Run(context.WithValue(ctx, imageNamespacesKey{}, c.Namespace), stdio, sandbox)
+func (c *ImagesListCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+	return c.ResourceListCmd.Run(context.WithValue(ctx, imageNamespacesKey{}, c.Namespace), stdio, partition)
 }
 
-// addImageToSandbox registers an image reference with the sandbox so it gets
+// addImageToPartition registers an image reference with the partition so it gets
 // cleaned up during teardown.
-func addImageToSandbox(ctx context.Context, sandbox *resource.Sandbox, ref string) error {
+func addImageToPartition(ctx context.Context, partition *resource.Partition, ref string) error {
 	named, err := images.ParseNormalizedNamed(ref)
 	if err != nil {
 		return fmt.Errorf("parsing image reference %q: %w", ref, err)
@@ -798,5 +798,5 @@ func addImageToSandbox(ctx context.Context, sandbox *resource.Sandbox, ref strin
 			Reference: named,
 		},
 	}
-	return sandbox.Add(ctx, img)
+	return partition.Add(ctx, img)
 }

@@ -221,26 +221,26 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio) (context
 
 	kctx.BindTo(ctx, (*context.Context)(nil))
 
-	sandbox, err := resource.LoadSandboxFromEnv(SandboxedResources...)
+	partition, err := resource.LoadPartitionFromEnv(PartitionedResources...)
 	if err != nil {
 		cancelTimeout()
-		return ctx, nil, nil, nil, jujuerrors.Annotate(err, "loading sandbox from environment")
+		return ctx, nil, nil, nil, jujuerrors.Annotate(err, "loading partition from environment")
 	}
-	if sandbox != nil {
-		sandboxed := xmaps.OrderedKeys(sandbox.Keys)
-		slices.Sort(sandboxed)
+	if partition != nil {
+		partitioned := xmaps.OrderedKeys(partition.Keys)
+		slices.Sort(partitioned)
 		log.G(ctx).Debug().
-			Str("path", sandbox.Path).
-			Strs("resources", sandboxed).
-			Msg("loaded sandbox from environment")
+			Str("path", partition.Path).
+			Strs("resources", partitioned).
+			Msg("loaded partition from environment")
 	}
-	kctx.Bind(sandbox)
+	kctx.Bind(partition)
 	kctx.Bind(kctx)
 
 	cleanup := func() error {
 		cancelTimeout()
-		if err := sandbox.Save(); err != nil {
-			return jujuerrors.Annotate(err, "saving sandbox")
+		if err := partition.Save(); err != nil {
+			return jujuerrors.Annotate(err, "saving partition")
 		}
 		return nil
 	}
@@ -370,7 +370,7 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 	)
 }
 
-var SandboxedResources = []resource.Resource{
+var PartitionedResources = []resource.Resource{
 	Image{},
 	Instance{},
 	InstanceTemplate{},

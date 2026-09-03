@@ -83,7 +83,7 @@ func setupTestEnv() *resourcet.TestEnv {
 func TestList(t *testing.T) {
 	env := setupTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	empty := env.NewResource()
 	resources, err := empty.List(ctx)
@@ -94,7 +94,7 @@ func TestList(t *testing.T) {
 	listCmd := &ResourceListCmd[resourcet.TestResource]{
 		Targets: nil,
 	}
-	err = listCmd.Run(ctx, testStdio(&listOut), sandbox)
+	err = listCmd.Run(ctx, testStdio(&listOut), partition)
 	require.NoError(t, err)
 
 	output := listOut.String()
@@ -108,7 +108,7 @@ func TestList(t *testing.T) {
 		cmd := &ResourceListCmd[resourcet.TestResource]{
 			Field: xkong.GreedyStrings{"name", "id"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -118,7 +118,7 @@ func TestList(t *testing.T) {
 
 		out.Reset()
 		cmd.Targets = []string{"test1"}
-		err = cmd.Run(ctx, testStdio(&out), sandbox)
+		err = cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output = out.String()
@@ -133,7 +133,7 @@ func TestList(t *testing.T) {
 			Field:  xkong.GreedyStrings{"-url"},
 			Output: Printer{Type: PrinterTypeKeyValue},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -147,7 +147,7 @@ func TestList(t *testing.T) {
 		cmd := &ResourceListCmd[resourcet.TestResource]{
 			Filter: []string{"name==test1"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -156,7 +156,7 @@ func TestList(t *testing.T) {
 
 		out.Reset()
 		cmd.Targets = []string{"test1", "test2"}
-		err = cmd.Run(ctx, testStdio(&out), sandbox)
+		err = cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output = out.String()
@@ -170,7 +170,7 @@ func TestList(t *testing.T) {
 			Filter: []string{"authors.*.email==alice@example.com"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -179,7 +179,7 @@ func TestList(t *testing.T) {
 
 		out.Reset()
 		cmd.Filter = []string{"authors.*.email==charlie@example.com"}
-		err = cmd.Run(ctx, testStdio(&out), sandbox)
+		err = cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output = out.String()
@@ -188,7 +188,7 @@ func TestList(t *testing.T) {
 
 		out.Reset()
 		cmd.Filter = []string{"authors.*.name==Bob"}
-		err = cmd.Run(ctx, testStdio(&out), sandbox)
+		err = cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output = out.String()
@@ -202,7 +202,7 @@ func TestList(t *testing.T) {
 			Filter: []string{"authors.0.name==Alice"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -211,7 +211,7 @@ func TestList(t *testing.T) {
 
 		out.Reset()
 		cmd.Filter = []string{"authors.1.email==bob@example.com"}
-		err = cmd.Run(ctx, testStdio(&out), sandbox)
+		err = cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output = out.String()
@@ -225,7 +225,7 @@ func TestList(t *testing.T) {
 			Filter: []string{"settings.bar==hello"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -239,7 +239,7 @@ func TestList(t *testing.T) {
 			Filter: []string{"nonexistent==value"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nonexistent")
 
@@ -254,7 +254,7 @@ func TestList(t *testing.T) {
 			Filter: []string{"missing_field==value"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.Error(t, err)
 
 		// Error should mention missing_field only once, not once per resource
@@ -270,7 +270,7 @@ func TestList(t *testing.T) {
 			Filter: []string{"settings.nonexistent==value"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nonexistent")
 	})
@@ -281,7 +281,7 @@ func TestList(t *testing.T) {
 			Sort:   xkong.GreedyStrings{"name"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -294,7 +294,7 @@ func TestList(t *testing.T) {
 			Sort:   xkong.GreedyStrings{"+name"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -307,7 +307,7 @@ func TestList(t *testing.T) {
 			Sort:   xkong.GreedyStrings{"-name"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -320,7 +320,7 @@ func TestList(t *testing.T) {
 			Sort:   xkong.GreedyStrings{"settings.bar"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// test1 has settings.bar="hello", test2 has settings.bar="world"
@@ -335,7 +335,7 @@ func TestList(t *testing.T) {
 			Sort:   xkong.GreedyStrings{"-settings.bar"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// test1 has settings.bar="hello", test2 has settings.bar="world"
@@ -352,7 +352,7 @@ func TestList(t *testing.T) {
 			Sort:   xkong.GreedyStrings{"state", "-name"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// Both have same state, so secondary sort by -name means test2 first
@@ -368,7 +368,7 @@ func TestList(t *testing.T) {
 			Sort:   xkong.GreedyStrings{"+state", "settings.foo"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// Both have same state, secondary sort by settings.foo asc: 7 < 42, so test2 first
@@ -488,7 +488,7 @@ func TestParseSortSpecs(t *testing.T) {
 func TestListOutput(t *testing.T) {
 	env := setupTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	runList := func(t *testing.T, opts FormatOpts) string {
 		t.Helper()
@@ -496,7 +496,7 @@ func TestListOutput(t *testing.T) {
 		cmd := &ResourceListCmd[resourcet.TestResource]{
 			FormatOpts: opts,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 		return out.String()
 	}
@@ -797,7 +797,7 @@ func TestPartialResultsOrderWhenCallerPrintsError(t *testing.T) {
 func TestTableNestedFieldSelection(t *testing.T) {
 	env := setupTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	var out bytes.Buffer
 	cmd := &ResourceGetCmd[resourcet.TestResource]{
@@ -805,7 +805,7 @@ func TestTableNestedFieldSelection(t *testing.T) {
 		Output:  Printer{Type: PrinterTypeTable},
 		Field:   xkong.GreedyStrings{"name", "authors"},
 	}
-	err := cmd.Run(ctx, testStdio(&out), sandbox)
+	err := cmd.Run(ctx, testStdio(&out), partition)
 	require.NoError(t, err)
 
 	cleaned := ansi.Strip(out.String())
@@ -816,7 +816,7 @@ func TestTableNestedFieldSelection(t *testing.T) {
 func TestGet(t *testing.T) {
 	env := setupTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	empty := env.NewResource()
 	resources, err := empty.Get(ctx, []string{"test1"})
@@ -837,7 +837,7 @@ func TestGet(t *testing.T) {
 	inspectCmd := &ResourceGetCmd[resourcet.TestResource]{
 		Targets: []string{"test1"},
 	}
-	err = inspectCmd.Run(ctx, testStdio(&inspectOut), sandbox)
+	err = inspectCmd.Run(ctx, testStdio(&inspectOut), partition)
 	require.NoError(t, err)
 
 	output := inspectOut.String()
@@ -850,7 +850,7 @@ func TestGet(t *testing.T) {
 		cmd := &ResourceGetCmd[resourcet.TestResource]{
 			Targets: []string{},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.Error(t, err)
 	})
 
@@ -859,7 +859,7 @@ func TestGet(t *testing.T) {
 		cmd := &ResourceGetCmd[resourcet.TestResource]{
 			Targets: []string{"test1", "test2"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -875,7 +875,7 @@ func TestGet(t *testing.T) {
 			Targets: []string{"test1"},
 			Field:   xkong.GreedyStrings{"id", "url"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -884,7 +884,7 @@ func TestGet(t *testing.T) {
 
 		out.Reset()
 		cmd.Targets = []string{"test1", "test2"}
-		err = cmd.Run(ctx, testStdio(&out), sandbox)
+		err = cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output = out.String()
@@ -898,7 +898,7 @@ func TestGet(t *testing.T) {
 func TestFieldVerbosity(t *testing.T) {
 	env := setupTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	runList := func(t *testing.T, fields []string) string {
 		t.Helper()
@@ -906,7 +906,7 @@ func TestFieldVerbosity(t *testing.T) {
 		cmd := &ResourceListCmd[resourcet.TestResource]{
 			Field: fields,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 		return out.String()
 	}
@@ -918,7 +918,7 @@ func TestFieldVerbosity(t *testing.T) {
 			Targets: []string{"test1"},
 			Field:   fields,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 		return out.String()
 	}
@@ -964,7 +964,7 @@ func TestFieldVerbosity(t *testing.T) {
 func TestGetOutput(t *testing.T) {
 	env := setupTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	runInspect := func(t *testing.T, printer Printer) string {
 		t.Helper()
@@ -973,7 +973,7 @@ func TestGetOutput(t *testing.T) {
 			Targets: []string{"test1", "test2"},
 			Output:  printer,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 		return out.String()
 	}
@@ -987,7 +987,7 @@ func TestGetOutput(t *testing.T) {
 }
 
 func TestWait(t *testing.T) {
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	t.Run("already_matching", func(t *testing.T) {
 		env := resourcet.NewTestEnv()
@@ -1008,7 +1008,7 @@ func TestWait(t *testing.T) {
 			Until:    []string{"state==ready"},
 			Interval: 10 * time.Millisecond,
 		}
-		err := cmd.Run(ctx, testStdio(&bytes.Buffer{}), sandbox)
+		err := cmd.Run(ctx, testStdio(&bytes.Buffer{}), partition)
 		require.NoError(t, err)
 	})
 
@@ -1023,7 +1023,7 @@ func TestWait(t *testing.T) {
 			Until:    []string{"state==ready"},
 			Interval: 10 * time.Millisecond,
 		}
-		err := cmd.Run(ctx, testStdio(&bytes.Buffer{}), sandbox)
+		err := cmd.Run(ctx, testStdio(&bytes.Buffer{}), partition)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
@@ -1042,7 +1042,7 @@ func TestWaitOutput(t *testing.T) {
 		State: "ready",
 	})
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	runWait := func(t *testing.T, printer Printer) string {
 		t.Helper()
@@ -1053,7 +1053,7 @@ func TestWaitOutput(t *testing.T) {
 			Interval: 10 * time.Millisecond,
 			Output:   printer,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 		return out.String()
 	}
@@ -1102,7 +1102,7 @@ func TestCreate(t *testing.T) {
 func TestCreateOutput(t *testing.T) {
 	env := resourcet.NewTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	runCreate := func(t *testing.T, printer Printer) string {
 		t.Helper()
@@ -1115,7 +1115,7 @@ func TestCreateOutput(t *testing.T) {
 			},
 			Output: printer,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 		return out.String()
 	}
@@ -1131,7 +1131,7 @@ func TestCreateOutput(t *testing.T) {
 func TestCreateDryRun(t *testing.T) {
 	env := resourcet.NewTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	var out bytes.Buffer
 	cmd := &ResourceCreateCmd[resourcet.TestResource]{
@@ -1142,7 +1142,7 @@ func TestCreateDryRun(t *testing.T) {
 			{"settings.bar": "created"},
 		},
 	}
-	err := cmd.Run(ctx, testStdio(&out), sandbox)
+	err := cmd.Run(ctx, testStdio(&out), partition)
 	require.NoError(t, err)
 
 	assert.NotContains(t, env.Store, "test-dry")
@@ -1193,14 +1193,14 @@ func TestCreateDryRunWithShortcutZeroValues(t *testing.T) {
 
 		env := resourcet.NewTestEnv()
 		ctx := resourcet.WithTestEnv(context.Background(), env)
-		sandbox := &resource.Sandbox{}
+		partition := &resource.Partition{}
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
 			DryRun:  true,
 			SetArgs: setArgs,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// Resource should not be created (dry-run)
@@ -1220,14 +1220,14 @@ func TestCreateDryRunWithShortcutZeroValues(t *testing.T) {
 
 		env := resourcet.NewTestEnv()
 		ctx := resourcet.WithTestEnv(context.Background(), env)
-		sandbox := &resource.Sandbox{}
+		partition := &resource.Partition{}
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
 			DryRun:  true,
 			SetArgs: setArgs,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// Resource should not be created (dry-run)
@@ -1246,14 +1246,14 @@ func TestCreateDryRunWithShortcutZeroValues(t *testing.T) {
 
 		env := resourcet.NewTestEnv()
 		ctx := resourcet.WithTestEnv(context.Background(), env)
-		sandbox := &resource.Sandbox{}
+		partition := &resource.Partition{}
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
 			DryRun:  true,
 			SetArgs: setArgs,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// Resource should not be created (dry-run)
@@ -1291,7 +1291,7 @@ func TestCreatePatchSpecFileArgs(t *testing.T) {
 func TestCreateSetFile(t *testing.T) {
 	env := resourcet.NewTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	nameFile := tempFile(t, " test-file ")
 	setFile := tempFile(t, " 101 \n")
@@ -1306,7 +1306,7 @@ func TestCreateSetFile(t *testing.T) {
 		},
 	}
 
-	err := cmd.Run(ctx, testStdio(&out), sandbox)
+	err := cmd.Run(ctx, testStdio(&out), partition)
 	require.NoError(t, err)
 
 	created, ok := env.Store["test-file"]
@@ -1379,7 +1379,7 @@ func TestEditOutput(t *testing.T) {
 		},
 	})
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	runEdit := func(t *testing.T, printer Printer) string {
 		t.Helper()
@@ -1391,7 +1391,7 @@ func TestEditOutput(t *testing.T) {
 			},
 			Output: printer,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 		return out.String()
 	}
@@ -1416,7 +1416,7 @@ func TestEditDryRun(t *testing.T) {
 		},
 	})
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
@@ -1427,7 +1427,7 @@ func TestEditDryRun(t *testing.T) {
 			{"settings.bar": "modified"},
 		},
 	}
-	err := cmd.Run(ctx, testStdio(&out), sandbox)
+	err := cmd.Run(ctx, testStdio(&out), partition)
 	require.NoError(t, err)
 
 	stored := env.Store["test-edit"]
@@ -1458,7 +1458,7 @@ func TestEditCmdNoChangesDryRun(t *testing.T) {
 		},
 	})
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
@@ -1466,7 +1466,7 @@ func TestEditCmdNoChangesDryRun(t *testing.T) {
 		Cmd:    "cat", // pass through unchanged
 		DryRun: true,
 	}
-	err := cmd.Run(ctx, testStdio(&out), sandbox)
+	err := cmd.Run(ctx, testStdio(&out), partition)
 	require.NoError(t, err)
 
 	// No changes should produce no output
@@ -1490,7 +1490,7 @@ func TestEditCmdWithChangesDryRun(t *testing.T) {
 		},
 	})
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	var out bytes.Buffer
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
@@ -1498,7 +1498,7 @@ func TestEditCmdWithChangesDryRun(t *testing.T) {
 		Cmd:    `sed 's/old-value/new-value/'`, // change settings.bar
 		DryRun: true,
 	}
-	err := cmd.Run(ctx, testStdio(&out), sandbox)
+	err := cmd.Run(ctx, testStdio(&out), partition)
 	require.NoError(t, err)
 
 	// Should have output showing the change
@@ -1566,7 +1566,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestRemoveOutput(t *testing.T) {
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	t.Run("no_args", func(t *testing.T) {
 		env := setupTestEnv()
@@ -1574,7 +1574,7 @@ func TestRemoveOutput(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceRemoveCmd[resourcet.TestResource]{}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.Error(t, err)
 	})
 
@@ -1588,7 +1588,7 @@ func TestRemoveOutput(t *testing.T) {
 			Targets: []string{"test1", "test2"},
 			Output:  printer,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 		return out.String()
 	}
@@ -1642,7 +1642,7 @@ func testStdioWithInput(out io.Writer, in io.Reader) config.Stdio {
 }
 
 func TestValueCallback(t *testing.T) {
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	t.Run("list_without_lazy_field", func(t *testing.T) {
 		env := resourcet.NewTestEnv()
@@ -1659,7 +1659,7 @@ func TestValueCallback(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -1690,7 +1690,7 @@ func TestValueCallback(t *testing.T) {
 		cmd := &ResourceListCmd[resourcet.TestResource]{
 			Field: xkong.GreedyStrings{"+lazy"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -1723,7 +1723,7 @@ func TestValueCallback(t *testing.T) {
 			Targets: []string{"res1"},
 			Field:   xkong.GreedyStrings{"+lazy"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -1753,7 +1753,7 @@ func TestValueCallback(t *testing.T) {
 			Output: Printer{Type: PrinterTypeQuiet},
 			Field:  xkong.GreedyStrings{"name", "lazy"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -1783,7 +1783,7 @@ func TestValueCallback(t *testing.T) {
 			// Filter on lazy field, but don't select it for output
 			Filter: []string{"lazy==computed-res1"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -1816,7 +1816,7 @@ func TestValueCallback(t *testing.T) {
 			Filter: []string{"lazy==computed-res1"},
 			Field:  xkong.GreedyStrings{"+lazy"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -1852,7 +1852,7 @@ func TestValueCallback(t *testing.T) {
 			Output: Printer{Type: PrinterTypeQuiet},
 			Field:  xkong.GreedyStrings{"name", "lazy"},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -1867,7 +1867,7 @@ func TestValueCallback(t *testing.T) {
 }
 
 func TestDeleteBulk(t *testing.T) {
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	t.Run("all_with_confirmation", func(t *testing.T) {
 		env := setupTestEnv()
@@ -1878,7 +1878,7 @@ func TestDeleteBulk(t *testing.T) {
 		cmd := &ResourceBulkRemoveCmd[resourcet.TestResource]{
 			All: true,
 		}
-		err := cmd.Run(ctx, testStdioWithInput(&out, in), sandbox)
+		err := cmd.Run(ctx, testStdioWithInput(&out, in), partition)
 		require.NoError(t, err)
 
 		// All resources should be deleted
@@ -1898,7 +1898,7 @@ func TestDeleteBulk(t *testing.T) {
 			All:   true,
 			Force: true,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// All resources should be deleted
@@ -1914,7 +1914,7 @@ func TestDeleteBulk(t *testing.T) {
 		cmd := &ResourceBulkRemoveCmd[resourcet.TestResource]{
 			All: true,
 		}
-		err := cmd.Run(ctx, testStdioWithInput(&out, in), sandbox)
+		err := cmd.Run(ctx, testStdioWithInput(&out, in), partition)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cancelled")
 
@@ -1931,7 +1931,7 @@ func TestDeleteBulk(t *testing.T) {
 			All:   true,
 			Force: true,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		output := out.String()
@@ -1953,7 +1953,7 @@ func TestDeleteBulk(t *testing.T) {
 			Filter: []string{"state==running"},
 			Force:  true,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// Only test1 should be deleted (matches filter)
@@ -1971,7 +1971,7 @@ func TestDeleteBulk(t *testing.T) {
 			Filter: []string{"state==nonexistent"},
 			Force:  true,
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 
 		// No resources should be deleted (no matches)
@@ -1993,7 +1993,7 @@ func TestDeleteBulk(t *testing.T) {
 		cmd := &ResourceBulkRemoveCmd[resourcet.TestResource]{
 			Filter: []string{"state==running"},
 		}
-		err := cmd.Run(ctx, testStdioWithInput(&out, in), sandbox)
+		err := cmd.Run(ctx, testStdioWithInput(&out, in), partition)
 		require.NoError(t, err)
 
 		// Only test1 should be deleted
@@ -2005,7 +2005,7 @@ func TestDeleteBulk(t *testing.T) {
 func TestFilterComparisonOperators(t *testing.T) {
 	env := setupTestEnv()
 	ctx := resourcet.WithTestEnv(context.Background(), env)
-	sandbox := &resource.Sandbox{}
+	partition := &resource.Partition{}
 
 	runFilter := func(t *testing.T, filter string) (string, error) {
 		t.Helper()
@@ -2014,7 +2014,7 @@ func TestFilterComparisonOperators(t *testing.T) {
 			Filter: []string{filter},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		return out.String(), err
 	}
 
@@ -2272,7 +2272,7 @@ func TestFilterComparisonOperators(t *testing.T) {
 			Filter: []string{"usage==69%"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
-		err := cmd.Run(ctx, testStdio(&out), sandbox)
+		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
 		assert.Contains(t, out.String(), "test3")
 	})

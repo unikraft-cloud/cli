@@ -55,7 +55,7 @@ func (i *Image) Ref(env *TestEnv, tag string) string {
 }
 
 // Build writes the files to a temporary context and builds the image at ref.
-// The sandbox of the test deletes the image, unless opts give WithNoSandbox.
+// The partition of the test deletes the image, unless opts give WithNoPartition.
 func (i *Image) Build(t *testing.T, env *TestEnv, ref string, opts ...CmdOption) error {
 	t.Helper()
 
@@ -120,12 +120,12 @@ func (s *SharedImage) Build(t *testing.T, env *TestEnv) string {
 	return s.ref
 }
 
-// build makes the image out of the sandbox of the test, so that the cleanup of
+// build makes the image out of the partition of the test, so that the cleanup of
 // one test does not delete an image that other tests still use.
 func (s *SharedImage) build(t *testing.T, env *TestEnv) (string, error) {
 	t.Helper()
 	ref := s.Ref(env, sharedImageTag)
-	if err := s.Image.Build(t, env, ref, WithNoSandbox(), WithoutCancel()); err != nil {
+	if err := s.Image.Build(t, env, ref, WithNoPartition(), WithoutCancel()); err != nil {
 		return "", err
 	}
 	registerSharedImage(env, ref)

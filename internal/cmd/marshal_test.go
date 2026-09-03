@@ -400,7 +400,7 @@ func TestEditPatches(t *testing.T) {
 // TestLinkCollection guards cross-resource links on list fields.
 // resource.FieldsFromStruct harvests the resource.Link interface only from
 // ANONYMOUS struct fields, so a list element must stay a struct embedding
-// Link. As a bare Link its links vanish from the TUI, sandbox teardown and
+// Link. As a bare Link its links vanish from the TUI, partition teardown and
 // the JSON "links" output, while the rest of the field tree looks identical.
 func TestLinkCollection(t *testing.T) {
 	t.Parallel()

@@ -121,7 +121,7 @@ type InstanceCreateCmd struct {
 	DeleteOnStop bool           `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
 }
 
-func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox
 			return fmt.Errorf("--domain cannot be used with --service")
 		}
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
 }
 
 // InstanceEditCmd extends the generic resource edit command with shortcut
@@ -168,11 +168,11 @@ type InstanceEditCmd struct {
 	DeleteLock *bool `group:"flag-edit" shortcut:"delete-lock" help:"Prevent instance deletion until the lock is removed."`
 }
 
-func (c *InstanceEditCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *InstanceEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
-	return c.ResourceEditCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceEditCmd.Run(ctx, stdio, partition)
 }
 
 type Instance struct {

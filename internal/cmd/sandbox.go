@@ -70,13 +70,13 @@ func (cmd ExecSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, rsb *resource.Sandbox) error {
+func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	env, err := c.env()
 	if err != nil {
 		return err
 	}
 
-	target, err := resolveSandboxTarget(ctx, rsb, c.Target, c.Plugin)
+	target, err := resolveSandboxTarget(ctx, partition, c.Target, c.Plugin)
 	if err != nil {
 		return err
 	}
@@ -103,10 +103,10 @@ func (c ExecSandboxInstanceCmd) env() (map[string]string, error) {
 	return env, nil
 }
 
-func resolveSandboxTarget(ctx context.Context, rsb *resource.Sandbox, target, plugin string) (sandbox.Target, error) {
+func resolveSandboxTarget(ctx context.Context, partition *resource.Partition, target, plugin string) (sandbox.Target, error) {
 	key := multimetro.ParseKey(target)
 
-	gettable := rsb.WrapGettable(Instance{})
+	gettable := partition.WrapGettable(Instance{})
 	resources, err := gettable.Get(ctx, []string{key.String()})
 	if err != nil {
 		return sandbox.Target{}, err
@@ -203,12 +203,12 @@ func (cmd WriteSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, rsb *resource.Sandbox) error {
+func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	if err := sandbox.StatLocalFile(c.Local, "written"); err != nil {
 		return err
 	}
 
-	target, err := resolveSandboxTarget(ctx, rsb, c.Target, c.Plugin)
+	target, err := resolveSandboxTarget(ctx, partition, c.Target, c.Plugin)
 	if err != nil {
 		return err
 	}
@@ -269,8 +269,8 @@ func (cmd ReadSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, rsb *resource.Sandbox) error {
-	target, err := resolveSandboxTarget(ctx, rsb, c.Target, c.Plugin)
+func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+	target, err := resolveSandboxTarget(ctx, partition, c.Target, c.Plugin)
 	if err != nil {
 		return err
 	}
@@ -367,7 +367,7 @@ func (cmd CopySandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, rsb *resource.Sandbox) error {
+func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	srcTarget, srcPath := parseCopyPath(c.Source)
 	dstTarget, dstPath := parseCopyPath(c.Destination)
 
@@ -387,7 +387,7 @@ func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, rs
 			return err
 		}
 
-		target, err := resolveSandboxTarget(ctx, rsb, dstTarget, c.Plugin)
+		target, err := resolveSandboxTarget(ctx, partition, dstTarget, c.Plugin)
 		if err != nil {
 			return err
 		}
@@ -410,7 +410,7 @@ func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, rs
 		return nil
 
 	default:
-		target, err := resolveSandboxTarget(ctx, rsb, srcTarget, c.Plugin)
+		target, err := resolveSandboxTarget(ctx, partition, srcTarget, c.Plugin)
 		if err != nil {
 			return err
 		}

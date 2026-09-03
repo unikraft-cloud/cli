@@ -58,11 +58,11 @@ type ServiceCreateCmd struct {
 	Service []Service `group:"flag-create" shortcut:"services" sep:"none" help:"Service port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
 }
 
-func (c *ServiceCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *ServiceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
 }
 
 // ServiceEditCmd extends the generic resource edit command with shortcut
@@ -79,11 +79,11 @@ type ServiceEditCmd struct {
 	Service []Service `group:"flag-edit" shortcut:"services" sep:"none" help:"Service port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
 }
 
-func (c *ServiceEditCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *ServiceEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
-	return c.ResourceEditCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceEditCmd.Run(ctx, stdio, partition)
 }
 
 type ServiceGroup struct {

@@ -105,7 +105,7 @@ func (InstanceRunCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	// Apply shortcut flags first (only user-set flags)
 	if err := resourcecmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
@@ -116,7 +116,7 @@ func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *r
 	if c.Autostart == nil {
 		c.Set = append(c.Set, map[string]string{"autostart": "true"})
 	}
-	created, err := c.RunResources(ctx, stdio, sandbox)
+	created, err := c.RunResources(ctx, stdio, partition)
 	if err != nil {
 		return err
 	}
@@ -170,8 +170,8 @@ func (RunCmd) Examples() []kingkong.Example {
 	return instanceExamples
 }
 
-func (c *RunCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
-	return c.InstanceRunCmd.Run(ctx, stdio, sandbox, kctx)
+func (c *RunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
+	return c.InstanceRunCmd.Run(ctx, stdio, partition, kctx)
 }
 
 func newInstanceLogMux(ctx context.Context, keys multimetro.Keys, tail *int, follow bool) (*muxreader.Mux, context.CancelFunc, error) {

@@ -77,7 +77,7 @@ func (ImageBuildCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, sandbox *resource.Sandbox) error {
+func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
 	kf, err := kraftfile.ParseDirectory(c.Input, kraftfile.WithSkippedVersionCheck())
 	if err != nil {
 		return err
@@ -166,9 +166,9 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, sandbox *re
 		return err
 	}
 
-	if sandbox != nil && output.Scheme == imagespec.URISchemeOCI {
-		if err := addImageToSandbox(ctx, sandbox, output.Path); err != nil {
-			return fmt.Errorf("adding built image to sandbox: %w", err)
+	if partition != nil && output.Scheme == imagespec.URISchemeOCI {
+		if err := addImageToPartition(ctx, partition, output.Path); err != nil {
+			return fmt.Errorf("adding built image to partition: %w", err)
 		}
 	}
 
@@ -195,6 +195,6 @@ func (BuildCmd) Examples() []kingkong.Example {
 	return imageExamples
 }
 
-func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, sandbox *resource.Sandbox) error {
-	return c.ImageBuildCmd.Run(ctx, cfg, sandbox)
+func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
+	return c.ImageBuildCmd.Run(ctx, cfg, partition)
 }

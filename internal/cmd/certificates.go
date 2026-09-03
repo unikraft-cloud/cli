@@ -51,11 +51,11 @@ type CertificateCreateCmd struct {
 	PrivateKey string `group:"flag-create" shortcut-file:"pkey" help:"Certificate private key file." placeholder:"file" aliases:"pkey"`
 }
 
-func (c *CertificateCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *CertificateCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
 }
 
 type Certificate struct {
