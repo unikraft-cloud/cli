@@ -24,6 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: go-task/setup-task@v2
+      - name: Authenticate git for remote Taskfiles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
@@ -82,6 +87,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: go-task/setup-task@v2
+      - name: Authenticate git for remote Taskfiles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
@@ -155,6 +165,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: go-task/setup-task@v2
+      - name: Authenticate git for remote Taskfiles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
