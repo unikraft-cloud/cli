@@ -273,7 +273,7 @@ func (c *Cmd) Wait() error {
 			return c.interrupted()
 
 		case stdinErr := <-c.stdinErr:
-			log.G(c.ctx).Debug().Err(stdinErr).Str("cmd", c.UUID).Msg("standard input failed")
+			log.G(c.ctx).Warn().Err(stdinErr).Str("cmd", c.UUID).Msg("standard input failed")
 			continue
 
 		case err := <-c.done:

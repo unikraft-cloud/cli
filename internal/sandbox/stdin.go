@@ -11,13 +11,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/docker/go-units"
 
 	plugin "unikraft.com/cloud/plugins/sandbox"
 )
 
-const stdinChunkSize = 32 * units.KiB
+const (
+	stdinChunkSize  = 32 * units.KiB
+	stdinEOFTimeout = 5 * time.Second
+)
 
 // stdinPump forwards a reader to a command's standard input, a chunk per
 // request, and closes that input once the reader is done.
@@ -48,6 +52,7 @@ func (p *stdinPump) feed(ctx context.Context, in io.Reader, failed chan<- error)
 		if n > 0 {
 			if err := p.write(ctx, base64.StdEncoding.EncodeToString(buf[:n]), false); err != nil {
 				report(fmt.Errorf("failed to send standard input to the command after %d bytes: %w", sent, err))
+				p.close(ctx)
 				return
 			}
 			sent += uint64(n)
@@ -56,6 +61,7 @@ func (p *stdinPump) feed(ctx context.Context, in io.Reader, failed chan<- error)
 		if readErr != nil {
 			if !errors.Is(readErr, io.EOF) {
 				report(fmt.Errorf("failed to read standard input after %d bytes: %w", sent, readErr))
+				p.close(ctx)
 				return
 			}
 			if ctx.Err() != nil {
@@ -67,6 +73,12 @@ func (p *stdinPump) feed(ctx context.Context, in io.Reader, failed chan<- error)
 			return
 		}
 	}
+}
+
+func (p *stdinPump) close(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stdinEOFTimeout)
+	defer cancel()
+	_ = p.write(ctx, "", true)
 }
 
 func (p *stdinPump) write(ctx context.Context, data string, eof bool) error {

@@ -42,6 +42,10 @@ type mockPlugin struct {
 	stdin    []byte
 	stdinEOF bool
 
+	// failStdinData is set before the plugin serves anything, so it needs no
+	// lock of its own.
+	failStdinData bool
+
 	signals []int
 }
 
@@ -127,9 +131,15 @@ func (f *mockPlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		decoded, _ := base64.StdEncoding.DecodeString(req.Data)
 
+		eof := req.Eof != nil && *req.Eof
+		if f.failStdinData && !eof {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		f.mu.Lock()
 		f.stdin = append(f.stdin, decoded...)
-		if req.Eof != nil && *req.Eof {
+		if eof {
 			f.stdinEOF = true
 		}
 		f.mu.Unlock()
@@ -270,6 +280,32 @@ func TestCmdStdin(t *testing.T) {
 
 	seen, eof := fake.stdinSeen()
 	assert.Equal(t, "one\ntwo\n", seen)
+	assert.True(t, eof)
+}
+
+// TestCmdStdinFailureClosesInput pins that standard input that fails part way
+// through still closes the command's input, so that a command reading to EOF
+// is not left waiting on input that will never arrive.
+func TestCmdStdinFailureClosesInput(t *testing.T) {
+	fake := newFakePlugin()
+	fake.failStdinData = true
+	target := newTarget(t, fake)
+
+	cmd := target.Command(t.Context(), "cat")
+	cmd.Stdin = strings.NewReader("never arrives\n")
+	cmd.Stdout = io.Discard
+
+	require.NoError(t, cmd.Start())
+	require.Eventually(t, func() bool {
+		_, eof := fake.stdinSeen()
+		return eof
+	}, 5*time.Second, 10*time.Millisecond)
+	fake.exit(0)
+
+	require.NoError(t, cmd.Wait())
+
+	seen, eof := fake.stdinSeen()
+	assert.Empty(t, seen)
 	assert.True(t, eof)
 }
 
