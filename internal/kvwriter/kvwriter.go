@@ -16,7 +16,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 
-	xio "unikraft.com/cli/internal/x/io"
+	xio "unikraft.com/x/io"
 )
 
 type keyValueWriter struct {

@@ -65,6 +65,7 @@ type cmdConfig struct {
 	noPartition   bool
 	timeout       time.Duration
 	withoutCancel bool
+	exitCode      *int
 }
 
 func WithWorkDir(dir string) CmdOption {
@@ -78,6 +79,11 @@ func WithStdin(in string) CmdOption {
 
 func ExpectFail() CmdOption {
 	return func(c *cmdConfig) { c.expectFail = true }
+}
+
+// ExpectExitCode requires the command to exit with exactly code.
+func ExpectExitCode(code int) CmdOption {
+	return func(c *cmdConfig) { c.exitCode = &code }
 }
 
 func AllowFail() CmdOption {
@@ -157,6 +163,10 @@ func (env *TestEnv) Run(t *testing.T, args []string, opts ...CmdOption) string {
 	}
 	out, err := env.RunRaw(t, args, opts...)
 	switch {
+	case cfg.exitCode != nil:
+		var exitErr *exec.ExitError
+		require.ErrorAs(t, err, &exitErr, "command %q was expected to exit with %d\n%s", strings.Join(args, " "), *cfg.exitCode, out)
+		require.Equal(t, *cfg.exitCode, exitErr.ExitCode(), "command %q exited with the wrong status\n%s", strings.Join(args, " "), out)
 	case cfg.expectFail:
 		require.Error(t, err, "command %q was expected to fail but succeeded\n%s", strings.Join(args, " "), out)
 	case cfg.allowFail:
@@ -173,6 +183,7 @@ type BackgroundProcess struct {
 	output *bytes.Buffer
 	t      *testing.T
 	once   sync.Once
+	err    error
 }
 
 // Stop terminates the background process, waiting for it to exit. It is safe
@@ -180,15 +191,29 @@ type BackgroundProcess struct {
 // StartBackground, so it only needs to be called explicitly for early
 // termination.
 func (p *BackgroundProcess) Stop() {
-	p.once.Do(func() {
-		p.t.Helper()
-		p.t.Logf("stopping background process")
-		_ = p.cmd.Cancel()
-		err := p.cmd.Wait()
-		if err != nil && p.output.Len() > 0 {
-			p.t.Logf("background process output:\n%s", p.output.String())
-		}
-	})
+	p.t.Helper()
+	p.t.Logf("stopping background process")
+	_ = p.cmd.Cancel()
+	if err := p.wait(); err != nil && p.output.Len() > 0 {
+		p.t.Logf("background process output:\n%s", p.output.String())
+	}
+}
+
+func (p *BackgroundProcess) Interrupt() {
+	p.t.Helper()
+	p.t.Logf("interrupting background process")
+	require.NoError(p.t, p.cmd.Process.Signal(os.Interrupt))
+}
+
+func (p *BackgroundProcess) Wait() (string, error) {
+	p.t.Helper()
+	err := p.wait()
+	return ansi.Strip(p.output.String()), err
+}
+
+func (p *BackgroundProcess) wait() error {
+	p.once.Do(func() { p.err = p.cmd.Wait() })
+	return p.err
 }
 
 // StartBackground starts a command in the background and registers cleanup to

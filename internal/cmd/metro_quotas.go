@@ -25,10 +25,10 @@ import (
 	"unikraft.com/cli/internal/kvwriter"
 	"unikraft.com/cli/internal/multimetro"
 	uitui "unikraft.com/cli/internal/tui/uitui"
-	xio "unikraft.com/cli/internal/x/io"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/colors"
+	xio "unikraft.com/x/io"
 	"unikraft.com/x/log"
 )
 

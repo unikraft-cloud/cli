@@ -12,7 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	xio "unikraft.com/cli/internal/x/io"
+	xio "unikraft.com/x/io"
 )
 
 // ErrDownloadInterrupted is returned when the download is interrupted by the user.

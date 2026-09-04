@@ -12,7 +12,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	xio "unikraft.com/cli/internal/x/io"
+	xio "unikraft.com/x/io"
 )
 
 type tableWriter struct {

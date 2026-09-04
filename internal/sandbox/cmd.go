@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,6 +24,7 @@ const (
 	pollMaxInterval = 1 * time.Second
 	pollMaxFailures = 3
 	signalTimeout   = 5 * time.Second
+	forgetTimeout   = 10 * time.Second
 )
 
 const PluginName = plugin.PluginName
@@ -70,7 +72,7 @@ type Cmd struct {
 	Cmdline string
 
 	Dir string
-	Env map[string]string
+	Env []string
 
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
@@ -88,6 +90,9 @@ type Cmd struct {
 
 	stopStdin context.CancelFunc
 	stdinErr  chan error
+	stdinEOF  *sync.Once
+
+	pipeOnce *sync.Once
 
 	logs   *logStream
 	done   chan error
@@ -131,14 +136,13 @@ func (c *Cmd) Start() error {
 	if c.Dir != "" {
 		req.Cwd = &c.Dir
 	}
-	if len(c.Env) > 0 {
-		env := c.Env
+	if env := environ(c.Env); env != nil {
 		req.Env = &env
 	}
 
 	resp, err := c.target.Client.RunCommand(c.ctx, c.target.Instance, &req, c.target.Opts...)
 	if err != nil {
-		return fmt.Errorf("failed to start command: %w", err)
+		return c.target.apiError("failed to start command", err)
 	}
 	if resp.Data == nil || resp.Data.Uuid == "" {
 		return fmt.Errorf("failed to start command: the %q plugin did not report a command UUID", c.target.Plugin)
@@ -148,17 +152,19 @@ func (c *Cmd) Start() error {
 	c.waitCtx, c.stopWait = context.WithCancel(context.WithoutCancel(c.ctx))
 
 	c.stdinErr = make(chan error, 1)
+	c.stdinEOF = new(sync.Once)
+	c.pipeOnce = new(sync.Once)
 	if c.Stdin != nil {
 		feedCtx, cancelFeed := context.WithCancel(c.ctx)
 		c.stopStdin = cancelFeed
-		go (&stdinPump{target: c.target, uuid: c.UUID}).feed(feedCtx, c.Stdin, c.stdinErr)
+		go (&stdinPump{target: c.target, uuid: c.UUID, eof: c.stdinEOF}).feed(feedCtx, c.Stdin, c.stdinErr)
 	}
 
 	c.logs = &logStream{
 		target: c.target,
 		uuid:   c.UUID,
-		stdout: c.Stdout,
-		stderr: c.Stderr,
+		stdout: c.outputTo(c.Stdout),
+		stderr: c.outputTo(c.Stderr),
 	}
 
 	log.G(c.ctx).Trace().
@@ -196,10 +202,10 @@ func (c *Cmd) stream() {
 					c.done <- c.waitCtx.Err()
 					return
 				}
-				c.done <- fmt.Errorf("failed waiting for command: %w", err)
+				c.done <- c.target.apiError("failed waiting for command", err)
 				return
 			}
-			if err := c.logs.drain(c.waitCtx); err != nil {
+			if err := c.logs.drainAll(c.waitCtx); err != nil {
 				c.done <- err
 				return
 			}
@@ -299,6 +305,9 @@ func (c *Cmd) Wait() error {
 
 		case err := <-c.done:
 			c.closed = true
+			// The command has ended, however it ended, so the instance need not
+			// keep its record any longer.
+			c.Forget(c.ctx)
 			if err != nil {
 				_, exited := errors.AsType[*ExitError](err)
 				if c.ctx.Err() != nil && !exited {
@@ -326,13 +335,27 @@ func (c *Cmd) Run() error {
 	return c.Wait()
 }
 
+// Forget drops the instance's record of the command
+func (c *Cmd) Forget(ctx context.Context) {
+	if c.UUID == "" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), forgetTimeout)
+	defer cancel()
+
+	if _, err := c.target.Client.DeleteCommandByUuid(ctx, c.target.Instance, c.UUID, c.target.Opts...); err != nil {
+		log.G(ctx).Debug().Err(err).Str("cmd", c.UUID).Msg("could not drop the command record")
+	}
+}
+
 func (c *Cmd) Signal(ctx context.Context, sig syscall.Signal) error {
 	if c.UUID == "" {
 		return errors.New("sandbox: command not started")
 	}
 	req := plugin.CommandSignalRequest{Signal: int(sig)}
 	_, err := c.target.Client.SignalCommand(ctx, c.target.Instance, c.UUID, &req, c.target.Opts...)
-	return err
+	return c.target.apiError("failed to signal command", err)
 }
 
 func (c *Cmd) cancel() error {
@@ -345,7 +368,15 @@ func (c *Cmd) cancel() error {
 	if err := c.Signal(signalCtx, syscall.SIGINT); err != nil {
 		log.G(c.ctx).Debug().Err(err).Str("cmd", c.UUID).Msg("failed to signal remote command")
 	}
+	c.closeStdin(signalCtx)
 	return nil
+}
+
+func (c *Cmd) closeStdin(ctx context.Context) {
+	if c.Stdin == nil {
+		return
+	}
+	(&stdinPump{target: c.target, uuid: c.UUID, eof: c.stdinEOF}).close(ctx)
 }
 
 func (c *Cmd) interrupted() error {

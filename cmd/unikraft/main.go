@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"reflect"
 	"strings"
 	"syscall"
@@ -23,18 +22,18 @@ import (
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/logfmt"
-	"unikraft.com/cli/internal/sandbox"
 	"unikraft.com/cli/internal/telemetry"
 	"unikraft.com/x/colors"
 	"unikraft.com/x/log"
+	xsignal "unikraft.com/x/signal"
 )
 
 func main() {
 	// Recover from panics and report crashes before re-panicking
 	defer telemetry.RecoverAndReport()
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	ctx, signals := xsignal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer signals.Stop()
 
 	var (
 		err error
@@ -47,13 +46,12 @@ func main() {
 		}
 	)
 
-	ctx, err = run(ctx, args, stdio)
+	ctx, err = run(ctx, args, stdio, signals)
 
 	// a command that ran on an instance and failed isn't an error of ours, so
-	// exit with the status it exited with and print nothing over its output
 	exitCode := 0
-	if exited, ok := errors.AsType[*sandbox.ExitError](err); ok {
-		exitCode, err = exited.ExitCode(), nil
+	if status, ok := errors.AsType[cmd.ExitStatus](err); ok {
+		exitCode, err = status.ExitCode(), nil
 	}
 
 	// Track command completion for telemetry
@@ -133,8 +131,8 @@ func getMethod(value reflect.Value, name string) reflect.Value {
 	return method
 }
 
-func run(ctx context.Context, args []string, stdio config.Stdio) (context.Context, error) {
-	ctx, cli, opts, cleanup, err := cmd.NewRootCmd(ctx, args, stdio)
+func run(ctx context.Context, args []string, stdio config.Stdio, signals *xsignal.Signals) (context.Context, error) {
+	ctx, cli, opts, cleanup, err := cmd.NewRootCmd(ctx, args, stdio, signals)
 	if err != nil {
 		return ctx, err
 	}

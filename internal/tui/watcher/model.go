@@ -15,7 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	xio "unikraft.com/cli/internal/x/io"
+	xio "unikraft.com/x/io"
 )
 
 type watchModel struct {

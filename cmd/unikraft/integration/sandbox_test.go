@@ -7,8 +7,10 @@ package integration
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/containerd/continuity/fs/fstest"
 	"github.com/stretchr/testify/assert"
@@ -59,6 +61,12 @@ func remoteContents(t *testing.T, r *integ.TestEnv, instName, remote string) str
 	return string(data)
 }
 
+func shell(t *testing.T, r *integ.TestEnv, instName, line string, opts ...integ.CmdOption) string {
+	t.Helper()
+
+	return r.Run(t, []string{"unikraft", "instance", "shell", instName, "-c", line}, opts...)
+}
+
 func TestSandbox(t *testing.T) {
 	// One instance covers all of these: they only run commands on it.
 	t.Run("exec", func(t *testing.T) {
@@ -69,6 +77,12 @@ func TestSandbox(t *testing.T) {
 		out := r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "echo to-stdout; echo to-stderr >&2"})
 		assert.Contains(t, out, "to-stdout")
 		assert.Contains(t, out, "to-stderr")
+
+		// A command that fails on the instance is not this CLI failing: the
+		// status it exited with is reported as our own, with nothing said over
+		// whatever the command printed.
+		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "exit 3"},
+			integ.ExpectExitCode(3))
 
 		// The command is a command line by the time it reaches the plugin, so
 		// arguments the shell would otherwise split or expand are quoted first.
@@ -309,6 +323,71 @@ func TestSandbox(t *testing.T) {
 				"./payload.txt", "name:" + instName + ":" + nameRemote,
 			}, integ.WithWorkDir(dir))
 			assert.Equal(t, "qualified\n", remoteContents(t, r, instName, nameRemote))
+
+			r.Run(t, []string{"unikraft", "instance", "delete", instName})
+		})
+	})
+
+	t.Run("shell", func(t *testing.T) {
+		t.Run("commands", func(t *testing.T) {
+			r := runner(t, true, []string{staging})
+			instName := newSandboxInstance(t, r)
+
+			assert.Contains(t, shell(t, r, instName, "cd /etc && pwd"), "/etc")
+			assert.Contains(t, shell(t, r, instName, "false; echo status=$?"), "status=1")
+			assert.Contains(t, shell(t, r, instName, "true && echo yes || echo no"), "yes")
+
+			globDir := "/sb-glob-" + uniq()
+			require.Contains(t, shell(t, r, instName,
+				"mkdir -p "+globDir+" && touch "+globDir+"/one.log "+globDir+"/two.log "+globDir+
+					"/skip.txt && echo setup-ok"), "setup-ok")
+
+			globbed := shell(t, r, instName, "cd "+globDir+"; echo *.log")
+			assert.Contains(t, globbed, "one.log")
+			assert.Contains(t, globbed, "two.log")
+			assert.NotContains(t, globbed, "skip.txt")
+			assert.Contains(t, shell(t, r, instName, "[ -d "+globDir+" ] && echo is-a-dir"), "is-a-dir")
+
+			remote := "/sb-shell-" + uniq() + ".txt"
+			shell(t, r, instName, "echo written-by-the-shell > "+remote)
+			assert.Equal(t, "written-by-the-shell\n", remoteContents(t, r, instName, remote))
+
+			assert.Contains(t, shell(t, r, instName, `cd /etc; cd; [ "$PWD" = "${HOME:-/}" ] && echo home-ok`), "home-ok")
+			assert.NotContains(t, shell(t, r, instName, "echo $HOME"), "/home/")
+
+			out := shell(t, r, instName, "cat", integ.WithStdin("fed-to-the-shell\n"))
+			assert.Contains(t, out, "fed-to-the-shell")
+
+			r.Run(t, []string{"unikraft", "instance", "delete", instName})
+		})
+
+		t.Run("interrupt", func(t *testing.T) {
+			r := runner(t, true, []string{staging})
+			instName := newSandboxInstance(t, r)
+
+			marker := "not-abandoned-" + uniq()
+			started := "/sb-started-" + uniq()
+
+			proc := r.StartBackground(t, []string{
+				"unikraft", "instance", "shell", instName, "-c",
+				"echo up > " + started + "; sleep 300; echo " + marker,
+			}, "", 0)
+
+			require.Eventually(t, func() bool {
+				_, err := r.RunRaw(t, []string{
+					"unikraft", "instance", "read", instName, started, "./probe",
+				}, integ.WithWorkDir(t.TempDir()))
+				return err == nil
+			}, 90*time.Second, 2*time.Second, "the command never reached the instance")
+
+			proc.Interrupt()
+			out, err := proc.Wait()
+			assert.NotContains(t, out, marker, "an interrupt abandons the rest of the line")
+			assert.NotContains(t, out, "error:", "an interrupt is not the CLI failing")
+
+			var exitErr *exec.ExitError
+			require.ErrorAs(t, err, &exitErr, "the shell exits with the interrupted line's status rather than dying")
+			assert.Equal(t, 130, exitErr.ExitCode(), "interrupted, not crashed")
 
 			r.Run(t, []string{"unikraft", "instance", "delete", instName})
 		})

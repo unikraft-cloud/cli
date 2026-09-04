@@ -23,7 +23,8 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/sandbox"
-	xio "unikraft.com/cli/internal/x/io"
+	xio "unikraft.com/x/io"
+	"unikraft.com/x/shell"
 )
 
 const copyPathSeparator = ":"
@@ -71,8 +72,7 @@ func (cmd ExecSandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
-	env, err := c.env()
-	if err != nil {
+	if _, err := parseEnv(c.Env); err != nil {
 		return err
 	}
 
@@ -81,6 +81,11 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 		return err
 	}
 
+	return c.runOn(ctx, target, stdio)
+}
+
+// runOn runs the command on target and reports what it ended as.
+func (c *ExecSandboxInstanceCmd) runOn(ctx context.Context, target sandbox.Target, stdio config.Stdio) error {
 	in := stdio.Stdin
 	if in == nil || xio.IsTTYReader(in) {
 		in = strings.NewReader("")
@@ -90,16 +95,30 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 
 	cmd := target.CommandArgs(ctx, c.Cmd)
 	cmd.Dir = c.Dir
-	cmd.Env = env
+	cmd.Env = c.Env
 	cmd.Stdin = in
 	cmd.Stdout = out
 	cmd.Stderr = out
 
-	return cmd.Run()
+	code, err := shell.ExitStatus(cmd.Run())
+	if err != nil {
+		return err
+	}
+	if code != 0 {
+		return ExitStatus(code)
+	}
+	return nil
 }
 
-func (c ExecSandboxInstanceCmd) env() (map[string]string, error) {
-	env, err := value.Parse[map[string]string](c.Env)
+// parseEnv is the --env records as the environment they set, or which of them
+// is not <key>=<value>.
+func parseEnv(records []string) (map[string]string, error) {
+	for _, record := range records {
+		if !strings.Contains(record, "=") {
+			return nil, fmt.Errorf("parsing --env: %q is not <key>=<value>", record)
+		}
+	}
+	env, err := value.Parse[map[string]string](records)
 	if err != nil {
 		return nil, fmt.Errorf("parsing --env: %w", err)
 	}
