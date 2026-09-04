@@ -6,11 +6,13 @@
 package sandbox
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/docker/go-units"
 
@@ -24,6 +26,7 @@ const stdinChunkSize = 32 * units.KiB
 type stdinPump struct {
 	target Target
 	uuid   string
+	eof    *sync.Once
 }
 
 func (p *stdinPump) feed(ctx context.Context, in io.Reader, failed chan<- error) {
@@ -61,7 +64,7 @@ func (p *stdinPump) feed(ctx context.Context, in io.Reader, failed chan<- error)
 			if ctx.Err() != nil {
 				return
 			}
-			if err := p.write(ctx, "", true); err != nil {
+			if err := p.close(ctx); err != nil {
 				report(fmt.Errorf("failed to close the command's standard input after %d bytes: %w", sent, err))
 			}
 			return
@@ -69,8 +72,14 @@ func (p *stdinPump) feed(ctx context.Context, in io.Reader, failed chan<- error)
 	}
 }
 
+func (p *stdinPump) close(ctx context.Context) error {
+	var err error
+	p.eof.Do(func() { err = p.write(ctx, "", true) })
+	return err
+}
+
 func (p *stdinPump) write(ctx context.Context, data string, eof bool) error {
 	req := plugin.CommandStdinRequest{Data: data, Eof: &eof}
 	_, err := p.target.Client.WriteCommandStdin(ctx, p.target.Instance, p.uuid, &req, p.target.Opts...)
-	return err
+	return cmp.Or(p.target.notRunning(err), err)
 }

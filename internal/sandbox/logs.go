@@ -6,6 +6,7 @@
 package sandbox
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -21,6 +22,10 @@ import (
 const (
 	logChunkSize    = 1 * units.MiB
 	logFetchTimeout = 10 * time.Second
+
+	// logDrainBudget is how long the last read of a command's output rides out
+	// a gateway that is not answering yet.
+	logDrainBudget = 10 * time.Second
 )
 
 // logStream is a command's two output streams, read from the offset each has
@@ -34,6 +39,28 @@ type logStream struct {
 
 	stdoutOffset, stderrOffset       uint64
 	stdoutAvailable, stderrAvailable uint64
+}
+
+func (l *logStream) drainAll(ctx context.Context) error {
+	poll := pollInterval
+	for until := time.Now().Add(logDrainBudget); ; {
+		err := l.drain(ctx)
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil || !time.Now().Before(until) {
+			return err
+		}
+
+		log.G(ctx).Debug().Err(err).Str("cmd", l.uuid).Msg("failed to drain logs, retrying")
+
+		select {
+		case <-time.After(poll):
+		case <-ctx.Done():
+			return err
+		}
+		poll = min(poll*2, pollMaxInterval)
+	}
 }
 
 func (l *logStream) drain(ctx context.Context) error {
@@ -65,7 +92,7 @@ func (l *logStream) drainOnce(ctx context.Context) (uint64, error) {
 	defer cancel()
 	resp, err := l.target.Client.GetCommandLogs(fetchCtx, l.target.Instance, l.uuid, &req, l.target.Opts...)
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch logs: %w", err)
+		return 0, l.target.apiError("failed to fetch logs", err)
 	}
 	if resp.Data == nil {
 		return 0, nil
@@ -91,7 +118,7 @@ func (l *logStream) drainOnce(ctx context.Context) (uint64, error) {
 		out    io.Writer
 	}{
 		{resp.Data.Stdout, &l.stdoutOffset, l.stdout},
-		{resp.Data.Stderr, &l.stderrOffset, cmpOr(l.stderr, l.stdout)},
+		{resp.Data.Stderr, &l.stderrOffset, cmp.Or(l.stderr, l.stdout)},
 	}
 	for _, stream := range outputs {
 		if stream.data == "" {
@@ -112,9 +139,6 @@ func (l *logStream) drainOnce(ctx context.Context) (uint64, error) {
 	return written, nil
 }
 
-func cmpOr(w, fallback io.Writer) io.Writer {
-	if w != nil {
-		return w
-	}
-	return fallback
+func (t Target) Logs(ctx context.Context, uuid string, stdout, stderr io.Writer) error {
+	return (&logStream{target: t, uuid: uuid, stdout: stdout, stderr: stderr}).drain(ctx)
 }

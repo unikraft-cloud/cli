@@ -34,6 +34,8 @@ Resources:
           Forward a local port to an unexposed instance.
   history
           Show checkpoint history for an instance.
+  shell, sh
+          Open an interactive shell on a sandbox instance.
   exec
           Execute a command on a sandbox instance.
   copy, cp
@@ -2442,6 +2444,80 @@ Flags:
           Specify which fields to include in the output.
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle anonymous usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft instance shell --help
+
+The shell itself runs on your machine and interprets what you type, so
+every command lands in one of two places:
+
+  `:` prefixed   a builtin, answered by the CLI — `:help` lists them
+  anything else  runs on the instance
+
+Session state — the working directory, variables, functions, `$?` — is
+kept here, and so is everything the shell language does: pipelines,
+redirections, globs and control flow. Paths, though, resolve against the
+instance, so `cd`, `*.log` and `> file` all mean what you would expect.
+
+While a command runs it is the one reading your keyboard, so prompts like
+`Do you want to continue? [Y/n]` can be answered — and anything typed ahead
+goes to that command rather than to the next prompt.
+
+Ctrl-C interrupts the command on the instance, and the shell waits for it
+to stop before reporting what it stopped of in `$?`; the rest of the line
+is abandoned.
+
+The instance offers no terminal, so programs that need one — `vim`, `top`,
+`less` — will not work there yet.
+A command that fails on the instance sets `$?` but does not fail the shell.
+
+Usage:
+  unikraft instances shell <target> [flags]
+
+Arguments:
+  <target>
+          Target instance to open a shell on.
+
+Examples:
+  # Open an interactive shell on a sandbox instance
+  unikraft instance shell my-instance
+
+  # Start the shell in a specific working directory
+  unikraft instance shell my-instance --dir /var/lib/app
+
+  # Run a single command line and exit
+  unikraft instance shell my-instance -c 'cd /var/log && ls *.log'
+
+Flags:
+      --plugin=<name>
+          Name of the sandbox plugin to use.
+          [default: sandbox]
+      --dir
+          Directory to start the shell in.
+          [default: /]
+  -e, --env=<key>=<value> ...
+          Environment variables.
+          [examples: DEBUG=true, PORT=8080]
+  -c, --command
+          Run a single command line and exit.
 
 Global flags:
   -h, --help

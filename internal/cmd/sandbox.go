@@ -7,6 +7,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -91,8 +92,14 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 	cmd.Env = env
 	cmd.Stdin = in
 	cmd.Stdout = xio.Unwrap(stdio.Stdout)
+	cmd.Stderr = xio.Unwrap(stdio.Stderr)
+	cmd.WaitDelay = sandboxInterruptGrace
 
-	return cmd.Run()
+	var exit *sandbox.ExitError
+	if err := cmd.Run(); err != nil && !errors.As(err, &exit) {
+		return err
+	}
+	return nil
 }
 
 func (c ExecSandboxInstanceCmd) env() (map[string]string, error) {

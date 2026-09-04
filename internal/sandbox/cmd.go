@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,9 +24,9 @@ const (
 	pollMaxInterval = 1 * time.Second
 	pollMaxFailures = 3
 	signalTimeout   = 5 * time.Second
+	inspectTimeout  = 10 * time.Second
+	forgetTimeout   = 10 * time.Second
 )
-
-const WaitForever time.Duration = -1
 
 const PluginName = plugin.PluginName
 
@@ -72,10 +73,12 @@ type Cmd struct {
 
 	stopStdin context.CancelFunc
 	stdinErr  chan error
+	stdinEOF  sync.Once
 
 	logs   *logStream
 	done   chan error
 	closed bool
+	exit   int
 
 	waited bool
 }
@@ -107,7 +110,7 @@ func (c *Cmd) Start() error {
 
 	resp, err := c.target.Client.RunCommand(c.ctx, c.target.Instance, &req, c.target.Opts...)
 	if err != nil {
-		return fmt.Errorf("failed to start command: %w", err)
+		return c.target.apiError("failed to start command", err)
 	}
 	if resp.Data == nil || resp.Data.Uuid == "" {
 		return fmt.Errorf("failed to start command: the %q plugin did not report a command UUID", c.target.Plugin)
@@ -120,7 +123,7 @@ func (c *Cmd) Start() error {
 	if c.Stdin != nil {
 		feedCtx, cancelFeed := context.WithCancel(c.ctx)
 		c.stopStdin = cancelFeed
-		go (&stdinPump{target: c.target, uuid: c.UUID}).feed(feedCtx, c.Stdin, c.stdinErr)
+		go (&stdinPump{target: c.target, uuid: c.UUID, eof: &c.stdinEOF}).feed(feedCtx, c.Stdin, c.stdinErr)
 	}
 
 	c.logs = &logStream{
@@ -165,10 +168,14 @@ func (c *Cmd) stream() {
 					c.done <- c.waitCtx.Err()
 					return
 				}
-				c.done <- fmt.Errorf("failed waiting for command: %w", err)
+				c.done <- c.target.apiError("failed waiting for command", err)
 				return
 			}
-			c.done <- c.logs.drain(c.waitCtx)
+			if err := c.logs.drainAll(c.waitCtx); err != nil {
+				c.done <- err
+				return
+			}
+			c.done <- c.inspect(c.waitCtx)
 			return
 
 		case <-timer.C:
@@ -229,10 +236,7 @@ func (c *Cmd) Wait() error {
 			if err := c.cancel(); err != nil {
 				return err
 			}
-			switch {
-			case c.WaitDelay == 0:
-				return c.interrupted()
-			case c.WaitDelay > 0:
+			if c.WaitDelay > 0 {
 				delay := time.NewTimer(c.WaitDelay)
 				defer delay.Stop()
 				expired = delay.C
@@ -253,9 +257,43 @@ func (c *Cmd) Wait() error {
 				}
 				return err
 			}
+			c.Forget(c.ctx)
+			if c.exit != 0 {
+				return &ExitError{UUID: c.UUID, Code: c.exit}
+			}
 			return nil
 		}
 	}
+}
+
+func (c *Cmd) ExitCode() int {
+	return c.exit
+}
+
+func (c *Cmd) Detach() {
+	if c.stopWait != nil {
+		c.stopWait()
+	}
+}
+
+func (c *Cmd) inspect(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, inspectTimeout)
+	defer cancel()
+
+	resp, err := c.target.Client.GetCommandByUuid(ctx, c.target.Instance, c.UUID, c.target.Opts...)
+	if err != nil {
+		return c.target.apiError("failed to inspect command", err)
+	}
+	if resp.Data == nil {
+		return nil
+	}
+	c.exit = int(resp.Data.Exitcode)
+
+	log.G(c.ctx).Trace().
+		Str("cmd", c.UUID).
+		Int("exitcode", c.exit).
+		Msg("command finished")
+	return nil
 }
 
 func (c *Cmd) stop() {
@@ -273,13 +311,30 @@ func (c *Cmd) Run() error {
 	return c.Wait()
 }
 
+// Forget drops the instance's record of the command. The plugin keeps one for
+// every command it has run, so a caller that has read all it wants of a
+// finished command says so. It is not an error worth reporting: the record is
+// the instance's, and it outliving the command harms nothing here.
+func (c *Cmd) Forget(ctx context.Context) {
+	if c.UUID == "" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), forgetTimeout)
+	defer cancel()
+
+	if _, err := c.target.Client.DeleteCommandByUuid(ctx, c.target.Instance, c.UUID, c.target.Opts...); err != nil {
+		log.G(ctx).Debug().Err(err).Str("cmd", c.UUID).Msg("could not drop the command record")
+	}
+}
+
 func (c *Cmd) Signal(ctx context.Context, sig syscall.Signal) error {
 	if c.UUID == "" {
 		return errors.New("sandbox: command not started")
 	}
 	req := plugin.CommandSignalRequest{Signal: int(sig)}
 	_, err := c.target.Client.SignalCommand(ctx, c.target.Instance, c.UUID, &req, c.target.Opts...)
-	return err
+	return c.target.apiError("failed to signal command", err)
 }
 
 func (c *Cmd) cancel() error {
@@ -292,7 +347,18 @@ func (c *Cmd) cancel() error {
 	if err := c.Signal(signalCtx, syscall.SIGINT); err != nil {
 		log.G(c.ctx).Debug().Err(err).Str("cmd", c.UUID).Msg("failed to signal remote command")
 	}
+	c.closeStdin(signalCtx)
 	return nil
+}
+
+func (c *Cmd) closeStdin(ctx context.Context) {
+	if c.Stdin == nil {
+		return
+	}
+	pump := &stdinPump{target: c.target, uuid: c.UUID, eof: &c.stdinEOF}
+	if err := pump.close(ctx); err != nil {
+		log.G(c.ctx).Debug().Err(err).Str("cmd", c.UUID).Msg("failed to close the command's standard input")
+	}
 }
 
 func (c *Cmd) interrupted() error {
