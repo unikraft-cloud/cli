@@ -7,6 +7,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -95,7 +96,11 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 	cmd.Stdout = out
 	cmd.Stderr = out
 
-	return cmd.Run()
+	var exit *sandbox.ExitError
+	if err := cmd.Run(); err != nil && !errors.As(err, &exit) {
+		return err
+	}
+	return nil
 }
 
 func (c ExecSandboxInstanceCmd) env() (map[string]string, error) {
