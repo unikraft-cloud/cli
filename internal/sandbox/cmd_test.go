@@ -220,6 +220,53 @@ func TestCmdRun(t *testing.T) {
 	assert.Equal(t, map[string]string{"DEBUG": "true"}, *fake.run.Env)
 }
 
+// TestCmdRunCommandLine pins that a whole shell line reaches the plugin as it
+// was written, with nothing quoted on its behalf.
+func TestCmdRunCommandLine(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	fake.write("a b\n", "")
+	fake.exit(0)
+
+	var stdout bytes.Buffer
+	cmd := target.CommandLine(t.Context(), "echo a b > /dev/stderr; echo a b")
+	cmd.Stdout = &stdout
+
+	require.NoError(t, cmd.Run())
+	assert.Equal(t, "a b\n", stdout.String())
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	assert.Equal(t, "echo a b > /dev/stderr; echo a b", fake.run.Cmd)
+}
+
+// TestCmdCommandForms pins how the two forms of a command resolve into the
+// one line the plugin takes today.
+func TestCmdCommandForms(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		cmd     Cmd
+		want    string
+		wantErr string
+	}{
+		{name: "args", cmd: Cmd{Args: []string{"echo", "a b"}}, want: `'echo' 'a b'`},
+		{name: "cmdline", cmd: Cmd{Cmdline: "echo a b"}, want: "echo a b"},
+		{name: "neither", cmd: Cmd{}, wantErr: "no command given"},
+		{name: "both", cmd: Cmd{Args: []string{"echo"}, Cmdline: "echo"}, wantErr: "only one of Args and Cmdline"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.cmd.commandLine()
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestCmdStreamsStayApart pins that the two streams are never folded into
 // one: a nil writer discards its stream rather than sending it to the other.
 func TestCmdStreamsStayApart(t *testing.T) {
@@ -505,7 +552,13 @@ func TestCmdMisuse(t *testing.T) {
 	fake.exit(0)
 
 	t.Run("no-command", func(t *testing.T) {
-		cmd := target.CommandLine(t.Context(), nil)
+		cmd := target.CommandArgs(t.Context(), nil)
+		require.Error(t, cmd.Err)
+		assert.ErrorContains(t, cmd.Run(), "no command given")
+	})
+
+	t.Run("no-command-line", func(t *testing.T) {
+		cmd := target.CommandLine(t.Context(), "")
 		require.Error(t, cmd.Err)
 		assert.ErrorContains(t, cmd.Run(), "no command given")
 	})

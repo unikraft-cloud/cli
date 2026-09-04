@@ -46,10 +46,10 @@ type Target struct {
 }
 
 func (t Target) Command(ctx context.Context, name string, args ...string) *Cmd {
-	return t.CommandLine(ctx, append([]string{name}, args...))
+	return t.CommandArgs(ctx, append([]string{name}, args...))
 }
 
-func (t Target) CommandLine(ctx context.Context, args []string) *Cmd {
+func (t Target) CommandArgs(ctx context.Context, args []string) *Cmd {
 	c := &Cmd{Args: args, ctx: ctx, target: t}
 	if len(args) == 0 {
 		c.Err = errors.New("sandbox: no command given")
@@ -57,10 +57,20 @@ func (t Target) CommandLine(ctx context.Context, args []string) *Cmd {
 	return c
 }
 
+func (t Target) CommandLine(ctx context.Context, cmdline string) *Cmd {
+	c := &Cmd{Cmdline: cmdline, ctx: ctx, target: t}
+	if cmdline == "" {
+		c.Err = errors.New("sandbox: no command given")
+	}
+	return c
+}
+
 type Cmd struct {
-	Args []string
-	Dir  string
-	Env  map[string]string
+	Args    []string
+	Cmdline string
+
+	Dir string
+	Env map[string]string
 
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
@@ -72,10 +82,6 @@ type Cmd struct {
 
 	ctx    context.Context
 	target Target
-
-	// HACK: this will be removed after the plugin api will be able to
-	// take parsed args instead of a single string
-	cmdline string
 
 	waitCtx  context.Context
 	stopWait context.CancelFunc
@@ -90,6 +96,21 @@ type Cmd struct {
 	waited bool
 }
 
+func (c *Cmd) commandLine() (string, error) {
+	if len(c.Args) == 0 {
+		if c.Cmdline == "" {
+			return "", errors.New("sandbox: no command given")
+		}
+		return c.Cmdline, nil
+	}
+	if c.Cmdline != "" {
+		return "", errors.New("sandbox: only one of Args and Cmdline may be given")
+	}
+	// HACK: this will be removed after the plugin api will be able to
+	// take parsed args instead of a single string
+	return Quote(c.Args)
+}
+
 func (c *Cmd) Start() error {
 	if c.Err != nil {
 		return c.Err
@@ -100,11 +121,11 @@ func (c *Cmd) Start() error {
 
 	log.G(c.ctx).Trace().Msg("executing command")
 
-	cmdline, err := Quote(c.Args)
+	cmdline, err := c.commandLine()
 	if err != nil {
 		return err
 	}
-	c.cmdline = cmdline
+	c.Cmdline = cmdline
 
 	req := plugin.RunCommandRequest{Cmd: cmdline}
 	if c.Dir != "" {
