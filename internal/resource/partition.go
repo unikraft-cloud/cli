@@ -46,17 +46,17 @@ func LoadPartitionFromEnv(resources ...Resource) (*Partition, error) {
 }
 
 func LoadPartition(path string, resources ...Resource) (*Partition, error) {
-	s := Partition{Path: path, Cleanup: resources}
-	s.Keys = make(map[string]map[string]struct{})
+	p := Partition{Path: path, Cleanup: resources}
+	p.Keys = make(map[string]map[string]struct{})
 	for _, r := range resources {
-		if _, ok := s.Keys[r.Type().Name]; !ok {
-			s.Keys[r.Type().Name] = make(map[string]struct{})
+		if _, ok := p.Keys[r.Type().Name]; !ok {
+			p.Keys[r.Type().Name] = make(map[string]struct{})
 		}
 	}
 
 	f, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return &s, nil
+		return &p, nil
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to open partition file: %w", err)
 	}
@@ -68,29 +68,29 @@ func LoadPartition(path string, resources ...Resource) (*Partition, error) {
 		return nil, fmt.Errorf("failed to decode partition file: %w", err)
 	}
 	for rtype, rkeys := range keys {
-		if _, ok := s.Keys[rtype]; !ok {
+		if _, ok := p.Keys[rtype]; !ok {
 			continue
 		}
 		for _, rkey := range rkeys {
-			s.Keys[rtype][rkey] = struct{}{}
+			p.Keys[rtype][rkey] = struct{}{}
 		}
 	}
 
-	return &s, nil
+	return &p, nil
 }
 
-func (s *Partition) Save() error {
-	if s == nil {
+func (p *Partition) Save() error {
+	if p == nil {
 		return nil
 	}
-	f, err := os.Create(s.Path)
+	f, err := os.Create(p.Path)
 	if err != nil {
 		return fmt.Errorf("failed to create partition file: %w", err)
 	}
 	defer f.Close()
 
-	keys := make(map[string][]string, len(s.Keys))
-	for rtype, rkeys := range s.Keys {
+	keys := make(map[string][]string, len(p.Keys))
+	for rtype, rkeys := range p.Keys {
 		keys[rtype] = xmaps.OrderedKeys(rkeys)
 	}
 
@@ -106,14 +106,14 @@ func (s *Partition) Save() error {
 
 // Teardown attempts to delete all resources tracked by the partition. Some
 // resources may not be deletable, in which case they are skipped.
-func (s *Partition) Teardown(ctx context.Context) (rerr error) {
-	if s == nil {
+func (p *Partition) Teardown(ctx context.Context) (rerr error) {
+	if p == nil {
 		return nil
 	}
 	log.G(ctx).Debug().
-		Str("path", s.Path).
+		Str("path", p.Path).
 		Msg("tearing down partition")
-	for _, r := range s.Cleanup {
+	for _, r := range p.Cleanup {
 		name := r.Type().Name
 		r, ok := r.(DeletableResource)
 		if !ok {
@@ -123,7 +123,7 @@ func (s *Partition) Teardown(ctx context.Context) (rerr error) {
 			continue
 		}
 
-		targets := xmaps.OrderedKeys(s.Keys[name])
+		targets := xmaps.OrderedKeys(p.Keys[name])
 		log.G(ctx).Debug().
 			Str("resource", name).
 			Strs("targets", targets).
@@ -144,22 +144,22 @@ func (s *Partition) Teardown(ctx context.Context) (rerr error) {
 	return rerr
 }
 
-func (s *Partition) Add(ctx context.Context, r Resource) error {
-	if s == nil {
+func (p *Partition) Add(ctx context.Context, r Resource) error {
+	if p == nil {
 		return nil
 	}
-	if _, ok := s.Keys[r.Type().Name]; !ok {
+	if _, ok := p.Keys[r.Type().Name]; !ok {
 		return nil
 	}
 	visited := make(map[string]struct{})
-	return s.add(ctx, r, visited)
+	return p.add(ctx, r, visited)
 }
 
-func (s *Partition) add(ctx context.Context, r Resource, visited map[string]struct{}) error {
-	if s == nil {
+func (p *Partition) add(ctx context.Context, r Resource, visited map[string]struct{}) error {
+	if p == nil {
 		return nil
 	}
-	if _, ok := s.Keys[r.Type().Name]; !ok {
+	if _, ok := p.Keys[r.Type().Name]; !ok {
 		return nil
 	}
 	typeName := r.Type().Name
@@ -169,7 +169,7 @@ func (s *Partition) add(ctx context.Context, r Resource, visited map[string]stru
 		return nil
 	}
 	visited[visitKey] = struct{}{}
-	s.Keys[typeName][key] = struct{}{}
+	p.Keys[typeName][key] = struct{}{}
 
 	fields, err := r.Fields(ctx)
 	if err != nil {
@@ -191,11 +191,11 @@ func (s *Partition) add(ctx context.Context, r Resource, visited map[string]stru
 			if key == "" {
 				continue
 			}
-			for _, r := range s.Cleanup {
+			for _, r := range p.Cleanup {
 				if r.Type().Name != linkType {
 					continue
 				}
-				if keys, ok := s.Keys[linkType]; ok {
+				if keys, ok := p.Keys[linkType]; ok {
 					keys[key] = struct{}{}
 				}
 
@@ -208,7 +208,7 @@ func (s *Partition) add(ctx context.Context, r Resource, visited map[string]stru
 					return fmt.Errorf("failed to get linked resource %s %s: %w", linkType, key, err)
 				}
 				for _, linkedResource := range linkedResources {
-					if err := s.add(ctx, linkedResource, visited); err != nil {
+					if err := p.add(ctx, linkedResource, visited); err != nil {
 						return err
 					}
 				}
@@ -220,78 +220,78 @@ func (s *Partition) add(ctx context.Context, r Resource, visited map[string]stru
 	return nil
 }
 
-func (s *Partition) Remove(typeName string, key string) {
-	if s == nil {
+func (p *Partition) Remove(typeName string, key string) {
+	if p == nil {
 		return
 	}
-	if _, ok := s.Keys[typeName]; !ok {
+	if _, ok := p.Keys[typeName]; !ok {
 		return
 	}
-	delete(s.Keys[typeName], key)
+	delete(p.Keys[typeName], key)
 }
 
-func (s *Partition) Has(r Resource) bool {
-	if s == nil {
+func (p *Partition) Has(r Resource) bool {
+	if p == nil {
 		return true
 	}
-	if _, ok := s.Keys[r.Type().Name]; !ok {
+	if _, ok := p.Keys[r.Type().Name]; !ok {
 		return true
 	}
-	_, ok := s.Keys[r.Type().Name][r.Key().Canonical()]
+	_, ok := p.Keys[r.Type().Name][r.Key().Canonical()]
 	return ok
 }
 
-func (s *Partition) Missing(r Resource) bool {
-	return !s.Has(r)
+func (p *Partition) Missing(r Resource) bool {
+	return !p.Has(r)
 }
 
-func (s *Partition) WrapGettable(r GettableResource) GettableResource {
-	if s == nil {
+func (p *Partition) WrapGettable(r GettableResource) GettableResource {
+	if p == nil {
 		return r
 	}
 	return partitionedGettableResource{
 		GettableResource: r,
-		partition:        s,
+		partition:        p,
 	}
 }
 
-func (s *Partition) WrapListable(r ListableResource) ListableResource {
-	if s == nil {
+func (p *Partition) WrapListable(r ListableResource) ListableResource {
+	if p == nil {
 		return r
 	}
 	return partitionedListableResource{
 		ListableResource: r,
-		partition:        s,
+		partition:        p,
 	}
 }
 
-func (s *Partition) WrapEditable(r EditableResource) EditableResource {
-	if s == nil {
+func (p *Partition) WrapEditable(r EditableResource) EditableResource {
+	if p == nil {
 		return r
 	}
 	return partitionedEditableResource{
 		EditableResource: r,
-		partition:        s,
+		partition:        p,
 	}
 }
 
-func (s *Partition) WrapCreatable(r CreatableResource) CreatableResource {
-	if s == nil {
+func (p *Partition) WrapCreatable(r CreatableResource) CreatableResource {
+	if p == nil {
 		return r
 	}
 	return partitionedCreatableResource{
 		CreatableResource: r,
-		partition:         s,
+		partition:         p,
 	}
 }
 
-func (s *Partition) WrapDeletable(r DeletableResource) DeletableResource {
-	if s == nil {
+func (p *Partition) WrapDeletable(r DeletableResource) DeletableResource {
+	if p == nil {
 		return r
 	}
 	return partitionedDeletableResource{
 		DeletableResource: r,
-		partition:         s,
+		partition:         p,
 	}
 }
 
