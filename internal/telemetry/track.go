@@ -35,6 +35,7 @@ func TrackCrash(panicValue any, stack []byte) {
 		DistinctId: distinctID,
 		Event:      "cli_crash",
 		Properties: props,
+		Groups:     groups,
 	})
 }
 
@@ -75,6 +76,7 @@ func TrackCommandStart(cmdPath string) {
 		Properties: posthog.NewProperties().
 			Set("command", cmdPath).
 			Set("session_id", sessionID),
+		Groups: groups,
 	})
 }
 
@@ -96,6 +98,7 @@ func TrackCommandSuccess(cmdPath string) {
 			Set("command", cmdPath).
 			Set("duration_ms", duration.Milliseconds()).
 			Set("session_id", sessionID),
+		Groups: groups,
 	})
 }
 
@@ -127,5 +130,6 @@ func TrackCommandError(cmdPath string, err error) {
 		DistinctId: distinctID,
 		Event:      "command_failed",
 		Properties: props,
+		Groups:     groups,
 	})
 }

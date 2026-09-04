@@ -26,7 +26,13 @@ func spawnDetachedAnalytics(event posthog.Capture) {
 		return
 	}
 
-	payload, err := json.Marshal(event.APIfy())
+	payload, err := json.Marshal(EventPayload{
+		Event:      event.Event,
+		DistinctID: event.DistinctId,
+		Properties: event.Properties,
+		Groups:     event.Groups,
+		Timestamp:  event.Timestamp,
+	})
 	if err != nil {
 		return
 	}

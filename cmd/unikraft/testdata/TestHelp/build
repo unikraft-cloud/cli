@@ -60,7 +60,7 @@ Global flags:
       --profile=<name> ($UNIKRAFT_PROFILE)
           Set the current profile.
       --[no-]telemetry ($UNIKRAFT_TELEMETRY)
-          Toggle anonymous usage analytics.
+          Toggle usage analytics.
           [default: true]
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).

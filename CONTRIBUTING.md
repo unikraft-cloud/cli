@@ -87,7 +87,7 @@ The CLI follows a resource-oriented architecture:
 - **Resources** (`internal/resource/`) — Unified interface for API objects with field introspection
 - **Multi-Metro** (`internal/multimetro/`) — Client abstraction for global infrastructure operations
 - **Configuration** (`internal/config/`) — Profile and credential management
-- **Telemetry** (`internal/telemetry/`) — Anonymous usage analytics (opt-out via `--no-telemetry`)
+- **Telemetry** (`internal/telemetry/`) — Usage analytics (opt-out via `--no-telemetry`)
 
 ### Key Dependencies
 
