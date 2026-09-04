@@ -112,20 +112,16 @@ func (Certificate) List(ctx context.Context) ([]resource.Resource, error) {
 	}
 	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
 		log.G(ctx).Trace().Msg("listing certificates")
-		resp, err := c.GetCertificates(ctx, nil, platform.GetCertificatesOpts{Details: new(true)})
-		if err != nil {
-			return nil, err
+		resp, opErr := c.GetCertificates(ctx, nil, platform.GetCertificatesOpts{Details: new(true)})
+		var certificates []platform.Certificate
+		if resp != nil && resp.Data != nil {
+			certificates = resp.Data.Certificates
 		}
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil
-		}
-		for _, certificate := range resp.Data.Certificates {
+		errs := []error{opErr}
+		for _, certificate := range certificates {
 			result, err := Certificate{}.load(nil, certificate, &c.Metro)
-			if err != nil {
-				errs = append(errs, err)
-			}
+			errs = append(errs, err)
 			results = append(results, result)
 		}
 		return results, errors.Join(errs...)
@@ -139,17 +135,15 @@ func (Certificate) Get(ctx context.Context, keys []string) ([]resource.Resource,
 	}
 	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting certificates")
-		resp, err := c.GetCertificates(ctx, refs.NameOrUUIDs(), platform.GetCertificatesOpts{Details: new(true)})
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
+		resp, opErr := c.GetCertificates(ctx, refs.NameOrUUIDs(), platform.GetCertificatesOpts{Details: new(true)})
+		var certificates []platform.Certificate
+		if resp != nil && resp.Data != nil {
+			certificates = resp.Data.Certificates
 		}
 		var found []group.Ref
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, certificate := range resp.Data.Certificates {
+		errs := []error{ignoreNotFound(opErr)}
+		for _, certificate := range certificates {
 			// Deliberately do not filter by status: pending certificates should
 			// be returned by GET as well.
 			matchedRef := matchRef(refs, certificate.Name, certificate.Uuid)
@@ -204,24 +198,20 @@ func (Certificate) Delete(ctx context.Context, keys []string) error {
 	return group.DoRefs(ctx, g, parsedKeys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		log.G(ctx).Trace().Msg("deleting certificates")
 		resp, err := c.DeleteCertificates(ctx, refs.NameOrUUIDs())
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, err
-		}
 		var deleted []group.Ref
-		if resp == nil || resp.Data == nil {
-			return nil, nil
-		}
-		for _, certificate := range resp.Data.Certificates {
-			if certificate.Status != platform.ResponseStatusSuccess {
-				continue
+		if resp != nil && resp.Data != nil {
+			for _, certificate := range resp.Data.Certificates {
+				if certificate.Status != platform.ResponseStatusSuccess {
+					continue
+				}
+				deleted = append(deleted, group.Ref{
+					Metro: c.Metro.Name,
+					Name:  certificate.Name,
+					UUID:  certificate.Uuid,
+				})
 			}
-			deleted = append(deleted, group.Ref{
-				Metro: c.Metro.Name,
-				Name:  certificate.Name,
-				UUID:  certificate.Uuid,
-			})
 		}
-		return deleted, nil
+		return deleted, ignoreNotFound(err)
 	})
 }
 
@@ -273,11 +263,7 @@ func (Certificate) Create(ctx context.Context, fields []resource.Field) ([]resou
 	if err != nil {
 		return nil, err
 	}
-	results, err := Certificate{}.Get(ctx, keys.Strings())
-	if err != nil {
-		return nil, err
-	}
-	return results, nil
+	return Certificate{}.Get(ctx, keys.Strings())
 }
 
 func (Certificate) Examples() map[cmd.CmdType][]kingkong.Example {

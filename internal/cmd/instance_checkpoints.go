@@ -154,16 +154,14 @@ func (InstanceCheckpoint) List(ctx context.Context) ([]resource.Resource, error)
 	}
 	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
 		log.G(ctx).Trace().Msg("listing instance checkpoints")
-		resp, err := c.GetCheckpointInstances(ctx, nil, platform.GetCheckpointInstancesOpts{Details: new(true)})
-		if err != nil {
-			return nil, err
+		resp, opErr := c.GetCheckpointInstances(ctx, nil, platform.GetCheckpointInstancesOpts{Details: new(true)})
+		var checkpoints []platform.Instance
+		if resp != nil && resp.Data != nil {
+			checkpoints = resp.Data.Instances
 		}
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil
-		}
-		for _, instance := range resp.Data.Instances {
+		errs := []error{opErr}
+		for _, instance := range checkpoints {
 			result, err := InstanceCheckpoint{}.load(nil, instance, &c.Metro, profile)
 			if err != nil {
 				errs = append(errs, err)
@@ -186,17 +184,15 @@ func (InstanceCheckpoint) Get(ctx context.Context, keys []string) ([]resource.Re
 	}
 	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting instance checkpoints")
-		resp, err := c.GetCheckpointInstances(ctx, refs.NameOrUUIDs(), platform.GetCheckpointInstancesOpts{Details: new(true)})
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
+		resp, opErr := c.GetCheckpointInstances(ctx, refs.NameOrUUIDs(), platform.GetCheckpointInstancesOpts{Details: new(true)})
+		var checkpoints []platform.Instance
+		if resp != nil && resp.Data != nil {
+			checkpoints = resp.Data.Instances
 		}
 		var found []group.Ref
 		var results []resource.Resource
-		var errs []error
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, instance := range resp.Data.Instances {
+		errs := []error{ignoreNotFound(opErr)}
+		for _, instance := range checkpoints {
 			if instance.Status == nil || *instance.Status != platform.ResponseStatusSuccess {
 				continue
 			}
@@ -253,22 +249,21 @@ func (InstanceCheckpoint) Delete(ctx context.Context, keys []string) error {
 	return group.DoRefs(ctx, g, parsedKeys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		log.G(ctx).Trace().Msg("deleting instance checkpoints")
 		resp, err := c.DeleteCheckpointInstances(ctx, refs.NameOrUUIDs())
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, err
-		}
 		var deleted []group.Ref
-		for _, cp := range resp.Data.Instances {
-			status := cp.Status
-			if status != "" && status != platform.ResponseStatusSuccess {
-				continue
+		if resp != nil && resp.Data != nil {
+			for _, cp := range resp.Data.Instances {
+				status := cp.Status
+				if status != "" && status != platform.ResponseStatusSuccess {
+					continue
+				}
+				deleted = append(deleted, group.Ref{
+					Metro: c.Metro.Name,
+					Name:  cp.Name,
+					UUID:  cp.Uuid,
+				})
 			}
-			deleted = append(deleted, group.Ref{
-				Metro: c.Metro.Name,
-				Name:  cp.Name,
-				UUID:  cp.Uuid,
-			})
 		}
-		return deleted, nil
+		return deleted, ignoreNotFound(err)
 	})
 }
 
@@ -499,16 +494,14 @@ func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx co
 
 	return group.CollectRefsSlices(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting checkpoint history")
-		resp, err := fetch(ctx, c, refs.NameOrUUIDs())
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
+		resp, opErr := fetch(ctx, c, refs.NameOrUUIDs())
+		var instances []platform.GetCheckpointHistoryResponseInstanceHistory
+		if resp != nil && resp.Data != nil {
+			instances = resp.Data.Instances
 		}
 		var found []group.Ref
 		var results []resource.Resource
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, inst := range resp.Data.Instances {
+		for _, inst := range instances {
 			if inst.Status == nil || *inst.Status != platform.ResponseStatusSuccess {
 				continue
 			}
@@ -529,7 +522,7 @@ func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx co
 				})
 			}
 		}
-		return results, found, nil
+		return results, found, ignoreNotFound(opErr)
 	})
 }
 

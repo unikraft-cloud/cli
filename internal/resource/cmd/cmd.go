@@ -309,17 +309,29 @@ func (cmd *ResourceWaitCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 	defer ticker.Stop()
 
 	passing := map[string]bool{}
+	var lastWarn string
 	for {
-		resources, err := r.Get(ctx, cmd.Targets)
-		if err != nil {
-			return err
+		resources, getErr := r.Get(ctx, cmd.Targets)
+		if getErr != nil && len(resources) == 0 {
+			return getErr
 		}
+
+		warn := ""
+		if getErr != nil {
+			warn = getErr.Error()
+		}
+		if warn != "" && warn != lastWarn {
+			log.G(ctx).Warn().Err(getErr).
+				Strs("resources", cmd.Targets).
+				Msgf("could not read every %s, so the conditions cannot be confirmed yet", empty.Type().Name)
+		}
+		lastWarn = warn
 
 		filtered, err := filterResources(ctx, resources, filter)
 		if err != nil {
 			return err
 		}
-		if len(filtered) == len(resources) {
+		if getErr == nil && len(filtered) == len(resources) {
 			log.G(ctx).Debug().
 				Strs("resources", cmd.Targets).
 				Msg("all resources match the specified conditions")
@@ -358,7 +370,7 @@ func (cmd *ResourceWaitCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.Join(getErr, ctx.Err())
 		case <-ticker.C:
 		}
 	}
@@ -407,6 +419,27 @@ func filterResources(ctx context.Context, resources []resource.Resource, filter 
 	return filtered, rerr
 }
 
+// deletedResources narrows resources to those the delete actually removed, so
+// a failure is never printed as a success.
+func deletedResources(resources []resource.Resource, deleteErr error) []resource.Resource {
+	if deleteErr == nil {
+		return resources
+	}
+	notFound, ok := errors.AsType[group.ErrRefNotFound](deleteErr)
+	if !ok {
+		// Unknown error shape: avoid claiming success.
+		return nil
+	}
+	missing := make(map[string]struct{}, len(notFound.Refs))
+	for _, ref := range notFound.Refs {
+		missing[multimetro.Key(ref).String()] = struct{}{}
+	}
+	return slices.DeleteFunc(slices.Clone(resources), func(r resource.Resource) bool {
+		_, ok := missing[r.Key().String()]
+		return ok
+	})
+}
+
 type ResourceRemoveCmd[R resource.DeletableResource] struct {
 	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${names} to remove."`
 
@@ -441,30 +474,17 @@ func (cmd *ResourceRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio, sa
 		deleteErr = r.Delete(ctx, cmd.Targets)
 	}
 
-	toPrint := resources
-	if deleteErr != nil {
-		if notFound, ok := errors.AsType[group.ErrRefNotFound](deleteErr); ok {
-			missing := make(map[string]struct{}, len(notFound.Refs))
-			for _, ref := range notFound.Refs {
-				missing[multimetro.Key(ref).String()] = struct{}{}
-			}
-			toPrint = slices.DeleteFunc(slices.Clone(resources), func(r resource.Resource) bool {
-				_, ok := missing[r.Key().String()]
-				return ok
-			})
-		} else {
-			// Unknown error shape: avoid claiming success.
-			toPrint = nil
-		}
-	}
+	toPrint := deletedResources(resources, deleteErr)
 
 	printErr := cmd.Output.
 		WithDefault(PrinterTypeQuiet).
 		Print(ctx, stdio.Stdout, cmd.Field, empty, toPrint...)
-	if printErr != nil {
-		return errors.Join(getErr, deleteErr, printErr)
+	if deleteErr != nil {
+		// The delete reports the refs it could not act on itself, so the
+		// display lookup would only repeat them.
+		return errors.Join(deleteErr, printErr)
 	}
-	return errors.Join(getErr, deleteErr)
+	return errors.Join(getErr, printErr)
 }
 
 type ResourceBulkRemoveCmd[R interface {
@@ -574,18 +594,20 @@ func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio
 		r := sandbox.WrapDeletable(empty)
 
 		// Get resources for display purposes.
-		resources, err := r.Get(ctx, cmd.Targets)
-		if err != nil {
-			return err
+		resources, getErr := r.Get(ctx, cmd.Targets)
+		if getErr != nil && len(resources) == 0 {
+			return getErr
 		}
 
-		err = r.Delete(ctx, cmd.Targets)
-		if err != nil {
-			return err
-		}
-		return cmd.Output.
+		deleteErr := r.Delete(ctx, cmd.Targets)
+
+		printErr := cmd.Output.
 			WithDefault(PrinterTypeQuiet).
-			Print(ctx, stdio.Stdout, []string(cmd.Field), empty, resources...)
+			Print(ctx, stdio.Stdout, []string(cmd.Field), empty, deletedResources(resources, deleteErr)...)
+		if deleteErr != nil {
+			return errors.Join(deleteErr, printErr)
+		}
+		return errors.Join(getErr, printErr)
 	} else {
 		return fmt.Errorf("no resources specified for deletion")
 	}
@@ -647,6 +669,7 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 	var empty R
 	r := sandbox.WrapEditable(empty)
 
+	var partialErr error
 	var res resource.Resource
 	if cmd.Target == "" {
 		def, ok := any(empty).(resource.DefaultResource)
@@ -658,10 +681,11 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 			return err
 		}
 	} else {
-		resources, err := r.Get(ctx, []string{cmd.Target})
-		if err != nil {
-			return err
+		resources, getErr := r.Get(ctx, []string{cmd.Target})
+		if getErr != nil && len(resources) == 0 {
+			return getErr
 		}
+		partialErr = errors.Join(partialErr, getErr)
 		if len(resources) == 0 {
 			return fmt.Errorf("resource not found: %s", cmd.Target)
 		}
@@ -741,10 +765,11 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 		if getKey == "" {
 			getKey = res.Key().String()
 		}
-		results, err := r.Get(ctx, []string{getKey})
-		if err != nil {
-			return err
+		results, getErr := r.Get(ctx, []string{getKey})
+		if getErr != nil && len(results) == 0 {
+			return getErr
 		}
+		partialErr = errors.Join(partialErr, getErr)
 		if len(results) > 0 {
 			updated = results[:1]
 		}
@@ -753,7 +778,7 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 			Str("resource", res.Key().String()).
 			Msg("no edits made")
 	}
-	return Diff(ctx, stdio.Stdout, cmd.FormatOpts, empty, []resource.Resource{res}, updated)
+	return errors.Join(partialErr, Diff(ctx, stdio.Stdout, cmd.FormatOpts, empty, []resource.Resource{res}, updated))
 }
 
 type ResourceCreateCmd[R resource.CreatableResource] struct {
