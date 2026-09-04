@@ -32,12 +32,11 @@ var counterServerPy string
 // sharedCounter serves a counter over HTTP. GET /count reads the count and
 // POST /increment changes it; COUNTER_FILE selects the file that holds it.
 var sharedCounter = &integ.SharedImage{
-	Image: integ.Image{
-		Name: "counter-e2e",
-		Files: map[string]string{
-			"Dockerfile": "FROM python:3.12-slim\nCOPY server.py /app/server.py\n",
-			"server.py":  counterServerPy,
-			"Kraftfile": `spec: v0.7
+	Name: "counter-e2e",
+	Files: map[string]string{
+		"Dockerfile": "FROM python:3.12-slim\nCOPY server.py /app/server.py\n",
+		"server.py":  counterServerPy,
+		"Kraftfile": `spec: v0.7
 name: counter-e2e
 runtime: base-compat:latest
 rootfs:
@@ -45,7 +44,6 @@ rootfs:
   source: ./Dockerfile
 cmd: ["python3", "/app/server.py"]
 `,
-		},
 	},
 }
 

@@ -534,11 +534,9 @@ func TestFieldsFromStruct_AnonymousStructs(t *testing.T) {
 	}
 
 	s := Resource{
-		Base: Base{
-			Metro: "staging",
-			Name:  "test-resource",
-			UUID:  "abc-123",
-		},
+		Metro: "staging",
+		Name:  "test-resource",
+		UUID:  "abc-123",
 		State: "running",
 	}
 	fields, err := FieldsFromStruct(s)
@@ -648,8 +646,8 @@ func TestFieldsFromStruct_EmbeddedLinkDetection(t *testing.T) {
 
 	s := Container{
 		Item: &TestEmbeddableLink{
-			mockLink: mockLink{linkType: "service", linkKey: "svc-123"},
-			Name:     "my-service",
+			linkType: "service", linkKey: "svc-123",
+			Name: "my-service",
 		},
 	}
 	fields, err := FieldsFromStruct(s)

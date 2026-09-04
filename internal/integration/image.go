@@ -27,11 +27,10 @@ import (
 // Busybox is a busybox rootfs with no application. Tests give their own
 // command with --args or runtime.args, which replaces the cmd of the image.
 var Busybox = &SharedImage{
-	Image: Image{
-		Name: "busybox-e2e",
-		Files: map[string]string{
-			"Dockerfile": "FROM busybox:latest",
-			"Kraftfile": `spec: v0.7
+	Name: "busybox-e2e",
+	Files: map[string]string{
+		"Dockerfile": "FROM busybox:latest",
+		"Kraftfile": `spec: v0.7
 name: busybox-e2e
 runtime: base-compat:latest
 rootfs:
@@ -39,7 +38,6 @@ rootfs:
   source: ./Dockerfile
 cmd: ["sh", "-c"]
 `,
-		},
 	},
 }
 

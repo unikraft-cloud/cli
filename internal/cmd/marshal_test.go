@@ -408,16 +408,16 @@ func TestLinkCollection(t *testing.T) {
 	vol := cmd.Volume{}
 	vol.AttachedTo = append(vol.AttachedTo, struct {
 		cmd.Link[cmd.Instance]
-	}{Link: cmd.Link[cmd.Instance]{Name: "attached-inst"}})
+	}{Name: "attached-inst"})
 	vol.MountedBy = append(vol.MountedBy, struct {
 		cmd.Link[cmd.Instance]
 		ReadOnly bool `mirror:"read_only" field:",long"`
-	}{Link: cmd.Link[cmd.Instance]{Name: "mounted-inst"}})
+	}{Name: "mounted-inst"})
 
 	sg := cmd.ServiceGroup{}
 	sg.Instances = append(sg.Instances, struct {
 		cmd.Link[cmd.Instance]
-	}{Link: cmd.Link[cmd.Instance]{Name: "member-inst"}})
+	}{Name: "member-inst"})
 
 	for _, tt := range []struct {
 		res  resource.Resource

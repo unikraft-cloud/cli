@@ -21,7 +21,7 @@ import (
 const (
 	internalPort  = uint32(42069)
 	memoryMB      = int64(128)
-	stopTimeoutMs = int64(1100)
+	stopTimeoutS  = int64(2)
 	startTimeoutS = int64(3)
 )
 
@@ -71,7 +71,7 @@ func Start(ctx context.Context, c multimetro.MetroClient, image, volUUID, authSt
 	if inst.ServiceGroup == nil || len(inst.ServiceGroup.Domains) == 0 {
 		if instUUID != "" {
 			log.G(ctx).Trace().Str("uuid", instUUID).Msg("deleting instance: no service group domain returned")
-			_, _ = c.DeleteInstanceByUUID(ctx, instUUID, platform.DeleteInstanceByUUIDRequestBody{}, nil)
+			_, _ = c.DeleteInstanceByUUID(ctx, instUUID, platform.DeleteInstanceByUUIDRequestBody{})
 		}
 		return "", "", fmt.Errorf("import instance has no service group domain")
 	}
@@ -80,7 +80,7 @@ func Start(ctx context.Context, c multimetro.MetroClient, image, volUUID, authSt
 	if fqdn == "" {
 		if instUUID != "" {
 			log.G(ctx).Trace().Str("uuid", instUUID).Msg("deleting instance: empty FQDN returned")
-			_, _ = c.DeleteInstanceByUUID(ctx, instUUID, platform.DeleteInstanceByUUIDRequestBody{}, nil)
+			_, _ = c.DeleteInstanceByUUID(ctx, instUUID, platform.DeleteInstanceByUUIDRequestBody{})
 		}
 		return "", "", fmt.Errorf("import instance has an empty FQDN")
 	}
@@ -93,7 +93,7 @@ func Start(ctx context.Context, c multimetro.MetroClient, image, volUUID, authSt
 // Terminate deletes the given instance, ignoring "not found" errors.
 func Terminate(ctx context.Context, c multimetro.MetroClient, instUUID string) error {
 	log.G(ctx).Trace().Str("uuid", instUUID).Msg("deleting volume data import instance")
-	_, err := c.DeleteInstanceByUUID(ctx, instUUID, platform.DeleteInstanceByUUIDRequestBody{}, nil)
+	_, err := c.DeleteInstanceByUUID(ctx, instUUID, platform.DeleteInstanceByUUIDRequestBody{})
 	if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 		return fmt.Errorf("deleting volume data import instance: %w", err)
 	}
@@ -104,8 +104,8 @@ func Terminate(ctx context.Context, c multimetro.MetroClient, instUUID string) e
 func Wait(ctx context.Context, c multimetro.MetroClient, instUUID string) error {
 	state := platform.InstanceStateStopped
 	_, err := c.WaitInstanceByUUID(ctx, instUUID, platform.WaitInstanceByUUIDRequestBody{
-		State:     state,
-		TimeoutMs: new(stopTimeoutMs),
+		State:    state,
+		TimeoutS: new(stopTimeoutS),
 	})
 	if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 		return fmt.Errorf("waiting for import instance to stop: %w", err)

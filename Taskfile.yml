@@ -6,9 +6,6 @@ includes:
     taskfile: https://github.com/unikraft-cloud/x.git//Taskfile.go.yml?ref=prod-staging
     vars:
       goreleaser_version: v2.13.3
-      # TODO: Unpin once staticcheck stops hanging on ./... - the nilness
-      # dataflow analysis in honnef.co/go/tools v0.8.0-rc.1 never converges.
-      golangci_version: v2.12.0
 
 vars:
   go_bin:
