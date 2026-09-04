@@ -81,7 +81,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template
@@ -154,7 +153,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template
@@ -235,7 +233,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template
@@ -318,7 +315,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template
@@ -425,7 +421,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template
@@ -617,7 +612,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template
@@ -818,7 +812,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template
@@ -1007,7 +1000,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template
@@ -1140,7 +1132,6 @@ Fields:
   sched-priority
   autostart
   replicas
-  wait-timeout
   features
   vsock
   template
@@ -1642,7 +1633,6 @@ Fields:
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
   restart, restart.policy
   instance
-  wait-timeout
 
 Global flags:
   -h, --help
@@ -1698,7 +1688,6 @@ Fields:
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
   restart, restart.policy
   instance
-  wait-timeout
 
 Flags:
   -w, --watch=<duration>
@@ -1762,7 +1751,6 @@ Fields:
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
   restart, restart.policy
   instance
-  wait-timeout
 
 Flags:
       --filter
@@ -1828,7 +1816,6 @@ Fields:
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
   restart, restart.policy
   instance
-  wait-timeout
 
 Flags:
       --until, --filter
@@ -1896,7 +1883,6 @@ Fields:
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
   restart, restart.policy
   instance
-  wait-timeout
 
 Flags:
       --set=<name>=<value> ..., --set-file=<name>=<filename> ...
@@ -1968,7 +1954,6 @@ Fields:
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
   restart, restart.policy
   instance
-  wait-timeout
 
 Flags:
       --set=<name>=<value> ..., --set-file=<name>=<filename> ...
@@ -2051,7 +2036,6 @@ Fields:
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
   restart, restart.policy
   instance
-  wait-timeout
 
 Flags:
       --all

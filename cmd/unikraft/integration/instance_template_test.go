@@ -52,6 +52,32 @@ func TestInstanceTemplates(t *testing.T) {
 		r.Run(t, []string{"unikraft", "instance", "template", "delete", templateName})
 	})
 
+	t.Run("create-is-immediately-visible", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		})
+
+		// The create output itself must describe the template.
+		out := r.Run(t, []string{
+			"unikraft", "instance", "template", "create", "test-" + instName,
+		})
+		assert.NotContains(t, out, "references not found")
+		assert.Regexp(t, `state:\s+template`, out)
+		assert.Contains(t, out, "test-"+instName)
+
+		r.Run(t, []string{"unikraft", "instance", "template", "delete", "test-" + instName})
+	})
+
 	t.Run("create-from-template", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()

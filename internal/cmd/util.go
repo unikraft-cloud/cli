@@ -11,8 +11,10 @@ import (
 	"maps"
 
 	"unikraft.com/cloud/sdk/platform/group"
+	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
 )
 
@@ -82,6 +84,49 @@ func matchRef(refs group.Refs, name, uuid string) *group.Ref {
 	}
 
 	return nil
+}
+
+// createdResource is what a create call reported about a resource, kept so it
+// can still be shown if the resource is not yet visible to a listing.
+type createdResource[T any] struct {
+	data  T
+	metro config.Metro
+}
+
+// recoverCreated builds resources for refs that a listing could not find but
+// that a create call already reported. Refs with nothing to fall back on are
+// returned unchanged.
+func recoverCreated[R resource.Resource, T any](
+	ctx context.Context,
+	refs group.Refs,
+	createdData map[string]createdResource[T],
+	load func(*group.Ref, T, *config.Metro, *config.Profile) (R, error),
+) ([]resource.Resource, group.Refs) {
+	profile, err := config.G(ctx).CurrentProfile()
+	if err != nil {
+		return nil, refs
+	}
+
+	var recovered []resource.Resource
+	var missing group.Refs
+	for _, ref := range refs {
+		key := multimetro.Key(ref).String()
+		created, ok := createdData[key]
+		if !ok {
+			missing = append(missing, ref)
+			continue
+		}
+		result, err := load(&ref, created.data, &created.metro, profile)
+		if err != nil {
+			missing = append(missing, ref)
+			continue
+		}
+		log.G(ctx).Warn().
+			Str("resource", key).
+			Msg("not listed yet")
+		recovered = append(recovered, result)
+	}
+	return recovered, missing
 }
 
 type patchOp string

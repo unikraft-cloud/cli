@@ -6,10 +6,12 @@
 package integration
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	integ "unikraft.com/cli/internal/integration"
 )
@@ -63,6 +65,37 @@ func TestInstanceCheckpoints(t *testing.T) {
 		out = r.Run(t, []string{"unikraft", "instance", "checkpoint", "list", "--output", "quiet"})
 		assert.NotContains(t, out, checkpointName)
 
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("create-is-immediately-visible", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+		})
+
+		// The create output itself must describe the checkpoint, not an error
+		out := r.Run(t, []string{
+			"unikraft", "instance", "checkpoint", "create", "test-" + instName,
+		})
+		assert.NotContains(t, out, "references not found")
+		assert.Regexp(t, `state:\s+checkpoint`, out)
+
+		// The generated name is only reported by the create call itself.
+		name := regexp.MustCompile(`(?m)^name:\s+(\S+)$`).FindStringSubmatch(out)
+		require.Len(t, name, 2, "create output should report the checkpoint name")
+		checkpointName := name[1]
+
+		r.Run(t, []string{"unikraft", "instance", "checkpoint", "delete", checkpointName})
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
 
@@ -205,7 +238,6 @@ func TestInstanceCheckpoints(t *testing.T) {
 
 		out = r.Run(t, []string{
 			"unikraft", "instance", "checkpoint", "create", "test-" + instName,
-			"--set", "wait-timeout=30s",
 			"--output", "template={{ .name }}",
 		})
 		checkpointName := strings.TrimSpace(out)
@@ -256,7 +288,6 @@ func TestInstanceCheckpoints(t *testing.T) {
 
 		out := r.Run(t, []string{
 			"unikraft", "instance", "checkpoint", "create", "test-base-" + baseName,
-			"--set", "wait-timeout=30s",
 			"--output", "template={{ .name }}",
 		})
 		checkpointName := strings.TrimSpace(out)
@@ -300,7 +331,6 @@ func TestInstanceCheckpoints(t *testing.T) {
 
 		out := r.Run(t, []string{
 			"unikraft", "instance", "checkpoint", "create", "test-base-" + baseName,
-			"--set", "wait-timeout=30s",
 			"--output", "template={{ .name }}",
 		})
 		checkpointName := strings.TrimSpace(out)
@@ -371,7 +401,6 @@ func TestInstanceCheckpoints(t *testing.T) {
 		// Take a checkpoint (counter=3).
 		out = r.Run(t, []string{
 			"unikraft", "instance", "checkpoint", "create", "test-" + instName,
-			"--set", "wait-timeout=30s",
 			"--output", "template={{ .name }}",
 		})
 		checkpointName := strings.TrimSpace(out)

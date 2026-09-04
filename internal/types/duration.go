@@ -23,7 +23,15 @@ func (d *DurationS) UnmarshalText(text []byte) error {
 	if err != nil {
 		return err
 	}
-	*d = DurationS(dur.Seconds())
+	// Round to the next full second
+	secs := dur / time.Second
+	switch rem := dur % time.Second; {
+	case rem > 0:
+		secs++
+	case rem < 0:
+		secs--
+	}
+	*d = DurationS(secs)
 	return nil
 }
 
