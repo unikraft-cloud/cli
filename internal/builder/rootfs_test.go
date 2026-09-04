@@ -837,3 +837,39 @@ func runBuildRootfs(t *testing.T, opts BuildOpts) []*imagespec.Image {
 	})
 	return imgs
 }
+
+func TestRootfsDockerfileBuildContextIntegration(t *testing.T) {
+	ctx := rootfsIntegrationContext(t)
+
+	contextDir := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(contextDir, "hello.txt"),
+		[]byte("hello from context\n"),
+		0o644,
+	))
+
+	dockerfile := `
+FROM scratch
+COPY --from=shared hello.txt /hello.txt
+`
+
+	rootfsPath := writeDockerfile(t, dockerfile)
+
+	imgs := runBuildRootfsIntegration(t, ctx, BuildOpts{
+		Rootfs: FSOpts{
+			Format: kraftfile.FsTypeCpio,
+			Path:   rootfsPath,
+			Type:   kraftfile.SourceTypeDockerfile,
+		},
+		BuildContexts: map[string]string{
+			"shared": contextDir,
+		},
+		Platform: []ocispec.Platform{{OS: "fc", Architecture: "x86_64"}},
+	})
+
+	require.Len(t, imgs, 1)
+
+	files := readCpioInitrd(t, imgs[0])
+	require.Contains(t, files, "./hello.txt")
+	require.Equal(t, "hello from context\n", files["./hello.txt"])
+}
