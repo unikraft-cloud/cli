@@ -6,9 +6,7 @@
 package builder
 
 import (
-	"cmp"
 	"fmt"
-	"path/filepath"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
@@ -58,22 +56,17 @@ func KraftfileToBuildOpts(dir string, kf *kraftfile.Kraftfile) (BuildOpts, error
 		if rom.Source == nil || rom.Source.Path == "" {
 			return BuildOpts{}, fmt.Errorf("rom entry is missing a source path")
 		}
-		romPath := filepath.Join(dir, rom.Source.Path)
-		romFormat := cmp.Or(rom.Format, kraftfile.FsTypeErofs)
+		romFormat := defaultRomFormat(rom.Format, rom.Source.Type)
 		romOpt := FSOpts{
-			Path:   romPath,
+			Path:   rom.Source.Path,
 			Format: romFormat,
 			Type:   rom.Source.Type,
 			// Pad the file to page-size alignment. This is required by the platform
 			// which rejects ROM files that are not page-aligned.
 			Pad: 4096,
 		}
-		if romOpt.Type == "" {
-			typ, err := DetectSourceType(romPath)
-			if err != nil {
-				return BuildOpts{}, fmt.Errorf("detecting rom type for %q: %w", romPath, err)
-			}
-			romOpt.Type = typ
+		if err := resolveSource(dir, &romOpt); err != nil {
+			return BuildOpts{}, fmt.Errorf("resolving rom source %q: %w", rom.Source.Path, err)
 		}
 		opts.Roms = append(opts.Roms, romOpt)
 	}
@@ -82,18 +75,12 @@ func KraftfileToBuildOpts(dir string, kf *kraftfile.Kraftfile) (BuildOpts, error
 		if kf.Rootfs.Source == nil || kf.Rootfs.Source.Path == "" {
 			return BuildOpts{}, fmt.Errorf("rootfs entry is missing a source path")
 		}
-		opts.Rootfs.Path = filepath.Join(dir, kf.Rootfs.Source.Path)
+		opts.Rootfs.Path = kf.Rootfs.Source.Path
 		opts.Rootfs.Format = kf.Rootfs.Format
 		opts.Rootfs.Type = kf.Rootfs.Source.Type
 		opts.Rootfs.Dockerfile = kf.Rootfs.Source.Dockerfile
-		if opts.Rootfs.Dockerfile != "" && opts.Rootfs.Type == "" {
-			opts.Rootfs.Type = kraftfile.SourceTypeDockerfile
-		} else if opts.Rootfs.Type == "" {
-			typ, err := DetectSourceType(opts.Rootfs.Path)
-			if err != nil {
-				return BuildOpts{}, fmt.Errorf("detecting rootfs type for %q: %w", opts.Rootfs.Path, err)
-			}
-			opts.Rootfs.Type = typ
+		if err := resolveSource(dir, &opts.Rootfs); err != nil {
+			return BuildOpts{}, fmt.Errorf("resolving rootfs source %q: %w", kf.Rootfs.Source.Path, err)
 		}
 	}
 
