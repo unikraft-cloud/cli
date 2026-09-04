@@ -23,6 +23,7 @@ import (
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/logfmt"
+	"unikraft.com/cli/internal/sandbox"
 	"unikraft.com/cli/internal/telemetry"
 	"unikraft.com/x/colors"
 	"unikraft.com/x/log"
@@ -51,6 +52,13 @@ func main() {
 		// catch context cancellation errors, and make sure we show them, even if
 		// the command succeeded
 		err = ctx.Err()
+	}
+
+	// a command that ran on an instance and failed isn't an error of ours, so
+	// exit with the status it exited with and print nothing over its output
+	exitCode := 0
+	if exited, ok := errors.AsType[*sandbox.ExitError](err); ok {
+		exitCode, err = exited.ExitCode(), nil
 	}
 
 	// Track command completion for telemetry
@@ -86,7 +94,10 @@ func main() {
 		}
 	}
 	if err != nil {
-		os.Exit(1)
+		exitCode = 1
+	}
+	if exitCode != 0 {
+		os.Exit(exitCode)
 	}
 }
 

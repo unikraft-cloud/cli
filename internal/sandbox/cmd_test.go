@@ -100,6 +100,12 @@ func (f *mockPlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(nil)
 
+	case path == "/commands/cmd-1" && r.Method == http.MethodGet:
+		f.mu.Lock()
+		code := f.exitCode
+		f.mu.Unlock()
+		reply(plugin.GetCommandData{Uuid: "cmd-1", Exitcode: code})
+
 	case path == "/commands/cmd-1/logs":
 		var req plugin.CommandLogsRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
@@ -291,8 +297,47 @@ func TestCmdStdinChunked(t *testing.T) {
 	assert.Equal(t, want, seen)
 }
 
+// TestCmdExitStatus pins that a command that exits non-zero is reported as
+// such, with the status it exited with and everything it wrote.
+func TestCmdExitStatus(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	fake.write("", "no such file\n")
+	fake.exit(2)
+
+	var stdout, stderr bytes.Buffer
+	cmd := target.Command(t.Context(), "ls", "/nope")
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	var exit *ExitError
+	err := cmd.Run()
+	require.ErrorAs(t, err, &exit)
+	assert.Equal(t, 2, exit.Code)
+	assert.Equal(t, 2, exit.ExitCode())
+	assert.Equal(t, "cmd-1", exit.UUID)
+	assert.Equal(t, 2, cmd.ExitCode)
+	assert.Equal(t, "no such file\n", stderr.String())
+}
+
+// TestCmdExitStatusZero pins that a command that exits zero is no error, and
+// that the status is readable all the same.
+func TestCmdExitStatusZero(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+	fake.exit(0)
+
+	cmd := target.Command(t.Context(), "true")
+	cmd.Stdout = io.Discard
+
+	require.NoError(t, cmd.Run())
+	assert.Equal(t, 0, cmd.ExitCode)
+}
+
 // TestCmdCancelWithinWaitDelay pins that a command that dies of the interrupt
-// within the delay is reported as having ended, with its output.
+// within the delay is reported as having ended, with its output and the
+// status it died with rather than the cancellation.
 func TestCmdCancelWithinWaitDelay(t *testing.T) {
 	fake := newFakePlugin()
 	target := newTarget(t, fake)
@@ -313,7 +358,9 @@ func TestCmdCancelWithinWaitDelay(t *testing.T) {
 	require.NoError(t, cmd.Start())
 	cancel()
 
-	require.NoError(t, cmd.Wait())
+	var exit *ExitError
+	require.ErrorAs(t, cmd.Wait(), &exit)
+	assert.Equal(t, 130, exit.Code)
 	assert.Equal(t, "interrupted\n", stdout.String())
 }
 

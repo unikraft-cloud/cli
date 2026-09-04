@@ -29,6 +29,17 @@ const WaitForever time.Duration = -1
 
 const PluginName = plugin.PluginName
 
+type ExitError struct {
+	UUID string
+	Code int
+}
+
+func (e *ExitError) Error() string {
+	return fmt.Sprintf("command %s exited with status %d", e.UUID, e.Code)
+}
+
+func (e *ExitError) ExitCode() int { return e.Code }
+
 type Target struct {
 	Client   *plugin.Client
 	Instance platform.Instance
@@ -59,6 +70,7 @@ type Cmd struct {
 	WaitDelay      time.Duration
 	Err            error
 	UUID           string
+	ExitCode       int
 
 	ctx    context.Context
 	target Target
@@ -168,7 +180,11 @@ func (c *Cmd) stream() {
 				c.done <- fmt.Errorf("failed waiting for command: %w", err)
 				return
 			}
-			c.done <- c.logs.drain(c.waitCtx)
+			if err := c.logs.drain(c.waitCtx); err != nil {
+				c.done <- err
+				return
+			}
+			c.done <- c.exitStatus()
 			return
 
 		case <-timer.C:
@@ -201,6 +217,26 @@ func (c *Cmd) stream() {
 			timer.Reset(poll)
 		}
 	}
+}
+
+func (c *Cmd) exitStatus() error {
+	resp, err := c.target.Client.GetCommandByUuid(c.waitCtx, c.target.Instance, c.UUID, c.target.Opts...)
+	if err != nil {
+		return fmt.Errorf("failed to read the exit status of command %s: %w", c.UUID, err)
+	}
+	if resp.Data == nil {
+		return fmt.Errorf("failed to read the exit status of command %s: the %q plugin reported no state for it", c.UUID, c.target.Plugin)
+	}
+
+	c.ExitCode = int(resp.Data.Exitcode)
+	log.G(c.ctx).Trace().
+		Str("cmd", c.UUID).
+		Int("exit_code", c.ExitCode).
+		Msg("command ended")
+	if c.ExitCode != 0 {
+		return &ExitError{UUID: c.UUID, Code: c.ExitCode}
+	}
+	return nil
 }
 
 func (c *Cmd) Wait() error {
@@ -248,7 +284,8 @@ func (c *Cmd) Wait() error {
 		case err := <-c.done:
 			c.closed = true
 			if err != nil {
-				if c.ctx.Err() != nil {
+				_, exited := errors.AsType[*ExitError](err)
+				if c.ctx.Err() != nil && !exited {
 					return c.ctx.Err()
 				}
 				return err
