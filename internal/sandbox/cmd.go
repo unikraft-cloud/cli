@@ -25,8 +25,6 @@ const (
 	signalTimeout   = 5 * time.Second
 )
 
-const WaitForever time.Duration = -1
-
 const PluginName = plugin.PluginName
 
 type ExitError struct {
@@ -265,10 +263,7 @@ func (c *Cmd) Wait() error {
 			if err := c.cancel(); err != nil {
 				return err
 			}
-			switch {
-			case c.WaitDelay == 0:
-				return c.interrupted()
-			case c.WaitDelay > 0:
+			if c.WaitDelay > 0 {
 				delay := time.NewTimer(c.WaitDelay)
 				defer delay.Stop()
 				expired = delay.C

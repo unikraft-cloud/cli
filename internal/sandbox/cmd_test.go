@@ -364,8 +364,35 @@ func TestCmdCancelWithinWaitDelay(t *testing.T) {
 	assert.Equal(t, "interrupted\n", stdout.String())
 }
 
+// TestCmdCancelWaitsByDefault pins that an unset WaitDelay waits for the
+// interrupted command however long it takes, as the zero value of the field
+// of the same name of os/exec.Cmd does.
+func TestCmdCancelWaitsByDefault(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	var stdout bytes.Buffer
+	cmd := target.Command(ctx, "sleep", "300")
+	cmd.Stdout = &stdout
+	cmd.Cancel = func() error {
+		fake.write("interrupted\n", "")
+		fake.exit(130)
+		return nil
+	}
+
+	require.NoError(t, cmd.Start())
+	cancel()
+
+	var exit *ExitError
+	require.ErrorAs(t, cmd.Wait(), &exit)
+	assert.Equal(t, 130, exit.Code)
+	assert.Equal(t, "interrupted\n", stdout.String())
+}
+
 // TestCmdCancelWaitDelayExpires pins that a command that ignores the interrupt
-// is given up on once the delay is out, and is still addressable by UUID.
+// is given up on once a delay that was asked for is out, and is still
+// addressable by UUID.
 func TestCmdCancelWaitDelayExpires(t *testing.T) {
 	fake := newFakePlugin()
 	target := newTarget(t, fake)
@@ -392,7 +419,6 @@ func TestCmdCancelError(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cmd := target.Command(ctx, "sleep", "300")
 	cmd.Stdout = io.Discard
-	cmd.WaitDelay = WaitForever
 
 	sentinel := errors.New("could not interrupt")
 	cmd.Cancel = func() error { return sentinel }
