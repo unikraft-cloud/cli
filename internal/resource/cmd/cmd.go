@@ -155,7 +155,7 @@ func (cmd ResourceListCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ResourceListCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (cmd *ResourceListCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	filter, err := filters.ParseAll(cmd.Filter...)
 	if err != nil {
 		return err
@@ -175,10 +175,10 @@ func (cmd *ResourceListCmd[R]) Run(ctx context.Context, stdio config.Stdio, sand
 		var resources []resource.Resource
 		var opErr error
 		if len(cmd.Targets) > 0 {
-			r := sandbox.WrapGettable(empty)
+			r := partition.WrapGettable(empty)
 			resources, opErr = r.Get(ctx, cmd.Targets)
 		} else {
-			r := sandbox.WrapListable(empty)
+			r := partition.WrapListable(empty)
 			resources, opErr = r.List(ctx)
 		}
 		if opErr != nil && len(resources) == 0 {
@@ -232,9 +232,9 @@ func (cmd ResourceGetCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ResourceGetCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (cmd *ResourceGetCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	var empty R
-	r := sandbox.WrapGettable(empty)
+	r := partition.WrapGettable(empty)
 
 	render := func(out io.Writer) error {
 		var resources []resource.Resource
@@ -292,12 +292,12 @@ func (cmd ResourceWaitCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ResourceWaitCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (cmd *ResourceWaitCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	var empty R
 	if len(cmd.Targets) == 0 {
 		return fmt.Errorf("no %s specified", empty.Type().Names)
 	}
-	r := sandbox.WrapGettable(empty)
+	r := partition.WrapGettable(empty)
 
 	filter, err := filters.ParseAll(cmd.Until...)
 	if err != nil {
@@ -425,9 +425,9 @@ func (cmd ResourceRemoveCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ResourceRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (cmd *ResourceRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	var empty R
-	r := sandbox.WrapDeletable(empty)
+	r := partition.WrapDeletable(empty)
 
 	// Get resources for display purposes.
 	resources, getErr := r.Get(ctx, cmd.Targets)
@@ -492,7 +492,7 @@ func (cmd ResourceBulkRemoveCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	var empty R
 	var resources []resource.Resource
 	if cmd.All || len(cmd.Filter) > 0 {
@@ -506,7 +506,7 @@ func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio
 			return err
 		}
 
-		r := sandbox.WrapListable(empty)
+		r := partition.WrapListable(empty)
 		resources, err = r.List(ctx)
 		if err != nil {
 			return err
@@ -560,7 +560,7 @@ func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio
 			}
 		}
 
-		dr := sandbox.WrapDeletable(empty)
+		dr := partition.WrapDeletable(empty)
 		keys := make([]string, len(resources))
 		for i, res := range resources {
 			keys[i] = res.Key().String()
@@ -571,7 +571,7 @@ func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio
 		}
 		return nil
 	} else if len(cmd.Targets) > 0 {
-		r := sandbox.WrapDeletable(empty)
+		r := partition.WrapDeletable(empty)
 
 		// Get resources for display purposes.
 		resources, err := r.Get(ctx, cmd.Targets)
@@ -638,14 +638,14 @@ func (cmd *ResourceEditCmd[R]) toPatchSpec() (patch.PatchSpec, error) {
 	return spec, nil
 }
 
-func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	spec, err := cmd.toPatchSpec()
 	if err != nil {
 		return err
 	}
 
 	var empty R
-	r := sandbox.WrapEditable(empty)
+	r := partition.WrapEditable(empty)
 
 	var res resource.Resource
 	if cmd.Target == "" {
@@ -792,19 +792,19 @@ func (cmd *ResourceCreateCmd[R]) toPatchSpec() (patch.PatchSpec, error) {
 	return spec, nil
 }
 
-func (cmd *ResourceCreateCmd[R]) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
-	_, err := cmd.RunResources(ctx, stdio, sandbox)
+func (cmd *ResourceCreateCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+	_, err := cmd.RunResources(ctx, stdio, partition)
 	return err
 }
 
-func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) ([]resource.Resource, error) {
+func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.Stdio, partition *resource.Partition) ([]resource.Resource, error) {
 	spec, err := cmd.toPatchSpec()
 	if err != nil {
 		return nil, err
 	}
 
 	var empty R
-	r := sandbox.WrapCreatable(empty)
+	r := partition.WrapCreatable(empty)
 	fieldsResource := resource.Resource(empty)
 	if typed, ok := any(empty).(interface {
 		WithType(string) resource.Resource

@@ -76,11 +76,11 @@ type VolumeCreateCmd struct {
 	Template    string              `group:"flag-create" shortcut:"template" help:"Create from volume template." placeholder:"name"`
 }
 
-func (c *VolumeCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *VolumeCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
 }
 
 // VolumeEditCmd extends the generic resource edit command with shortcut
@@ -96,11 +96,11 @@ type VolumeEditCmd struct {
 	DeleteLock  *bool               `group:"flag-edit" shortcut:"delete-lock" help:"Prevent volume deletion until the lock is removed."`
 }
 
-func (c *VolumeEditCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *VolumeEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
-	return c.ResourceEditCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceEditCmd.Run(ctx, stdio, partition)
 }
 
 type VolumesCloneCmd struct {
@@ -126,7 +126,7 @@ func (VolumesCloneCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 		return fmt.Errorf("unknown fields: %v", unknownFields)
 	}
 
-	gettable := sandbox.WrapGettable(Volume{})
+	gettable := partition.WrapGettable(Volume{})
 	resources, err := gettable.Get(ctx, []string{c.Source})
 	if err != nil {
 		return err
@@ -225,9 +225,9 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 	if getErr != nil && len(results) == 0 {
 		return errors.Join(opErr, getErr)
 	}
-	if sandbox != nil {
+	if partition != nil {
 		for _, res := range results {
-			if err := sandbox.Add(ctx, res); err != nil {
+			if err := partition.Add(ctx, res); err != nil {
 				return err
 			}
 		}
@@ -634,7 +634,7 @@ func (VolumeAttachCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	vol := &InstanceVolume{At: c.At, Readonly: c.Readonly}
 	link, err := ParseLink[Volume]([]byte(c.Volume))
 	if err != nil {
@@ -650,7 +650,7 @@ func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 		Add:        []map[string]string{{"volumes": string(volStr)}},
 		FormatOpts: c.FormatOpts,
 	}
-	return editCmd.Run(ctx, stdio, sandbox)
+	return editCmd.Run(ctx, stdio, partition)
 }
 
 // VolumeDetachCmd detaches a volume from an instance.
@@ -670,13 +670,13 @@ func (VolumeDetachCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumeDetachCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (c *VolumeDetachCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	editCmd := &cmd.ResourceEditCmd[Instance]{
 		Target:     c.From,
 		Del:        []map[string]string{{"volumes": c.Volume}},
 		FormatOpts: c.FormatOpts,
 	}
-	return editCmd.Run(ctx, stdio, sandbox)
+	return editCmd.Run(ctx, stdio, partition)
 }
 
 // VolumeImportCmd imports data from a local source into a volume by
@@ -711,7 +711,7 @@ func (VolumeImportCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox) error {
+func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	if c.Source == "" {
 		return fmt.Errorf("source path is required")
 	}
@@ -728,7 +728,7 @@ func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *
 	}
 
 	// Resolve the target volume.
-	gettable := sandbox.WrapGettable(Volume{})
+	gettable := partition.WrapGettable(Volume{})
 	resources, err := gettable.Get(ctx, []string{c.Volume})
 	if err != nil {
 		return err

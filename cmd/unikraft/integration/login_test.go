@@ -57,10 +57,10 @@ func TestLoginProd(t *testing.T) {
 
 	// Start from a brand new, hardcoded config that doesn't exist yet.
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	sandboxPath := filepath.Join(t.TempDir(), "sandbox.json")
+	partitionPath := filepath.Join(t.TempDir(), "partition.json")
 	r := integ.NewTestEnv(t, unikraftPath).
 		WithConfig(nil, configPath).
-		WithSandboxPath(sandboxPath)
+		WithPartitionPath(partitionPath)
 
 	out := r.Run(t, []string{
 		"unikraft", "login",

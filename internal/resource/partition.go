@@ -19,34 +19,34 @@ import (
 	xmaps "unikraft.com/cli/internal/x/maps"
 )
 
-// Sandbox represents a testing sandbox for resources. Resources created in the
-// sandbox are tracked and isolated from other resources (to provide our
+// Partition represents a testing partition for resources. Resources created in the
+// partition are tracked and isolated from other resources (to provide our
 // testing framework a reliable clean environment).
 //
-// Sandboxes are persisted to disk as JSON files, which track resource types
-// and keys that belong to the sandbox.
-type Sandbox struct {
+// Partitions are persisted to disk as JSON files, which track resource types
+// and keys that belong to the partition.
+type Partition struct {
 	Path    string
 	Keys    map[string]map[string]struct{}
 	Cleanup []Resource
 }
 
-const UnikraftSandboxEnv = "UNIKRAFT_X_SANDBOX"
+const UnikraftPartitionEnv = "UNIKRAFT_X_PARTITION"
 
-func LoadSandboxFromEnv(resources ...Resource) (*Sandbox, error) {
-	path, ok := os.LookupEnv(UnikraftSandboxEnv)
+func LoadPartitionFromEnv(resources ...Resource) (*Partition, error) {
+	path, ok := os.LookupEnv(UnikraftPartitionEnv)
 	if !ok {
 		return nil, nil
 	}
-	sandbox, err := LoadSandbox(path, resources...)
+	partition, err := LoadPartition(path, resources...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load sandbox from %s: %w", path, err)
+		return nil, fmt.Errorf("failed to load partition from %s: %w", path, err)
 	}
-	return sandbox, nil
+	return partition, nil
 }
 
-func LoadSandbox(path string, resources ...Resource) (*Sandbox, error) {
-	s := Sandbox{Path: path, Cleanup: resources}
+func LoadPartition(path string, resources ...Resource) (*Partition, error) {
+	s := Partition{Path: path, Cleanup: resources}
 	s.Keys = make(map[string]map[string]struct{})
 	for _, r := range resources {
 		if _, ok := s.Keys[r.Type().Name]; !ok {
@@ -58,14 +58,14 @@ func LoadSandbox(path string, resources ...Resource) (*Sandbox, error) {
 	if errors.Is(err, os.ErrNotExist) {
 		return &s, nil
 	} else if err != nil {
-		return nil, fmt.Errorf("failed to open sandbox file: %w", err)
+		return nil, fmt.Errorf("failed to open partition file: %w", err)
 	}
 	defer f.Close()
 
 	var keys map[string][]string
 	err = json.NewDecoder(f).Decode(&keys)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode sandbox file: %w", err)
+		return nil, fmt.Errorf("failed to decode partition file: %w", err)
 	}
 	for rtype, rkeys := range keys {
 		if _, ok := s.Keys[rtype]; !ok {
@@ -79,13 +79,13 @@ func LoadSandbox(path string, resources ...Resource) (*Sandbox, error) {
 	return &s, nil
 }
 
-func (s *Sandbox) Save() error {
+func (s *Partition) Save() error {
 	if s == nil {
 		return nil
 	}
 	f, err := os.Create(s.Path)
 	if err != nil {
-		return fmt.Errorf("failed to create sandbox file: %w", err)
+		return fmt.Errorf("failed to create partition file: %w", err)
 	}
 	defer f.Close()
 
@@ -98,21 +98,21 @@ func (s *Sandbox) Save() error {
 	enc.SetIndent("", "  ")
 	err = enc.Encode(keys)
 	if err != nil {
-		return fmt.Errorf("failed to encode sandbox file: %w", err)
+		return fmt.Errorf("failed to encode partition file: %w", err)
 	}
 
 	return nil
 }
 
-// Teardown attempts to delete all resources tracked by the sandbox. Some
+// Teardown attempts to delete all resources tracked by the partition. Some
 // resources may not be deletable, in which case they are skipped.
-func (s *Sandbox) Teardown(ctx context.Context) (rerr error) {
+func (s *Partition) Teardown(ctx context.Context) (rerr error) {
 	if s == nil {
 		return nil
 	}
 	log.G(ctx).Debug().
 		Str("path", s.Path).
-		Msg("tearing down sandbox")
+		Msg("tearing down partition")
 	for _, r := range s.Cleanup {
 		name := r.Type().Name
 		r, ok := r.(DeletableResource)
@@ -127,7 +127,7 @@ func (s *Sandbox) Teardown(ctx context.Context) (rerr error) {
 		log.G(ctx).Debug().
 			Str("resource", name).
 			Strs("targets", targets).
-			Msg("cleaning up resources in sandbox")
+			Msg("cleaning up resources in partition")
 		if len(targets) == 0 {
 			continue
 		}
@@ -144,7 +144,7 @@ func (s *Sandbox) Teardown(ctx context.Context) (rerr error) {
 	return rerr
 }
 
-func (s *Sandbox) Add(ctx context.Context, r Resource) error {
+func (s *Partition) Add(ctx context.Context, r Resource) error {
 	if s == nil {
 		return nil
 	}
@@ -155,7 +155,7 @@ func (s *Sandbox) Add(ctx context.Context, r Resource) error {
 	return s.add(ctx, r, visited)
 }
 
-func (s *Sandbox) add(ctx context.Context, r Resource, visited map[string]struct{}) error {
+func (s *Partition) add(ctx context.Context, r Resource, visited map[string]struct{}) error {
 	if s == nil {
 		return nil
 	}
@@ -220,7 +220,7 @@ func (s *Sandbox) add(ctx context.Context, r Resource, visited map[string]struct
 	return nil
 }
 
-func (s *Sandbox) Remove(typeName string, key string) {
+func (s *Partition) Remove(typeName string, key string) {
 	if s == nil {
 		return
 	}
@@ -230,7 +230,7 @@ func (s *Sandbox) Remove(typeName string, key string) {
 	delete(s.Keys[typeName], key)
 }
 
-func (s *Sandbox) Has(r Resource) bool {
+func (s *Partition) Has(r Resource) bool {
 	if s == nil {
 		return true
 	}
@@ -241,107 +241,107 @@ func (s *Sandbox) Has(r Resource) bool {
 	return ok
 }
 
-func (s *Sandbox) Missing(r Resource) bool {
+func (s *Partition) Missing(r Resource) bool {
 	return !s.Has(r)
 }
 
-func (s *Sandbox) WrapGettable(r GettableResource) GettableResource {
+func (s *Partition) WrapGettable(r GettableResource) GettableResource {
 	if s == nil {
 		return r
 	}
-	return sandboxedGettableResource{
+	return partitionedGettableResource{
 		GettableResource: r,
-		sandbox:          s,
+		partition:        s,
 	}
 }
 
-func (s *Sandbox) WrapListable(r ListableResource) ListableResource {
+func (s *Partition) WrapListable(r ListableResource) ListableResource {
 	if s == nil {
 		return r
 	}
-	return sanboxedListableResource{
+	return partitionedListableResource{
 		ListableResource: r,
-		sandbox:          s,
+		partition:        s,
 	}
 }
 
-func (s *Sandbox) WrapEditable(r EditableResource) EditableResource {
+func (s *Partition) WrapEditable(r EditableResource) EditableResource {
 	if s == nil {
 		return r
 	}
-	return sandboxedEditableResource{
+	return partitionedEditableResource{
 		EditableResource: r,
-		sandbox:          s,
+		partition:        s,
 	}
 }
 
-func (s *Sandbox) WrapCreatable(r CreatableResource) CreatableResource {
+func (s *Partition) WrapCreatable(r CreatableResource) CreatableResource {
 	if s == nil {
 		return r
 	}
-	return sandboxedCreatableResource{
+	return partitionedCreatableResource{
 		CreatableResource: r,
-		sandbox:           s,
+		partition:         s,
 	}
 }
 
-func (s *Sandbox) WrapDeletable(r DeletableResource) DeletableResource {
+func (s *Partition) WrapDeletable(r DeletableResource) DeletableResource {
 	if s == nil {
 		return r
 	}
-	return sandboxedDeletableResource{
+	return partitionedDeletableResource{
 		DeletableResource: r,
-		sandbox:           s,
+		partition:         s,
 	}
 }
 
-type sandboxedGettableResource struct {
+type partitionedGettableResource struct {
 	GettableResource
-	sandbox *Sandbox
+	partition *Partition
 }
 
-func (r sandboxedGettableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
+func (r partitionedGettableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
 	resources, opErr := r.GettableResource.Get(ctx, keys)
 	if opErr != nil && len(resources) == 0 {
 		return nil, opErr
 	}
-	resources = slices.DeleteFunc(resources, r.sandbox.Missing)
+	resources = slices.DeleteFunc(resources, r.partition.Missing)
 	if len(resources) == 0 {
 		if opErr != nil {
 			return nil, opErr
 		}
-		return nil, fmt.Errorf("no resources found in the sandbox")
+		return nil, fmt.Errorf("no resources found in the partition")
 	}
 	return resources, opErr
 }
 
-type sanboxedListableResource struct {
+type partitionedListableResource struct {
 	ListableResource
-	sandbox *Sandbox
+	partition *Partition
 }
 
-func (r sanboxedListableResource) List(ctx context.Context) ([]Resource, error) {
+func (r partitionedListableResource) List(ctx context.Context) ([]Resource, error) {
 	resources, opErr := r.ListableResource.List(ctx)
 	if opErr != nil && len(resources) == 0 {
 		return nil, opErr
 	}
-	resources = slices.DeleteFunc(resources, r.sandbox.Missing)
+	resources = slices.DeleteFunc(resources, r.partition.Missing)
 	return resources, opErr
 }
 
-type sandboxedEditableResource struct {
+type partitionedEditableResource struct {
 	EditableResource
-	sandbox *Sandbox
+	partition *Partition
 }
 
-func (r sandboxedEditableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
-	return sandboxedGettableResource{
+func (r partitionedEditableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
+	return partitionedGettableResource{
 		GettableResource: r.EditableResource,
-		sandbox:          r.sandbox,
+		partition:        r.partition,
 	}.Get(ctx, keys)
 }
 
-func (r sandboxedEditableResource) Edit(ctx context.Context, key string, fields []Field) error {
+func (r partitionedEditableResource) Edit(ctx context.Context, key string, fields []Field) error {
 	if err := r.EditableResource.Edit(ctx, key, fields); err != nil {
 		return err
 	}
@@ -352,51 +352,51 @@ func (r sandboxedEditableResource) Edit(ctx context.Context, key string, fields 
 		return err
 	}
 	for _, res := range resources {
-		if err := r.sandbox.Add(ctx, res); err != nil {
+		if err := r.partition.Add(ctx, res); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-type sandboxedCreatableResource struct {
+type partitionedCreatableResource struct {
 	CreatableResource
-	sandbox *Sandbox
+	partition *Partition
 }
 
-func (r sandboxedCreatableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
-	return sandboxedGettableResource{
+func (r partitionedCreatableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
+	return partitionedGettableResource{
 		GettableResource: r.CreatableResource,
-		sandbox:          r.sandbox,
+		partition:        r.partition,
 	}.Get(ctx, keys)
 }
 
-func (r sandboxedCreatableResource) Create(ctx context.Context, fields []Field) ([]Resource, error) {
+func (r partitionedCreatableResource) Create(ctx context.Context, fields []Field) ([]Resource, error) {
 	resources, opErr := r.CreatableResource.Create(ctx, fields)
 	if opErr != nil && len(resources) == 0 {
 		return nil, opErr
 	}
 	for _, res := range resources {
-		if err := r.sandbox.Add(ctx, res); err != nil {
+		if err := r.partition.Add(ctx, res); err != nil {
 			return nil, err
 		}
 	}
 	return resources, opErr
 }
 
-type sandboxedDeletableResource struct {
+type partitionedDeletableResource struct {
 	DeletableResource
-	sandbox *Sandbox
+	partition *Partition
 }
 
-func (r sandboxedDeletableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
-	return sandboxedGettableResource{
+func (r partitionedDeletableResource) Get(ctx context.Context, keys []string) ([]Resource, error) {
+	return partitionedGettableResource{
 		GettableResource: r.DeletableResource,
-		sandbox:          r.sandbox,
+		partition:        r.partition,
 	}.Get(ctx, keys)
 }
 
-func (r sandboxedDeletableResource) Delete(ctx context.Context, keys []string) error {
+func (r partitionedDeletableResource) Delete(ctx context.Context, keys []string) error {
 	resources, getErr := r.DeletableResource.Get(ctx, keys)
 
 	err := r.DeletableResource.Delete(ctx, keys)
@@ -406,7 +406,7 @@ func (r sandboxedDeletableResource) Delete(ctx context.Context, keys []string) e
 
 	typeName := r.DeletableResource.Type().Name
 	for _, res := range resources {
-		r.sandbox.Remove(typeName, res.Key().Canonical())
+		r.partition.Remove(typeName, res.Key().Canonical())
 	}
 
 	return getErr

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/colorprofile"
@@ -24,6 +25,15 @@ type fakeFdWriter struct {
 }
 
 func (w *fakeFdWriter) Fd() uintptr { return w.fd }
+
+// fakeFdReader mimics an *os.File-like reader that exposes Fd(). It reads from
+// an in-memory buffer so tests don't touch real file descriptors.
+type fakeFdReader struct {
+	bytes.Buffer
+	fd uintptr
+}
+
+func (r *fakeFdReader) Fd() uintptr { return r.fd }
 
 func TestUnwrap(t *testing.T) {
 	t.Parallel()
@@ -143,5 +153,35 @@ func TestTermWidth_HonorsCOLUMNS(t *testing.T) {
 				t.Errorf("TermWidth(%s) = %d, want 123 (from COLUMNS)", tt.name, got)
 			}
 		})
+	}
+}
+
+func TestIsTTYReader_NonFdReader(t *testing.T) {
+	t.Parallel()
+
+	if xio.IsTTYReader(&bytes.Buffer{}) {
+		t.Error("IsTTYReader(*bytes.Buffer) = true, want false")
+	}
+	if xio.IsTTYReader(strings.NewReader("")) {
+		t.Error("IsTTYReader(*strings.Reader) = true, want false")
+	}
+}
+
+// TestIsTTYReader_MatchesWriterOnSameFd pins that the reader and writer forms
+// agree for one underlying file descriptor: the actual TTY status varies by
+// how the test is run, so agreement is the invariant worth asserting.
+func TestIsTTYReader_MatchesWriterOnSameFd(t *testing.T) {
+	t.Parallel()
+
+	if got, want := xio.IsTTYReader(os.Stdin), xio.IsTTY(os.Stdin); got != want {
+		t.Errorf("IsTTYReader(os.Stdin) = %v, IsTTY(os.Stdin) = %v; want equal", got, want)
+	}
+}
+
+func TestIsTTYReader_NotATerminalFd(t *testing.T) {
+	t.Parallel()
+
+	if xio.IsTTYReader(&fakeFdReader{fd: ^uintptr(0)}) {
+		t.Error("IsTTYReader(invalid fd) = true, want false")
 	}
 }

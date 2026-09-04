@@ -49,14 +49,14 @@ type InstanceCheckpointCreateCmd struct {
 	Target string `arg:"" name:"instance" optional:"" completion-predictor:"resource-key-instance" help:"Instance to create a checkpoint from."`
 }
 
-func (c *InstanceCheckpointCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *InstanceCheckpointCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
 	if c.Target != "" {
 		c.Set = append(c.Set, map[string]string{"instance": c.Target})
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
 }
 
 // InstanceCheckpointEditCmd extends the generic resource edit command with
@@ -68,11 +68,11 @@ type InstanceCheckpointEditCmd struct {
 	DeleteLock *bool    `group:"flag-edit" shortcut:"delete-lock" help:"Prevent deletion of the checkpoint."`
 }
 
-func (c *InstanceCheckpointEditCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *InstanceCheckpointEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
-	return c.ResourceEditCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceEditCmd.Run(ctx, stdio, partition)
 }
 
 type InstanceCheckpoint struct {

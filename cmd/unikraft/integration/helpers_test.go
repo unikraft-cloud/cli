@@ -85,25 +85,25 @@ func runner(t *testing.T, online bool, servers []string) *integ.TestEnv {
 	ctx := t.Context()
 	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.TraceLevel))
 
-	sandboxPath := filepath.Join(t.TempDir(), "sandbox.json")
+	partitionPath := filepath.Join(t.TempDir(), "partition.json")
 	t.Cleanup(func() {
 		ctx := ctx
 		if testCfg != nil {
 			ctx = config.WithConfig(ctx, testCfg.Config)
 		}
 
-		if _, statErr := os.Stat(sandboxPath); os.IsNotExist(statErr) {
+		if _, statErr := os.Stat(partitionPath); os.IsNotExist(statErr) {
 			return
 		}
 
-		sandbox, err := resource.LoadSandbox(sandboxPath, cmd.SandboxedResources...)
+		partition, err := resource.LoadPartition(partitionPath, cmd.PartitionedResources...)
 		require.NoError(t, err)
-		require.NotNil(t, sandbox)
+		require.NotNil(t, partition)
 
-		require.NoError(t, sandbox.Teardown(context.WithoutCancel(ctx)))
+		require.NoError(t, partition.Teardown(context.WithoutCancel(ctx)))
 	})
 
 	return integ.NewTestEnv(t, unikraftPath).
 		WithConfig(testCfg, configPath).
-		WithSandboxPath(sandboxPath)
+		WithPartitionPath(partitionPath)
 }

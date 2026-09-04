@@ -29,18 +29,18 @@ type TestEnv struct {
 	// Config is the integration test config, or nil if not loaded (offline tests).
 	Config *Config
 
-	unikraftPath string
-	configPath   string
-	sandboxPath  string
+	unikraftPath  string
+	configPath    string
+	partitionPath string
 }
 
 func NewTestEnv(t *testing.T, unikraftPath string) *TestEnv {
 	t.Helper()
 	dir := t.TempDir()
 	return &TestEnv{
-		unikraftPath: unikraftPath,
-		configPath:   filepath.Join(dir, "config.yaml"),
-		sandboxPath:  filepath.Join(dir, "sandbox.json"),
+		unikraftPath:  unikraftPath,
+		configPath:    filepath.Join(dir, "config.yaml"),
+		partitionPath: filepath.Join(dir, "partition.json"),
 	}
 }
 
@@ -50,8 +50,8 @@ func (env *TestEnv) WithConfig(cfg *Config, configPath string) *TestEnv {
 	return env
 }
 
-func (env *TestEnv) WithSandboxPath(sandboxPath string) *TestEnv {
-	env.sandboxPath = sandboxPath
+func (env *TestEnv) WithPartitionPath(partitionPath string) *TestEnv {
+	env.partitionPath = partitionPath
 	return env
 }
 
@@ -59,15 +59,21 @@ type CmdOption func(*cmdConfig)
 
 type cmdConfig struct {
 	workDir       string
+	stdin         string
 	expectFail    bool
 	allowFail     bool
-	noSandbox     bool
+	noPartition   bool
 	timeout       time.Duration
 	withoutCancel bool
 }
 
 func WithWorkDir(dir string) CmdOption {
 	return func(c *cmdConfig) { c.workDir = dir }
+}
+
+// WithStdin feeds in to the command's standard input, which is otherwise empty.
+func WithStdin(in string) CmdOption {
+	return func(c *cmdConfig) { c.stdin = in }
 }
 
 func ExpectFail() CmdOption {
@@ -89,10 +95,10 @@ func WithTimeout(d time.Duration) CmdOption {
 	return func(c *cmdConfig) { c.timeout = d }
 }
 
-// WithNoSandbox disables sandbox tracking for the command. The resource is not
-// registered in a test sandbox and stays after individual test cleanup.
-func WithNoSandbox() CmdOption {
-	return func(c *cmdConfig) { c.noSandbox = true }
+// WithNoPartition disables partition tracking for the command. The resource is not
+// registered in a test partition and stays after individual test cleanup.
+func WithNoPartition() CmdOption {
+	return func(c *cmdConfig) { c.noPartition = true }
 }
 
 func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (string, error) {
@@ -125,6 +131,9 @@ func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (stri
 	c.Stdout = &output
 	c.Stderr = &output
 	c.Dir = cfg.workDir
+	if cfg.stdin != "" {
+		c.Stdin = strings.NewReader(cfg.stdin)
+	}
 	c.Env = os.Environ()
 	c.Env = slices.DeleteFunc(c.Env, func(s string) bool {
 		return strings.HasPrefix(s, "UNIKRAFT_")
@@ -132,8 +141,8 @@ func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (stri
 	c.Env = append(c.Env, "NO_COLOR=1")
 	c.Env = append(c.Env, "UNIKRAFT_CONFIG="+env.configPath)
 	c.Env = append(c.Env, "BUILDKIT_PROGRESS=quiet")
-	if !cfg.noSandbox {
-		c.Env = append(c.Env, resource.UnikraftSandboxEnv+"="+env.sandboxPath)
+	if !cfg.noPartition {
+		c.Env = append(c.Env, resource.UnikraftPartitionEnv+"="+env.partitionPath)
 	}
 
 	err := c.Run()
@@ -204,7 +213,7 @@ func (env *TestEnv) StartBackground(t *testing.T, args []string, waitAddr string
 	c.Env = append(c.Env, "NO_COLOR=1")
 	c.Env = append(c.Env, "UNIKRAFT_CONFIG="+env.configPath)
 	c.Env = append(c.Env, "BUILDKIT_PROGRESS=quiet")
-	c.Env = append(c.Env, resource.UnikraftSandboxEnv+"="+env.sandboxPath)
+	c.Env = append(c.Env, resource.UnikraftPartitionEnv+"="+env.partitionPath)
 	c.Cancel = func() error {
 		return c.Process.Signal(os.Interrupt)
 	}

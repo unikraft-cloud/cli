@@ -54,9 +54,9 @@ const followArgs = `runtime.args=["sh","-c","n=$(cat /data/n 2>/dev/null || echo
 const sandboxPluginRom = "plugins/sandbox:staging"
 
 // tunnelProxyUUIDs queries the platform directly (bypassing the CLI's
-// resource sandbox, which never tracks the tunnel command's internal proxy
+// resource partition, which never tracks the tunnel command's internal proxy
 // instance since it's created via the raw platform client rather than
-// through a sandboxed resource) for every currently-running tunnel-service
+// through a partitioned resource) for every currently-running tunnel-service
 // instance in the given metro.
 func tunnelProxyUUIDs(t *testing.T, cfg *config.Config, metro string) map[string]struct{} {
 	t.Helper()
@@ -1467,7 +1467,7 @@ cmd: ["cat", "/marker.txt"]
 		// Identify the proxy instance the tunnel command created, so we can
 		// confirm below that tearing down the tunnel actually deletes it
 		// (a regression in Close() would otherwise go unnoticed, since the
-		// CLI's own sandboxed "instance list"/"inspect" never see this
+		// CLI's own partitioned "instance list"/"inspect" never see this
 		// instance either way).
 		during := tunnelProxyUUIDs(t, r.Config.Config, r.Config.MetroName)
 		var proxyUUID string
@@ -1733,7 +1733,7 @@ cmd: ["cat", "/marker.txt"]
 		assert.Contains(t, integ.HTTPGet(t, "https://"+fqdn+"/count"), `"count": 5`)
 		assert.Contains(t, integ.HTTPGet(t, "https://"+fqdnBranch+"/count"), `"count": 15`)
 
-		// The branch's own volume is unnamed and cleaned up by the sandbox's
+		// The branch's own volume is unnamed and cleaned up by the partition's
 		// resource tracking; only the explicitly created source volume needs
 		// to be deleted here.
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName, "test-branch-" + branchName})

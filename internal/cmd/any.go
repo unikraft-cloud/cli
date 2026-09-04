@@ -42,11 +42,11 @@ type AnyResourceCreateCmd struct {
 	Type string `group:"flag-create" shortcut:"type" help:"Resource type." placeholder:"type" example:"instance,volume,service,certificate"`
 }
 
-func (c *AnyResourceCreateCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *AnyResourceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
 }
 
 // AnyResourceEditCmd extends the generic resource edit command to enable
@@ -55,11 +55,11 @@ type AnyResourceEditCmd struct {
 	cmd.ResourceEditCmd[AnyResource]
 }
 
-func (c *AnyResourceEditCmd) Run(ctx context.Context, stdio config.Stdio, sandbox *resource.Sandbox, kctx *kong.Context) error {
+func (c *AnyResourceEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
 	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
 		return err
 	}
-	return c.ResourceEditCmd.Run(ctx, stdio, sandbox)
+	return c.ResourceEditCmd.Run(ctx, stdio, partition)
 }
 
 var resourceBackends = []resource.Resource{
