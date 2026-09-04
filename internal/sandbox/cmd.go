@@ -25,9 +25,18 @@ const (
 	signalTimeout   = 5 * time.Second
 )
 
-const WaitForever time.Duration = -1
-
 const PluginName = plugin.PluginName
+
+type ExitError struct {
+	UUID string
+	Code int
+}
+
+func (e *ExitError) Error() string {
+	return fmt.Sprintf("command %s exited with status %d", e.UUID, e.Code)
+}
+
+func (e *ExitError) ExitCode() int { return e.Code }
 
 type Target struct {
 	Client   *plugin.Client
@@ -37,10 +46,10 @@ type Target struct {
 }
 
 func (t Target) Command(ctx context.Context, name string, args ...string) *Cmd {
-	return t.CommandLine(ctx, append([]string{name}, args...))
+	return t.CommandArgs(ctx, append([]string{name}, args...))
 }
 
-func (t Target) CommandLine(ctx context.Context, args []string) *Cmd {
+func (t Target) CommandArgs(ctx context.Context, args []string) *Cmd {
 	c := &Cmd{Args: args, ctx: ctx, target: t}
 	if len(args) == 0 {
 		c.Err = errors.New("sandbox: no command given")
@@ -48,10 +57,20 @@ func (t Target) CommandLine(ctx context.Context, args []string) *Cmd {
 	return c
 }
 
+func (t Target) CommandLine(ctx context.Context, cmdline string) *Cmd {
+	c := &Cmd{Cmdline: cmdline, ctx: ctx, target: t}
+	if cmdline == "" {
+		c.Err = errors.New("sandbox: no command given")
+	}
+	return c
+}
+
 type Cmd struct {
-	Args []string
-	Dir  string
-	Env  map[string]string
+	Args    []string
+	Cmdline string
+
+	Dir string
+	Env map[string]string
 
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
@@ -59,13 +78,10 @@ type Cmd struct {
 	WaitDelay      time.Duration
 	Err            error
 	UUID           string
+	ExitCode       int
 
 	ctx    context.Context
 	target Target
-
-	// HACK: this will be removed after the plugin api will be able to
-	// take parsed args instead of a single string
-	cmdline string
 
 	waitCtx  context.Context
 	stopWait context.CancelFunc
@@ -80,6 +96,21 @@ type Cmd struct {
 	waited bool
 }
 
+func (c *Cmd) commandLine() (string, error) {
+	if len(c.Args) == 0 {
+		if c.Cmdline == "" {
+			return "", errors.New("sandbox: no command given")
+		}
+		return c.Cmdline, nil
+	}
+	if c.Cmdline != "" {
+		return "", errors.New("sandbox: only one of Args and Cmdline may be given")
+	}
+	// HACK: this will be removed after the plugin api will be able to
+	// take parsed args instead of a single string
+	return Quote(c.Args)
+}
+
 func (c *Cmd) Start() error {
 	if c.Err != nil {
 		return c.Err
@@ -90,11 +121,11 @@ func (c *Cmd) Start() error {
 
 	log.G(c.ctx).Trace().Msg("executing command")
 
-	cmdline, err := Quote(c.Args)
+	cmdline, err := c.commandLine()
 	if err != nil {
 		return err
 	}
-	c.cmdline = cmdline
+	c.Cmdline = cmdline
 
 	req := plugin.RunCommandRequest{Cmd: cmdline}
 	if c.Dir != "" {
@@ -168,7 +199,11 @@ func (c *Cmd) stream() {
 				c.done <- fmt.Errorf("failed waiting for command: %w", err)
 				return
 			}
-			c.done <- c.logs.drain(c.waitCtx)
+			if err := c.logs.drain(c.waitCtx); err != nil {
+				c.done <- err
+				return
+			}
+			c.done <- c.exitStatus()
 			return
 
 		case <-timer.C:
@@ -203,6 +238,26 @@ func (c *Cmd) stream() {
 	}
 }
 
+func (c *Cmd) exitStatus() error {
+	resp, err := c.target.Client.GetCommandByUuid(c.waitCtx, c.target.Instance, c.UUID, c.target.Opts...)
+	if err != nil {
+		return fmt.Errorf("failed to read the exit status of command %s: %w", c.UUID, err)
+	}
+	if resp.Data == nil {
+		return fmt.Errorf("failed to read the exit status of command %s: the %q plugin reported no state for it", c.UUID, c.target.Plugin)
+	}
+
+	c.ExitCode = int(resp.Data.Exitcode)
+	log.G(c.ctx).Trace().
+		Str("cmd", c.UUID).
+		Int("exit_code", c.ExitCode).
+		Msg("command ended")
+	if c.ExitCode != 0 {
+		return &ExitError{UUID: c.UUID, Code: c.ExitCode}
+	}
+	return nil
+}
+
 func (c *Cmd) Wait() error {
 	if c.UUID == "" {
 		return errors.New("sandbox: command not started")
@@ -229,10 +284,7 @@ func (c *Cmd) Wait() error {
 			if err := c.cancel(); err != nil {
 				return err
 			}
-			switch {
-			case c.WaitDelay == 0:
-				return c.interrupted()
-			case c.WaitDelay > 0:
+			if c.WaitDelay > 0 {
 				delay := time.NewTimer(c.WaitDelay)
 				defer delay.Stop()
 				expired = delay.C
@@ -242,13 +294,14 @@ func (c *Cmd) Wait() error {
 			return c.interrupted()
 
 		case stdinErr := <-c.stdinErr:
-			log.G(c.ctx).Debug().Err(stdinErr).Str("cmd", c.UUID).Msg("standard input failed")
+			log.G(c.ctx).Warn().Err(stdinErr).Str("cmd", c.UUID).Msg("standard input failed")
 			continue
 
 		case err := <-c.done:
 			c.closed = true
 			if err != nil {
-				if c.ctx.Err() != nil {
+				_, exited := errors.AsType[*ExitError](err)
+				if c.ctx.Err() != nil && !exited {
 					return c.ctx.Err()
 				}
 				return err

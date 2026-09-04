@@ -19,34 +19,14 @@ import (
 	integ "unikraft.com/cli/internal/integration"
 )
 
-const (
-	sandboxPlugin = sandbox.PluginName
+const sandboxPlugin = sandbox.PluginName
 
-	sandboxKraftfile = `
-spec: v0.7
-name: sandbox-e2e
-runtime: base-compat:latest
-rootfs:
-  format: erofs
-  source: ./Dockerfile
-  type: dockerfile
-cmd: ["tail", "-f", "/dev/null"]
-`
-)
-
-// newSandboxInstance builds the fixture image, creates a running instance
-// serving the sandbox plugin on it, and returns the instance's name.
+// newSandboxInstance creates a running instance serving the sandbox plugin
+// on the shared busybox image, and returns the instance's name.
 func newSandboxInstance(t *testing.T, r *integ.TestEnv) string {
 	t.Helper()
 
-	dir := t.TempDir()
-	require.NoError(t, fstest.Apply(
-		fstest.CreateFile("Dockerfile", []byte("FROM busybox:latest\n"), 0o644),
-		fstest.CreateFile("Kraftfile", []byte(sandboxKraftfile), 0o644),
-	).Apply(dir))
-
-	image := r.Config.Profile.Organization + "/sandbox-e2e:" + uniq()
-	r.Run(t, []string{"unikraft", "build", ".", "--output", image}, integ.WithWorkDir(dir))
+	image := integ.Busybox.Build(t, r)
 
 	name := "test-" + uniq()
 	r.Run(t, []string{
@@ -55,6 +35,7 @@ func newSandboxInstance(t *testing.T, r *integ.TestEnv) string {
 		"--name", name,
 		"--metro", r.Config.MetroName,
 		"--image", image,
+		"--args", "tail -f /dev/null",
 		"--plugin", "name=" + sandboxPlugin + ",rom=" + sandboxPluginRom,
 		"--memory", "512",
 		"--vcpus", "1",

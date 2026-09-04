@@ -91,7 +91,7 @@ func (l *logStream) drainOnce(ctx context.Context) (uint64, error) {
 		out    io.Writer
 	}{
 		{resp.Data.Stdout, &l.stdoutOffset, l.stdout},
-		{resp.Data.Stderr, &l.stderrOffset, cmpOr(l.stderr, l.stdout)},
+		{resp.Data.Stderr, &l.stderrOffset, l.stderr},
 	}
 	for _, stream := range outputs {
 		if stream.data == "" {
@@ -110,11 +110,4 @@ func (l *logStream) drainOnce(ctx context.Context) (uint64, error) {
 		written += uint64(len(decoded))
 	}
 	return written, nil
-}
-
-func cmpOr(w, fallback io.Writer) io.Writer {
-	if w != nil {
-		return w
-	}
-	return fallback
 }

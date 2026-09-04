@@ -42,6 +42,10 @@ type mockPlugin struct {
 	stdin    []byte
 	stdinEOF bool
 
+	// failStdinData is set before the plugin serves anything, so it needs no
+	// lock of its own.
+	failStdinData bool
+
 	signals []int
 }
 
@@ -100,6 +104,12 @@ func (f *mockPlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(nil)
 
+	case path == "/commands/cmd-1" && r.Method == http.MethodGet:
+		f.mu.Lock()
+		code := f.exitCode
+		f.mu.Unlock()
+		reply(plugin.GetCommandData{Uuid: "cmd-1", Exitcode: code})
+
 	case path == "/commands/cmd-1/logs":
 		var req plugin.CommandLogsRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
@@ -121,9 +131,15 @@ func (f *mockPlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		decoded, _ := base64.StdEncoding.DecodeString(req.Data)
 
+		eof := req.Eof != nil && *req.Eof
+		if f.failStdinData && !eof {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		f.mu.Lock()
 		f.stdin = append(f.stdin, decoded...)
-		if req.Eof != nil && *req.Eof {
+		if eof {
 			f.stdinEOF = true
 		}
 		f.mu.Unlock()
@@ -204,9 +220,75 @@ func TestCmdRun(t *testing.T) {
 	assert.Equal(t, map[string]string{"DEBUG": "true"}, *fake.run.Env)
 }
 
-// TestCmdNilStderrJoinsStreams pins that a caller that set only Stdout gets
-// both of the command's streams there, the way a terminal shows them.
-func TestCmdNilStderrJoinsStreams(t *testing.T) {
+// TestCmdRunCommandLine pins that a whole shell line reaches the plugin as it
+// was written, with nothing quoted on its behalf.
+func TestCmdRunCommandLine(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	fake.write("a b\n", "")
+	fake.exit(0)
+
+	var stdout bytes.Buffer
+	cmd := target.CommandLine(t.Context(), "echo a b > /dev/stderr; echo a b")
+	cmd.Stdout = &stdout
+
+	require.NoError(t, cmd.Run())
+	assert.Equal(t, "a b\n", stdout.String())
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	assert.Equal(t, "echo a b > /dev/stderr; echo a b", fake.run.Cmd)
+}
+
+// TestCmdCommandForms pins how the two forms of a command resolve into the
+// one line the plugin takes today.
+func TestCmdCommandForms(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		cmd     Cmd
+		want    string
+		wantErr string
+	}{
+		{name: "args", cmd: Cmd{Args: []string{"echo", "a b"}}, want: `'echo' 'a b'`},
+		{name: "cmdline", cmd: Cmd{Cmdline: "echo a b"}, want: "echo a b"},
+		{name: "neither", cmd: Cmd{}, wantErr: "no command given"},
+		{name: "both", cmd: Cmd{Args: []string{"echo"}, Cmdline: "echo"}, wantErr: "only one of Args and Cmdline"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.cmd.commandLine()
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestCmdStreamsStayApart pins that the two streams are never folded into
+// one: a nil writer discards its stream rather than sending it to the other.
+func TestCmdStreamsStayApart(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	fake.write("out", "err")
+	fake.exit(0)
+
+	var stdout, stderr bytes.Buffer
+	cmd := target.Command(t.Context(), "sh", "-c", "...")
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	require.NoError(t, cmd.Run())
+	assert.Equal(t, "out", stdout.String())
+	assert.Equal(t, "err", stderr.String())
+}
+
+// TestCmdNilStderrDiscards pins that a caller that set only Stdout sees only
+// the command's standard output, as os/exec does.
+func TestCmdNilStderrDiscards(t *testing.T) {
 	fake := newFakePlugin()
 	target := newTarget(t, fake)
 
@@ -218,7 +300,7 @@ func TestCmdNilStderrJoinsStreams(t *testing.T) {
 	cmd.Stdout = &stdout
 
 	require.NoError(t, cmd.Run())
-	assert.Equal(t, "outerr", stdout.String())
+	assert.Equal(t, "out", stdout.String())
 }
 
 // TestCmdStdin pins that a reader is forwarded in full and that the command's
@@ -248,6 +330,32 @@ func TestCmdStdin(t *testing.T) {
 	assert.True(t, eof)
 }
 
+// TestCmdStdinFailureClosesInput pins that standard input that fails part way
+// through still closes the command's input, so that a command reading to EOF
+// is not left waiting on input that will never arrive.
+func TestCmdStdinFailureClosesInput(t *testing.T) {
+	fake := newFakePlugin()
+	fake.failStdinData = true
+	target := newTarget(t, fake)
+
+	cmd := target.Command(t.Context(), "cat")
+	cmd.Stdin = strings.NewReader("never arrives\n")
+	cmd.Stdout = io.Discard
+
+	require.NoError(t, cmd.Start())
+	require.Eventually(t, func() bool {
+		_, eof := fake.stdinSeen()
+		return eof
+	}, 5*time.Second, 10*time.Millisecond)
+	fake.exit(0)
+
+	require.NoError(t, cmd.Wait())
+
+	seen, eof := fake.stdinSeen()
+	assert.Empty(t, seen)
+	assert.True(t, eof)
+}
+
 // TestCmdStdinChunked pins that a reader larger than one chunk still arrives
 // whole.
 func TestCmdStdinChunked(t *testing.T) {
@@ -272,8 +380,47 @@ func TestCmdStdinChunked(t *testing.T) {
 	assert.Equal(t, want, seen)
 }
 
+// TestCmdExitStatus pins that a command that exits non-zero is reported as
+// such, with the status it exited with and everything it wrote.
+func TestCmdExitStatus(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	fake.write("", "no such file\n")
+	fake.exit(2)
+
+	var stdout, stderr bytes.Buffer
+	cmd := target.Command(t.Context(), "ls", "/nope")
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	var exit *ExitError
+	err := cmd.Run()
+	require.ErrorAs(t, err, &exit)
+	assert.Equal(t, 2, exit.Code)
+	assert.Equal(t, 2, exit.ExitCode())
+	assert.Equal(t, "cmd-1", exit.UUID)
+	assert.Equal(t, 2, cmd.ExitCode)
+	assert.Equal(t, "no such file\n", stderr.String())
+}
+
+// TestCmdExitStatusZero pins that a command that exits zero is no error, and
+// that the status is readable all the same.
+func TestCmdExitStatusZero(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+	fake.exit(0)
+
+	cmd := target.Command(t.Context(), "true")
+	cmd.Stdout = io.Discard
+
+	require.NoError(t, cmd.Run())
+	assert.Equal(t, 0, cmd.ExitCode)
+}
+
 // TestCmdCancelWithinWaitDelay pins that a command that dies of the interrupt
-// within the delay is reported as having ended, with its output.
+// within the delay is reported as having ended, with its output and the
+// status it died with rather than the cancellation.
 func TestCmdCancelWithinWaitDelay(t *testing.T) {
 	fake := newFakePlugin()
 	target := newTarget(t, fake)
@@ -294,12 +441,41 @@ func TestCmdCancelWithinWaitDelay(t *testing.T) {
 	require.NoError(t, cmd.Start())
 	cancel()
 
-	require.NoError(t, cmd.Wait())
+	var exit *ExitError
+	require.ErrorAs(t, cmd.Wait(), &exit)
+	assert.Equal(t, 130, exit.Code)
+	assert.Equal(t, "interrupted\n", stdout.String())
+}
+
+// TestCmdCancelWaitsByDefault pins that an unset WaitDelay waits for the
+// interrupted command however long it takes, as the zero value of the field
+// of the same name of os/exec.Cmd does.
+func TestCmdCancelWaitsByDefault(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	var stdout bytes.Buffer
+	cmd := target.Command(ctx, "sleep", "300")
+	cmd.Stdout = &stdout
+	cmd.Cancel = func() error {
+		fake.write("interrupted\n", "")
+		fake.exit(130)
+		return nil
+	}
+
+	require.NoError(t, cmd.Start())
+	cancel()
+
+	var exit *ExitError
+	require.ErrorAs(t, cmd.Wait(), &exit)
+	assert.Equal(t, 130, exit.Code)
 	assert.Equal(t, "interrupted\n", stdout.String())
 }
 
 // TestCmdCancelWaitDelayExpires pins that a command that ignores the interrupt
-// is given up on once the delay is out, and is still addressable by UUID.
+// is given up on once a delay that was asked for is out, and is still
+// addressable by UUID.
 func TestCmdCancelWaitDelayExpires(t *testing.T) {
 	fake := newFakePlugin()
 	target := newTarget(t, fake)
@@ -326,7 +502,6 @@ func TestCmdCancelError(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cmd := target.Command(ctx, "sleep", "300")
 	cmd.Stdout = io.Discard
-	cmd.WaitDelay = WaitForever
 
 	sentinel := errors.New("could not interrupt")
 	cmd.Cancel = func() error { return sentinel }
@@ -377,7 +552,13 @@ func TestCmdMisuse(t *testing.T) {
 	fake.exit(0)
 
 	t.Run("no-command", func(t *testing.T) {
-		cmd := target.CommandLine(t.Context(), nil)
+		cmd := target.CommandArgs(t.Context(), nil)
+		require.Error(t, cmd.Err)
+		assert.ErrorContains(t, cmd.Run(), "no command given")
+	})
+
+	t.Run("no-command-line", func(t *testing.T) {
+		cmd := target.CommandLine(t.Context(), "")
 		require.Error(t, cmd.Err)
 		assert.ErrorContains(t, cmd.Run(), "no command given")
 	})
