@@ -204,9 +204,28 @@ func TestCmdRun(t *testing.T) {
 	assert.Equal(t, map[string]string{"DEBUG": "true"}, *fake.run.Env)
 }
 
-// TestCmdNilStderrJoinsStreams pins that a caller that set only Stdout gets
-// both of the command's streams there, the way a terminal shows them.
-func TestCmdNilStderrJoinsStreams(t *testing.T) {
+// TestCmdStreamsStayApart pins that the two streams are never folded into
+// one: a nil writer discards its stream rather than sending it to the other.
+func TestCmdStreamsStayApart(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	fake.write("out", "err")
+	fake.exit(0)
+
+	var stdout, stderr bytes.Buffer
+	cmd := target.Command(t.Context(), "sh", "-c", "...")
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	require.NoError(t, cmd.Run())
+	assert.Equal(t, "out", stdout.String())
+	assert.Equal(t, "err", stderr.String())
+}
+
+// TestCmdNilStderrDiscards pins that a caller that set only Stdout sees only
+// the command's standard output, as os/exec does.
+func TestCmdNilStderrDiscards(t *testing.T) {
 	fake := newFakePlugin()
 	target := newTarget(t, fake)
 
@@ -218,7 +237,7 @@ func TestCmdNilStderrJoinsStreams(t *testing.T) {
 	cmd.Stdout = &stdout
 
 	require.NoError(t, cmd.Run())
-	assert.Equal(t, "outerr", stdout.String())
+	assert.Equal(t, "out", stdout.String())
 }
 
 // TestCmdStdin pins that a reader is forwarded in full and that the command's

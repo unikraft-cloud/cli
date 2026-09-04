@@ -86,11 +86,14 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 		in = strings.NewReader("")
 	}
 
+	out := xio.Unwrap(stdio.Stdout)
+
 	cmd := target.CommandLine(ctx, c.Cmd)
 	cmd.Dir = c.Dir
 	cmd.Env = env
 	cmd.Stdin = in
-	cmd.Stdout = xio.Unwrap(stdio.Stdout)
+	cmd.Stdout = out
+	cmd.Stderr = out
 
 	return cmd.Run()
 }
