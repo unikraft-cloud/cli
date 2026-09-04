@@ -990,7 +990,7 @@ func TestEdit_SimulateActualCommand(t *testing.T) {
 	}
 
 	// Step 3: Apply patches (like patch.PatchedFields)
-	patched, err := PatchedFields(fields, spec)
+	patched, err := PatchedFields(t.Context(), fields, spec)
 	require.NoError(t, err)
 
 	t.Log("Patched fields (from --set):")

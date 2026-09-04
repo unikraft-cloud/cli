@@ -14,8 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/kingkong"
@@ -37,79 +35,34 @@ type ServicesCmd struct {
 	cmd.ListableResourceCmd[ServiceGroup]
 	cmd.BulkDeletableResourceCmd[ServiceGroup]
 
-	Create ServiceCreateCmd `cmd:"" help:"Create a service group."`
-	Edit   ServiceEditCmd   `cmd:"" help:"Edit a service group."`
-}
-
-// ServiceCreateCmd extends the generic resource create command with shortcut
-// flags for commonly used service group fields. Each field tagged with
-// `shortcut:"<path>"` is translated into a --set <path>=<value> entry before
-// the standard create pipeline runs.
-type ServiceCreateCmd struct {
-	cmd.ResourceCreateCmd[ServiceGroup]
-
-	Metro string `group:"flag-create" shortcut:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo,nyc"`
-	Name  string `group:"flag-create" shortcut:"name" help:"Service group name." placeholder:"name"`
-
-	SoftLimit uint64 `group:"flag-create" shortcut:"limits.soft" help:"Soft limit." placeholder:"n" example:"1,5"`
-	HardLimit uint64 `group:"flag-create" shortcut:"limits.hard" help:"Hard limit." placeholder:"n" example:"10,100"`
-
-	Domain  []Domain  `group:"flag-create" shortcut:"domains" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
-	Service []Service `group:"flag-create" shortcut:"services" sep:"none" help:"Service port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
-}
-
-func (c *ServiceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
-}
-
-// ServiceEditCmd extends the generic resource edit command with shortcut
-// flags for commonly used editable service group fields. Each field tagged with
-// `shortcut:"<path>"` is translated into a --set <path>=<value> entry before
-// the standard edit pipeline runs.
-type ServiceEditCmd struct {
-	cmd.ResourceEditCmd[ServiceGroup]
-
-	SoftLimit uint64 `group:"flag-edit" shortcut:"limits.soft" help:"Soft limit." placeholder:"n" example:"1,5"`
-	HardLimit uint64 `group:"flag-edit" shortcut:"limits.hard" help:"Hard limit." placeholder:"n" example:"10,100"`
-
-	Domain  []Domain  `group:"flag-edit" shortcut:"domains" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
-	Service []Service `group:"flag-edit" shortcut:"services" sep:"none" help:"Service port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
-}
-
-func (c *ServiceEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceEditCmd.Run(ctx, stdio, partition)
+	Create cmd.ResourceCreateCmd[ServiceGroup] `cmd:"" help:"Create a service group."`
+	Edit   cmd.ResourceEditCmd[ServiceGroup]   `cmd:"" help:"Edit a service group."`
 }
 
 type ServiceGroup struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required"`
-	Name  string          `mirror:"service_group.name" field:",short" create:"set"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"service_group.name" field:",short" create:"set" flag:"name" help:"Service group name." placeholder:"name"`
 	UUID  string          `mirror:"service_group.uuid" field:",long"`
 
 	Persistent bool `mirror:"service_group.persistent" field:",long"`
 	Autoscale  bool `mirror:"service_group.autoscale" field:",short"`
 
 	Limits struct {
-		Soft uint64 `mirror:"service_group.soft_limit" field:",long" create:"set" edit:"set"`
-		Hard uint64 `mirror:"service_group.hard_limit" field:",long" create:"set" edit:"set"`
+		Soft uint64 `mirror:"service_group.soft_limit" field:",long" create:"set" edit:"set" flag:"soft-limit" help:"Soft limit." placeholder:"n" example:"1,5"`
+		Hard uint64 `mirror:"service_group.hard_limit" field:",long" create:"set" edit:"set" flag:"hard-limit" help:"Hard limit." placeholder:"n" example:"10,100"`
 	}
 
 	Timestamps struct {
 		Created types.RelativeTime `mirror:"service_group.created_at" field:",short"`
 	}
 
-	Domains []Domain `mirror:"service_group.domains" field:",embed" create:"set" edit:"set,add,del"`
+	Domains []Domain `mirror:"service_group.domains" field:",embed" create:"set" edit:"set,add,del" flag:"domain" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
 
 	Instances []struct {
 		Link[Instance]
 	} `mirror:"service_group.instances"`
 
-	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del"`
+	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del" flag:"service" sep:"none" help:"Service port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
 
 	ServiceGroup platform.ServiceGroup `field:"-" json:"service_group"`
 

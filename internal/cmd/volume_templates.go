@@ -11,8 +11,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alecthomas/kong"
-
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/kingkong"
@@ -33,42 +31,8 @@ type VolumeTemplatesCmd struct {
 	cmd.ListableResourceCmd[VolumeTemplate]
 	cmd.BulkDeletableResourceCmd[VolumeTemplate]
 
-	Create VolumeTemplateCreateCmd `cmd:"" help:"Create a volume template."`
-	Edit   VolumeTemplateEditCmd   `cmd:"" help:"Edit a volume template."`
-}
-
-// VolumeTemplateCreateCmd extends the generic resource create command with
-// positional volume IDs.
-type VolumeTemplateCreateCmd struct {
-	cmd.ResourceCreateCmd[VolumeTemplate]
-
-	Target string `arg:"" name:"volume" optional:"" completion-predictor:"resource-key-volume" help:"Volume to convert into a template."`
-}
-
-func (c *VolumeTemplateCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	if c.Target != "" {
-		c.Set = append(c.Set, map[string]string{"volume": c.Target})
-	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
-}
-
-// VolumeTemplateEditCmd extends the generic resource edit command with
-// shortcut flags for commonly used editable template fields.
-type VolumeTemplateEditCmd struct {
-	cmd.ResourceEditCmd[VolumeTemplate]
-
-	Tag        []string `group:"flag-edit" shortcut:"tags" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
-	DeleteLock *bool    `group:"flag-edit" shortcut:"delete-lock" help:"Prevent deletion of the template."`
-}
-
-func (c *VolumeTemplateEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceEditCmd.Run(ctx, stdio, partition)
+	Create cmd.ResourceCreateCmd[VolumeTemplate] `cmd:"" help:"Create a volume template."`
+	Edit   cmd.ResourceEditCmd[VolumeTemplate]   `cmd:"" help:"Edit a volume template."`
 }
 
 type VolumeTemplate struct {
@@ -76,8 +40,8 @@ type VolumeTemplate struct {
 	Name  string          `mirror:"volume.name" field:",short"`
 	UUID  string          `mirror:"volume.uuid" field:",long"`
 
-	Tags       []string `mirror:"volume.tags" field:",long" edit:"set,add,del"`
-	DeleteLock bool     `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set"`
+	Tags       []string `mirror:"volume.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
+	DeleteLock bool     `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the template."`
 
 	State      types.VolumeState   `mirror:"volume.state" field:",short"`
 	Size       types.SizeMebibytes `mirror:"volume.size_mb" field:",short"`
@@ -88,7 +52,7 @@ type VolumeTemplate struct {
 		Created types.RelativeTime `mirror:"volume.created_at" field:",short"`
 	}
 
-	VolumeRef string `field:"volume,invisible,valueless" create:"set,required"`
+	VolumeRef string `field:"volume,invisible,valueless" create:"set,required" flag-arg:"volume" completion-predictor:"resource-key-volume" help:"Volume to convert into a template."`
 
 	Volume  platform.Volume `field:"-" json:"volume"`
 	Profile *config.Profile `field:"-" json:"profile"`

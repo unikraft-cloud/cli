@@ -472,9 +472,15 @@ Global flags:
 Create flags:
       --metro=<metro>
           Metro to deploy in.
-          [examples: fra, sfo, nyc]
+          [examples: fra, sfo]
   -n, --name=<name>
           Instance name.
+      --tag=<tag> ...
+          Instance tag.
+          [example: env-prod]
+      --annotation=<key>=<value> ...
+          Instance annotation.
+          [examples: env=production, example.com/team=platform]
       --image=<name>:<tag>
           Image to deploy.
           [examples: nginx:latest, my-app:v1.2.3]
@@ -498,9 +504,14 @@ Create flags:
       --gpus=<n>
           Number of GPUs to attach. Requires type "full" and a plan with GPU support. Currently limited to 1.
           [examples: 0, 1]
-      --sched-priority=<priority>
-          Scheduling priority for the instance.
-          [examples: normal, medium, high, admin]
+      --service=<name>
+          Service group name or key.
+  -p, --publish=<src>:<dest>[/<handlers>] ...
+          Publish port.
+          [example: 443:8080/http+tls]
+      --domain=<fqdn> ...
+          Service domain.
+          [example: example.com]
   -v, --volume=<name>:<path>[:<options>] ...
           Attach volume.
           [examples: my-vol:/data, cache:/tmp:ro, data:/mnt:size=10GiB]
@@ -510,14 +521,6 @@ Create flags:
       --plugin=name=<name>,rom=<ref>[,config=<json>] ...
           Load plugin into the instance.
           [examples: name=sandbox,rom=plugins/sandbox:latest, name=logger,rom=plugins/logger:latest,config={"level":"debug"}]
-      --service=<name>
-          Service group name or key.
-  -p, --publish=<src>:<dest>[/<handlers>] ...
-          Publish port.
-          [example: 443:8080/http+tls]
-      --domain=<fqdn> ...
-          Service domain.
-          [example: example.com]
       --scale-to-zero=<key>=<value>
           Scale-to-zero options.
             policy: on | idle | off
@@ -525,15 +528,12 @@ Create flags:
             notify-time: notification time in ms before scaling to zero
             stateful: true | false.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
-      --tag=<tag> ...
-          Instance tag.
-          [example: env-prod]
-      --annotation=<key>=<value> ...
-          Instance annotation.
-          [examples: env=production, example.com/team=platform]
       --restart=<policy>
           Restart policy.
           [examples: always, on-failure, never]
+      --sched-priority=<priority>
+          Scheduling priority for the instance.
+          [examples: normal, medium, high, admin]
       --autostart
           Start instance automatically.
       --replicas=<n>
@@ -664,9 +664,15 @@ Global flags:
 Create flags:
       --metro=<metro>
           Metro to deploy in.
-          [examples: fra, sfo, nyc]
+          [examples: fra, sfo]
   -n, --name=<name>
           Instance name.
+      --tag=<tag> ...
+          Instance tag.
+          [example: env-prod]
+      --annotation=<key>=<value> ...
+          Instance annotation.
+          [examples: env=production, example.com/team=platform]
       --image=<name>:<tag>
           Image to deploy.
           [examples: nginx:latest, my-app:v1.2.3]
@@ -690,9 +696,14 @@ Create flags:
       --gpus=<n>
           Number of GPUs to attach. Requires type "full" and a plan with GPU support. Currently limited to 1.
           [examples: 0, 1]
-      --sched-priority=<priority>
-          Scheduling priority for the instance.
-          [examples: normal, medium, high, admin]
+      --service=<name>
+          Service group name or key.
+  -p, --publish=<src>:<dest>[/<handlers>] ...
+          Publish port.
+          [example: 443:8080/http+tls]
+      --domain=<fqdn> ...
+          Service domain.
+          [example: example.com]
   -v, --volume=<name>:<path>[:<options>] ...
           Attach volume.
           [examples: my-vol:/data, cache:/tmp:ro, data:/mnt:size=10GiB]
@@ -702,14 +713,6 @@ Create flags:
       --plugin=name=<name>,rom=<ref>[,config=<json>] ...
           Load plugin into the instance.
           [examples: name=sandbox,rom=plugins/sandbox:latest, name=logger,rom=plugins/logger:latest,config={"level":"debug"}]
-      --service=<name>
-          Service group name or key.
-  -p, --publish=<src>:<dest>[/<handlers>] ...
-          Publish port.
-          [example: 443:8080/http+tls]
-      --domain=<fqdn> ...
-          Service domain.
-          [example: example.com]
       --scale-to-zero=<key>=<value>
           Scale-to-zero options.
             policy: on | idle | off
@@ -717,15 +720,12 @@ Create flags:
             notify-time: notification time in ms before scaling to zero
             stateful: true | false.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
-      --tag=<tag> ...
-          Instance tag.
-          [example: env-prod]
-      --annotation=<key>=<value> ...
-          Instance annotation.
-          [examples: env=production, example.com/team=platform]
       --restart=<policy>
           Restart policy.
           [examples: always, on-failure, never]
+      --sched-priority=<priority>
+          Scheduling priority for the instance.
+          [examples: normal, medium, high, admin]
       --autostart
           Start instance automatically.
       --replicas=<n>
@@ -867,9 +867,15 @@ Global flags:
 Create flags:
       --metro=<metro>
           Metro to deploy in.
-          [examples: fra, sfo, nyc]
+          [examples: fra, sfo]
   -n, --name=<name>
           Instance name.
+      --tag=<tag> ...
+          Instance tag.
+          [example: env-prod]
+      --annotation=<key>=<value> ...
+          Instance annotation.
+          [examples: env=production, example.com/team=platform]
       --image=<name>:<tag>
           Image to deploy.
           [examples: nginx:latest, my-app:v1.2.3]
@@ -893,9 +899,14 @@ Create flags:
       --gpus=<n>
           Number of GPUs to attach. Requires type "full" and a plan with GPU support. Currently limited to 1.
           [examples: 0, 1]
-      --sched-priority=<priority>
-          Scheduling priority for the instance.
-          [examples: normal, medium, high, admin]
+      --service=<name>
+          Service group name or key.
+  -p, --publish=<src>:<dest>[/<handlers>] ...
+          Publish port.
+          [example: 443:8080/http+tls]
+      --domain=<fqdn> ...
+          Service domain.
+          [example: example.com]
   -v, --volume=<name>:<path>[:<options>] ...
           Attach volume.
           [examples: my-vol:/data, cache:/tmp:ro, data:/mnt:size=10GiB]
@@ -905,14 +916,6 @@ Create flags:
       --plugin=name=<name>,rom=<ref>[,config=<json>] ...
           Load plugin into the instance.
           [examples: name=sandbox,rom=plugins/sandbox:latest, name=logger,rom=plugins/logger:latest,config={"level":"debug"}]
-      --service=<name>
-          Service group name or key.
-  -p, --publish=<src>:<dest>[/<handlers>] ...
-          Publish port.
-          [example: 443:8080/http+tls]
-      --domain=<fqdn> ...
-          Service domain.
-          [example: example.com]
       --scale-to-zero=<key>=<value>
           Scale-to-zero options.
             policy: on | idle | off
@@ -920,15 +923,12 @@ Create flags:
             notify-time: notification time in ms before scaling to zero
             stateful: true | false.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
-      --tag=<tag> ...
-          Instance tag.
-          [example: env-prod]
-      --annotation=<key>=<value> ...
-          Instance annotation.
-          [examples: env=production, example.com/team=platform]
       --restart=<policy>
           Restart policy.
           [examples: always, on-failure, never]
+      --sched-priority=<priority>
+          Scheduling priority for the instance.
+          [examples: normal, medium, high, admin]
       --autostart
           Start instance automatically.
       --replicas=<n>
@@ -1056,6 +1056,12 @@ Global flags:
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
 Edit flags:
+      --tag=<tag> ...
+          Instance tag.
+          [example: env-prod]
+      --annotation=<key>=<value> ...
+          Instance annotation.
+          [examples: env=production, example.com/team=platform]
       --image=<name>:<tag>
           Image to deploy.
           [examples: nginx:latest, my-app:v1.2.3]
@@ -1070,21 +1076,12 @@ Edit flags:
       --vcpus=<n>
           Number of vCPUs.
           [examples: 1, 2, 4]
-      --sched-priority=<priority>
-          Scheduling priority for the instance.
-          [examples: normal, medium, high, admin]
       --rom=image=<ref>,at=<path> ...
           Attach ROM.
           [examples: image=myuser/my-rom:latest,at=/rom0,name=my-rom, dir=./mydata,at=/rom]
       --plugin=name=<name>,rom=<ref>[,config=<json>] ...
           Load plugin into the instance.
           [examples: name=sandbox,rom=plugins/sandbox:latest, name=logger,rom=plugins/logger:latest,config={"level":"debug"}]
-      --tag=<tag> ...
-          Instance tag.
-          [example: env-prod]
-      --annotation=<key>=<value> ...
-          Instance annotation.
-          [examples: env=production, example.com/team=platform]
       --scale-to-zero=<key>=<value>
           Scale-to-zero options.
             policy: on | idle | off
@@ -1092,6 +1089,9 @@ Edit flags:
             notify-time: notification time in ms before scaling to zero
             stateful: true | false.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
+      --sched-priority=<priority>
+          Scheduling priority for the instance.
+          [examples: normal, medium, high, admin]
       --delete-lock
           Prevent instance deletion until the lock is removed.
 

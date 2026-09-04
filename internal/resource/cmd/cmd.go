@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kong"
+
 	"unikraft.com/x/filters"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
@@ -594,6 +596,8 @@ func (cmd *ResourceBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio
 type ResourceEditCmd[R resource.EditableResource] struct {
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-${name}" help:"Target ${name} to edit."`
 
+	generated *FlagSet
+
 	SetArgs
 	AddArgs
 	DelArgs
@@ -635,7 +639,17 @@ func (cmd *ResourceEditCmd[R]) toPatchSpec() (patch.PatchSpec, error) {
 	if err := cmd.DelArgs.Apply(&spec); err != nil {
 		return spec, err
 	}
-	return spec, nil
+	return spec, cmd.generated.Apply(&spec)
+}
+
+func (cmd *ResourceEditCmd[R]) BuildFlags(opts ...kong.Option) (*FlagSet, error) {
+	var empty R
+	fields, err := empty.Fields(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	cmd.generated, err = GenerateFlags(fields, false, "flag-edit", opts...)
+	return cmd.generated, err
 }
 
 func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -695,7 +709,7 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, part
 	if err != nil {
 		return fmt.Errorf("failed to get fields: %w", err)
 	}
-	patched, err := patch.PatchedFields(fields, spec)
+	patched, err := patch.PatchedFields(ctx, fields, spec)
 	if err != nil {
 		return err
 	}
@@ -759,6 +773,8 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, part
 type ResourceCreateCmd[R resource.CreatableResource] struct {
 	SetArgs
 
+	generated *FlagSet
+
 	Visual bool   `xor:"edit-mode" help:"Open an editor to modify fields visually."`
 	Cmd    string `xor:"edit-mode" help:"Run a command to edit fields (receives YAML on stdin, outputs edited YAML on stdout)."`
 	Load   []byte `xor:"edit-mode" collapse:"file-mode" type:"filecontent" help:"Load fields from a YAML file."`
@@ -781,6 +797,21 @@ func (cmd ResourceCreateCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
+func (cmd *ResourceCreateCmd[R]) BuildFlags(opts ...kong.Option) (*FlagSet, error) {
+	var empty R
+	fields, err := empty.Fields(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	cmd.generated, err = GenerateFlags(fields, true, "flag-create", opts...)
+	return cmd.generated, err
+}
+
+// GeneratedFlags returns the flags built from the resource's schema.
+func (cmd *ResourceCreateCmd[R]) GeneratedFlags() *FlagSet {
+	return cmd.generated
+}
+
 func (cmd *ResourceCreateCmd[R]) toPatchSpec() (patch.PatchSpec, error) {
 	spec := patch.PatchSpec{
 		Create: true,
@@ -789,7 +820,7 @@ func (cmd *ResourceCreateCmd[R]) toPatchSpec() (patch.PatchSpec, error) {
 	if err := cmd.Apply(&spec); err != nil {
 		return spec, err
 	}
-	return spec, nil
+	return spec, cmd.generated.Apply(&spec)
 }
 
 func (cmd *ResourceCreateCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -809,7 +840,9 @@ func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.
 	if typed, ok := any(empty).(interface {
 		WithType(string) resource.Resource
 	}); ok {
-		if values := spec.Set["type"]; len(values) > 0 {
+		if v, ok := spec.SetTyped["type"].(string); ok && v != "" {
+			fieldsResource = typed.WithType(v)
+		} else if values := spec.Set["type"]; len(values) > 0 {
 			fieldsResource = typed.WithType(values[0])
 		}
 	}
@@ -817,7 +850,7 @@ func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.
 	if err != nil {
 		return nil, fmt.Errorf("failed to get fields: %w", err)
 	}
-	patched, err := patch.PatchedFields(fields, spec)
+	patched, err := patch.PatchedFields(ctx, fields, spec)
 	if err != nil {
 		return nil, err
 	}

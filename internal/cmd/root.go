@@ -297,14 +297,14 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 		Title: kingkong.Underline("Global flags") + ":",
 	}
 
-	return kong.New(cli,
+	opts := []kong.Option{
 		kong.Name("unikraft"),
 		kong.UsageOnError(),
 		kong.Description("The Unikraft Command-Line Interface."),
-		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n"+
-			"    _         \n"+
-			"  c'3'o  .-.  Docs:   https://unikraft.com/docs/cli\n"+
-			"  (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues\n"+
+		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n" +
+			"    _         \n" +
+			"  c'3'o  .-.  Docs:   https://unikraft.com/docs/cli\n" +
+			"  (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues\n" +
 			"              "),
 		kong.ConfigureHelp(helpOptions),
 		kong.Help(kingkong.HelpPrinter(version.Version)),
@@ -367,7 +367,11 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 		}),
 		kong.NamedMapper("optional", xkong.Optional()),
 		sandboxKongVars,
-	)
+	}
+
+	return kong.New(cli, append(opts, kong.PostBuild(func(k *kong.Kong) error {
+		return cmd.AttachGeneratedFlags(k, opts...)
+	}))...)
 }
 
 var PartitionedResources = []resource.Resource{

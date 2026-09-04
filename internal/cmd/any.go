@@ -12,9 +12,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/alecthomas/kong"
-
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	xslices "unikraft.com/cli/internal/x/slices"
@@ -26,40 +23,10 @@ type AnyResourceCmd struct {
 	cmd.GettableResourceCmd[AnyResource]
 	cmd.ListableResourceCmd[AnyResource]
 
-	Create AnyResourceCreateCmd `cmd:"" help:"Create a resource."`
-	Edit   AnyResourceEditCmd   `cmd:"" help:"Edit a resource."`
+	Create cmd.ResourceCreateCmd[AnyResource] `cmd:"" help:"Create a resource."`
+	Edit   cmd.ResourceEditCmd[AnyResource]   `cmd:"" help:"Edit a resource."`
 
 	cmd.BulkDeletableResourceCmd[AnyResource]
-}
-
-// AnyResourceCreateCmd extends the generic resource create command with shortcut
-// flags for commonly used resource fields. Each field tagged with
-// `shortcut:"<path>"` is translated into a --set <path>=<value> entry before
-// the standard create pipeline runs.
-type AnyResourceCreateCmd struct {
-	cmd.ResourceCreateCmd[AnyResource]
-
-	Type string `group:"flag-create" shortcut:"type" help:"Resource type." placeholder:"type" example:"instance,volume,service,certificate"`
-}
-
-func (c *AnyResourceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
-}
-
-// AnyResourceEditCmd extends the generic resource edit command to enable
-// shortcut flag handling.
-type AnyResourceEditCmd struct {
-	cmd.ResourceEditCmd[AnyResource]
-}
-
-func (c *AnyResourceEditCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, kctx *kong.Context) error {
-	if err := cmd.ApplyShortcutFlags(&c.SetArgs, kctx.Flags()); err != nil {
-		return err
-	}
-	return c.ResourceEditCmd.Run(ctx, stdio, partition)
 }
 
 var resourceBackends = []resource.Resource{
@@ -99,7 +66,7 @@ func wrapAnyResource(res resource.Resource) AnyResource {
 // When populated, resources have their full fields. When empty (header field),
 // it only has "type" and "key" fields.
 type AnyResource struct {
-	Type_ string `field:"type,short" create:"set,required"`
+	Type_ string `field:"type,short" create:"set,required" flag:"type" help:"Resource type." placeholder:"type" example:"instance,volume,service,certificate"`
 	Key_  string `field:"key,short"`
 
 	// The actual underlying resource, if populated

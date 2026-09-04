@@ -141,6 +141,7 @@ func fieldFromValue(pf *ParsedField, v reflect.Value) (*Field, error) {
 		KeepZero:  pf.KeepZero,
 		Create:    createPatch,
 		Edit:      editPatch,
+		Flag:      pf.Flag,
 	}
 
 	newField, err := fieldFromStruct(pf, v)
@@ -298,6 +299,8 @@ type ParsedField struct {
 
 	Edit   *Patch
 	Create *Patch
+
+	Flag *FlagSpec
 }
 
 func ParseField(field reflect.StructField, value reflect.Value) (*ParsedField, error) {
@@ -341,6 +344,11 @@ func ParseField(field reflect.StructField, value reflect.Value) (*ParsedField, e
 	valueless := slices.Contains(opts, "valueless")
 	keepZero := slices.Contains(opts, "keepzero")
 
+	flag, err := parseFlagSpec(field, create, edit)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ParsedField{
 		Name:      name,
 		Verbosity: verbosity,
@@ -350,7 +358,28 @@ func ParseField(field reflect.StructField, value reflect.Value) (*ParsedField, e
 		KeepZero:  keepZero,
 		Edit:      edit,
 		Create:    create,
+		Flag:      flag,
 	}, nil
+}
+
+// parseFlagSpec reads the opt-in `flag:"<name>"` tag, `flag-file:"<name>"` for
+// a flag naming a file whose contents are the value, or `flag-arg:"<name>"`
+// for a positional argument. No tag, no flag.
+func parseFlagSpec(field reflect.StructField, create, edit *Patch) (*FlagSpec, error) {
+	name, file, arg := field.Tag.Get("flag"), false, false
+	if name == "" {
+		name, file = field.Tag.Get("flag-file"), true
+	}
+	if name == "" {
+		name, file, arg = field.Tag.Get("flag-arg"), false, true
+	}
+	if name == "" {
+		return nil, nil
+	}
+	if (create == nil || create.Set == nil) && (edit == nil || edit.Set == nil) {
+		return nil, fmt.Errorf("field %s has flag:%q but is not settable", field.Name, name)
+	}
+	return &FlagSpec{Name: name, File: file, Arg: arg, Tag: field.Tag}, nil
 }
 
 func parsePatch(tp reflect.Type, val reflect.Value, tag string) (*Patch, error) {

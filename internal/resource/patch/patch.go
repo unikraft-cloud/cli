@@ -6,9 +6,14 @@
 package patch
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"iter"
+	"reflect"
+	"slices"
+
+	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/value"
@@ -21,6 +26,10 @@ type PatchSpec struct {
 	Set map[string][]string
 	Add map[string][]string
 	Del map[string][]string
+
+	// SetTyped skips parsing for values that already are the field's type.
+	// It takes precedence over Set.
+	SetTyped map[string]any
 }
 
 func (spec *PatchSpec) Keys() iter.Seq[string] {
@@ -40,14 +49,20 @@ func (spec *PatchSpec) Keys() iter.Seq[string] {
 				return
 			}
 		}
+		for key := range spec.SetTyped {
+			if !yield(key) {
+				return
+			}
+		}
 	}
 }
 
 // PatchedFields applies the given PatchSpec to the provided fields, returning
 // only the modified fields or an error if the patching process encounters
 // issues.
-func PatchedFields(fields []resource.Field, spec PatchSpec) ([]resource.Field, error) {
+func PatchedFields(ctx context.Context, fields []resource.Field, spec PatchSpec) ([]resource.Field, error) {
 	foundFields := make(map[string]struct{})
+	typedFields := make(map[string]struct{})
 	setForbiddenFields := make(map[string]struct{})
 	addForbiddenFields := make(map[string]struct{})
 	delForbiddenFields := make(map[string]struct{})
@@ -72,19 +87,43 @@ func PatchedFields(fields []resource.Field, spec PatchSpec) ([]resource.Field, e
 			original = &resource.Patch{}
 		}
 
-		if vs, ok := spec.Set[keyStr]; ok {
-			if original.Set != nil {
-				set, err := value.ParseNew(vs, original.Set)
+		typed, hasTyped := spec.SetTyped[keyStr]
+		strs, hasStrs := spec.Set[keyStr]
+
+		typedFits := hasTyped && original.Set != nil &&
+			reflect.TypeOf(typed) == reflect.TypeOf(original.Set)
+		if hasTyped && original.Set != nil && !typedFits {
+			// One path can cover several fields of different types, as when
+			// a resource and the backend it wraps both have a "type". The
+			// flag fits one of them; --set reaches the rest.
+			log.G(ctx).Debug().
+				Str("field", keyStr).
+				Stringer("got", reflect.TypeOf(typed)).
+				Stringer("want", reflect.TypeOf(original.Set)).
+				Msg("skipping flag value that does not fit this field")
+		}
+
+		switch {
+		case original.Set == nil && (hasTyped || hasStrs):
+			setForbiddenFields[keyStr] = struct{}{}
+		case typedFits || hasStrs:
+			var set any
+			if hasStrs {
+				parsed, err := value.ParseNew(strs, original.Set)
 				if err != nil {
 					return nil, fmt.Errorf("failed to unpack set value for %s: %w", keyStr, err)
 				}
-				*patch = &resource.Patch{Set: set}
-			} else {
-				setForbiddenFields[keyStr] = struct{}{}
+				set = parsed
 			}
-		} else if spec.Create && original.Set != nil && !value.IsZero(original.Set) {
+			if typedFits {
+				typedFields[keyStr] = struct{}{}
+				set = mergeSet(set, typed, hasStrs)
+			}
+			*patch = &resource.Patch{Set: set}
+		case spec.Create && original.Set != nil && !value.IsZero(original.Set):
 			*patch = &resource.Patch{Set: original.Set}
 		}
+
 		if vs, ok := spec.Add[keyStr]; ok {
 			if original.Add != nil {
 				add, err := value.ParseNew(vs, original.Add)
@@ -120,7 +159,21 @@ func PatchedFields(fields []resource.Field, spec PatchSpec) ([]resource.Field, e
 		}
 	}
 
+	unfittedFields := make([]string, 0)
+	for key := range spec.SetTyped {
+		_, fitted := typedFields[key]
+		_, found := foundFields[key]
+		_, forbidden := setForbiddenFields[key]
+		if !fitted && found && !forbidden {
+			unfittedFields = append(unfittedFields, key)
+		}
+	}
+
 	var err error
+	if len(unfittedFields) > 0 {
+		slices.Sort(unfittedFields)
+		err = errors.Join(err, fmt.Errorf("no field of a matching type for: %v", unfittedFields))
+	}
 	if len(unknownFields) > 0 {
 		err = errors.Join(err, fmt.Errorf("unknown fields: %v", unknownFields))
 	}
@@ -141,6 +194,34 @@ func PatchedFields(fields []resource.Field, spec PatchSpec) ([]resource.Field, e
 		return FilterCreateFields(fields), nil
 	}
 	return FilterEditFields(fields), nil
+}
+
+// mergeSet combines a value parsed from --set with one from a flag naming the
+// same field. Slices concatenate and maps overlay, both with the flag's
+// entries last; a scalar takes the flag's value outright.
+func mergeSet(base, typed any, hasBase bool) any {
+	if !hasBase {
+		return typed
+	}
+	b, t := reflect.ValueOf(base), reflect.ValueOf(typed)
+	if !b.IsValid() || b.Kind() != t.Kind() {
+		return typed
+	}
+	switch t.Kind() {
+	case reflect.Slice:
+		return reflect.AppendSlice(b, t).Interface()
+	case reflect.Map:
+		out := reflect.MakeMap(t.Type())
+		for _, k := range b.MapKeys() {
+			out.SetMapIndex(k, b.MapIndex(k))
+		}
+		for _, k := range t.MapKeys() {
+			out.SetMapIndex(k, t.MapIndex(k))
+		}
+		return out.Interface()
+	default:
+		return typed
+	}
 }
 
 // ValidateRequired checks that all required fields have a value set in the patches.
