@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/containerd/continuity/fs/fstest"
 	"github.com/stretchr/testify/assert"
@@ -78,6 +79,21 @@ func remoteContents(t *testing.T, r *integ.TestEnv, instName, remote string) str
 	return string(data)
 }
 
+// restartInstance restarts through a shell on the instance and waits for it to
+// come back, which is what a volume change needs to take effect.
+func restartInstance(t *testing.T, r *integ.TestEnv, instName string) {
+	t.Helper()
+
+	shell(t, r, instName, ":restart")
+	r.Run(t, []string{"unikraft", "--timeout", "60s", "instance", "wait", "--until", "state==running", instName})
+}
+
+func shell(t *testing.T, r *integ.TestEnv, instName, line string, opts ...integ.CmdOption) string {
+	t.Helper()
+
+	return r.Run(t, []string{"unikraft", "instance", "shell", instName, "-c", line}, opts...)
+}
+
 func TestSandbox(t *testing.T) {
 	// One instance covers all of these: they only run commands on it.
 	t.Run("exec", func(t *testing.T) {
@@ -88,6 +104,9 @@ func TestSandbox(t *testing.T) {
 		out := r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "echo to-stdout; echo to-stderr >&2"})
 		assert.Contains(t, out, "to-stdout")
 		assert.Contains(t, out, "to-stderr")
+
+		// A command that fails on the instance is not this CLI failing.
+		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "exit 3"})
 
 		// The command is a command line by the time it reaches the plugin, so
 		// arguments the shell would otherwise split or expand are quoted first.
@@ -330,6 +349,170 @@ func TestSandbox(t *testing.T) {
 			assert.Equal(t, "qualified\n", remoteContents(t, r, instName, nameRemote))
 
 			r.Run(t, []string{"unikraft", "instance", "delete", instName})
+		})
+	})
+
+	t.Run("shell", func(t *testing.T) {
+		t.Run("commands", func(t *testing.T) {
+			r := runner(t, true, []string{staging})
+			instName := newSandboxInstance(t, r)
+
+			assert.Contains(t, shell(t, r, instName, "cd /etc && pwd"), "/etc")
+			assert.Contains(t, shell(t, r, instName, "false; echo status=$?"), "status=1")
+			assert.Contains(t, shell(t, r, instName, "true && echo yes || echo no"), "yes")
+
+			globDir := "/sb-glob-" + uniq()
+			require.Contains(t, shell(t, r, instName,
+				"mkdir -p "+globDir+" && touch "+globDir+"/one.log "+globDir+"/two.log "+globDir+
+					"/skip.txt && echo setup-ok"), "setup-ok")
+
+			globbed := shell(t, r, instName, "cd "+globDir+"; echo *.log")
+			assert.Contains(t, globbed, "one.log")
+			assert.Contains(t, globbed, "two.log")
+			assert.NotContains(t, globbed, "skip.txt")
+			assert.Contains(t, shell(t, r, instName, "[ -d "+globDir+" ] && echo is-a-dir"), "is-a-dir")
+
+			remote := "/sb-shell-" + uniq() + ".txt"
+			shell(t, r, instName, "echo written-by-the-shell > "+remote)
+			assert.Equal(t, "written-by-the-shell\n", remoteContents(t, r, instName, remote))
+
+			assert.Contains(t, shell(t, r, instName, `cd /etc; cd; [ "$PWD" = "${HOME:-/}" ] && echo home-ok`), "home-ok")
+			assert.NotContains(t, shell(t, r, instName, "echo $HOME"), "/home/")
+
+			out := shell(t, r, instName, "cat", integ.WithStdin("fed-to-the-shell\n"))
+			assert.Contains(t, out, "fed-to-the-shell")
+
+			r.Run(t, []string{"unikraft", "instance", "delete", instName})
+		})
+
+		t.Run("builtins", func(t *testing.T) {
+			r := runner(t, true, []string{staging})
+			instName := newSandboxInstance(t, r)
+
+			help := shell(t, r, instName, ":help")
+			for _, name := range []string{
+				":edit", ":get", ":help", ":mount", ":restart", ":start", ":stop",
+				":suspend", ":unmount", ":volumes",
+			} {
+				assert.Contains(t, help, name)
+			}
+
+			out := shell(t, r, instName, ":get")
+			assert.Contains(t, out, instName)
+			assert.Contains(t, out, "running")
+
+			assert.Contains(t, help, ":history")
+			assert.Contains(t, shell(t, r, instName, ":history; echo status=$?"), "status=0")
+
+			assert.Contains(t, shell(t, r, instName, ":volumes"), "NAME")
+
+			assert.Contains(t, shell(t, r, instName, ":help | grep mount"), ":mount")
+			assert.Contains(t, shell(t, r, instName, `echo "[$(:get | head -1)]"`), "[")
+
+			piped := "/sb-builtin-" + uniq() + ".txt"
+			shell(t, r, instName, ":help > "+piped)
+			assert.Contains(t, remoteContents(t, r, instName, piped), ":mount")
+
+			out = shell(t, r, instName, ":nope; echo status=$?")
+			assert.Contains(t, out, `unknown builtin "nope"`)
+			assert.Contains(t, out, "status=1")
+
+			assert.Contains(t, shell(t, r, instName, ": ; echo status=$?"), "status=0")
+
+			assert.Contains(t, shell(t, r, instName, ":mount only-a-volume"), `expected "<path>"`)
+			assert.Contains(t, shell(t, r, instName, ":unmount"), `expected "<volume>"`)
+			assert.Contains(t, shell(t, r, instName, ":edit"), `expected "<field=value> ..."`)
+			assert.Contains(t, shell(t, r, instName, ":edit nonsense"), "is not <field>=<value>")
+			assert.Contains(t, shell(t, r, instName, ":get --nonsense"), "unknown flag --nonsense")
+			assert.Contains(t, shell(t, r, instName, ":mount --help"), "--readonly")
+
+			r.Run(t, []string{"unikraft", "instance", "delete", instName})
+		})
+
+		t.Run("interrupt", func(t *testing.T) {
+			r := runner(t, true, []string{staging})
+			instName := newSandboxInstance(t, r)
+
+			marker := "not-abandoned-" + uniq()
+			started := "/sb-started-" + uniq()
+
+			proc := r.StartBackground(t, []string{
+				"unikraft", "instance", "shell", instName, "-c",
+				"echo up > " + started + "; sleep 300; echo " + marker,
+			}, "", 0)
+
+			require.Eventually(t, func() bool {
+				_, err := r.RunRaw(t, []string{
+					"unikraft", "instance", "read", instName, started, "./probe",
+				}, integ.WithWorkDir(t.TempDir()))
+				return err == nil
+			}, 90*time.Second, 2*time.Second, "the command never reached the instance")
+
+			proc.Interrupt()
+			out, _ := proc.Wait()
+			assert.NotContains(t, out, marker, "an interrupt abandons the rest of the line")
+
+			r.Run(t, []string{"unikraft", "instance", "delete", instName})
+		})
+
+		t.Run("lifecycle", func(t *testing.T) {
+			r := runner(t, true, []string{staging})
+			instName := newSandboxInstance(t, r)
+
+			// A shell needs the instance running to open at all, so every line
+			// here is typed at one that is, and the instance is brought back
+			// with the CLI rather than with a shell it could not open.
+			restartInstance(t, r, instName)
+			assert.Contains(t, shell(t, r, instName, "echo up-again"), "up-again")
+
+			shell(t, r, instName, ":suspend")
+			r.Run(t, []string{"unikraft", "--timeout", "60s", "instance", "wait", "--until", "state==stopped", instName})
+
+			r.Run(t, []string{"unikraft", "instance", "start", instName})
+			r.Run(t, []string{"unikraft", "--timeout", "60s", "instance", "wait", "--until", "state==running", instName})
+
+			shell(t, r, instName, ":stop")
+			r.Run(t, []string{"unikraft", "--timeout", "60s", "instance", "wait", "--until", "state==stopped", instName})
+
+			r.Run(t, []string{"unikraft", "instance", "delete", instName})
+		})
+
+		t.Run("mount", func(t *testing.T) {
+			r := runner(t, true, []string{staging})
+			instName := newSandboxInstance(t, r)
+
+			volName := "test-" + uniq()
+			r.Run(t, []string{
+				"unikraft", "volume", "create",
+				"--output", "quiet",
+				"--set", "name=" + volName,
+				"--set", "size=10",
+				"--set", "metro=" + r.Config.MetroName,
+			})
+
+			// A shell needs the instance running, and a volume attached to a
+			// running instance is only on the record until it reboots — which
+			// is what the builtin says, so the restart is part of the test.
+			mounted := shell(t, r, instName, ":mount "+volName+" /data")
+			assert.Contains(t, mounted, ":restart", "a volume is mounted at boot")
+			assert.NotContains(t, mounted, volName, "the record is not read back here")
+
+			restartInstance(t, r, instName)
+			assert.Contains(t, shell(t, r, instName, "ls -d /data && echo mounted"), "mounted")
+			assert.Contains(t, shell(t, r, instName, ":get"), volName)
+			assert.Contains(t, r.Run(t, []string{"unikraft", "volume", "inspect", volName}), instName)
+
+			assert.Contains(t, shell(t, r, instName, ":unmount "+volName), ":restart")
+
+			restartInstance(t, r, instName)
+			assert.Contains(t, shell(t, r, instName, "ls -d /data 2>/dev/null || echo gone"), "gone")
+			assert.NotContains(t, shell(t, r, instName, ":get"), volName)
+			assert.NotContains(t, r.Run(t, []string{"unikraft", "volume", "inspect", volName}), instName)
+
+			assert.Contains(t, shell(t, r, instName, "echo still-here"), "still-here")
+
+			r.Run(t, []string{"unikraft", "instance", "delete", instName})
+			r.Run(t, []string{"unikraft", "volume", "delete", volName})
 		})
 	})
 }

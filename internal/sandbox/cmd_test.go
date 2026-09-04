@@ -43,6 +43,9 @@ type mockPlugin struct {
 	stdinEOF bool
 
 	signals []int
+	forgot  bool
+
+	badLogs int
 }
 
 func newFakePlugin() *mockPlugin {
@@ -61,6 +64,12 @@ func (f *mockPlugin) exit(code int32) {
 	f.exitCode = code
 	f.mu.Unlock()
 	close(f.exited)
+}
+
+func (f *mockPlugin) forgotten() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.forgot
 }
 
 func (f *mockPlugin) sentSignals() []int {
@@ -91,6 +100,19 @@ func (f *mockPlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.mu.Unlock()
 		reply(plugin.RunCommandData{Uuid: "cmd-1"})
 
+	case path == "/commands/cmd-1" && r.Method == http.MethodDelete:
+		f.mu.Lock()
+		f.forgot = true
+		f.mu.Unlock()
+		reply(nil)
+
+	case path == "/commands/cmd-1" && r.Method == http.MethodGet:
+		f.mu.Lock()
+		code := f.exitCode
+		cmdline := f.run.Cmd
+		f.mu.Unlock()
+		reply(plugin.GetCommandData{Uuid: "cmd-1", Cmdline: cmdline, Exitcode: code})
+
 	case path == "/commands/cmd-1/wait":
 		select {
 		case <-f.exited:
@@ -101,6 +123,19 @@ func (f *mockPlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reply(nil)
 
 	case path == "/commands/cmd-1/logs":
+		f.mu.Lock()
+		bad := f.badLogs > 0
+		if bad {
+			f.badLogs--
+		}
+		f.mu.Unlock()
+		if bad {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusBadGateway)
+			fmt.Fprint(w, "<html>\n<head><title>502 Bad Gateway</title></head>\n<body>openresty</body>\n</html>")
+			return
+		}
+
 		var req plugin.CommandLogsRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
 
@@ -157,7 +192,12 @@ func slice(b []byte, offset uint64) ([]byte, uint64) {
 // it.
 func newTarget(t *testing.T, fake *mockPlugin) Target {
 	t.Helper()
-	srv := httptest.NewServer(fake)
+	return newTargetServing(t, fake)
+}
+
+func newTargetServing(t *testing.T, h http.Handler) Target {
+	t.Helper()
+	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 
 	return Target{
@@ -294,7 +334,9 @@ func TestCmdCancelWithinWaitDelay(t *testing.T) {
 	require.NoError(t, cmd.Start())
 	cancel()
 
-	require.NoError(t, cmd.Wait())
+	var exit *ExitError
+	require.ErrorAs(t, cmd.Wait(), &exit)
+	assert.Equal(t, 130, exit.Code)
 	assert.Equal(t, "interrupted\n", stdout.String())
 }
 
@@ -326,7 +368,6 @@ func TestCmdCancelError(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cmd := target.Command(ctx, "sleep", "300")
 	cmd.Stdout = io.Discard
-	cmd.WaitDelay = WaitForever
 
 	sentinel := errors.New("could not interrupt")
 	cmd.Cancel = func() error { return sentinel }
@@ -406,26 +447,174 @@ func TestCmdMisuse(t *testing.T) {
 // TestCmdStartFailure pins that a plugin that does not report a UUID is a
 // failure to start, named as such.
 func TestCmdStartFailure(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	target := newTargetServing(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"status":"success","data":{"uuid":""}}`)
 	}))
-	t.Cleanup(srv.Close)
-
-	target := Target{
-		Client:   plugin.NewClient(),
-		Instance: platform.Instance{Uuid: "inst-1"},
-		Plugin:   "sandbox",
-		Opts: []plugin.Option{
-			plugin.WithEndpoint(srv.URL),
-			plugin.WithPluginName("sandbox"),
-			plugin.WithHTTPClient(srv.Client()),
-		},
-	}
 
 	err := target.Command(t.Context(), "true").Run()
 	require.ErrorContains(t, err, "did not report a command UUID")
 	assert.ErrorContains(t, err, `"sandbox"`)
+}
+
+// TestTheLastReadRidesOutAGateway pins that a command which has already ended
+// does not lose its output to a gateway that is still coming back.
+func TestTheLastReadRidesOutAGateway(t *testing.T) {
+	fake := newFakePlugin()
+	fake.badLogs = 3
+	target := newTarget(t, fake)
+
+	fake.write("mounted\n", "")
+	fake.exit(0)
+
+	var stdout bytes.Buffer
+	cmd := target.Command(t.Context(), "ls", "-d", "/data")
+	cmd.Stdout = &stdout
+
+	require.NoError(t, cmd.Run())
+	assert.Equal(t, "mounted\n", stdout.String(), "the output survived the gateway")
+}
+
+func TestAGatewayIsNotQuotedBackAtTheUser(t *testing.T) {
+	fake := newFakePlugin()
+	fake.badLogs = 1000
+	target := newTarget(t, fake)
+
+	fake.exit(0)
+
+	cmd := target.Command(t.Context(), "ls")
+	cmd.Stdout = io.Discard
+
+	err := cmd.Run()
+
+	require.Error(t, err)
+	assert.Equal(t, `failed to fetch logs: the "sandbox" plugin answered 502 Bad Gateway`, err.Error())
+	assert.NotContains(t, err.Error(), "html")
+}
+
+func TestAStoppedInstanceIsSaidInOneLine(t *testing.T) {
+	target := newTargetServing(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, "<!doctype html>\n<html lang=\"en\">\n<head><title>Service not found</title></head>\n"+
+			"<body>\nThere is no service on this URL.\n</body>\n</html>")
+	}))
+
+	err := target.Command(t.Context(), "true").Run()
+
+	require.ErrorIs(t, err, ErrNotRunning)
+	assert.Equal(t, `the instance is not running, or has no "sandbox" plugin`, err.Error())
+}
+
+func TestAPluginFailureKeepsItsOwnAccount(t *testing.T) {
+	target := newTargetServing(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"status":"error","message":"no such command"}`)
+	}))
+
+	err := target.Command(t.Context(), "true").Run()
+
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrNotRunning)
+	require.ErrorContains(t, err, "failed to start command")
+	assert.ErrorContains(t, err, "no such command")
+}
+
+// TestCmdExitCode pins that a command which ran and failed is reported as an
+// error carrying the status, so that a caller asking only whether it worked is
+// answered without reaching for ExitCode.
+func TestCmdExitCode(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	fake.exit(3)
+
+	cmd := target.Command(t.Context(), "false")
+	cmd.Stdout = io.Discard
+
+	var exit *ExitError
+	require.ErrorAs(t, cmd.Run(), &exit)
+	assert.Equal(t, 3, exit.Code)
+	assert.Equal(t, "cmd-1", exit.UUID)
+	assert.Equal(t, 3, exit.ExitCode())
+	assert.Equal(t, 3, cmd.ExitCode())
+}
+
+// TestCmdDetach pins that a detached command is left running on the instance:
+// the wait ends, nothing is signalled, and the UUID is still there to reach it
+// by.
+func TestCmdDetach(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	cmd := target.Command(t.Context(), "sleep", "300")
+	cmd.Stdout = io.Discard
+
+	require.NoError(t, cmd.Start())
+	cmd.Detach()
+
+	require.ErrorIs(t, cmd.Wait(), context.Canceled)
+	assert.Empty(t, fake.sentSignals())
+	assert.Equal(t, "cmd-1", cmd.UUID)
+}
+
+// TestCmdForget pins that a command the wait saw the end of drops the record
+// the instance keeps of it without the caller asking, and that asking about a
+// command that never started is not a request.
+func TestCmdForget(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	target.CommandLine(t.Context(), nil).Forget(t.Context())
+	assert.False(t, fake.forgotten(), "nothing to forget")
+
+	cmd := target.Command(t.Context(), "true")
+	cmd.Stdout = io.Discard
+	require.NoError(t, cmd.Start())
+	fake.exit(0)
+	require.NoError(t, cmd.Wait())
+
+	assert.True(t, fake.forgotten(), "the wait dropped it, so no caller has to")
+}
+
+// TestCmdCancelClosesStdin pins that an interrupted command sees the end of its
+// standard input, so that one waiting to be typed at stops rather than hanging
+// on a reader nobody is feeding any more.
+func TestCmdCancelClosesStdin(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	blocked, writer := io.Pipe()
+	t.Cleanup(func() { _ = writer.Close() })
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cmd := target.Command(ctx, "cat")
+	cmd.Stdout = io.Discard
+	cmd.Stdin = blocked
+	cmd.WaitDelay = 50 * time.Millisecond
+
+	require.NoError(t, cmd.Start())
+	cancel()
+	require.Error(t, cmd.Wait())
+
+	_, eof := fake.stdinSeen()
+	assert.True(t, eof)
+}
+
+// TestTargetLogs pins that what a command has printed is readable without a
+// Cmd, which is how one started elsewhere is looked at.
+func TestTargetLogs(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	fake.write("out\n", "err\n")
+
+	var stdout, stderr bytes.Buffer
+	require.NoError(t, target.Logs(t.Context(), "cmd-1", &stdout, &stderr))
+
+	assert.Equal(t, "out\n", stdout.String())
+	assert.Equal(t, "err\n", stderr.String())
 }
 
 // TestQuote pins that every argument reaches the command as one word, with

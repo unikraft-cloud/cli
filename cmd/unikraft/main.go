@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"reflect"
 	"strings"
 	"syscall"
@@ -24,6 +23,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/logfmt"
 	"unikraft.com/cli/internal/telemetry"
+	xsignal "unikraft.com/cli/internal/x/signal"
 	"unikraft.com/x/colors"
 	"unikraft.com/x/log"
 )
@@ -32,7 +32,7 @@ func main() {
 	// Recover from panics and report crashes before re-panicking
 	defer telemetry.RecoverAndReport()
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := xsignal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	var (
