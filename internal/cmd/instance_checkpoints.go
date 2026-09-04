@@ -50,6 +50,8 @@ type InstanceCheckpoint struct {
 	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
 	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the checkpoint."`
 
+	Autokill Autokill `field:",embed" mirror:"instance.checkpoint_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time without a restore before the checkpoint is deleted" placeholder:"<key>=<value>" example:"time=24h"`
+
 	State types.InstanceState             `mirror:"instance.state" field:",short"`
 	Image types.ImageRef[reference.Named] `mirror:"instance.image" field:",short"`
 	Type_ *platform.InstanceType          `mirror:"instance.type" field:"type,long"`
@@ -282,6 +284,13 @@ func instanceCheckpointPatchSpec(path string, op patchOp, value any) (platform.M
 	switch path {
 	case "tags":
 		return platform.MutableCheckpointInstancePropertyTags, value.([]string), nil
+	case "autokill":
+		autokill := value.(Autokill)
+		req := map[string]any{}
+		if autokill.TimeMs > 0 {
+			req["time_ms"] = uint64(autokill.TimeMs)
+		}
+		return platform.MutableCheckpointInstancePropertyAutokill, req, nil
 	case "delete-lock":
 		if value == nil {
 			return zero, nil, nil
@@ -300,12 +309,16 @@ func instanceCheckpointPatchSpec(path string, op patchOp, value any) (platform.M
 
 func (InstanceCheckpoint) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
 	var instance string
+	var autokill Autokill
 	for key, field := range resource.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
 		}
-		if key.String() == "instance" {
+		switch key.String() {
+		case "instance":
 			instance = field.Create.Set.(string)
+		case "autokill":
+			autokill = field.Create.Set.(Autokill)
 		}
 	}
 	if instance == "" {
@@ -340,6 +353,10 @@ func (InstanceCheckpoint) Create(ctx context.Context, fields []resource.Field) (
 		req := platform.CreateCheckpointInstancesRequestItem{
 			From:     ref.NameOrUUID(),
 			TimeoutS: new(int64(-1)),
+		}
+		if autokill.TimeMs > 0 {
+			t := uint64(autokill.TimeMs)
+			req.Autokill = &platform.ItemCheckpointAutokill{TimeMs: &t}
 		}
 		resp, err := timeouts.TryWithFallback(
 			ctx,

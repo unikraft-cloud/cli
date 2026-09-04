@@ -112,6 +112,9 @@ scale-to-zero:
   stateful:         true
   cooldown-time:    500ms
   notify-time:      100ms
+autokill:
+  time:             0s
+  num-requests:     0
 timing:
   uptime:           1.5s
   boot-time:        250ms
@@ -865,6 +868,28 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
         "cooldown-time": "500ms",
         "notify-time": "100ms"
       }
+    }
+  },
+  {
+    "name": "autokill",
+    "subfields": [
+      {
+        "name": "time",
+        "value": "0s",
+        "verbosity": "long"
+      },
+      {
+        "name": "num-requests",
+        "value": 0,
+        "verbosity": "long"
+      }
+    ],
+    "verbosity": "long",
+    "create": {
+      "set": {}
+    },
+    "edit": {
+      "set": {}
     }
   },
   {

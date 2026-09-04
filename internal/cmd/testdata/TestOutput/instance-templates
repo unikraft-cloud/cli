@@ -24,6 +24,8 @@ tags:            ["env-staging"]
 annotations:
   env:           staging
 delete-lock:     false
+autokill:
+  time:          0s
 state:           template
 image:           nginx
 type:            micro
@@ -104,6 +106,23 @@ fra    my-template  template  nginx        128MiB  1      never
     "verbosity": "long",
     "edit": {
       "set": false
+    }
+  },
+  {
+    "name": "autokill",
+    "subfields": [
+      {
+        "name": "time",
+        "value": "0s",
+        "verbosity": "long"
+      }
+    ],
+    "verbosity": "long",
+    "create": {
+      "set": {}
+    },
+    "edit": {
+      "set": {}
     }
   },
   {

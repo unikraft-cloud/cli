@@ -76,6 +76,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -148,6 +149,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -228,6 +230,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -310,6 +313,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -416,6 +420,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -523,6 +528,11 @@ Create flags:
             notify-time: notification time in ms before scaling to zero
             stateful: true | false.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time after the instance stops before it is deleted
+            num-requests: max requests before the instance is deleted.
+          [examples: time=5s, num-requests=100, time=5s,num-requests=100]
       --restart=<policy>
           Restart policy.
           [examples: always, on-failure, never]
@@ -607,6 +617,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -714,6 +725,11 @@ Create flags:
             notify-time: notification time in ms before scaling to zero
             stateful: true | false.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time after the instance stops before it is deleted
+            num-requests: max requests before the instance is deleted.
+          [examples: time=5s, num-requests=100, time=5s,num-requests=100]
       --restart=<policy>
           Restart policy.
           [examples: always, on-failure, never]
@@ -807,6 +823,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -916,6 +933,11 @@ Create flags:
             notify-time: notification time in ms before scaling to zero
             stateful: true | false.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time after the instance stops before it is deleted
+            num-requests: max requests before the instance is deleted.
+          [examples: time=5s, num-requests=100, time=5s,num-requests=100]
       --restart=<policy>
           Restart policy.
           [examples: always, on-failure, never]
@@ -995,6 +1017,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -1081,6 +1104,11 @@ Edit flags:
             notify-time: notification time in ms before scaling to zero
             stateful: true | false.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time after the instance stops before it is deleted
+            num-requests: max requests before the instance is deleted.
+          [examples: time=5s, num-requests=100, time=5s,num-requests=100]
       --sched-priority=<priority>
           Scheduling priority for the instance.
           [examples: normal, medium, high, admin]
@@ -1127,6 +1155,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -1198,6 +1227,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1254,6 +1284,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1318,6 +1349,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1388,6 +1420,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1438,6 +1471,12 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
+Create flags:
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time without a clone before the template is deleted.
+          [example: time=24h]
+
 $ unikraft instance template edit --help
 
 Edit an instance template.
@@ -1460,6 +1499,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1520,6 +1560,10 @@ Edit flags:
           [example: env-dev]
       --delete-lock
           Prevent deletion of the template.
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time without a clone before the template is deleted.
+          [example: time=24h]
 
 $ unikraft instance template delete --help
 
@@ -1543,6 +1587,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1620,6 +1665,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1675,6 +1721,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1738,6 +1785,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1803,6 +1851,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1870,6 +1919,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -1919,6 +1969,12 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
+Create flags:
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time without a restore before the checkpoint is deleted.
+          [example: time=24h]
+
 $ unikraft instance checkpoint edit --help
 
 Edit an instance checkpoint.
@@ -1941,6 +1997,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type
@@ -2000,6 +2057,10 @@ Edit flags:
           [example: env-dev]
       --delete-lock
           Prevent deletion of the checkpoint.
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time without a restore before the checkpoint is deleted.
+          [example: time=24h]
 
 $ unikraft instance checkpoint delete --help
 
@@ -2023,6 +2084,7 @@ Fields:
   tags
   annotations
   delete-lock
+  autokill, autokill.time
   state
   image
   type

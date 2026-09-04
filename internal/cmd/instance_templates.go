@@ -47,6 +47,8 @@ type InstanceTemplate struct {
 	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
 	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the template."`
 
+	Autokill Autokill `field:",embed" mirror:"instance.template_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time without a clone before the template is deleted" placeholder:"<key>=<value>" example:"time=24h"`
+
 	State types.InstanceState             `mirror:"instance.state" field:",short"`
 	Image types.ImageRef[reference.Named] `mirror:"instance.image" field:",short"`
 	Type_ *platform.InstanceType          `mirror:"instance.type" field:"type,long"`
@@ -283,6 +285,13 @@ func instanceTemplatePatchSpec(path string, op patchOp, value any) (platform.Mut
 	switch path {
 	case "tags":
 		return platform.MutableTemplateInstancePropertyTags, value.([]string), nil
+	case "autokill":
+		autokill := value.(Autokill)
+		req := map[string]any{}
+		if autokill.TimeMs > 0 {
+			req["time_ms"] = uint64(autokill.TimeMs)
+		}
+		return platform.MutableTemplateInstancePropertyAutokill, req, nil
 	case "delete-lock":
 		if value == nil {
 			return zero, nil, nil
@@ -301,12 +310,16 @@ func instanceTemplatePatchSpec(path string, op patchOp, value any) (platform.Mut
 
 func (InstanceTemplate) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
 	var instance string
+	var autokill Autokill
 	for key, field := range resource.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
 		}
-		if key.String() == "instance" {
+		switch key.String() {
+		case "instance":
 			instance = field.Create.Set.(string)
+		case "autokill":
+			autokill = field.Create.Set.(Autokill)
 		}
 	}
 	if instance == "" {
@@ -341,6 +354,10 @@ func (InstanceTemplate) Create(ctx context.Context, fields []resource.Field) ([]
 			reqItem.Name = new(ref.Name)
 		} else {
 			reqItem.Uuid = new(ref.UUID)
+		}
+		if autokill.TimeMs > 0 {
+			t := uint64(autokill.TimeMs)
+			reqItem.Autokill = &platform.ItemAutokill{TimeMs: &t}
 		}
 		log.G(ctx).Trace().Str("ref", refStr).Msg("creating instance template")
 		reqItem.TimeoutS = new(int64(-1))
