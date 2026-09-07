@@ -35,6 +35,7 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+	defer installCancelHook(cancel)()
 
 	var (
 		err error
