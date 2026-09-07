@@ -61,7 +61,7 @@ func TestSplitTopLevel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := splitTopLevel(tt.in)
+			got, err := SplitTopLevel(tt.in)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return

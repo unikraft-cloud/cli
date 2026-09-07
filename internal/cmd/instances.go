@@ -76,7 +76,8 @@ type InstancesCmd struct {
 type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
-	DeleteOnStop bool `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	DeleteOnStop bool             `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default)\n  batch: instances that a rolling rollout replaces at a time (default: 1)" placeholder:"<key>=<value>" example:"rolling,batch=2"`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -96,6 +97,12 @@ func (c *InstanceCreateCmd) RunResources(ctx context.Context, stdio config.Stdio
 		if flags.IsSet("service.domains") {
 			return nil, fmt.Errorf("--domain cannot be used with --service")
 		}
+	}
+	if c.Rollout != nil {
+		if c.Save == "" {
+			return c.runRollout(ctx, stdio, partition)
+		}
+		log.G(ctx).Info().Msg("--save only saves the fields, so --rollout has no effect")
 	}
 	return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
 }
@@ -1617,6 +1624,17 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --metro fra \
 	  --image nginx:latest \
 	  --plugin 'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'`,
+				},
+			},
+			{
+				Description: "Replace every instance in a service group with a new image",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-app:v2 \
+	  --service my-service \
+	  --autostart \
+	  --rollout`,
 				},
 			},
 		},

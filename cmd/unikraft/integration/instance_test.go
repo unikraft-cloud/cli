@@ -1456,6 +1456,147 @@ cmd: ["cat", "/marker.txt"]
 		r.Run(t, append([]string{"unikraft", "instance", "delete"}, instances...))
 	})
 
+	t.Run("rollout", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+		common := []string{
+			"--metro", r.MetroName,
+			"--memory", "128",
+			"--vcpus", "1",
+		}
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+		before := strings.Fields(r.Run(t, append([]string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--replicas", "1",
+		}, common...)))
+		require.Len(t, before, 2)
+
+		controlName := "test-" + uniq()
+		r.Run(t, append([]string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--name", controlName,
+			"--image", "nginx:1.25",
+		}, common...))
+		controlImage := strings.TrimSpace(r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "inspect",
+			"--output", "template={{ .image }}", controlName,
+		}))
+
+		// A dry run shows the patches of the first batch and the old set, and changes nothing.
+		out := r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--image", "nginx:1.25",
+			"--service", svcName,
+			"--autostart",
+			"--rollout=batch=2",
+			"--dry-run",
+		}, common...))
+		assert.Regexp(t, `replicas\s+:= 1`, out)
+		assert.Regexp(t, `autostart\s+:= false`, out)
+		for _, name := range before {
+			assert.Regexp(t, `replaces := .*`+name, out)
+		}
+		list := r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range before {
+			assert.Contains(t, list, name)
+		}
+
+		// A rollout refuses --name, as the old and the new instances exist at once.
+		out = r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--name", "test-" + uniq(),
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--rollout",
+		}, common...), integ.ExpectFail())
+		assert.Contains(t, out, "--name cannot be used with --rollout")
+
+		// A rolling rollout replaces one instance at a time.
+		rolled := strings.Fields(r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "run",
+			"--output", "template={{ .name }}",
+			"--image", "nginx:1.25",
+			"--service", svcName,
+			"--rollout",
+		}, common...)))
+		require.Len(t, rolled, 2)
+		list = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range before {
+			assert.NotContains(t, list, name)
+		}
+		assert.Contains(t, list, controlName)
+		images := r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "inspect", "--output", "template={{ .image }}",
+		}, rolled...))
+		assert.Equal(t, []string{controlImage, controlImage}, strings.Fields(images))
+		for _, name := range rolled {
+			assert.Regexp(t, `state:\s+running`, r.Run(t, []string{"unikraft", "instance", "inspect", name}))
+		}
+
+		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName}, rolled...))
+		r.Run(t, []string{"unikraft", "service", "delete", svcName})
+	})
+
+	t.Run("rollout-delete-on-stop", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+		common := []string{
+			"--metro", r.MetroName,
+			"--memory", "128",
+			"--vcpus", "1",
+		}
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+		r.Run(t, append([]string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--rm",
+			"--replicas", "1",
+		}, common...))
+
+		// Each old instance goes when it stops, and the rollout counts it as stopped.
+		rolled := strings.Fields(r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--image", "nginx:1.25",
+			"--service", svcName,
+			"--autostart",
+			"--rollout",
+		}, common...)))
+		require.Len(t, rolled, 2)
+		members := r.Run(t, []string{
+			"unikraft", "--log-level=error", "service", "get",
+			"--output", "template={{ range .instances }}{{ .name }} {{ end }}", svcName,
+		})
+		assert.ElementsMatch(t, rolled, strings.Fields(members))
+
+		r.Run(t, append([]string{"unikraft", "instance", "delete"}, rolled...))
+		r.Run(t, []string{"unikraft", "service", "delete", svcName})
+	})
+
 	t.Run("watch-timeout", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		r.Run(t, []string{"unikraft", "--timeout=1s", "instance", "ls", "-w"}, integ.AllowFail())

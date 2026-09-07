@@ -18,11 +18,11 @@ import (
 	wmaps "unikraft.com/cli/internal/w/maps"
 )
 
-// HACK: splitTopLevel splits s on commas, skipping those inside a JSON value. Only a
+// HACK: SplitTopLevel splits s on commas, skipping those inside a JSON value. Only a
 // value that opens with {, [ or " immediately after its key's "=" is treated as
 // JSON, so a brace or quote appearing mid-value stays literal and the item
 // separators around it still split.
-func splitTopLevel(s string) ([]string, error) {
+func SplitTopLevel(s string) ([]string, error) {
 	var parts []string
 	var open []byte
 	start := 0
@@ -257,7 +257,7 @@ func parseReflect(input []string, value reflect.Value) error {
 
 		notFound := make(map[string]struct{})
 		for _, input := range input {
-			items, err := splitTopLevel(input)
+			items, err := SplitTopLevel(input)
 			if err != nil {
 				return err
 			}
