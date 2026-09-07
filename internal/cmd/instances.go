@@ -77,7 +77,7 @@ type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
 	DeleteOnStop bool             `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
-	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default)\n  batch: instances that a rolling rollout replaces at a time (default: 1)" placeholder:"<key>=<value>" example:"rolling,batch=2"`
+	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | recreate\n  batch: instances that a rolling rollout replaces at a time (default: 1)\n  healthy-after: time each new batch must keep running before the rollout goes on" placeholder:"<key>=<value>" example:"recreate,batch=2\\,healthy-after=30s"`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -1635,6 +1635,17 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --service my-service \
 	  --autostart \
 	  --rollout`,
+				},
+			},
+			{
+				Description: "Roll a service group whose instances need sole access to their volume, and hold the new ones up for a minute first",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-db:v2 \
+	  --service my-db \
+	  --autostart \
+	  --rollout=recreate,healthy-after=1m`,
 				},
 			},
 		},

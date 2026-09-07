@@ -16,6 +16,7 @@ import (
 
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/types"
 )
 
 func TestInstancePluginUnmarshalText(t *testing.T) {
@@ -202,8 +203,8 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 		},
 		{
 			name: "type alone",
-			in:   "rolling",
-			want: cmd.InstanceRollout{Type: cmd.RolloutRolling},
+			in:   "recreate",
+			want: cmd.InstanceRollout{Type: cmd.RolloutRecreate},
 		},
 		{
 			name: "bare type with keys",
@@ -212,13 +213,13 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 		},
 		{
 			name: "every key",
-			in:   "type=rolling,batch=3",
-			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, Batch: 3},
+			in:   "type=rolling,batch=3,healthy-after=30s",
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, Batch: 3, HealthyAfter: types.DurationS(30)},
 		},
 		{
 			name: "json",
-			in:   `{"type":"rolling","batch":2}`,
-			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, Batch: 2},
+			in:   `{"type":"rolling","healthy-after":"1m"}`,
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, HealthyAfter: types.DurationS(60)},
 		},
 		{
 			name:    "unknown type",
@@ -226,9 +227,19 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 			wantErr: `unknown rollout type "sideways"`,
 		},
 		{
+			name:    "negative healthy-after",
+			in:      "healthy-after=-30s",
+			wantErr: "healthy-after cannot be negative",
+		},
+		{
 			name:    "negative batch",
 			in:      "batch=-1",
 			wantErr: "batch cannot be negative",
+		},
+		{
+			name:    "batch with recreate",
+			in:      "recreate,batch=2",
+			wantErr: `batch cannot be used with "recreate"`,
 		},
 		{
 			name:    "unknown bare option",

@@ -212,6 +212,7 @@ Create flags:
           Automatically delete the instance when it stops.
       --rollout=<key>=<value>
           Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.
-            type: rolling (default)
-            batch: instances that a rolling rollout replaces at a time (default: 1).
-          [examples: rolling, batch=2]
+            type: rolling (default) | recreate
+            batch: instances that a rolling rollout replaces at a time (default: 1)
+            healthy-after: time each new batch must keep running before the rollout goes on.
+          [examples: recreate, batch=2,healthy-after=30s]
