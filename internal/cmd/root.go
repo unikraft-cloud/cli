@@ -60,9 +60,9 @@ type UnikraftCLI struct {
 	Profile ProfileCmd      `cmd:"" group:"cmd-config" help:"Manage Unikraft Cloud profiles." aliases:"profile,profiles" set:"name=profile" set:"names=profiles"`
 	Config  ConfigCmd       `cmd:"" group:"cmd-config" help:"Manage CLI configuration." aliases:"config,conf,cfg" set:"name=path" set:"names=paths"`
 
-	Completion kongcompletion.Completion `cmd:"" group:"cmd-utilities" completion-shell-default:"false" help:"Outputs shell code for initialising tab completions."`
-	Version    version.VersionCmd        `cmd:"" group:"cmd-utilities" help:"Show version information." aliases:"version,ver,v"`
-	Upgrade    UpgradeCmd                `cmd:"" group:"cmd-utilities" help:"Upgrade the Unikraft CLI to the latest version."`
+	Completion CompletionCmd      `cmd:"" group:"cmd-utilities" completion-shell-default:"false" help:"Outputs shell code for initialising tab completions."`
+	Version    version.VersionCmd `cmd:"" group:"cmd-utilities" help:"Show version information." aliases:"version,ver,v"`
+	Upgrade    UpgradeCmd         `cmd:"" group:"cmd-utilities" help:"Upgrade the Unikraft CLI to the latest version."`
 
 	SendAnalytics SendAnalyticsCmd `cmd:"" group:"cmd-utilities" help:"Send analytics payload (used internally for detached analytics)." name:"_send_analytics" hidden:""`
 }

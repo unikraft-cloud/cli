@@ -3,9 +3,12 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
+//go:build js
+
 package cmd
 
-type TUICmd struct {
-	Resource string `arg:"" optional:"" help:"Resource type to browse."`
-	Name     string `arg:"" optional:"" help:"Resource key to open."`
+import "github.com/alecthomas/kong"
+
+func (c *CompletionCmd) Run(ctx *kong.Context) error {
+	return notAvailable("completion")
 }

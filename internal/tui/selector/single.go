@@ -3,6 +3,8 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
+//go:build !js
+
 package selector
 
 import (
@@ -17,8 +19,6 @@ import (
 
 	"unikraft.com/x/colors"
 )
-
-var ErrNoOptionSelected = jujuerrors.New("no option selected")
 
 // Single is a utility method used in a CLI context to prompt the
 // user to pick exactly one option from a slice of options based on the

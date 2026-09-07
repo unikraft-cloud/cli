@@ -27,6 +27,10 @@ vars:
   task_bin:
     sh: command -v task >/dev/null 2>&1 && echo "task --yes" || echo "{{.go_bin}} run github.com/go-task/task/v3/cmd/task@{{.task_version}} --yes"
 
+  cli_name: unikraft-cli
+  cli_docs: https://unikraft.com/docs/cli
+  cli_issues: https://github.com/unikraft-cloud/cli/issues
+
 tasks:
   default:
     cmds:
@@ -39,9 +43,57 @@ tasks:
     - task: go:build
       vars:
         package: ./cmd/unikraft
-        name: unikraft-cli
-        docs: https://unikraft.com/docs/cli
-        issues: https://github.com/unikraft-cloud/cli/issues
+        name: '{{.cli_name}}'
+        docs: '{{.cli_docs}}'
+        issues: '{{.cli_issues}}'
+
+  wasm:
+    desc: The `unikraft` CLI compiled to WebAssembly for JavaScript hosts.
+    silent: true
+    vars:
+      outdir: '{{.distdir}}/wasm'
+      git_tag:
+        sh: git update-index -q --refresh && git describe --abbrev=0 --tags --dirty || printf "0.0.0"
+      git_sha:
+        sh: git update-index -q --refresh && git rev-parse HEAD || printf "dev"
+      build_time:
+        sh: TZ=UTC git log -1 --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd || date -u +%Y-%m-%dT%H:%M:%SZ
+      goroot:
+        sh: '{{.go_bin}} env GOROOT'
+      go_version:
+        sh: '{{.go_bin}} env GOVERSION'
+      go_debug:
+        ref: eq "true" (printf "%v" .debug)
+      go_gcflags: >-
+        {{- ternary "-N -l" "" .go_debug }}
+      go_ldflags_extra:
+        ref: .go_ldflags_extra | default ""
+      go_ldflags: >-
+        {{- ternary "" "-s -w" .go_debug }}
+        -X "unikraft.com/x/version.Name={{.cli_name}}"
+        -X "unikraft.com/x/version.Docs={{.cli_docs}}"
+        -X "unikraft.com/x/version.Issues={{.cli_issues}}"
+        -X "unikraft.com/x/version.Version={{.git_tag}}"
+        -X "unikraft.com/x/version.Commit={{.git_sha}}"
+        -X "unikraft.com/x/version.BuildTime={{.build_time}}"
+        {{.go_ldflags_extra}}
+    cmds:
+    - mkdir -p '{{.outdir}}'
+    - install -m 0644 '{{.goroot}}/lib/wasm/wasm_exec.js' '{{.outdir}}/wasm_exec.js'
+    - >-
+      GOOS=js GOARCH=wasm {{.go_bin}} build -v {{.CLI_ARGS}}
+      -trimpath
+      -gcflags=all='{{.go_gcflags}}'
+      -ldflags='{{.go_ldflags}}'
+      -tags='{{.go_tags}}'
+      -o '{{.outdir}}/unikraft.wasm'
+      ./cmd/unikraft
+    - gzip -9 -n -k -f '{{.outdir}}/unikraft.wasm'
+    - >-
+      printf '{"version":"%s","commit":"%s","goVersion":"%s"}\n'
+      '{{.git_tag}}' '{{.git_sha}}' '{{.go_version}}'
+      > '{{.outdir}}/unikraft.wasm.json'
+    - ls -la '{{.outdir}}'
 
   lint:
     desc: Lint the project.
