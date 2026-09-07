@@ -76,7 +76,8 @@ type InstancesCmd struct {
 type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
-	DeleteOnStop bool `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	DeleteOnStop bool             `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default)" placeholder:"<key>=<value>" example:"type=rolling"`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -92,7 +93,8 @@ func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partiti
 			return fmt.Errorf("--domain cannot be used with --service")
 		}
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
+	_, err := c.RunResources(ctx, stdio, partition)
+	return err
 }
 
 type Instance struct {
@@ -1598,6 +1600,17 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --metro fra \
 	  --image nginx:latest \
 	  --plugin 'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'`,
+				},
+			},
+			{
+				Description: "Replace every instance in a service group with a new image",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-app:v2 \
+	  --service my-service \
+	  --autostart \
+	  --rollout`,
 				},
 			},
 		},
