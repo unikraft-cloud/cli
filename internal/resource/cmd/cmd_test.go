@@ -2211,3 +2211,38 @@ func TestFilterComparisonOperators(t *testing.T) {
 		assert.Contains(t, out.String(), "test3")
 	})
 }
+
+func TestCreateFieldsSetByWrapper(t *testing.T) {
+	env := resourcet.NewTestEnv()
+	ctx := resourcet.WithTestEnv(context.Background(), env)
+	partition := &resource.Partition{}
+
+	var out bytes.Buffer
+	cmd := &ResourceCreateCmd[resourcet.TestResource]{
+		Set: []map[string]string{
+			{"name": "test-wrapped"},
+			{"settings.foo": "100"},
+		},
+		Output: Printer{Type: PrinterTypeQuiet},
+	}
+
+	fields, err := cmd.CreateFields(ctx)
+	require.NoError(t, err)
+
+	assert.Empty(t, resource.GetFieldByPathString(fields, "edit_only"))
+
+	fields = append(slices.Clone(fields), resource.Field{
+		Name:   "settings.bar",
+		Create: &resource.Patch{Set: "added"},
+	})
+	require.NoError(t, cmd.SetCreateFields(ctx, fields))
+
+	resources, err := cmd.RunResources(ctx, testStdio(&out), partition)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+
+	created := resources[0].(resourcet.TestResource)
+	assert.Equal(t, "test-wrapped", created.Name)
+	assert.Equal(t, 100, created.Settings.Foo)
+	assert.Equal(t, "added", created.Settings.Bar)
+}
