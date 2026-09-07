@@ -8,6 +8,7 @@ package rollout
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
@@ -15,25 +16,47 @@ import (
 
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/types"
 )
 
-// Platform defaults for an instance that sets neither, as the create request
-// documents them in the SDK.
-const (
-	defaultVcpus    = 1
-	defaultMemoryMb = 128
-)
+// Footprint is the live capacity a set of instances holds.
+type Footprint struct {
+	Instances int64
+	Vcpus     int64
+	MemoryMb  int64
+}
 
-// ValidateCapacity reports why the metro cannot take count more instances
-// while the ones they replace still run. The platform enforces the real limits.
-func ValidateCapacity(ctx context.Context, metro string, autoscale bool, count int64, fields []resource.Field) error {
+// Known reports whether the footprint carries a per-instance size.
+func (f Footprint) Known() bool {
+	return f.Vcpus > 0 && f.MemoryMb > 0
+}
+
+// CapacityOpts describes the capacity one rollout needs.
+type CapacityOpts struct {
+	Metro string
+	// Count is how many instances the rollout creates.
+	Count int64
+	// Concurrent says the new instances run alongside the ones they replace,
+	// so the rollout gets none of the replaced capacity back.
+	Concurrent bool
+	// Size is what one new instance takes.
+	Size Footprint
+	// Freed is the live capacity the replaced instances give up.
+	Freed Footprint
+}
+
+// ValidateCapacity reports why the metro cannot take the instances a rollout
+// adds. The platform enforces the real limits.
+func ValidateCapacity(ctx context.Context, opts CapacityOpts) error {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return err
 	}
+	if !slices.Contains(g.Names(), opts.Metro) {
+		return fmt.Errorf("metro %q is not configured", opts.Metro)
+	}
+
 	var quotas platform.Quotas
-	if err := group.DoMetro(ctx, g, metro, func(ctx context.Context, mc multimetro.MetroClient) error {
+	if err := group.DoMetro(ctx, g, opts.Metro, func(ctx context.Context, mc multimetro.MetroClient) error {
 		log.G(ctx).Trace().Msg("fetching quotas for the rollout")
 		resp, err := mc.GetUser(ctx)
 		if err != nil {
@@ -45,35 +68,45 @@ func ValidateCapacity(ctx context.Context, metro string, autoscale bool, count i
 		quotas = resp.Data.Quotas[0]
 		return nil
 	}); err != nil {
-		log.G(ctx).Debug().Err(err).Msg("skipping the rollout capacity check")
+		log.G(ctx).Warn().Err(err).
+			Msg("cannot read the quotas, skipping rollout capacity check")
 		return nil
 	}
-
-	vcpus := int64(defaultVcpus)
-	if v, ok := FieldValue[int](fields, "resources.vcpus"); ok && v > 0 {
-		vcpus = int64(v)
+	if !opts.Size.Known() {
+		log.G(ctx).Warn().
+			Msg("checking only the instance count")
 	}
-	memory := int64(defaultMemoryMb)
-	if v, ok := FieldValue[types.SizeMebibytes](fields, "resources.memory"); ok && v > 0 {
-		memory = int64(v)
-	}
+	return checkQuotas(quotas, opts)
+}
 
-	for _, q := range []struct {
-		what      string
-		used, max int64
-		need      int64
-	}{
-		{"instances", quotas.Used.Instances, quotas.Hard.Instances, count},
-		{"live instances", quotas.Used.LiveInstances, quotas.Hard.LiveInstances, count},
-		{"live vCPUs", quotas.Used.LiveVcpus, quotas.Hard.LiveVcpus, count * vcpus},
-		{"live memory in MiB", quotas.Used.LiveMemoryMb, quotas.Hard.LiveMemoryMb, count * memory},
-	} {
-		if q.max > 0 && q.used+q.need > q.max {
-			return fmt.Errorf("not enough room to roll %d instance(s): %d of %d %s in use, the rollout needs %d more", count, q.used, q.max, q.what, q.need)
+// quotaRow is one quota a rollout is checked against.
+type quotaRow struct {
+	what      string
+	used, max int64
+	need      int64
+}
+
+// checkQuotas reports which quota the instances a rollout adds go over. A
+// rollout that stops the instances it replaces gets their capacity back.
+func checkQuotas(quotas platform.Quotas, opts CapacityOpts) error {
+	freed := opts.Freed
+	if opts.Concurrent {
+		freed = Footprint{}
+	}
+	rows := []quotaRow{
+		{"instances", quotas.Used.Instances, quotas.Hard.Instances, opts.Count},
+		{"live instances", quotas.Used.LiveInstances, quotas.Hard.LiveInstances, opts.Count - freed.Instances},
+	}
+	if opts.Size.Known() {
+		rows = append(rows,
+			quotaRow{"live vCPUs", quotas.Used.LiveVcpus, quotas.Hard.LiveVcpus, opts.Count*opts.Size.Vcpus - freed.Vcpus},
+			quotaRow{"live memory in MiB", quotas.Used.LiveMemoryMb, quotas.Hard.LiveMemoryMb, opts.Count*opts.Size.MemoryMb - freed.MemoryMb},
+		)
+	}
+	for _, q := range rows {
+		if q.need > 0 && q.max > 0 && q.used+q.need > q.max {
+			return fmt.Errorf("not enough room to roll %d instance(s): %d of %d %s in use, the rollout needs %d more", opts.Count, q.used, q.max, q.what, q.need)
 		}
-	}
-	if limit := quotas.Limits.MaxAutoscaleSize; autoscale && limit > 0 && 2*count > limit {
-		return fmt.Errorf("not enough room to roll %d instance(s): both sets add up to %d instances, over the maximum autoscale group size of %d", count, 2*count, limit)
 	}
 	return nil
 }
@@ -91,23 +124,9 @@ func Undo(ctx context.Context, partition *resource.Partition, r resource.Deletab
 	name := r.Type().Name
 	log.G(ctx).Warn().
 		Strs(name+"s", keys).
-		Msgf("rollout failed, deleting the new %ss", name)
+		Msgf("unwinding the rollout, deleting the new %ss", name)
 	if err := partition.WrapDeletable(r).Delete(ctx, keys); err != nil {
-		return fmt.Errorf("deleting the new %ss after a failed rollout: %w", name, err)
+		return fmt.Errorf("deleting the new %ss after an unfinished rollout: %w", name, err)
 	}
 	return nil
-}
-
-// FieldValue reads the value a create sets at path.
-func FieldValue[T any](fields []resource.Field, path string) (T, bool) {
-	for _, field := range resource.GetFieldByPathString(fields, path) {
-		if field.Create == nil || field.Create.Set == nil {
-			continue
-		}
-		if v, ok := field.Create.Set.(T); ok {
-			return v, true
-		}
-	}
-	var zero T
-	return zero, false
 }

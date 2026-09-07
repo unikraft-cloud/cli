@@ -207,5 +207,7 @@ Create flags:
           Create from a checkpoint.
       --rm
           Automatically delete the instance when it stops.
-      --service-rollout
-          Replace every instance in the service group with a new one.
+      --service-rollout=<mode>
+          Replace every instance in the service group with a new one and delete the old ones. Requires --autostart. One of: rolling (default), replace.
+      --rollout-healthy-after=<duration>
+          Time the new instances must keep running before the rollout deletes the ones they replace.
