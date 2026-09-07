@@ -396,6 +396,14 @@ Examples:
   	  --plugin
   'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'
 
+  # Replace every instance in a service group with a new image
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-app:v2 \
+  	  --service my-service \
+  	  --autostart \
+  	  --service-rollout
+
 Fields:
   metro
   name
@@ -555,6 +563,8 @@ Create flags:
           Create from a checkpoint.
       --rm
           Automatically delete the instance when it stops.
+      --service-rollout
+          Replace every instance in the service group with a new one.
 
 $ unikraft instance new --help
 
@@ -594,6 +604,14 @@ Examples:
   	  --plugin
   'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'
 
+  # Replace every instance in a service group with a new image
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-app:v2 \
+  	  --service my-service \
+  	  --autostart \
+  	  --service-rollout
+
 Fields:
   metro
   name
@@ -753,6 +771,8 @@ Create flags:
           Create from a checkpoint.
       --rm
           Automatically delete the instance when it stops.
+      --service-rollout
+          Replace every instance in the service group with a new one.
 
 $ unikraft instance run --help
 
@@ -799,6 +819,9 @@ Examples:
   # Deploy a new instance with a configured plugin
   unikraft instance run --metro=fra --image=my-app:latest --plugin
   'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'
+
+  # Roll every instance in a service group over to a new image
+  unikraft instance run --image=my-app:v2 --service=api --service-rollout
 
 Fields:
   metro
@@ -961,6 +984,8 @@ Create flags:
           Create from a checkpoint.
       --rm
           Automatically delete the instance when it stops.
+      --service-rollout
+          Replace every instance in the service group with a new one.
 
 $ unikraft instance edit --help
 

@@ -100,6 +100,12 @@ func (InstanceRunCmd) Examples() []kingkong.Example {
 				`unikraft instance run --metro=fra --image=my-app:latest --plugin 'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'`,
 			},
 		},
+		{
+			Description: "Roll every instance in a service group over to a new image",
+			Commands: []string{
+				"unikraft instance run --image=my-app:v2 --service=api --service-rollout",
+			},
+		},
 	}
 }
 

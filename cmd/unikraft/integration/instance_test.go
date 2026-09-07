@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1430,6 +1431,152 @@ cmd: ["cat", "/marker.txt"]
 		assert.Regexp(t, `image:\s+nginx`, out)
 
 		r.Run(t, append([]string{"unikraft", "instance", "delete"}, instances...))
+	})
+
+	t.Run("service-rollout", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.Config.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+			"--replicas", "1",
+		})
+		before := strings.Fields(out)
+		require.Len(t, before, 2)
+
+		controlName := "test-" + uniq()
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--name", controlName,
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:1.25",
+			"--memory", "128",
+			"--vcpus", "1",
+		})
+		controlImage := strings.TrimSpace(r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "inspect",
+			"--output", "template={{ .image }}", controlName,
+		}))
+
+		out = r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:1.25",
+			"--service", svcName,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+			"--service-rollout",
+		})
+		after := strings.Fields(out)
+		require.Len(t, after, 2)
+		assert.NotEqual(t, before, after)
+
+		out = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range before {
+			assert.NotContains(t, out, name)
+		}
+		for _, name := range after {
+			assert.Contains(t, out, name)
+		}
+
+		out = r.Run(t, append([]string{"unikraft", "instance", "inspect"}, after...))
+		assert.Regexp(t, `image:\s+nginx`, out)
+		assert.Regexp(t, `state:\s+running`, out)
+
+		afterImage := r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "inspect", "--output", "template={{ .image }}",
+		}, after...))
+		assert.Equal(t, []string{controlImage, controlImage}, strings.Fields(afterImage))
+
+		svcSolo := "test-" + uniq()
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcSolo,
+			"--metro", r.Config.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+		soloBefore := strings.TrimSpace(r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:latest",
+			"--service", svcSolo,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+		}))
+		soloAfter := strings.Fields(r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "run",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:1.25",
+			"--service", svcSolo,
+			"--memory", "128",
+			"--vcpus", "1",
+			"--service-rollout",
+		}))
+		require.Len(t, soloAfter, 1)
+		assert.NotEqual(t, soloBefore, soloAfter[0])
+
+		out = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		assert.NotContains(t, out, soloBefore)
+		assert.Contains(t, out, soloAfter[0])
+
+		r.Run(t, append(append([]string{"unikraft", "instance", "delete", controlName}, after...), soloAfter...))
+		r.Run(t, []string{"unikraft", "service", "delete", svcName, svcSolo})
+	})
+
+	t.Run("service-rollout-rejects", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		base := []string{
+			"unikraft", "instance", "create",
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:latest",
+		}
+
+		out := r.Run(t, append(slices.Clone(base),
+			"--service", "some-service",
+			"--autostart",
+			"--service-rollout",
+			"--replicas", "2",
+		), integ.ExpectFail())
+		assert.Contains(t, out, "--replicas cannot be used with --service-rollout")
+
+		out = r.Run(t, append(slices.Clone(base),
+			"--autostart",
+			"--service-rollout",
+		), integ.ExpectFail())
+		assert.Contains(t, out, "requires an existing service group")
+
+		out = r.Run(t, append(slices.Clone(base),
+			"--service", "some-service",
+			"--set", "autostart=false",
+			"--service-rollout",
+		), integ.ExpectFail())
+		assert.Contains(t, out, "requires --autostart")
 	})
 
 	t.Run("watch-timeout", func(t *testing.T) {

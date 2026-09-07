@@ -43,6 +43,9 @@ Examples:
   unikraft run --metro=fra --image=my-app:latest --plugin
   'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'
 
+  # Roll every instance in a service group over to a new image
+  unikraft run --image=my-app:v2 --service=api --service-rollout
+
 Fields:
   metro
   name
@@ -204,3 +207,5 @@ Create flags:
           Create from a checkpoint.
       --rm
           Automatically delete the instance when it stops.
+      --service-rollout
+          Replace every instance in the service group with a new one.

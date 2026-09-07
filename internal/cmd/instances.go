@@ -41,6 +41,7 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/rollout"
 	"unikraft.com/cli/internal/timeouts"
 	"unikraft.com/cli/internal/tunnel"
 	"unikraft.com/cli/internal/types"
@@ -78,7 +79,8 @@ type InstancesCmd struct {
 type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
-	DeleteOnStop bool `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	DeleteOnStop   bool `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	ServiceRollout bool `group:"flag-create" name:"service-rollout" help:"Replace every instance in the service group with a new one."`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -94,7 +96,120 @@ func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partiti
 			return fmt.Errorf("--domain cannot be used with --service")
 		}
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
+	_, err := c.RunResources(ctx, stdio, partition)
+	return err
+}
+
+// RunResources creates the instances and, when asked for a rollout, replaces
+// the instances already in the service group with them.
+func (c *InstanceCreateCmd) RunResources(ctx context.Context, stdio config.Stdio, partition *resource.Partition) ([]resource.Resource, error) {
+	if !c.ServiceRollout {
+		return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
+	}
+	if c.Save != "" {
+		// --save writes the spec the flags hold and creates nothing, so it
+		// keeps the values the user gave and the rollout stays out of it.
+		return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
+	}
+	return c.runServiceRollout(ctx, stdio, partition)
+}
+
+// runServiceRollout replaces every instance in the target service group. It
+// creates as many instances as the group already holds and waits for all of
+// them to run before it deletes any of the old ones.
+func (c *InstanceCreateCmd) runServiceRollout(ctx context.Context, stdio config.Stdio, partition *resource.Partition) ([]resource.Resource, error) {
+	fields, err := c.CreateFields(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := rollout.FieldValue[int64](fields, "replicas"); ok {
+		return nil, fmt.Errorf("--replicas cannot be used with --service-rollout: the rollout creates one instance for every instance already in the service group")
+	}
+	if autostart, _ := rollout.FieldValue[bool](fields, "autostart"); !autostart {
+		return nil, fmt.Errorf("--service-rollout requires --autostart: the old instances are only deleted once the new ones run")
+	}
+	svc, ok := rollout.FieldValue[*InstanceService](fields, "service")
+	if !ok || svc == nil || (svc.Name == "" && svc.UUID == "") {
+		return nil, fmt.Errorf("--service-rollout requires an existing service group")
+	}
+
+	metro, _ := rollout.FieldValue[LinkName[Metro]](fields, "metro")
+	key := multimetro.Key{Metro: cmp.Or(svc.Metro, string(metro)), UUID: svc.UUID}
+	if svc.UUID == "" {
+		key.Name = svc.Name
+	}
+	svcResults, err := (ServiceGroup{}).Get(ctx, []string{key.Canonical()})
+	if err != nil {
+		return nil, fmt.Errorf("looking up service group %q: %w", key.Canonical(), err)
+	}
+	if len(svcResults) == 0 {
+		return nil, fmt.Errorf("service group %q not found", key.Canonical())
+	}
+	svcGroup := svcResults[0].(ServiceGroup)
+
+	oldKeys := make([]string, 0, len(svcGroup.Instances))
+	for _, inst := range svcGroup.Instances {
+		key := multimetro.Key{Metro: cmp.Or(inst.Metro, string(svcGroup.Metro)), UUID: inst.UUID}
+		if inst.UUID == "" {
+			key.Name = inst.Name
+		}
+		if key.Name == "" && key.UUID == "" {
+			continue
+		}
+		oldKeys = append(oldKeys, key.Canonical())
+	}
+	if len(oldKeys) == 0 {
+		log.G(ctx).Info().
+			Str("service", svcGroup.Name).
+			Msg("service group is empty, creating without a rollout")
+		return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
+	}
+
+	count := int64(len(oldKeys))
+	if err := rollout.ValidateCapacity(ctx, string(svcGroup.Metro), svcGroup.Autoscale, count, fields); err != nil {
+		return nil, err
+	}
+
+	if count > 1 {
+		if err := c.SetCreateFields(ctx, append(slices.Clone(fields), resource.Field{
+			Name:   "replicas",
+			Create: &resource.Patch{Set: count - 1},
+		})); err != nil {
+			return nil, err
+		}
+	}
+	log.G(ctx).Info().
+		Str("service", svcGroup.Name).
+		Int64("instances", count).
+		Msg("rolling out")
+
+	created, err := c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
+	if err == nil && int64(len(created)) < count {
+		err = fmt.Errorf("rollout created %d of %d instances", len(created), count)
+	}
+	// A create reports success for an instance that exists but never reached
+	// the running state, so the states are checked as well as the error.
+	for _, r := range created {
+		inst := r.(Instance)
+		if state := platform.InstanceState(inst.State); state != platform.InstanceStateRunning &&
+			state != platform.InstanceStateStandby {
+			err = errors.Join(err, fmt.Errorf("instance %s is %s, not running", cmp.Or(inst.Name, inst.UUID), state))
+		}
+	}
+	if err != nil {
+		return created, errors.Join(err, rollout.Undo(ctx, partition, Instance{}, created))
+	}
+
+	if err := partition.WrapDeletable(Instance{}).Delete(ctx, oldKeys); err != nil {
+		// The new instances are the wanted state by now, so they stay and the
+		// group holds both sets until the old ones are dealt with.
+		return created, fmt.Errorf("the new instances are up, but deleting the replaced ones failed, so %s are still in the service group: %w",
+			strings.Join(oldKeys, " "), err)
+	}
+	log.G(ctx).Info().
+		Strs("instances", oldKeys).
+		Msg("replaced instances deleted")
+	return created, nil
 }
 
 type Instance struct {
@@ -1621,6 +1736,17 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --metro fra \
 	  --image nginx:latest \
 	  --plugin 'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'`,
+				},
+			},
+			{
+				Description: "Replace every instance in a service group with a new image",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-app:v2 \
+	  --service my-service \
+	  --autostart \
+	  --service-rollout`,
 				},
 			},
 		},
