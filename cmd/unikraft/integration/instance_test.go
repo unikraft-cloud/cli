@@ -1471,16 +1471,17 @@ cmd: ["cat", "/marker.txt"]
 			"--output", "template={{ .image }}", controlName,
 		}))
 
-		// A dry run shows the patches and the old set, and changes nothing.
+		// A dry run shows the replace patches and the old set, and changes nothing.
 		out := r.Run(t, append([]string{
 			"unikraft", "--log-level=error", "instance", "create",
 			"--image", "nginx:1.25",
 			"--service", svcName,
 			"--autostart",
-			"--rollout",
+			"--rollout=replace",
 			"--dry-run",
 		}, common...))
 		assert.Regexp(t, `replicas\s+:= 1`, out)
+		assert.Regexp(t, `autostart\s+:= false`, out)
 		for _, name := range before {
 			assert.Regexp(t, `replaces := .*`+name, out)
 		}
@@ -1489,13 +1490,14 @@ cmd: ["cat", "/marker.txt"]
 			assert.Contains(t, list, name)
 		}
 
+		// A rolling rollout keeps the new set up for healthy-after first.
 		rolled := strings.Fields(r.Run(t, append([]string{
 			"unikraft", "--log-level=error", "instance", "run",
 			"--output", "template={{ .name }}",
 			"--name", "test-" + uniq(),
 			"--image", "nginx:1.25",
 			"--service", svcName,
-			"--rollout",
+			"--rollout=type=rolling,healthy-after=2s",
 		}, common...)))
 		require.Len(t, rolled, 2)
 		list = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
@@ -1511,7 +1513,74 @@ cmd: ["cat", "/marker.txt"]
 			assert.Regexp(t, `state:\s+running`, r.Run(t, []string{"unikraft", "instance", "inspect", name}))
 		}
 
-		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName}, rolled...))
+		// Replace stops the old set before the new set starts.
+		replaced := strings.Fields(r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--rollout=type=replace",
+		}, common...)))
+		require.Len(t, replaced, 2)
+		list = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range rolled {
+			assert.NotContains(t, list, name)
+		}
+		for _, name := range replaced {
+			assert.Regexp(t, `state:\s+running`, r.Run(t, []string{"unikraft", "instance", "inspect", name}))
+		}
+
+		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName}, replaced...))
+		r.Run(t, []string{"unikraft", "service", "delete", svcName})
+	})
+
+	t.Run("rollout-rollback", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+		common := []string{
+			"--metro", r.Config.MetroName,
+			"--memory", "128",
+			"--vcpus", "1",
+		}
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.Config.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+		before := strings.TrimSpace(r.Run(t, append([]string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+		}, common...)))
+
+		// The timeout cancels the rollout while it holds the new set up, and the
+		// unwind starts the stopped old set again.
+		rolled := "test-" + uniq()
+		out := r.Run(t, append([]string{
+			"unikraft", "--timeout=90s", "instance", "create",
+			"--output", "quiet",
+			"--name", rolled,
+			"--image", "nginx:1.25",
+			"--service", svcName,
+			"--autostart",
+			"--rollout=type=replace,healthy-after=300s",
+		}, common...), integ.ExpectFail())
+		assert.Contains(t, out, "rollout interrupted")
+
+		list := r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		assert.NotContains(t, list, rolled)
+		assert.Contains(t, list, before)
+		assert.Regexp(t, `state:\s+running`, r.Run(t, []string{"unikraft", "instance", "inspect", before}))
+
+		r.Run(t, []string{"unikraft", "instance", "delete", before})
 		r.Run(t, []string{"unikraft", "service", "delete", svcName})
 	})
 

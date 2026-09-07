@@ -406,6 +406,15 @@ Examples:
   	  --autostart \
   	  --rollout
 
+  # Roll a service group whose instances need sole access to their volume, and
+  # hold the new ones up for a minute first
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-db:v2 \
+  	  --service my-db \
+  	  --autostart \
+  	  --rollout=type=replace,healthy-after=1m
+
 Fields:
   metro
   name
@@ -567,8 +576,9 @@ Create flags:
           Automatically delete the instance when it stops.
       --rollout=<key>=<value>
           Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.
-            type: rolling (default).
-          [example: type=rolling]
+            type: rolling (default) | replace
+            healthy-after: time the new instances must keep running before the old ones are deleted.
+          [examples: replace, type=replace,healthy-after=30s]
 
 $ unikraft instance new --help
 
@@ -616,6 +626,15 @@ Examples:
   	  --autostart \
   	  --rollout
 
+  # Roll a service group whose instances need sole access to their volume, and
+  # hold the new ones up for a minute first
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-db:v2 \
+  	  --service my-db \
+  	  --autostart \
+  	  --rollout=type=replace,healthy-after=1m
+
 Fields:
   metro
   name
@@ -777,8 +796,9 @@ Create flags:
           Automatically delete the instance when it stops.
       --rollout=<key>=<value>
           Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.
-            type: rolling (default).
-          [example: type=rolling]
+            type: rolling (default) | replace
+            healthy-after: time the new instances must keep running before the old ones are deleted.
+          [examples: replace, type=replace,healthy-after=30s]
 
 $ unikraft instance run --help
 
@@ -992,8 +1012,9 @@ Create flags:
           Automatically delete the instance when it stops.
       --rollout=<key>=<value>
           Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.
-            type: rolling (default).
-          [example: type=rolling]
+            type: rolling (default) | replace
+            healthy-after: time the new instances must keep running before the old ones are deleted.
+          [examples: replace, type=replace,healthy-after=30s]
 
 $ unikraft instance edit --help
 
