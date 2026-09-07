@@ -173,3 +173,16 @@ func (ks Keys) Strings() []string {
 	}
 	return ss
 }
+
+// ByUUID returns the keys as strings. A key with a UUID gives only its UUID, so
+// that a new resource with the same name does not match.
+func (ks Keys) ByUUID() []string {
+	ss := make([]string, 0, len(ks))
+	for _, k := range ks {
+		if k.UUID != "" {
+			k = Key{Metro: k.Metro, UUID: k.UUID}
+		}
+		ss = append(ss, k.String())
+	}
+	return ss
+}

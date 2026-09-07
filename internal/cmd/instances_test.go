@@ -244,3 +244,56 @@ func TestInstanceCreateRejectsNetworks(t *testing.T) {
 		})
 	}
 }
+
+func TestInstanceRolloutUnmarshalText(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    cmd.InstanceRollout
+		wantErr string
+	}{
+		{
+			name: "empty",
+			in:   "",
+			want: cmd.InstanceRollout{},
+		},
+		{
+			name: "every key",
+			in:   "type=rolling,batch=3",
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, Batch: 3},
+		},
+		{
+			name: "json",
+			in:   `{"type":"rolling","batch":2}`,
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, Batch: 2},
+		},
+		{
+			name:    "unknown type",
+			in:      "type=sideways",
+			wantErr: `unknown rollout type "sideways"`,
+		},
+		{
+			name:    "negative batch",
+			in:      "batch=-1",
+			wantErr: "batch cannot be negative",
+		},
+		{
+			name:    "type without its key",
+			in:      "rolling",
+			wantErr: `invalid value "rolling": expected <key>=<value>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got cmd.InstanceRollout
+			err := got.UnmarshalText([]byte(tt.in))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
