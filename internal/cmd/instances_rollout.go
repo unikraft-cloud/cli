@@ -24,11 +24,14 @@ import (
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/rollout"
+	"unikraft.com/cli/internal/timeouts"
+	"unikraft.com/cli/internal/types"
 )
 
 // InstanceRollout holds the options of a rollout.
 type InstanceRollout struct {
-	Type InstanceRolloutMode `name:"type" json:"type,omitempty"`
+	Type         InstanceRolloutMode `name:"type" json:"type,omitempty"`
+	HealthyAfter types.DurationS     `name:"healthy-after" json:"healthy-after,omitempty"`
 }
 
 // UnmarshalText reads the rollout options. A mode alone sets the type.
@@ -48,6 +51,9 @@ func (r *InstanceRollout) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+	if parsed.HealthyAfter < 0 {
+		return fmt.Errorf("rollout healthy-after cannot be negative")
+	}
 	*r = InstanceRollout(parsed)
 	return nil
 }
@@ -58,15 +64,18 @@ type InstanceRolloutMode string
 const (
 	// RolloutRolling means every new instance comes up before any old one goes.
 	RolloutRolling InstanceRolloutMode = "rolling"
+	// RolloutReplace means the old instances stop before the new ones start.
+	RolloutReplace InstanceRolloutMode = "replace"
 )
 
 // UnmarshalText reads a rollout type and refuses an unknown one.
 func (m *InstanceRolloutMode) UnmarshalText(data []byte) error {
-	if mode := InstanceRolloutMode(data); mode == RolloutRolling {
+	switch mode := InstanceRolloutMode(data); mode {
+	case RolloutRolling, RolloutReplace:
 		*m = mode
 		return nil
 	}
-	return fmt.Errorf("unknown rollout type %q, want %q", data, RolloutRolling)
+	return fmt.Errorf("unknown rollout type %q, want %q or %q", data, RolloutRolling, RolloutReplace)
 }
 
 // rolloutPollInterval is how long a rollout leaves between two reads.
@@ -140,6 +149,29 @@ func (c *InstanceCreateCmd) runServiceRollout(ctx context.Context, stdio config.
 	}
 	count := int64(len(oldKeys))
 
+	var running multimetro.Keys
+	if opts.Type == RolloutReplace && !c.DryRun {
+		results, err := (Instance{}).Get(ctx, oldKeys.Strings())
+		if err != nil {
+			return nil, fmt.Errorf("reading the instances of service group %q: %w", svcGroup.Name, err)
+		}
+		for _, r := range results {
+			if inst := r.(Instance); inst.State.IsRunning() {
+				running = append(running, inst.key)
+			}
+		}
+	}
+
+	healthyAfter := time.Duration(opts.HealthyAfter) * time.Second
+	var strategy rollout.Strategy = rollout.Rolling{HealthyAfter: healthyAfter}
+	if opts.Type == RolloutReplace {
+		strategy = rollout.Replace{HealthyAfter: healthyAfter}
+		for key, field := range resource.IterFields(fields) {
+			if key.String() == "autostart" && field.Create != nil {
+				field.Create.Set = false
+			}
+		}
+	}
 	if count > 1 {
 		fields = append(fields, resource.Field{Name: "replicas", Create: &resource.Patch{Set: count - 1}})
 	}
@@ -157,6 +189,10 @@ func (c *InstanceCreateCmd) runServiceRollout(ctx context.Context, stdio config.
 		return nil, nil
 	}
 
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
 	log.G(ctx).Info().
 		Str("service", svcGroup.Name).
 		Str("mode", string(opts.Type)).
@@ -165,14 +201,15 @@ func (c *InstanceCreateCmd) runServiceRollout(ctx context.Context, stdio config.
 
 	quiet := stdio
 	quiet.Stdout = io.Discard
-	created := &instanceSet{partition: partition}
-	done, err := rollout.Rolling{}.Rollout(ctx,
-		&instanceSet{partition: partition, keys: oldKeys},
+	created := &instanceSet{g: g, partition: partition}
+	done, err := strategy.Rollout(ctx,
+		&instanceSet{g: g, partition: partition, keys: oldKeys, running: running},
 		func(ctx context.Context) (rollout.Set, error) {
 			res, err := c.ResourceCreateCmd.RunResources(ctx, quiet, partition)
 			for _, r := range res {
 				created.keys = append(created.keys, r.(Instance).key)
 			}
+			created.running = created.keys
 			if err == nil && int64(len(res)) < count {
 				err = fmt.Errorf("rollout created %d of %d instances", len(res), count)
 			}
@@ -223,11 +260,15 @@ func rolloutTarget(ctx context.Context, metro string, svc *InstanceService) (Ser
 	return svcGroup, old, nil
 }
 
-// instanceSet is a set of instances that a rollout acts on.
+// instanceSet is a set of instances that a rollout acts on. Start and Up act
+// only on the running instances.
 type instanceSet struct {
+	g         *group.Group[multimetro.MetroClient]
 	partition *resource.Partition
 	keys      multimetro.Keys
+	running   multimetro.Keys
 	seen      map[string]bool
+	restarts  map[string]int
 	last      []Instance
 }
 
@@ -235,15 +276,87 @@ func (s *instanceSet) Names() []string {
 	return s.keys.Strings()
 }
 
+func (s *instanceSet) Start(ctx context.Context) error {
+	if len(s.running) == 0 {
+		return nil
+	}
+	_, err := startInstances(ctx, s.g, s.running)
+	return err
+}
+
+func (s *instanceSet) Stop(ctx context.Context) error {
+	if _, err := stopInstances(ctx, s.g, s.keys, StopOpts{DrainTimeout: -1}); err != nil {
+		return err
+	}
+	state := platform.InstanceStateStopped
+	ask := func(ctx context.Context, keys multimetro.Keys) error {
+		return group.DoRefs(ctx, s.g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+			log.G(ctx).Trace().Str("state", string(state)).Msg("waiting for instances")
+			reqs := make([]platform.WaitInstancesRequestItem, 0, len(refs))
+			for _, ref := range refs.NameOrUUIDs() {
+				reqs = append(reqs, platform.WaitInstancesRequestItem{
+					Name:     ref.Name,
+					Uuid:     ref.Uuid,
+					State:    &state,
+					TimeoutS: new(int64(-1)),
+				})
+			}
+			resp, err := timeouts.TryWithFallback(ctx, reqs, func(ctx context.Context, reqs []platform.WaitInstancesRequestItem) (*platform.Response[platform.WaitInstancesResponseData], error) {
+				return c.WaitInstances(ctx, reqs, platform.WaitInstancesOpts{})
+			})
+			if _, err := timeouts.Tolerate(ctx, resp, err, "instances did not reach the state in time"); err != nil {
+				return nil, err
+			}
+			if resp == nil || resp.Data == nil {
+				return nil, nil
+			}
+			var waited group.Refs
+			for _, instance := range resp.Data.Instances {
+				if instance.State != state {
+					log.G(ctx).Trace().
+						Str("instance", cmp.Or(instance.Name, instance.Uuid)).
+						Str("state", string(instance.State)).
+						Msgf("instance is not %s yet", state)
+					continue
+				}
+				waited = append(waited, group.Ref{
+					Metro: c.Metro.Name,
+					Name:  instance.Name,
+					UUID:  instance.Uuid,
+				})
+			}
+			return waited, nil
+		})
+	}
+
+	pending := s.keys
+	for {
+		err := ask(ctx, pending)
+		notFound, ok := errors.AsType[group.ErrRefNotFound](err)
+		if err == nil || !ok {
+			return err
+		}
+		pending = make(multimetro.Keys, 0, len(notFound.Refs))
+		for _, ref := range notFound.Refs {
+			pending = append(pending, multimetro.Key(ref))
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(rolloutPollInterval):
+		}
+	}
+}
+
 func (s *instanceSet) Up(ctx context.Context) error {
-	if len(s.keys) == 0 {
+	if len(s.running) == 0 {
 		return nil
 	}
 	if s.seen == nil {
-		s.seen = make(map[string]bool, len(s.keys))
+		s.seen = make(map[string]bool, len(s.running))
 	}
 	for {
-		results, err := (Instance{}).Get(ctx, s.keys.Strings())
+		results, err := (Instance{}).Get(ctx, s.running.Strings())
 		notFound, ok := errors.AsType[group.ErrRefNotFound](err)
 		if err != nil && !ok {
 			return err
@@ -278,7 +391,7 @@ func (s *instanceSet) Up(ctx context.Context) error {
 			return errors.Join(failed...)
 		}
 		if len(pending) == 0 {
-			return nil
+			break
 		}
 		select {
 		case <-ctx.Done():
@@ -286,6 +399,18 @@ func (s *instanceSet) Up(ctx context.Context) error {
 		case <-time.After(rolloutPollInterval):
 		}
 	}
+
+	var restarted []error
+	for _, inst := range s.last {
+		if count, ok := s.restarts[inst.UUID]; ok && inst.Restart.RestartCount > count {
+			restarted = append(restarted, fmt.Errorf("instance %s restarted", cmp.Or(inst.Name, inst.UUID)))
+		}
+	}
+	s.restarts = make(map[string]int, len(s.last))
+	for _, inst := range s.last {
+		s.restarts[inst.UUID] = inst.Restart.RestartCount
+	}
+	return errors.Join(restarted...)
 }
 
 func (s *instanceSet) Delete(ctx context.Context) error {
