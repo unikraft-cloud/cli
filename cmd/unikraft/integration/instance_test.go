@@ -1842,4 +1842,38 @@ cmd: ["cat", "/marker.txt"]
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName, "test-branch-" + branchName})
 		r.Run(t, []string{"unikraft", "instance", "template", "delete", templateName})
 	})
+
+	t.Run("autokill", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + instName,
+			"--set", "metro=" + r.Config.MetroName,
+			"--set", "image=nginx:latest",
+			"--set", "autostart=false",
+			"--set", "resources.memory=128",
+			"--set", "resources.vcpus=1",
+			"--autokill", "time=5s",
+		})
+
+		out := r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.Regexp(t, `autokill:`, out)
+		assert.Regexp(t, `time:\s+5s`, out)
+
+		r.Run(t, []string{
+			"unikraft", "instance", "edit", "test-" + instName,
+			"--output", "quiet",
+			"--autokill", `time=10s,num-requests=100`,
+		})
+
+		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
+		assert.Regexp(t, `autokill:`, out)
+		assert.Regexp(t, `time:\s+10s`, out)
+		assert.Regexp(t, `num-requests:\s+100`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
 }

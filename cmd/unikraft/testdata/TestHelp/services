@@ -26,6 +26,7 @@ Fields:
   persistent
   autoscale
   limits, limits.soft, limits.hard
+  autokill, autokill.time
   timestamps, timestamps.created
   domains, domains.*, domains.*.fqdn, domains.*.certificate,
   domains.*.certificate.name, domains.*.certificate.uuid
@@ -74,6 +75,7 @@ Fields:
   persistent
   autoscale
   limits, limits.soft, limits.hard
+  autokill, autokill.time
   timestamps, timestamps.created
   domains, domains.*, domains.*.fqdn, domains.*.certificate,
   domains.*.certificate.name, domains.*.certificate.uuid
@@ -130,6 +132,7 @@ Fields:
   persistent
   autoscale
   limits, limits.soft, limits.hard
+  autokill, autokill.time
   timestamps, timestamps.created
   domains, domains.*, domains.*.fqdn, domains.*.certificate,
   domains.*.certificate.name, domains.*.certificate.uuid
@@ -188,6 +191,7 @@ Fields:
   persistent
   autoscale
   limits, limits.soft, limits.hard
+  autokill, autokill.time
   timestamps, timestamps.created
   domains, domains.*, domains.*.fqdn, domains.*.certificate,
   domains.*.certificate.name, domains.*.certificate.uuid
@@ -248,6 +252,7 @@ Fields:
   persistent
   autoscale
   limits, limits.soft, limits.hard
+  autokill, autokill.time
   timestamps, timestamps.created
   domains, domains.*, domains.*.fqdn, domains.*.certificate,
   domains.*.certificate.name, domains.*.certificate.uuid
@@ -302,6 +307,10 @@ Create flags:
       --hard-limit=<n>
           Hard limit.
           [examples: 10, 100]
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time the group must stay empty before it is deleted.
+          [example: time=5m]
       --domain=<fqdn> ...
           Service domain.
           [example: example.com]
@@ -331,6 +340,7 @@ Fields:
   persistent
   autoscale
   limits, limits.soft, limits.hard
+  autokill, autokill.time
   timestamps, timestamps.created
   domains, domains.*, domains.*.fqdn, domains.*.certificate,
   domains.*.certificate.name, domains.*.certificate.uuid
@@ -384,6 +394,10 @@ Edit flags:
       --hard-limit=<n>
           Hard limit.
           [examples: 10, 100]
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time the group must stay empty before it is deleted.
+          [example: time=5m]
       --domain=<fqdn> ...
           Service domain.
           [example: example.com]
@@ -413,6 +427,7 @@ Fields:
   persistent
   autoscale
   limits, limits.soft, limits.hard
+  autokill, autokill.time
   timestamps, timestamps.created
   domains, domains.*, domains.*.fqdn, domains.*.certificate,
   domains.*.certificate.name, domains.*.certificate.uuid

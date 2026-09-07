@@ -137,6 +137,7 @@ type Instance struct {
 	}
 
 	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" create:"set" edit:"set" flag:"scale-to-zero" help:"Scale-to-zero options.\n  policy: on | idle | off\n  cooldown-time: cooldown in ms before scaling to zero\n  notify-time: notification time in ms before scaling to zero\n  stateful: true | false" placeholder:"<key>=<value>" example:"on,policy=on\\,cooldown-time=300,policy=on\\,stateful=true\\,cooldown-time=500\\,notify-time=100"`
+	Autokill    InstanceAutokill    `field:",embed" mirror:"instance.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time after the instance stops before it is deleted\n  num-requests: max requests before the instance is deleted" placeholder:"<key>=<value>" example:"time=5s,num-requests=100,time=5s\\,num-requests=100"`
 
 	Timing struct {
 		Uptime   types.DurationMS `mirror:"instance.uptime_ms"`
@@ -568,6 +569,89 @@ func (s InstanceScaleToZero) MarshalText() ([]byte, error) {
 func (s InstanceScaleToZero) MarshalJSON() ([]byte, error) {
 	type scaleToZeroJSON InstanceScaleToZero
 	return json.Marshal(scaleToZeroJSON(s))
+}
+
+type InstanceAutokill struct {
+	TimeMs      types.DurationMS `name:"time" json:"time,omitempty" mirror:"time_ms" field:"time,long"`
+	NumRequests uint32           `name:"num-requests" json:"num-requests,omitempty" mirror:"num_requests" field:"num-requests,long"`
+}
+
+func (a *InstanceAutokill) UnmarshalText(data []byte) error {
+	type autokillAlias InstanceAutokill
+	parsed, err := value.Parse[autokillAlias]([]string{string(data)})
+	if err != nil {
+		return err
+	}
+	*a = InstanceAutokill(parsed)
+	return nil
+}
+
+func (a *InstanceAutokill) UnmarshalJSON(data []byte) error {
+	if len(data) != 0 && data[0] == '"' {
+		var text string
+		if err := json.Unmarshal(data, &text); err != nil {
+			return err
+		}
+		return a.UnmarshalText([]byte(text))
+	}
+	type autokillJSON InstanceAutokill
+	return json.Unmarshal(data, (*autokillJSON)(a))
+}
+
+func (a InstanceAutokill) MarshalText() ([]byte, error) {
+	var parts []string
+	if a.TimeMs > 0 {
+		parts = append(parts, fmt.Sprintf("time=%s", a.TimeMs))
+	}
+	if a.NumRequests > 0 {
+		parts = append(parts, fmt.Sprintf("num-requests=%d", a.NumRequests))
+	}
+	return []byte(strings.Join(parts, ",")), nil
+}
+
+func (a InstanceAutokill) MarshalJSON() ([]byte, error) {
+	type autokillJSON InstanceAutokill
+	return json.Marshal(autokillJSON(a))
+}
+
+// Autokill is the time-only form of autokill used by service groups and
+// instance templates, whose endpoints have no request-count trigger.
+type Autokill struct {
+	TimeMs types.DurationMS `name:"time" json:"time,omitempty" mirror:"time_ms" field:"time,long"`
+}
+
+func (a *Autokill) UnmarshalText(data []byte) error {
+	type autokillAlias Autokill
+	parsed, err := value.Parse[autokillAlias]([]string{string(data)})
+	if err != nil {
+		return err
+	}
+	*a = Autokill(parsed)
+	return nil
+}
+
+func (a *Autokill) UnmarshalJSON(data []byte) error {
+	if len(data) != 0 && data[0] == '"' {
+		var text string
+		if err := json.Unmarshal(data, &text); err != nil {
+			return err
+		}
+		return a.UnmarshalText([]byte(text))
+	}
+	type autokillJSON Autokill
+	return json.Unmarshal(data, (*autokillJSON)(a))
+}
+
+func (a Autokill) MarshalText() ([]byte, error) {
+	if a.TimeMs <= 0 {
+		return nil, nil
+	}
+	return fmt.Appendf(nil, "time=%s", a.TimeMs), nil
+}
+
+func (a Autokill) MarshalJSON() ([]byte, error) {
+	type autokillJSON Autokill
+	return json.Marshal(autokillJSON(a))
 }
 
 // InstanceArgs is a []string type that uses shell-style word splitting when
@@ -1025,6 +1109,16 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 			req["notify_time_ms"] = int32(value.NotifyTime)
 		}
 		return platform.MutableInstancePropertyScaleToZero, req, nil
+	case "autokill":
+		value := value.(InstanceAutokill)
+		req := map[string]any{}
+		if value.TimeMs > 0 {
+			req["time_ms"] = uint64(value.TimeMs)
+		}
+		if value.NumRequests > 0 {
+			req["num_requests"] = value.NumRequests
+		}
+		return platform.MutableInstancePropertyAutokill, req, nil
 	case "vsock":
 		return "vsock", value.(bool), nil
 	case "roms":
@@ -1148,6 +1242,19 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 			if scale.NotifyTime > 0 {
 				notify := int32(scale.NotifyTime)
 				req.ScaleToZero.NotifyTimeMs = &notify
+			}
+		case "autokill":
+			autokill := field.Create.Set.(InstanceAutokill)
+			if autokill.TimeMs > 0 || autokill.NumRequests > 0 {
+				req.Autokill = &platform.CreateInstanceRequestAutokill{}
+				if autokill.TimeMs > 0 {
+					t := uint64(autokill.TimeMs)
+					req.Autokill.TimeMs = &t
+				}
+				if autokill.NumRequests > 0 {
+					n := autokill.NumRequests
+					req.Autokill.NumRequests = &n
+				}
 			}
 		case "volumes":
 			for _, vol := range field.Create.Set.([]*InstanceVolume) {

@@ -68,6 +68,7 @@ Fields:
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
+  autokill, autokill.time, autokill.num-requests
   timing, timing.uptime, timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
@@ -177,6 +178,11 @@ Create flags:
             notify-time: notification time in ms before scaling to zero
             stateful: true | false.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
+      --autokill=<key>=<value>
+          Autokill options.
+            time: time after the instance stops before it is deleted
+            num-requests: max requests before the instance is deleted.
+          [examples: time=5s, num-requests=100, time=5s,num-requests=100]
       --restart=<policy>
           Restart policy.
           [examples: always, on-failure, never]
