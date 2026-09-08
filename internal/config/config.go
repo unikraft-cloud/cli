@@ -68,17 +68,36 @@ func (c *Config) Save() error {
 	if err := os.MkdirAll(filepath.Dir(c.Path), 0o755); err != nil {
 		return jujuerrors.Annotate(err, "creating config directory")
 	}
-	f, err := os.Create(c.Path)
-	if err != nil {
-		return jujuerrors.Annotate(err, "opening config file")
+
+	mode := os.FileMode(0o600)
+	if info, err := os.Stat(c.Path); err == nil {
+		mode = info.Mode().Perm()
 	}
+
+	f, err := os.CreateTemp(filepath.Dir(c.Path), "."+filepath.Base(c.Path)+".*")
+	if err != nil {
+		return jujuerrors.Annotate(err, "creating temporary config file")
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
 
 	if _, err := f.Write(updated); err != nil {
 		f.Close()
 		return jujuerrors.Annotate(err, "writing config file")
 	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return jujuerrors.Annotate(err, "syncing config file")
+	}
 	if err := f.Close(); err != nil {
 		return jujuerrors.Annotate(err, "closing config file")
+	}
+
+	if err := os.Chmod(tmp, mode); err != nil {
+		return jujuerrors.Annotate(err, "setting config file permissions")
+	}
+	if err := os.Rename(tmp, c.Path); err != nil {
+		return jujuerrors.Annotate(err, "replacing config file")
 	}
 	return nil
 }
