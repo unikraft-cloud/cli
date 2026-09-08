@@ -21,6 +21,7 @@ import (
 
 var (
 	buildOnce       sync.Once
+	buildBinaryDir  string
 	buildBinaryPath string
 	buildBinaryErr  error
 )
@@ -35,6 +36,7 @@ func BuildUnikraft(t *testing.T) string {
 			buildBinaryErr = fmt.Errorf("create temp dir: %w", err)
 			return
 		}
+		buildBinaryDir = binaryDir
 		binaryName := "unikraft"
 		if runtime.GOOS == "windows" {
 			binaryName += ".exe"
@@ -58,4 +60,15 @@ func BuildUnikraft(t *testing.T) string {
 	})
 	require.NoError(t, buildBinaryErr)
 	return buildBinaryPath
+}
+
+// CleanupUnikraftBinary deletes the temporary directory of the built binary.
+func CleanupUnikraftBinary() {
+	if buildBinaryDir == "" {
+		return
+	}
+	if err := os.RemoveAll(buildBinaryDir); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to cleanup unikraft binary: %v\n", err)
+	}
+	buildBinaryDir = ""
 }

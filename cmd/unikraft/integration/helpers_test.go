@@ -29,6 +29,7 @@ import (
 func TestMain(m *testing.M) {
 	code := m.Run()
 	integ.CleanupSharedImages()
+	integ.CleanupUnikraftBinary()
 	os.Exit(code)
 }
 
