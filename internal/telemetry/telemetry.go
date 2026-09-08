@@ -38,11 +38,13 @@ var (
 
 var (
 	distinctID string
+	machineID  string
 	sessionID  string
 	groups     posthog.Groups
 	enabled    bool
 	mu         sync.Mutex
 	anonymous  bool
+	userless   bool
 
 	// commandStart tracks when the current command started for duration calculation.
 	commandStart time.Time
@@ -79,16 +81,23 @@ func Init(profile *config.Profile) error {
 	}
 
 	// Use the user UUID when known, otherwise the machine fingerprint.
-	distinctID = generateDistinctID()
+	machineID = generateMachineID()
+	distinctID = machineID
 	groups = nil
 	anonymous = true
+	userless = true
 	if profile != nil {
-		if profile.UserUUID != "" {
-			distinctID = profile.UserUUID
-			anonymous = false
-		}
 		if profile.OrganizationUUID != "" {
 			groups = posthog.Groups{"organization": profile.OrganizationUUID}
+		}
+		switch {
+		case profile.UserUUID != "":
+			distinctID = profile.UserUUID
+			anonymous = false
+			userless = false
+		case profile.OrganizationUUID != "":
+			distinctID = profile.OrganizationUUID
+			anonymous = false
 		}
 	}
 
@@ -98,9 +107,9 @@ func Init(profile *config.Profile) error {
 	return nil
 }
 
-// generateDistinctID creates an anonymous distinct ID based on machine fingerprint.
+// generateMachineID creates an anonymous ID from the machine fingerprint.
 // The ID is a SHA-256 hash to ensure privacy while maintaining consistency.
-func generateDistinctID() string {
+func generateMachineID() string {
 	fp, err := fingerprint.New()
 	if err != nil {
 		// Fallback to hostname-based ID
@@ -121,7 +130,7 @@ func generateDistinctID() string {
 	return hex.EncodeToString(hash[:16])
 }
 
-// generateDistinctID creates a unique session ID for this CLI invocation, which
+// generateSessionID creates a unique session ID for this CLI invocation, which
 // can be used to group events together.
 func generateSessionID() string {
 	buf := make([]byte, 8)
