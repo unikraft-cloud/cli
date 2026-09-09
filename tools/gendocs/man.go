@@ -193,13 +193,9 @@ func genManContent(node *kong.Node, header *ManHeader) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	// Preamble
-	var description string
-	if node.Parent == nil {
-		description = node.Help
-	} else if node.Detail != "" {
+	description := node.Help
+	if node.Parent != nil && node.Detail != "" {
 		description = node.Detail
-	} else {
-		description = node.Help
 	}
 
 	fmt.Fprintf(buf, "%% \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"\n",
@@ -209,7 +205,9 @@ func genManContent(node *kong.Node, header *ManHeader) ([]byte, error) {
 	buf.WriteString("# SYNOPSIS\n")
 	fmt.Fprintf(buf, "`%s`\n\n", ansi.Strip(kingkong.Summary(node)))
 	buf.WriteString("# DESCRIPTION\n")
-	buf.WriteString(description + "\n\n")
+	// md2man makes a section of both "#" and "##", so the headings of the
+	// description move to "###" and become subsections.
+	buf.WriteString(demoteHeadings(description, 3) + "\n\n")
 
 	manPrintExamples(buf, node)
 

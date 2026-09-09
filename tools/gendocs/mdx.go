@@ -83,18 +83,16 @@ func generateMarkdown(ctx context.Context, node *kong.Node, dir string) error {
 	buf.Write(frontmatterBytes)
 	buf.WriteString("---\n\n")
 
-	if node.Parent == nil {
-		if help != "" {
-			buf.WriteString(escapeMdx(help) + "\n\n")
-		}
-	} else if node.Detail != "" {
-		buf.WriteString(escapeMdx(node.Detail) + "\n\n")
-	} else if help != "" {
-		buf.WriteString(escapeMdx(help) + "\n\n")
+	description := help
+	if node.Parent != nil && node.Detail != "" {
+		description = node.Detail
+	}
+	if description != "" {
+		buf.WriteString(escapeMdx(description) + "\n\n")
 	}
 
 	if IsRunnable(node) {
-		fmt.Fprintf(buf, "```\n%s\n```\n\n", ansi.Strip(kingkong.Summary(node)))
+		fmt.Fprintf(buf, "## Usage\n\n```\n%s\n```\n\n", ansi.Strip(kingkong.Summary(node)))
 	}
 
 	printDocsExamples(buf, node)

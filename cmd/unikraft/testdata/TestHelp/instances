@@ -2419,13 +2419,12 @@ Global flags:
 
 $ unikraft instance tunnel --help
 
-Forward a local port to an unexposed instance through an intermediate
-TLS tunnel service.
+Forward a local port to an unexposed instance through an intermediate TLS tunnel
+service.
 
-When you need to access an instance on Unikraft Cloud which is not
-publicly exposed to the internet, you can use the
-`unikraft instance tunnel` subcommand to forward from a local
-port to a port which the instance listens on.
+When you need to access an instance on Unikraft Cloud which is not publicly
+exposed to the internet, you can use the unikraft instance tunnel subcommand to
+forward from a local port to a port which the instance listens on.
 
 Usage:
   unikraft instances tunnel <target> ... [flags]
@@ -2512,15 +2511,14 @@ Global flags:
 
 $ unikraft instance exec --help
 
-Execute a command on an instance which has the sandbox plugin
-loaded.
+Execute a command on an instance which has the sandbox plugin loaded.
 
-The environment given with `--env` is the whole environment the
-command sees, not an addition to it.
+The environment given with --env is the whole environment the command sees, not
+an addition to it.
 
-Standard input is forwarded to the command only when it is
-redirected from a file or a pipe. Run from a terminal, the command
-sees an empty standard input and cannot be typed at.
+Standard input is forwarded to the command only when it is redirected from a
+file or a pipe. Run from a terminal, the command sees an empty standard input
+and cannot be typed at.
 
 Usage:
   unikraft instances exec <target> <command> ... [flags]
@@ -2572,16 +2570,14 @@ Global flags:
 
 $ unikraft instance copy --help
 
-Copy a single file to or from an instance which has the sandbox
-plugin loaded.
+Copy a single file to or from an instance which has the sandbox plugin loaded.
 
-A path on an instance is written as `<instance>:<path>`, optionally
-prefixed with a metro as `<metro>/<instance>:<path>`. Exactly one of
-the two paths may name an instance.
+A path on an instance is written as <instance>:<path>, optionally prefixed with
+a metro as <metro>/<instance>:<path>. Exactly one of the two paths may name an
+instance.
 
-Copying to an instance always overwrites the remote file. Copying
-from one writes a regular local file, without the permissions it
-had on the instance.
+Copying to an instance always overwrites the remote file. Copying from one
+writes a regular local file, without the permissions it had on the instance.
 
 Usage:
   unikraft instances copy <source> <destination> [flags]
@@ -2635,8 +2631,7 @@ Global flags:
 
 $ unikraft instance write --help
 
-Write a single local file to an instance which has the sandbox
-plugin loaded.
+Write a single local file to an instance which has the sandbox plugin loaded.
 
 Usage:
   unikraft instances write <target> <local> <remote> [flags]
@@ -2689,11 +2684,10 @@ Global flags:
 
 $ unikraft instance read --help
 
-Read a single file from an instance which has the sandbox plugin
-loaded.
+Read a single file from an instance which has the sandbox plugin loaded.
 
-The local file is always written as a regular file. Permissions are
-not carried across from the instance.
+The local file is always written as a regular file. Permissions are not carried
+across from the instance.
 
 Usage:
   unikraft instances read <target> <remote> [<local>] [flags]
