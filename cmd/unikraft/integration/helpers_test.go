@@ -28,7 +28,7 @@ import (
 
 func TestMain(m *testing.M) {
 	code := m.Run()
-	integ.CleanupSharedImages()
+	integ.Cleanup()
 	os.Exit(code)
 }
 

@@ -84,7 +84,7 @@ func (i *Image) Build(t *testing.T, env *TestEnv, ref string, opts ...CmdOption)
 }
 
 // SharedImage is an image that tests use. Build makes the image one time,
-// and CleanupSharedImages deletes it when the test binary ends.
+// and Cleanup deletes it when the test binary ends.
 type SharedImage struct {
 	Image
 
@@ -143,8 +143,8 @@ func registerSharedImage(env *TestEnv, ref string) {
 	sharedImageRefs = append(sharedImageRefs, ref)
 }
 
-// CleanupSharedImages deletes every shared image from the registry.
-func CleanupSharedImages() {
+// cleanupSharedImages deletes every shared image from the registry.
+func cleanupSharedImages() {
 	sharedImageMu.Lock()
 	cfg := sharedImageConfig
 	refs := slices.Clone(sharedImageRefs)
