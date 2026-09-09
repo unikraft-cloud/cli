@@ -62,8 +62,8 @@ func BuildUnikraft(t *testing.T) string {
 	return buildBinaryPath
 }
 
-// CleanupUnikraftBinary deletes the temporary directory of the built binary.
-func CleanupUnikraftBinary() {
+// cleanupUnikraftBinary deletes the temporary directory of the built binary.
+func cleanupUnikraftBinary() {
 	if buildBinaryDir == "" {
 		return
 	}

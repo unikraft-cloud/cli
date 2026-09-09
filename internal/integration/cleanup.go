@@ -3,17 +3,10 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
-package main
+package integration
 
-import (
-	"os"
-	"testing"
-
-	integ "unikraft.com/cli/internal/integration"
-)
-
-func TestMain(m *testing.M) {
-	code := m.Run()
-	integ.Cleanup()
-	os.Exit(code)
+// Cleanup releases every resource that the test helpers make.
+func Cleanup() {
+	cleanupSharedImages()
+	cleanupUnikraftBinary()
 }
