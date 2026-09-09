@@ -52,7 +52,7 @@ require (
 	mvdan.cc/sh/v3 v3.13.1
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260814150108-0d07a5aa09c6
-	unikraft.com/cloud/sdk v0.3.1-0.20260903152413-b82b2d8e3cfd
+	unikraft.com/cloud/sdk v0.3.1-0.20260909143724-9e345f415529
 	unikraft.com/x/colors v0.0.0-20260813113709-544c471e0bc9
 	unikraft.com/x/filters v0.0.0-20260804153219-d1b47a40e047
 	unikraft.com/x/fingerprint v0.0.0-20260126094137-ab6e717e5679
