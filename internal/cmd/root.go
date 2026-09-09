@@ -15,7 +15,6 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -385,73 +384,18 @@ var PartitionedResources = []resource.Resource{
 	Certificate{},
 }
 
-type timedOutContext struct {
-	context.Context // parent
-	done            chan struct{}
-	mu              sync.Mutex
-	ctxErr          error
-	deadline        time.Time
+// timedOutError is the cancellation cause set when --timeout elapses. It
+// unwraps to context.DeadlineExceeded so callers can still test for a deadline.
+type timedOutError struct {
+	timeout time.Duration
 }
 
-func (c *timedOutContext) Done() <-chan struct{} { return c.done }
+func (e timedOutError) Error() string { return "timed out after " + e.timeout.String() }
 
-func (c *timedOutContext) Err() error {
-	select {
-	case <-c.done:
-	default:
-		return nil
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.ctxErr
-}
+func (timedOutError) Unwrap() error { return context.DeadlineExceeded }
 
-func (c *timedOutContext) Deadline() (time.Time, bool) {
-	return c.deadline, true
-}
-
-func newTimedOutContext(parent context.Context, timeout time.Duration) (context.Context, func()) {
-	c := &timedOutContext{
-		Context:  parent,
-		done:     make(chan struct{}),
-		deadline: time.Now().Add(timeout),
-	}
-
-	stopCh := make(chan struct{}, 1)
-
-	var (
-		once     sync.Once
-		stopOnce sync.Once
-	)
-
-	closeWithErr := func(err error) {
-		once.Do(func() {
-			c.mu.Lock()
-			c.ctxErr = err
-			c.mu.Unlock()
-			close(c.done)
-		})
-	}
-
-	timer := time.NewTimer(timeout)
-	go func() {
-		defer timer.Stop()
-		select {
-		case <-timer.C:
-			closeWithErr(fmt.Errorf("timed out"))
-		case <-parent.Done():
-			closeWithErr(parent.Err())
-		case <-stopCh:
-			// cleanup canceled
-		}
-	}()
-
-	stopFn := func() {
-		once.Do(func() {})
-		stopOnce.Do(func() { stopCh <- struct{}{} }) // signal goroutine to exit
-	}
-
-	return c, stopFn
+func newTimedOutContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeoutCause(parent, timeout, timedOutError{timeout: timeout})
 }
 
 type staticKey string
