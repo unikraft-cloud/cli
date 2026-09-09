@@ -39,7 +39,7 @@ Use environment variable `UNIKRAFT_CLI_INSTALL_BIN_DIR` to customize the install
 <summary><strong>Homebrew (macOS & Linux)</strong></summary>
 
 ```bash
-brew install unikraft/tap/unikraft
+brew install unikraft/cli/unikraft
 ```
 
 </details>
