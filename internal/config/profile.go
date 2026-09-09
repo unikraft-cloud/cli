@@ -73,6 +73,10 @@ type Profile struct {
 	Token string `json:"token,omitempty" field:",long"`
 	// Organization is the organization associated with the profile.
 	Organization string `json:"organization,omitempty" field:",short"`
+	// UserUUID is the UUID of the user who approved the login, if known.
+	UserUUID string `json:"user_uuid,omitempty" field:",long"`
+	// OrganizationUUID is the UUID of the organization of the token.
+	OrganizationUUID string `json:"organization_uuid,omitempty" field:",long"`
 	// ControlPlane is the endpoint for the control plane associated with the profile.
 	ControlPlane string `json:"controlplane,omitempty" field:",long"`
 	// Insecure indicates whether to allow insecure connections to the control plane, skipping TLS verification.

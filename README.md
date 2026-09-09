@@ -359,7 +359,7 @@ The CLI stores configuration in `~/.config/unikraft/config.yaml` (or the path sp
 | `UNIKRAFT_PROFILE_ENV`  | Use a virtual profile from `UKC_*` env vars instead of config (`true`, `false`)                      |
 | `UNIKRAFT_LOG_LEVEL`    | Set log level (`trace`, `debug`, `info`, `warn`, `error`, `fatal`)                                   |
 | `UNIKRAFT_LOG_TYPE`     | Set output format (`text`, `json`)                                                                   |
-| `UNIKRAFT_TELEMETRY`    | Enable/disable anonymous telemetry (`true`, `false`)                                                 |
+| `UNIKRAFT_TELEMETRY`    | Enable/disable usage analytics (`true`, `false`)                                                     |
 | `UKC_TOKEN`             | API token for legacy profiles / `UNIKRAFT_PROFILE_ENV`                                               |
 | `UKC_METRO`             | Metro name (e.g. `fra`) or full endpoint URL for legacy profiles / `UNIKRAFT_PROFILE_ENV`            |
 | `UKC_ALLOW_INSECURE`    | Skip TLS verification for the metro from `UKC_METRO` (`true`, `false`)                               |
@@ -417,8 +417,9 @@ unikraft completion -c powershell > unikraft.ps1
 
 ## Telemetry
 
-The CLI collects anonymous usage analytics to improve the product.
-No personally identifiable information is collected.
+The CLI collects usage analytics to improve the product.
+When you are logged in, events are keyed to the user and organization UUIDs of the active profile.
+Otherwise, events use an anonymous machine hash.
 To opt out:
 
 ```sh

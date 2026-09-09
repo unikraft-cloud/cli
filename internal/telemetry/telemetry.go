@@ -22,6 +22,8 @@ import (
 
 	"unikraft.com/x/fingerprint"
 	"unikraft.com/x/version"
+
+	"unikraft.com/cli/internal/config"
 )
 
 var (
@@ -36,9 +38,13 @@ var (
 
 var (
 	distinctID string
+	machineID  string
 	sessionID  string
+	groups     posthog.Groups
 	enabled    bool
 	mu         sync.Mutex
+	anonymous  bool
+	userless   bool
 
 	// commandStart tracks when the current command started for duration calculation.
 	commandStart time.Time
@@ -53,13 +59,13 @@ var (
 type EventPayload struct {
 	Event      string         `json:"event"`
 	DistinctID string         `json:"distinct_id"`
-	SessionID  string         `json:"session_id"`
 	Properties map[string]any `json:"properties"`
-	Timestamp  time.Time      `json:"timestamp"`
+	Groups     posthog.Groups `json:"groups,omitempty"`
 }
 
-// Init initializes the PostHog analytics client.
-func Init() error {
+// Init initializes the PostHog analytics client for the given profile.
+// If profile is nil, Init uses the anonymous machine fingerprint.
+func Init(profile *config.Profile) error {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -74,8 +80,26 @@ func Init() error {
 		return fmt.Errorf("no API key set for PostHog; use UNIKRAFT_POSTHOG_API_KEY environment variable")
 	}
 
-	// Generate anonymous distinct ID from machine fingerprint
-	distinctID = generateDistinctID()
+	// Use the user UUID when known, otherwise the machine fingerprint.
+	machineID = generateMachineID()
+	distinctID = machineID
+	groups = nil
+	anonymous = true
+	userless = true
+	if profile != nil {
+		if profile.OrganizationUUID != "" {
+			groups = posthog.Groups{"organization": profile.OrganizationUUID}
+		}
+		switch {
+		case profile.UserUUID != "":
+			distinctID = profile.UserUUID
+			anonymous = false
+			userless = false
+		case profile.OrganizationUUID != "":
+			distinctID = profile.OrganizationUUID
+			anonymous = false
+		}
+	}
 
 	// Generate unique session ID for this CLI invocation.
 	sessionID = generateSessionID()
@@ -83,9 +107,9 @@ func Init() error {
 	return nil
 }
 
-// generateDistinctID creates an anonymous distinct ID based on machine fingerprint.
+// generateMachineID creates an anonymous ID from the machine fingerprint.
 // The ID is a SHA-256 hash to ensure privacy while maintaining consistency.
-func generateDistinctID() string {
+func generateMachineID() string {
 	fp, err := fingerprint.New()
 	if err != nil {
 		// Fallback to hostname-based ID
@@ -106,7 +130,7 @@ func generateDistinctID() string {
 	return hex.EncodeToString(hash[:16])
 }
 
-// generateDistinctID creates a unique session ID for this CLI invocation, which
+// generateSessionID creates a unique session ID for this CLI invocation, which
 // can be used to group events together.
 func generateSessionID() string {
 	buf := make([]byte, 8)
@@ -175,6 +199,6 @@ func SendEvent(payloadJSON string) error {
 		DistinctId: payload.DistinctID,
 		Event:      payload.Event,
 		Properties: props,
-		Timestamp:  payload.Timestamp,
+		Groups:     payload.Groups,
 	})
 }

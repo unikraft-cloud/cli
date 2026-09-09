@@ -26,7 +26,19 @@ func spawnDetachedAnalytics(event posthog.Capture) {
 		return
 	}
 
-	payload, err := json.Marshal(event.APIfy())
+	event.Properties.Set("machine_id", machineID)
+	if anonymous {
+		event.Properties.Set("$process_person_profile", false)
+	} else if userless {
+		event.Properties.Set("$set", posthog.Properties{"userless": true})
+	}
+
+	payload, err := json.Marshal(EventPayload{
+		Event:      event.Event,
+		DistinctID: event.DistinctId,
+		Properties: event.Properties,
+		Groups:     event.Groups,
+	})
 	if err != nil {
 		return
 	}
