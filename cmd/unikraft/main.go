@@ -48,11 +48,6 @@ func main() {
 	)
 
 	ctx, err = run(ctx, args, stdio)
-	if err == nil {
-		// catch context cancellation errors, and make sure we show them, even if
-		// the command succeeded
-		err = ctx.Err()
-	}
 
 	// a command that ran on an instance and failed isn't an error of ours, so
 	// exit with the status it exited with and print nothing over its output
@@ -210,6 +205,16 @@ func run(ctx context.Context, args []string, stdio config.Stdio) (context.Contex
 	}
 
 	err = cli.RunNode(node, &opts.ConfigPath)
+
+	// Report why the context ended, rather than whatever the cancellation
+	// surfaced as: golang.org/x/net/http2 discards the cause. Must precede
+	// cleanup, which cancels the context.
+	if cause := context.Cause(ctx); cause != nil && (err == nil ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded)) {
+		err = cause
+	}
+
 	if cleanup != nil {
 		err = errors.Join(err, cleanup())
 	}
