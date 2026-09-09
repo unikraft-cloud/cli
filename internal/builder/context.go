@@ -6,9 +6,9 @@
 package builder
 
 import (
+	"os"
 	"strings"
 
-	"github.com/distribution/reference"
 	"github.com/pkg/errors"
 )
 
@@ -25,25 +25,29 @@ func ParseContextNames(values []string) (map[string]string, error) {
 		}
 
 		kv := strings.SplitN(value, "=", 2)
-		if len(kv) != 2 {
+		if len(kv) != 2 || kv[0] == "" {
 			return nil, errors.Errorf(
 				"invalid context value: %s, expected key=value",
 				value,
 			)
 		}
-
-		named, err := reference.ParseNormalizedNamed(kv[0])
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid context name %s", kv[0])
-		}
-
-		name := strings.TrimSuffix(
-			reference.FamiliarString(named),
-			":latest",
-		)
-
-		result[name] = kv[1]
+		result[kv[0]] = kv[1]
 	}
 
 	return result, nil
+}
+
+func isLocalBuildContext(value string) bool {
+	switch {
+	case strings.HasPrefix(value, "docker-image://"),
+		strings.HasPrefix(value, "target:"),
+		strings.Contains(value, "://"):
+		return false
+	}
+	if _, err := os.Stat(value); err == nil {
+		return true
+	}
+	return strings.HasPrefix(value, "./") ||
+		strings.HasPrefix(value, "../") ||
+		strings.HasPrefix(value, "/")
 }

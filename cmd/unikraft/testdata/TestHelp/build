@@ -29,6 +29,9 @@ Examples:
   # Build and save to a local OCI archive
   unikraft build . --output ./dist/my-app.oci.tar
 
+  # Build with an additional build context
+  unikraft build . --build-context shared=./shared
+
 Flags:
   -o, --output
           Output destination.

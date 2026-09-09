@@ -75,6 +75,12 @@ func (ImageBuildCmd) Examples() []kingkong.Example {
 				"unikraft image build . --output ./dist/my-app.oci.tar",
 			},
 		},
+		{
+			Description: "Build with an additional build context",
+			Commands: []string{
+				"unikraft image build . --build-context shared=./shared",
+			},
+		},
 	}
 }
 
