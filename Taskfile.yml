@@ -43,6 +43,45 @@ tasks:
         docs: https://unikraft.com/docs/cli
         issues: https://github.com/unikraft-cloud/cli/issues
 
+  wasm:
+    desc: The `unikraft` CLI compiled to WebAssembly for the browser.
+    silent: true
+    vars:
+      outdir: '{{.distdir}}/wasm'
+      git_tag:
+        sh: git update-index -q --refresh && git describe --abbrev=0 --tags --dirty || printf "0.0.0"
+      git_sha:
+        sh: git update-index -q --refresh && git rev-parse HEAD || printf "dev"
+      goroot:
+        sh: '{{.go_bin}} env GOROOT'
+      go_version:
+        sh: '{{.go_bin}} env GOVERSION'
+      go_ldflags: >-
+        -s -w
+        -X "unikraft.com/x/version.Name=unikraft-cli"
+        -X "unikraft.com/x/version.Docs=https://unikraft.com/docs/cli"
+        -X "unikraft.com/x/version.Issues=https://github.com/unikraft-cloud/cli/issues"
+        -X "unikraft.com/x/version.Version={{.git_tag}}"
+        -X "unikraft.com/x/version.Commit={{.git_sha}}"
+        -X "unikraft.com/x/version.BuildTime={{now}}"
+    cmds:
+    - mkdir -p '{{.outdir}}'
+    # The browser host needs the loader from the same toolchain that built the
+    # module: the import names change between Go releases.
+    - cp '{{.goroot}}/lib/wasm/wasm_exec.js' '{{.outdir}}/wasm_exec.js'
+    - >-
+      GOOS=js GOARCH=wasm {{.go_bin}} build -v {{.CLI_ARGS}}
+      -trimpath
+      -ldflags='{{.go_ldflags}}'
+      -o '{{.outdir}}/unikraft.wasm'
+      ./cmd/unikraft
+    - gzip -9 -n -k -f '{{.outdir}}/unikraft.wasm'
+    - >-
+      printf '{"version":"%s","commit":"%s","goVersion":"%s"}\n'
+      '{{.git_tag}}' '{{.git_sha}}' '{{.go_version}}'
+      > '{{.outdir}}/unikraft.wasm.json'
+    - ls -la '{{.outdir}}'
+
   lint:
     desc: Lint the project.
     silent: true

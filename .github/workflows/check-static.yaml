@@ -57,3 +57,11 @@ jobs:
       shell: bash
       run: |
           task go:ci/check
+
+    # The web console runs this CLI as a WebAssembly module.  Build it here so
+    # a new dependency on a local daemon, a terminal or a filesystem is caught
+    # in review rather than at release time.
+    - name: Build for js/wasm
+      shell: bash
+      run: |
+          GOOS=js GOARCH=wasm go build -o /dev/null ./cmd/unikraft
