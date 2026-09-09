@@ -356,7 +356,7 @@ func (InstanceCheckpoint) Create(ctx context.Context, fields []resource.Field) (
 		}
 		if autokill.TimeMs > 0 {
 			t := uint64(autokill.TimeMs)
-			req.Autokill = &platform.ItemCheckpointAutokill{TimeMs: &t}
+			req.Autokill = &platform.CheckpointAutokill{TimeMs: &t}
 		}
 		resp, err := timeouts.TryWithFallback(
 			ctx,
