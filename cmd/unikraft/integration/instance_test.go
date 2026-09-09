@@ -731,14 +731,14 @@ func TestInstances(t *testing.T) {
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
 			"--set", "resources.vcpus=1",
-			"--plugin", "name=sandbox,rom=" + sandboxPluginRom,
+			"--plugin", "name=sandbox,image=" + sandboxPluginRom,
 		})
 		assert.Regexp(t, `name:\s+sandbox`, out)
-		assert.Regexp(t, `rom:\s+\S*plugins/sandbox`, out)
+		assert.Regexp(t, `image:\s+\S*plugins/sandbox`, out)
 
 		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
 		assert.Regexp(t, `name:\s+sandbox`, out)
-		assert.Regexp(t, `rom:\s+\S*plugins/sandbox`, out)
+		assert.Regexp(t, `image:\s+\S*plugins/sandbox`, out)
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
@@ -757,14 +757,14 @@ func TestInstances(t *testing.T) {
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
 			"--set", "resources.vcpus=1",
-			"--plugin", `name=sandbox,rom=` + sandboxPluginRom + `,config=` + config,
+			"--plugin", `name=sandbox,image=` + sandboxPluginRom + `,config=` + config,
 		})
 
 		out := r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName, "--output", "json"})
 		var instances []struct {
 			Plugins []struct {
 				Name   string          `json:"name"`
-				Rom    string          `json:"rom"`
+				Image  string          `json:"image"`
 				Config json.RawMessage `json:"config"`
 			} `json:"plugins"`
 		}
@@ -772,7 +772,7 @@ func TestInstances(t *testing.T) {
 		require.Len(t, instances, 1)
 		require.Len(t, instances[0].Plugins, 1)
 		assert.Equal(t, "sandbox", instances[0].Plugins[0].Name)
-		assert.Contains(t, instances[0].Plugins[0].Rom, "plugins/sandbox")
+		assert.Contains(t, instances[0].Plugins[0].Image, "plugins/sandbox")
 		assert.JSONEq(t, config, string(instances[0].Plugins[0].Config))
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
@@ -796,7 +796,7 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "edit", "test-" + instName,
 			"--output", "quiet",
-			"--plugin", "name=first,rom=" + sandboxPluginRom,
+			"--plugin", "name=first,image=" + sandboxPluginRom,
 		})
 		out := r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
 		assert.Regexp(t, `name:\s+first`, out)
@@ -804,7 +804,7 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "edit", "test-" + instName,
 			"--output", "quiet",
-			"--add", "plugins=name=second,rom=" + sandboxPluginRom,
+			"--add", "plugins=name=second,image=" + sandboxPluginRom,
 		})
 		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
 		assert.Regexp(t, `name:\s+first`, out)
@@ -822,7 +822,7 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "edit", "test-" + instName,
 			"--output", "quiet",
-			"--plugin", "name=only,rom=" + sandboxPluginRom,
+			"--plugin", "name=only,image=" + sandboxPluginRom,
 		})
 		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-" + instName})
 		assert.Regexp(t, `name:\s+only`, out)
@@ -837,11 +837,11 @@ func TestInstances(t *testing.T) {
 			plugin string
 			want   string
 		}{
-			{"missing-name", "rom=" + sandboxPluginRom, "must specify name= for a plugin"},
-			{"missing-rom", "name=sandbox", `must specify rom= for plugin "sandbox"`},
+			{"missing-name", "image=" + sandboxPluginRom, "must specify name= for a plugin"},
+			{"missing-image", "name=sandbox", `must specify image= for plugin "sandbox"`},
 			{"config-only", `config={"level":"debug"}`, "must specify name= for a plugin"},
-			{"invalid-json", "name=sandbox,rom=" + sandboxPluginRom + ",config={oops}", "config is not valid JSON"},
-			{"truncated-json", `name=sandbox,rom=` + sandboxPluginRom + `,config={"level":"debug"`, `missing "}"`},
+			{"invalid-json", "name=sandbox,image=" + sandboxPluginRom + ",config={oops}", "config is not valid JSON"},
+			{"truncated-json", `name=sandbox,image=` + sandboxPluginRom + `,config={"level":"debug"`, `missing "}"`},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {

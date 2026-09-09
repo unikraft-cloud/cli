@@ -41,7 +41,7 @@ Examples:
 
   # Deploy a new instance with a configured plugin
   unikraft run --metro=fra --image=my-app:latest --plugin
-  'name=logger,rom=plugins/logger:latest,config={"level":"debug"}'
+  'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'
 
 Fields:
   metro
@@ -62,7 +62,7 @@ Fields:
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.rom, plugins.*.config
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -165,12 +165,12 @@ Create flags:
   -v, --volume=<name>:<path>[:<options>] ...
           Attach volume.
           [examples: my-vol:/data, cache:/tmp:ro, data:/mnt:size=10GiB]
-      --rom=image=<ref>,at=<path> ...
+      --rom=name=<name>,image=<ref>,at=<path> ...
           Attach ROM.
-          [examples: image=myuser/my-rom:latest,at=/rom0,name=my-rom, dir=./mydata,at=/rom]
-      --plugin=name=<name>,rom=<ref>[,config=<json>] ...
+          [examples: name=my-rom,image=myuser/my-rom:latest,at=/rom0, name=mydata,dir=./mydata,at=/rom]
+      --plugin=name=<name>,image=<ref>[,config=<json>] ...
           Load plugin into the instance.
-          [examples: name=sandbox,rom=plugins/sandbox:latest, name=logger,rom=plugins/logger:latest,config={"level":"debug"}]
+          [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
       --scale-to-zero=<key>=<value>
           Scale-to-zero options.
             policy: on | idle | off

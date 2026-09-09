@@ -124,8 +124,8 @@ type Instance struct {
 
 	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set" flag:"service" help:"Service group name or key." placeholder:"name"`
 	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings" flag:"volume" short:"v" sep:"none" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
-	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Attach ROM." placeholder:"image=<ref>,at=<path>" example:"image=myuser/my-rom:latest\\,at=/rom0\\,name=my-rom,dir=./mydata\\,at=/rom"`
-	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,rom=<ref>[,config=<json>]" example:"name=sandbox\\,rom=plugins/sandbox:latest,name=logger\\,rom=plugins/logger:latest\\,config={\"level\":\"debug\"}"`
+	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Attach ROM." placeholder:"name=<name>,image=<ref>,at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
+	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,image=<ref>[,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
 
 	Networks []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
 	Gpus     []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
@@ -343,8 +343,10 @@ func (v *InstanceVolume) UnmarshalText(data []byte) error {
 // InstanceRom represents a ROM blob attached to an instance.
 // Parsed via value.Parse as comma-separated key=value pairs:
 //
-//	image=<ref>,at=<path>[,name=<name>]
-//	dir=<localpath>,at=<path>[,name=<name>]
+//	name=<name>,image=<ref>,at=<path>
+//	name=<name>,dir=<localpath>,at=<path>
+//
+// name= may be omitted when at= is given; it is then derived from the mount path.
 type InstanceRom struct {
 	Name  string `name:"name" mirror:"name" json:"name,omitempty" field:",long"`
 	Image string `name:"image" mirror:"image" json:"image,omitempty" field:",long"`
@@ -360,13 +362,19 @@ func (r *InstanceRom) UnmarshalText(data []byte) error {
 	}
 	*r = InstanceRom(parsed)
 	if r.Name == "" {
+		if r.At == "" {
+			return fmt.Errorf("a ROM must specify at least one of name= or at=")
+		}
 		name := strings.TrimLeft(r.At, "/")
 		name = strings.ReplaceAll(name, "/", "-")
 		var b strings.Builder
-		for _, r := range name {
-			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' {
-				b.WriteRune(r)
+		for _, c := range name {
+			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' {
+				b.WriteRune(c)
 			}
+		}
+		if b.Len() == 0 {
+			return fmt.Errorf("cannot derive a ROM name from at=%q, must specify name=", r.At)
 		}
 		r.Name = b.String()
 	}
@@ -424,19 +432,28 @@ func (c PluginConfig) MarshalJSON() ([]byte, error) {
 // InstancePlugin represents a plugin loaded into an instance.
 // Parsed via value.Parse as comma-separated key=value pairs:
 //
-//	name=<name>,rom=<ref>[,config=<json>]
+//	name=<name>,image=<ref>[,config=<json>]
+//
+// rom= is accepted as a deprecated alias for image=.
 type InstancePlugin struct {
 	Name   string       `name:"name" mirror:"name" json:"name" field:",long"`
-	Rom    string       `name:"rom" mirror:"image" json:"rom" field:",long"`
+	Image  string       `name:"image" mirror:"image" json:"image" field:",long"`
+	Rom    string       `name:"rom" mirror:"-" json:"rom,omitempty" field:"-"`
 	Config PluginConfig `name:"config" mirror:"config" json:"config,omitempty" field:",long"`
 }
 
-func (p InstancePlugin) Validate() error {
+func (p *InstancePlugin) Validate() error {
 	if p.Name == "" {
 		return fmt.Errorf("must specify name= for a plugin")
 	}
-	if p.Rom == "" {
-		return fmt.Errorf("must specify rom= for plugin %q", p.Name)
+	if p.Rom != "" {
+		if p.Image != "" {
+			return fmt.Errorf("must specify only one of rom= and image= for plugin %q", p.Name)
+		}
+		p.Image, p.Rom = p.Rom, ""
+	}
+	if p.Image == "" {
+		return fmt.Errorf("must specify image= for plugin %q", p.Name)
 	}
 	if err := p.Config.Validate(); err != nil {
 		return fmt.Errorf("plugin %q: %w", p.Name, err)
@@ -1163,8 +1180,8 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 			}
 
 			reqPlugin := map[string]any{
-				"name": plugin.Name,
-				"rom":  plugin.Rom,
+				"name":  plugin.Name,
+				"image": plugin.Image,
 			}
 			if plugin.Config != "" {
 				reqPlugin["config"] = jsontext.Value(plugin.Config)
@@ -1323,7 +1340,7 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 				}
 				reqPlugin := platform.CreateInstanceRequestPlugin{
 					Name: plugin.Name,
-					Rom:  platform.ImageReference(plugin.Rom),
+					Rom:  platform.ImageReference(plugin.Image),
 				}
 				if plugin.Config != "" {
 					var config any = jsontext.Value(plugin.Config)
@@ -1593,7 +1610,7 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --name demo-instance \
 	  --metro fra \
 	  --image nginx:latest \
-	  --plugin name=sandbox,rom=plugins/sandbox:latest`,
+	  --plugin name=sandbox,image=plugins/sandbox:latest`,
 				},
 			},
 			{
@@ -1603,7 +1620,7 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --name demo-instance \
 	  --metro fra \
 	  --image nginx:latest \
-	  --plugin 'name=logger,rom=plugins/logger:latest,config={"level":"debug"}'`,
+	  --plugin 'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'`,
 				},
 			},
 		},
@@ -1619,14 +1636,14 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 				Description: "Attach a ROM image to an instance",
 				Commands: []string{
 					`unikraft instance edit demo-instance \
-	  --set roms=image=myuser/my-rom:latest,at=/rom0`,
+	  --set roms=name=my-rom,image=myuser/my-rom:latest,at=/rom0`,
 				},
 			},
 			{
 				Description: "Add a ROM to an instance without replacing existing ones",
 				Commands: []string{
 					`unikraft instance edit demo-instance \
-	  --add roms=dir=./mydata,at=/rom`,
+	  --add roms=name=mydata,dir=./mydata,at=/rom`,
 				},
 			},
 			{
