@@ -209,7 +209,7 @@ func genManContent(node *kong.Node, header *ManHeader) ([]byte, error) {
 	buf.WriteString("# SYNOPSIS\n")
 	fmt.Fprintf(buf, "`%s`\n\n", ansi.Strip(kingkong.Summary(node)))
 	buf.WriteString("# DESCRIPTION\n")
-	buf.WriteString(description + "\n\n")
+	buf.WriteString(formatDetail(description, 3) + "\n\n")
 
 	manPrintExamples(buf, node)
 

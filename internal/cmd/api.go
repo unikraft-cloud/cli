@@ -260,8 +260,8 @@ one of:
   {...}        Inline JSON object (merges with other arguments).
   [...]        Inline JSON array (replaces the entire body).
   key=value    Set a key to a literal string value.
-  key:=raw     Set a key to a raw JSON value (number, boolean, null, object,
-               or array constructed from raw JSON).
+  key:=raw     Set a key to a raw JSON value (number, boolean, null,
+               object, or array constructed from raw JSON).
 
 NESTED JSON SYNTAX
 
@@ -299,8 +299,8 @@ object.
 
   [N][key]=value
       Creates an array of objects and assigns at index N.
-      Example: [0][type]=platform [0][name]=desktop [1][type]=platform [1][name]=web
-      Produces: [{"type":"platform","name":"desktop"},{"type":"platform","name":"web"}]
+      Example: [0][name]=web [0][port]:=80 [1][name]=api [1][port]:=90
+      Produces: [{"name":"web","port":80},{"name":"api","port":90}]
 
   []=value
       Appends raw values to the root array.
@@ -341,11 +341,7 @@ the same path.
 WHITESPACE IN VALUES
 
 If a value contains spaces, quote the entire argument:
-  unikraft api /v1/volumes "name=my test volume" stars:=54000
-
-EXAMPLES
-
-The examples below demonstrate many of the syntax forms described above.`
+  unikraft api /v1/volumes "name=my test volume" stars:=54000`
 }
 
 func (APICmd) Examples() []kingkong.Example {
