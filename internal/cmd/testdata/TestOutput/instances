@@ -33,7 +33,7 @@ roms:
   at:               /rom
 plugins:
 - name:             sandbox
-  rom:              plugins/sandbox:latest
+  image:            plugins/sandbox:latest
   config:           {"timeout":30}
 networks:
 - uuid:             net-uuid-1234
@@ -93,7 +93,7 @@ roms:
   at:               /rom
 plugins:
 - name:             sandbox
-  rom:              plugins/sandbox:latest
+  image:            plugins/sandbox:latest
   config:           {"timeout":30}
 networks:
 - uuid:             net-uuid-1234
@@ -654,7 +654,7 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
             "verbosity": "long"
           },
           {
-            "name": "rom",
+            "name": "image",
             "value": "plugins/sandbox:latest",
             "verbosity": "long"
           },
@@ -678,7 +678,7 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
           "verbosity": "long"
         },
         {
-          "name": "rom",
+          "name": "image",
           "value": "",
           "verbosity": "long"
         },
@@ -695,7 +695,7 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
       "set": [
         {
           "name": "sandbox",
-          "rom": "plugins/sandbox:latest",
+          "image": "plugins/sandbox:latest",
           "config": {
             "timeout": 30
           }
@@ -706,7 +706,7 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
       "set": [
         {
           "name": "sandbox",
-          "rom": "plugins/sandbox:latest",
+          "image": "plugins/sandbox:latest",
           "config": {
             "timeout": 30
           }

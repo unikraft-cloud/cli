@@ -124,7 +124,7 @@ func instancesOutputTests(t *testing.T) {
 			{Name: "my-rom", Image: "myuser/my-rom:latest", At: "/rom"},
 		},
 		Plugins: []*cmd.InstancePlugin{
-			{Name: "sandbox", Rom: "plugins/sandbox:latest", Config: `{"timeout":30}`},
+			{Name: "sandbox", Image: "plugins/sandbox:latest", Config: `{"timeout":30}`},
 		},
 		ScaleToZero: cmd.InstanceScaleToZero{
 			Policy:       "on",

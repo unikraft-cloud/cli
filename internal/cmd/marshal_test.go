@@ -93,11 +93,11 @@ func TestJSONRoundTrip(t *testing.T) {
 		},
 		{
 			name:       "InstancePlugin",
-			object:     `{"name":"logger","rom":"plugins/logger:latest","config":{"level":"debug"}}`,
-			text:       `"name=logger,rom=plugins/logger:latest,config={\"level\":\"debug\"}"`,
+			object:     `{"name":"logger","image":"plugins/logger:latest","config":{"level":"debug"}}`,
+			text:       `"name=logger,image=plugins/logger:latest,config={\"level\":\"debug\"}"`,
 			into:       func() any { return &cmd.InstancePlugin{} },
-			wantObject: &cmd.InstancePlugin{Name: "logger", Rom: "plugins/logger:latest", Config: `{"level":"debug"}`},
-			wantText:   &cmd.InstancePlugin{Name: "logger", Rom: "plugins/logger:latest", Config: `{"level":"debug"}`},
+			wantObject: &cmd.InstancePlugin{Name: "logger", Image: "plugins/logger:latest", Config: `{"level":"debug"}`},
+			wantText:   &cmd.InstancePlugin{Name: "logger", Image: "plugins/logger:latest", Config: `{"level":"debug"}`},
 		},
 		{
 			name:   "InstanceScaleToZero",
@@ -307,14 +307,14 @@ func TestEditPatches(t *testing.T) {
 		{
 			name: "plugins set with config",
 			res:  cmd.Instance{},
-			spec: patch.PatchSpec{Set: map[string][]string{"plugins": {`name=logger,rom=plugins/logger:latest,config={"level":"debug"}`}}},
-			want: map[string]string{"plugins.set": `[name=logger, rom=plugins/logger:latest, config={"level":"debug"}]`},
+			spec: patch.PatchSpec{Set: map[string][]string{"plugins": {`name=logger,image=plugins/logger:latest,config={"level":"debug"}`}}},
+			want: map[string]string{"plugins.set": `[name=logger, image=plugins/logger:latest, config={"level":"debug"}]`},
 		},
 		{
 			name: "plugins add",
 			res:  cmd.Instance{},
-			spec: patch.PatchSpec{Add: map[string][]string{"plugins": {"name=sandbox,rom=plugins/sandbox:latest"}}},
-			want: map[string]string{"plugins.add": "[name=sandbox, rom=plugins/sandbox:latest]"},
+			spec: patch.PatchSpec{Add: map[string][]string{"plugins": {"name=sandbox,image=plugins/sandbox:latest"}}},
+			want: map[string]string{"plugins.add": "[name=sandbox, image=plugins/sandbox:latest]"},
 		},
 		{
 			name:    "plugins set without rom rejected",
