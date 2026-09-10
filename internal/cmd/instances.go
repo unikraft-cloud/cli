@@ -40,7 +40,9 @@ import (
 	"unikraft.com/cli/internal/muxreader"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/resource/patch"
 	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/rollout"
 	"unikraft.com/cli/internal/timeouts"
 	"unikraft.com/cli/internal/tunnel"
 	"unikraft.com/cli/internal/types"
@@ -78,8 +80,38 @@ type InstancesCmd struct {
 type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
-	DeleteOnStop bool `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	DeleteOnStop        bool                 `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	ServiceRollout      *InstanceRolloutMode `group:"flag-create" name:"service-rollout" type:"optional" help:"Replace every instance in the service group with a new one and delete the old ones. Requires --autostart. One of: rolling (default), replace." placeholder:"mode"`
+	RolloutHealthyAfter time.Duration        `group:"flag-create" name:"rollout-healthy-after" help:"Time the new instances must keep running before the rollout deletes the ones they replace." placeholder:"duration"`
 }
+
+// InstanceRolloutMode is how a rollout swaps the old instances for the new.
+type InstanceRolloutMode string
+
+const (
+	// RolloutRolling means every new instance comes up before any old one goes.
+	RolloutRolling InstanceRolloutMode = "rolling"
+	// RolloutReplace means the old instances stop before the new ones start.
+	RolloutReplace InstanceRolloutMode = "replace"
+)
+
+const (
+	// rolloutWaitTimeout is how long one step of a rollout asks again for its
+	// instances. Equivalent to 90 timeouts.
+	rolloutWaitTimeout = 900 * time.Second
+	// rolloutPollInterval is how long a rollout leaves between two reads.
+	rolloutPollInterval = 5 * time.Second
+)
+
+// Platform defaults for an instance that sets neither.
+const (
+	defaultInstanceVcpus    = 1
+	defaultInstanceMemoryMb = 128
+)
+
+// errInstancePending marks an instance that has not settled yet, which a
+// rollout waits for instead of failing.
+var errInstancePending = errors.New("instance is not up yet")
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	if c.DeleteOnStop {
@@ -94,7 +126,329 @@ func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partiti
 			return fmt.Errorf("--domain cannot be used with --service")
 		}
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
+	_, err := c.RunResources(ctx, stdio, partition)
+	return err
+}
+
+// RunResources creates the instances and, when asked for a rollout, replaces
+// the instances already in the service group with them.
+func (c *InstanceCreateCmd) RunResources(ctx context.Context, stdio config.Stdio, partition *resource.Partition) ([]resource.Resource, error) {
+	if c.RolloutHealthyAfter < 0 {
+		return nil, fmt.Errorf("--rollout-healthy-after cannot be negative")
+	}
+	if c.ServiceRollout == nil {
+		if c.RolloutHealthyAfter != 0 {
+			return nil, fmt.Errorf("--rollout-healthy-after requires --service-rollout")
+		}
+		return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
+	}
+	mode := cmp.Or(ptr.ZeroIfNil(c.ServiceRollout), RolloutRolling)
+	if mode != RolloutRolling && mode != RolloutReplace {
+		return nil, fmt.Errorf("unknown rollout mode %q, want %q or %q", mode, RolloutRolling, RolloutReplace)
+	}
+
+	fields, err := c.CreateFields(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := patch.CreateValue[int64](fields, "replicas"); ok {
+		return nil, fmt.Errorf("--replicas cannot be used with --service-rollout")
+	}
+	if autostart, _ := patch.CreateValue[bool](fields, "autostart"); !autostart {
+		return nil, fmt.Errorf("--service-rollout requires --autostart")
+	}
+	svc, ok := patch.CreateValue[*InstanceService](fields, "service")
+	if !ok || svc == nil || (svc.Name == "" && svc.UUID == "") {
+		return nil, fmt.Errorf("--service-rollout requires an existing service group")
+	}
+
+	if c.Save != "" {
+		return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
+	}
+	return c.runServiceRollout(ctx, stdio, partition, mode, fields, svc)
+}
+
+// runServiceRollout replaces every instance in the target service group with
+// a new one, and deletes the old set once the new one runs.
+func (c *InstanceCreateCmd) runServiceRollout(ctx context.Context, stdio config.Stdio, partition *resource.Partition, mode InstanceRolloutMode, fields []resource.Field, svc *InstanceService) ([]resource.Resource, error) {
+	svcGroup, oldKeys, err := rolloutTarget(ctx, fields, svc)
+	if err != nil {
+		if !c.DryRun {
+			return nil, err
+		}
+		log.G(ctx).Warn().Err(err).
+			Msg("cannot read the service group, replaced instances not shown")
+	} else if svcGroup.Autoscale {
+		return nil, fmt.Errorf("autoscaling enabled, can't rollout service group %q", cmp.Or(svcGroup.Name, svcGroup.UUID))
+	}
+	if len(oldKeys) == 0 && !c.DryRun {
+		log.G(ctx).Info().
+			Str("service", svcGroup.Name).
+			Msg("service group is empty, creating without a rollout")
+		return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
+	}
+	count := int64(len(oldKeys))
+
+	var running multimetro.Keys
+	if !c.DryRun {
+		results, err := (Instance{}).Get(ctx, oldKeys.Strings())
+		if err != nil {
+			return nil, fmt.Errorf("reading the instances of service group %q: %w", svcGroup.Name, err)
+		}
+		var freed rollout.Footprint
+		for _, r := range results {
+			inst := r.(Instance)
+			if !inst.State.IsRunning() {
+				continue
+			}
+			running = append(running, inst.key)
+			freed.Instances++
+			freed.Vcpus += int64(inst.Resources.VCPUs)
+			freed.MemoryMb += int64(inst.Resources.Memory)
+		}
+
+		var size rollout.Footprint
+		vcpus, hasVcpus := patch.CreateValue[int](fields, "resources.vcpus")
+		memory, hasMemory := patch.CreateValue[types.SizeMebibytes](fields, "resources.memory")
+		inherited := false
+		if v, ok := patch.CreateValue[string](fields, "template"); ok && v != "" {
+			inherited = true
+		}
+		for _, path := range []string{"branch", "checkpoint"} {
+			if v, ok := patch.CreateValue[multimetro.Key](fields, path); ok && (v.Name != "" || v.UUID != "") {
+				inherited = true
+			}
+		}
+		if (hasVcpus && hasMemory) || !inherited {
+			size.Vcpus = cmp.Or(int64(vcpus), defaultInstanceVcpus)
+			size.MemoryMb = cmp.Or(int64(memory), defaultInstanceMemoryMb)
+		}
+
+		if err := rollout.ValidateCapacity(ctx, rollout.CapacityOpts{
+			Metro:      string(svcGroup.Metro),
+			Count:      count,
+			Concurrent: mode == RolloutRolling,
+			Size:       size,
+			Freed:      freed,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	patched := slices.Clone(fields)
+	if count > 1 {
+		patched = patch.SetCreateValue(patched, "replicas", count-1)
+	}
+	if mode == RolloutReplace {
+		patched = patch.SetCreateValue(patched, "autostart", false)
+	}
+	if err := c.SetCreateFields(ctx, patched); err != nil {
+		return nil, err
+	}
+
+	if c.DryRun {
+		if _, err := c.ResourceCreateCmd.RunResources(ctx, stdio, partition); err != nil {
+			return nil, err
+		}
+		if len(oldKeys) > 0 {
+			fmt.Fprintf(stdio.Stdout, "replaces := %s\n", strings.Join(oldKeys.Strings(), " "))
+		}
+		return nil, nil
+	}
+
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	log.G(ctx).Info().
+		Str("service", svcGroup.Name).
+		Str("mode", string(mode)).
+		Int64("instances", count).
+		Msg("rolling out")
+
+	var created []resource.Resource
+	var stopped multimetro.Keys
+	undo := func(cause error) ([]resource.Resource, error) {
+		errs := []error{cause}
+		if len(stopped) > 0 {
+			errs = append(errs, restoreInstances(ctx, g, stopped))
+		}
+		undoCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rolloutWaitTimeout)
+		defer cancel()
+		errs = append(errs, rollout.Undo(undoCtx, partition, Instance{}, created))
+		return created, errors.Join(errs...)
+	}
+
+	quiet := stdio
+	quiet.Stdout = io.Discard
+	created, err = c.ResourceCreateCmd.RunResources(ctx, quiet, partition)
+	if err == nil && int64(len(created)) < count {
+		err = fmt.Errorf("rollout created %d of %d instances", len(created), count)
+	}
+	if err != nil {
+		return undo(err)
+	}
+	newKeys := make(multimetro.Keys, len(created))
+	for i, r := range created {
+		newKeys[i] = r.(Instance).key
+	}
+
+	if mode == RolloutReplace {
+		log.G(ctx).Info().
+			Strs("instances", oldKeys.Strings()).
+			Msg("stopping the replaced instances")
+		stopped = running
+		if _, err := stopInstances(ctx, g, oldKeys, StopOpts{DrainTimeout: -1}); err != nil {
+			return undo(fmt.Errorf("stopping the replaced instances: %w", err))
+		}
+		if err := waitInstances(ctx, g, oldKeys, platform.InstanceStateStopped); err != nil {
+			return undo(fmt.Errorf("waiting for the replaced instances to stop: %w", err))
+		}
+		if _, err := startInstances(ctx, g, newKeys); err != nil {
+			return undo(fmt.Errorf("starting the new instances: %w", err))
+		}
+	}
+
+	if err := instancesUp(ctx, newKeys); err != nil {
+		return undo(fmt.Errorf("the new instances did not come up: %w", err))
+	}
+
+	if c.RolloutHealthyAfter > 0 {
+		log.G(ctx).Info().
+			Str("healthy-after", c.RolloutHealthyAfter.String()).
+			Msg("keeping the new instances up before the replaced ones are removed")
+		select {
+		case <-ctx.Done():
+			return undo(fmt.Errorf("rollout interrupted while the new instances were up: %s", ctx.Err()))
+		case <-time.After(c.RolloutHealthyAfter):
+		}
+		if err := instancesUp(ctx, newKeys); err != nil {
+			return undo(fmt.Errorf("the new instances did not stay up: %w", err))
+		}
+	}
+
+	if err := partition.WrapDeletable(Instance{}).Delete(ctx, oldKeys.Strings()); err != nil {
+		left := oldKeys.Strings()
+		results, getErr := (Instance{}).Get(ctx, left)
+		if _, ok := errors.AsType[group.ErrRefNotFound](getErr); getErr == nil || ok {
+			left = left[:0]
+			for _, r := range results {
+				inst := r.(Instance)
+				left = append(left, cmp.Or(inst.Name, inst.UUID))
+			}
+		}
+		if len(left) > 0 {
+			return created, fmt.Errorf("the new instances are up, but deleting the replaced ones failed, so %s are still in the service group: %w",
+				strings.Join(left, " "), err)
+		}
+		log.G(ctx).Warn().Err(err).
+			Msg("the replaced instances are gone, but their delete reported an error")
+	}
+	log.G(ctx).Info().
+		Strs("instances", oldKeys.Strings()).
+		Msg("replaced instances deleted")
+	if err := c.Output.WithDefault(cmd.PrinterTypeKeyValue).Print(ctx, stdio.Stdout, c.Field, Instance{}, created...); err != nil {
+		return created, err
+	}
+	return created, nil
+}
+
+// restoreInstances starts the instances a rollout stopped and reports whether
+// they came back.
+func restoreInstances(ctx context.Context, g *group.Group[multimetro.MetroClient], keys multimetro.Keys) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rolloutWaitTimeout)
+	defer cancel()
+
+	log.G(ctx).Warn().
+		Strs("instances", keys.Strings()).
+		Msg("unwinding the rollout, starting the replaced instances again")
+	if _, err := startInstances(ctx, g, keys); err != nil {
+		return fmt.Errorf("starting the replaced instances again: %w", err)
+	}
+	if err := instancesUp(ctx, keys); err != nil {
+		return fmt.Errorf("the replaced instances did not come back: %w", err)
+	}
+	return nil
+}
+
+// rolloutTarget reads back the service group whose instances a rollout
+// replaces, with a key for each of them.
+func rolloutTarget(ctx context.Context, fields []resource.Field, svc *InstanceService) (ServiceGroup, multimetro.Keys, error) {
+	var none ServiceGroup
+	metro, _ := patch.CreateValue[LinkName[Metro]](fields, "metro")
+	key := multimetro.Key{Metro: cmp.Or(svc.Metro, string(metro)), UUID: svc.UUID}
+	if svc.UUID == "" {
+		key.Name = svc.Name
+	}
+	results, err := (ServiceGroup{}).Get(ctx, []string{key.Canonical()})
+	if err != nil {
+		return none, nil, fmt.Errorf("looking up service group %q: %w", key.Canonical(), err)
+	}
+	if len(results) == 0 {
+		return none, nil, fmt.Errorf("service group %q not found", key.Canonical())
+	}
+	svcGroup := results[0].(ServiceGroup)
+
+	old := make(multimetro.Keys, 0, len(svcGroup.Instances))
+	for _, inst := range svcGroup.Instances {
+		key := multimetro.Key{
+			Metro: cmp.Or(inst.Metro, string(svcGroup.Metro)),
+			Name:  inst.Name,
+			UUID:  inst.UUID,
+		}
+		if key.Name == "" && key.UUID == "" {
+			continue
+		}
+		old = append(old, key)
+	}
+	return svcGroup, old, nil
+}
+
+// instancesUp waits for every instance to run and reports the ones that do
+// not. An instance a metro does not list yet is read again.
+func instancesUp(ctx context.Context, keys multimetro.Keys) error {
+	ctx, cancel := context.WithTimeout(ctx, rolloutWaitTimeout)
+	defer cancel()
+
+	for {
+		err := checkInstancesUp(ctx, keys)
+		if !errors.Is(err, errInstancePending) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(rolloutPollInterval):
+		}
+	}
+}
+
+// checkInstancesUp reads the instances back once and reports why any of them
+// is not up.
+func checkInstancesUp(ctx context.Context, keys multimetro.Keys) error {
+	results, err := (Instance{}).Get(ctx, keys.Strings())
+	if err != nil {
+		if _, ok := errors.AsType[group.ErrRefNotFound](err); ok {
+			return fmt.Errorf("%w: %w", errInstancePending, err)
+		}
+		return err
+	}
+	var pending, failed []error
+	for _, r := range results {
+		inst := r.(Instance)
+		name := cmp.Or(inst.Name, inst.UUID)
+		switch platform.InstanceState(inst.State) {
+		case platform.InstanceStateRunning, platform.InstanceStateStandby:
+		case platform.InstanceStateStarting:
+			pending = append(pending, fmt.Errorf("%w: instance %s is %s", errInstancePending, name, inst.State))
+		default:
+			failed = append(failed, fmt.Errorf("instance %s is %s, not running", name, inst.State))
+		}
+	}
+	if len(failed) > 0 {
+		return errors.Join(append(failed, pending...)...)
+	}
+	return errors.Join(pending...)
 }
 
 type Instance struct {
@@ -1623,6 +1977,29 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --plugin 'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'`,
 				},
 			},
+			{
+				Description: "Replace every instance in a service group with a new image",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-app:v2 \
+	  --service my-service \
+	  --autostart \
+	  --service-rollout`,
+				},
+			},
+			{
+				Description: "Roll a service group whose instances need sole access to their volume, and hold the new ones up for a minute first",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-db:v2 \
+	  --service my-db \
+	  --autostart \
+	  --service-rollout=replace \
+	  --rollout-healthy-after=1m`,
+				},
+			},
 		},
 		cmd.CmdTypeEdit: {
 			{
@@ -2065,6 +2442,70 @@ func (args *StopOpts) toReq(nameOrUUID platform.NameOrUUID) platform.StopInstanc
 		req.DrainTimeoutMs = &timeout
 	}
 	return req
+}
+
+// waitInstances blocks until every instance reaches a state.
+func waitInstances(ctx context.Context, g *group.Group[multimetro.MetroClient], keys multimetro.Keys, state platform.InstanceState) error {
+	ctx, cancel := context.WithTimeout(ctx, rolloutWaitTimeout)
+	defer cancel()
+
+	ask := func(ctx context.Context, keys multimetro.Keys) error {
+		return group.DoRefs(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+			log.G(ctx).Trace().Str("state", string(state)).Msg("waiting for instances")
+			reqs := make([]platform.WaitInstancesRequestItem, 0, len(refs))
+			for _, ref := range refs.NameOrUUIDs() {
+				reqs = append(reqs, platform.WaitInstancesRequestItem{
+					Name:     ref.Name,
+					Uuid:     ref.Uuid,
+					State:    &state,
+					TimeoutS: new(int64(-1)),
+				})
+			}
+			resp, err := timeouts.TryWithFallback(ctx, reqs, func(ctx context.Context, reqs []platform.WaitInstancesRequestItem) (*platform.Response[platform.WaitInstancesResponseData], error) {
+				return c.WaitInstances(ctx, reqs, platform.WaitInstancesOpts{})
+			})
+			if _, err := timeouts.Tolerate(ctx, resp, err, "instances did not reach the state in time"); err != nil {
+				return nil, err
+			}
+			if resp == nil || resp.Data == nil {
+				return nil, nil
+			}
+			var waited group.Refs
+			for _, instance := range resp.Data.Instances {
+				if instance.State != state {
+					log.G(ctx).Trace().
+						Str("instance", cmp.Or(instance.Name, instance.Uuid)).
+						Str("state", string(instance.State)).
+						Msgf("instance is not %s yet", state)
+					continue
+				}
+				waited = append(waited, group.Ref{
+					Metro: c.Metro.Name,
+					Name:  instance.Name,
+					UUID:  instance.Uuid,
+				})
+			}
+			return waited, nil
+		})
+	}
+
+	pending := keys
+	for {
+		err := ask(ctx, pending)
+		notFound, ok := errors.AsType[group.ErrRefNotFound](err)
+		if err == nil || !ok {
+			return err
+		}
+		pending = make(multimetro.Keys, 0, len(notFound.Refs))
+		for _, ref := range notFound.Refs {
+			pending = append(pending, multimetro.Key(ref))
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(rolloutPollInterval):
+		}
+	}
 }
 
 func startInstances(ctx context.Context, g *group.Group[multimetro.MetroClient], keys multimetro.Keys) (multimetro.Keys, error) {
