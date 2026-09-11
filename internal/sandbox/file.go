@@ -156,7 +156,7 @@ func (t Target) WriteFile(ctx context.Context, remotePath string, data []byte, a
 		Data:     base64.StdEncoding.EncodeToString(data),
 	}
 	if _, err := t.Client.WriteFile(ctx, t.Instance, &req, t.Opts...); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
+		return t.apiError("failed to write file", err)
 	}
 	return nil
 }
@@ -169,7 +169,7 @@ func (t Target) ReadFile(ctx context.Context, remotePath string) ([]byte, error)
 	}
 	resp, err := t.Client.ReadFile(ctx, t.Instance, &req, t.Opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, t.apiError("failed to read file", err)
 	}
 	if resp.Data == nil {
 		return nil, fmt.Errorf("failed to read file: the %q plugin returned no contents", t.Plugin)
@@ -190,7 +190,7 @@ func (t Target) Mkdir(ctx context.Context, dir string, parents bool) error {
 		Parents: parents,
 	}
 	if _, err := t.Client.CreateDirectory(ctx, t.Instance, &req, t.Opts...); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
+		return t.apiError("failed to create directory", err)
 	}
 	return nil
 }
