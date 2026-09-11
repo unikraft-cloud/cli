@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MakeNowJust/heredoc"
 	"github.com/alecthomas/kong"
 	ctrdlog "github.com/containerd/log"
 	kongcompletion "github.com/jotaen/kong-completion"
@@ -300,11 +301,16 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 		kong.Name("unikraft"),
 		kong.UsageOnError(),
 		kong.Description("The Unikraft Command-Line Interface."),
-		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n" +
-			"    _         \n" +
-			"  c'3'o  .-.  Docs:   https://unikraft.com/docs/cli\n" +
-			"  (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues\n" +
-			"              "),
+		// The banner is a code block. This keeps the artwork as it is
+		// written when the help text is rendered as Markdown.
+		kingkong.DescriptionDetail(heredoc.Docf(`
+			%[1]s
+			The Unikraft Command-Line Interface.
+			    _
+			  c'3'o  .-.  Docs:   https://unikraft.com/docs/cli
+			  (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues
+			%[1]s
+		`, "```")),
 		kong.ConfigureHelp(helpOptions),
 		kong.Help(kingkong.HelpPrinter(version.Version)),
 		kong.WithBeforeReset(func(value *kong.Path) error {

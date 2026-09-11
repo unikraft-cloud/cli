@@ -208,8 +208,8 @@ $ unikraft profile use --help
 
 Switch between profiles.
 
-Calling without an argument will prompt you to select a profile from the
-list of available profiles.
+Calling without an argument will prompt you to select a profile from the list of
+available profiles.
 
 Usage:
   unikraft profile use [<name>]

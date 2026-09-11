@@ -1,0 +1,272 @@
+---
+description: Make an authenticated HTTP request to the Unikraft Cloud API.
+title: unikraft api
+---
+
+The API command allows you to make direct HTTP requests to the
+Unikraft Cloud API without using a higher-level CLI subcommand. This
+is useful for endpoints that do not yet have a dedicated command, or
+for scripting advanced workflows.
+
+## Request body syntax
+
+The request body can be specified as positional arguments. Each
+argument is one of:
+
+```
+@file        Read the body from a file on disk.
+@-           Read the body from standard input (stdin).
+{...}        Inline JSON object (merges with other arguments).
+[...]        Inline JSON array (replaces the entire body).
+key=value    Set a key to a literal string value.
+key:=raw     Set a key to a raw JSON value (number, boolean, null,
+             object, or array constructed from raw JSON).
+```
+
+## Nested JSON syntax
+
+The `key=value` and `key:=raw` forms can be used to
+build complex nested structures. The keys of an object are sent in
+alphabetical order:
+
+```
+key[sub]=value
+    Sets a nested key inside an object. Multiple bracket segments
+    create deeply nested objects.
+    Example: user[name]=Alice user[age]:=30
+    Produces: {"user":{"age":30,"name":"Alice"}}
+
+key[]=value
+    Appends a value to an array. Multiple [] arguments add more
+    elements.
+    Example: apps[]=Terminal apps[]=Desktop
+    Produces: {"apps":["Terminal","Desktop"]}
+
+key[][sub]=value
+    Creates a new object, assigns the sub-key inside it, and appends
+    the whole object to the array. Further [sub] segments nest deeper.
+    Example: arr[][key]=value arr[][count]:=42
+    Produces: {"arr":[{"key":"value"},{"count":42}]}
+
+key[N]=value
+    Assigns at a specific numeric index in an array. Gaps are padded
+    with null. The maximum index is 10000.
+    Example: arr[0]=first arr[2]=third
+    Produces: {"arr":["first",null,"third"]}
+```
+
+## Top-level array syntax
+
+When the first argument starts with a bracket (e.g. `[0][key]=value`
+or `[]=value`), the root of the request body becomes a JSON
+array instead of an object.
+
+```
+[N][key]=value
+    Creates an array of objects and assigns at index N.
+    Example: [0][name]=web [0][port]:=80 [1][name]=api [1][port]:=90
+    Produces: [{"name":"web","port":80},{"name":"api","port":90}]
+
+[]=value
+    Appends raw values to the root array.
+    Example: []=a []=b []=c
+    Produces: ["a","b","c"]
+
+[]:=raw
+    Appends a raw JSON value (number, boolean, null) to the root array.
+    Example: []:=1 []:=2 []:=3
+    Produces: [1,2,3]
+```
+
+## Raw JSON values
+
+Use the `:=` operator (instead of `=`) to pass a raw
+JSON value:
+
+```
+count:=42           Number, not a string.
+active:=true        Boolean.
+data:=null          Null value.
+nested:={"a":1}     Nested JSON object.
+arr:=["x","y"]      Nested JSON array.
+```
+
+## Escaping
+
+Special characters in key names can be escaped with a backslash:
+
+```
+key\[sub\]=value    Literal bracket in key name.
+key\=value=test     Literal equals sign in key name.
+key[\\]=value       Literal backslash in key name.
+key[\1]=value       Force a numeric segment to be treated as a
+                    string map key instead of an array index.
+```
+
+## Multiple arguments
+
+Multiple body arguments can be passed on a single line or across
+multiple lines. Arguments are processed in order; later values
+overwrite earlier ones at the same path.
+
+## Whitespace in values
+
+If a value contains spaces, quote the entire argument:
+
+```
+unikraft api /v1/volumes "name=my test volume" stars:=54000
+```
+
+
+## Usage
+
+```
+unikraft api <endpoint> [<data> ...] [flags]
+```
+
+## Examples
+
+List instances in the default metro:
+
+```bash
+unikraft api /v1/instances
+```
+
+Get the current user's quotas:
+
+```bash
+unikraft api /v1/users/quotas
+```
+
+Inspect a specific instance by UUID:
+
+```bash
+unikraft api /v1/instances/abc123-...-def456
+```
+
+Create a new 256MB volume with raw JSON values:
+
+```bash
+unikraft api /v1/volumes --metro=fra name=data size_mb:=256
+```
+
+Set nested object keys using bracket notation:
+
+```bash
+unikraft api /v1/instances user[name]=Alice user[age]:=30 user[role]=admin
+```
+
+Append values to an array with key[]= syntax:
+
+```bash
+unikraft api /v1/volumes tags[]=prod tags[]=critical
+```
+
+Append objects to an array using key[][sub]= syntax:
+
+```bash
+unikraft api /v1/instances volumes[][id]=vol-abc volumes[][mount]=/data
+```
+
+Create a top-level JSON array with [N][key]=value syntax:
+
+```bash
+unikraft api /v1/batch [0][type]=platform [0][name]=desktop [1][type]=platform [1][name]=web
+```
+
+Build a root array of raw values with []:= syntax:
+
+```bash
+unikraft api /v1/items []:=42 []:=true []:=null
+```
+
+Assign at a specific array index with padding:
+
+```bash
+unikraft api /v1/config errors[0]=first errors[2]=third
+```
+
+Merge an inline JSON object with key=value arguments:
+
+```bash
+unikraft api /v1/volumes {"existing":"value"} name=new-volume
+```
+
+Pass a full JSON literal as the request body:
+
+```bash
+unikraft api /v1/volumes '{"name":"test","size_mb":256}'
+```
+
+Create resources from a JSON file:
+
+```bash
+unikraft api /v1/volumes @volume.json
+```
+
+Pipe a request body in from stdin:
+
+```bash
+unikraft api /v1/volumes @-
+```
+
+Pass a value containing spaces (quote the argument):
+
+```bash
+unikraft api /v1/volumes "name=test volume" stars:=54000
+```
+
+Force a numeric segment as a string map key with backslash escaping:
+
+```bash
+unikraft api /v1/config object[\1]=stringified object[\100]=same
+```
+
+Escape special characters in key names with backslash:
+
+```bash
+unikraft api /v1/config "foo\[bar\]:=1" "baz[\[]:=2"
+```
+
+Send custom headers and skip TLS verification:
+
+```bash
+unikraft api /v1/instances -H 'X-Debug: true' -k
+```
+
+Delete an instance by UUID:
+
+```bash
+unikraft api /v1/instances/abc123-...-def456 -X DELETE
+```
+
+Check the health of the API:
+
+```bash
+unikraft api /v1/healthz
+```
+
+## Options
+
+```
+  -H, --header HEADER         Add an HTTP header in 'Key: Value' format. May be repeated.
+  -k, --insecure              Skip TLS certificate verification.
+  -X, --method method         HTTP method to use. Defaults to GET, or POST if data is provided.
+  --metro name                Metro to target. Defaults to the profile's default metro.
+```
+
+## Options inherited from parent commands
+
+```
+  --config file               Path to the configuration file.
+  --log-level level           Set the logging level. (default info)
+  --log-type type             Set the log type. (default text)
+  --profile name              Set the current profile.
+  --telemetry                 Toggle usage analytics. (default true)
+  --timeout duration          Set a deadline for the command (e.g. 30s, 5m, 1h).
+```
+
+## See Also
+
+* [`unikraft`](../unikraft.mdx): The Unikraft Command-Line Interface.
+
