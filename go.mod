@@ -59,6 +59,7 @@ require (
 	unikraft.com/x/guesstermwidth v0.0.0-20260813113709-544c471e0bc9
 	unikraft.com/x/iata v0.0.0-20260713183529-fd34645687a0
 	unikraft.com/x/image-spec v0.0.0-20260813113709-544c471e0bc9
+	unikraft.com/x/io v0.0.0-20260819084004-6de0d3f1ed2c
 	unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de
 	unikraft.com/x/kingkong v0.0.0-20260824095305-c69507b68d29
 	unikraft.com/x/kraftfile v0.0.0-20260522114044-e2da24d09716

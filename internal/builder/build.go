@@ -231,19 +231,9 @@ func Build(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error) {
 			imgOpts = append(imgOpts, imagespec.WithInitrd(roots[i].Initrd))
 			roots[i].Initrd = nil
 			// The rootfs build may have produced a richer config (e.g. from
-			// a Dockerfile). Use it as the base and layer our overrides on top.
-			cfg = roots[i].Image.Config
-			if opts.Cmd != nil {
-				cfg.Cmd = opts.Cmd
-			}
-			if opts.Env != nil {
-				env := make([]string, 0, len(opts.Env))
-				for _, kv := range opts.Env {
-					env = append(env, fmt.Sprintf("%s=%s", kv.Key, kv.Value))
-				}
-				cfg.Env = append(env, cfg.Env...)
-			}
-			cfg.Labels = opts.Labels
+			// a Dockerfile or an OCI image). Use it as the base and layer our
+			// overrides on top.
+			cfg = applyConfigOverrides(roots[i].Image.Config, opts)
 		}
 		imgOpts = append(imgOpts, imagespec.WithImageConfig(cfg))
 

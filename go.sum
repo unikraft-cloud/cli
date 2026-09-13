@@ -507,6 +507,8 @@ unikraft.com/x/iata v0.0.0-20260713183529-fd34645687a0 h1:wpRYHKQbrcJM4xSb8MyumZ
 unikraft.com/x/iata v0.0.0-20260713183529-fd34645687a0/go.mod h1:M9v3TZKETfctR1aqFxM6UqYM+3DJ+nHKtqrxGb8X8oc=
 unikraft.com/x/image-spec v0.0.0-20260813113709-544c471e0bc9 h1:S0Er9pKNkS4SdifkcXUAQ+P+ndMIBRMheyLZP8f6g9E=
 unikraft.com/x/image-spec v0.0.0-20260813113709-544c471e0bc9/go.mod h1:7HwHLKMC6Ican+0HeMFVN8qI3mSyf0M64iEZj++FoPs=
+unikraft.com/x/io v0.0.0-20260819084004-6de0d3f1ed2c h1:K/HL18OZWL/FeBC3/TcuOaQePMTzmYw4CzaKHxjf+Uk=
+unikraft.com/x/io v0.0.0-20260819084004-6de0d3f1ed2c/go.mod h1:k4MCTNUTf7yB9LhOpH4Vj0RecXirtVE3gZLUw5jOFQo=
 unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de h1:cm4FnPvnahRIK0derbI+T4ds1LsD5CFeyyAvIqcOCek=
 unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de/go.mod h1:XND1VvLxwqKFGrmdwUTWps4WEpMm7HTHPQg9HWQtrxg=
 unikraft.com/x/kingkong v0.0.0-20260824095305-c69507b68d29 h1:C87AsE6sNHtSwM6b+F/8lAOotIDSu3vJ8oUva/xRC9g=
