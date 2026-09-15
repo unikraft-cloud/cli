@@ -166,6 +166,47 @@ cmd: ["sh", "/entrypoint.sh"]
 		}
 	})
 
+	// A project with only a Dockerfile builds without a Kraftfile. The
+	// architecture then comes from --arch. Both a directory and a direct
+	// Dockerfile path are accepted as input.
+	t.Run("dockerfile-only", func(t *testing.T) {
+		for _, input := range []string{".", "Dockerfile"} {
+			t.Run(input, func(t *testing.T) {
+				r := runner(t, true, []string{staging, stable})
+				imageTag := uniq()
+				instName := uniq()
+				image := r.Config.Profile.Organization + "/dockerfile-e2e:" + imageTag
+
+				dir := t.TempDir()
+				require.NoError(t, fstest.Apply(
+					fstest.CreateFile("Dockerfile", []byte(`
+FROM busybox:latest
+RUN echo "unikraft-e2e" > /etc/unikraft-e2e
+CMD ["sh", "-c", "cat /etc/unikraft-e2e && echo UNIKRAFT_E2E_OK"]
+`), 0o644),
+				).Apply(dir))
+
+				// Without --arch there is nothing to say which platform to build.
+				r.Run(t, []string{"unikraft", "build", input, "--output", image}, integ.WithWorkDir(dir), integ.ExpectFail())
+
+				r.Run(t, []string{"unikraft", "build", input, "--arch", "x86_64", "--output", image}, integ.WithWorkDir(dir))
+
+				out := r.Run(t, []string{"unikraft", "image", "inspect", image})
+				assert.Regexp(t, `dockerfile-e2e`, out)
+
+				r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image})
+				r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
+
+				out = r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
+				assert.Regexp(t, `unikraft-e2e`, out)
+				assert.Regexp(t, `UNIKRAFT_E2E_OK`, out)
+
+				r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+				r.Run(t, []string{"unikraft", "image", "delete", image})
+			})
+		}
+	})
+
 	t.Run("shared-run", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		image := integ.Busybox.Build(t, r)

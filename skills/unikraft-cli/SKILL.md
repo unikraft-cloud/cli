@@ -41,6 +41,9 @@ unikraft instances list
 ### Building (`unikraft build`)
 
 The `build` command compiles a project from a Kraftfile into a unikernel image.
+A directory without a Kraftfile is built from its `Dockerfile`, and `<path>`
+can also point directly at a Kraftfile or a Dockerfile. Without a Kraftfile,
+`--arch` is required.
 
 ```bash
 unikraft build [flags] [<path>]
@@ -49,6 +52,7 @@ unikraft build [flags] [<path>]
 **Common Flags:**
 
 - `-o, --output <dest>`: Output destination (registry tag or local OCI archive path).
+- `--arch <arch>`: Architectures to build (`x86_64`, `arm64`). Required when no Kraftfile targets are declared.
 - `--build-arg <key=val>`: Set build-time variables.
 - `--no-cache`: Do not use cache when building the image.
 - `--secret <spec>`: Secret to expose to the build (format: `id=mysecret[,src=/local/secret]`).

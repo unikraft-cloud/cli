@@ -50,7 +50,7 @@ Usage:
 
 Arguments:
   [<input>]
-          Path to the input directory.
+          Path to the project directory, Kraftfile, or Dockerfile. A directory without a Kraftfile is built from its Dockerfile.
           [default: .]
 
 Examples:
@@ -59,6 +59,9 @@ Examples:
 
   # Build and publish an image from a Kraftfile
   unikraft image build . --output my-org/my-app:latest
+
+  # Build from a Dockerfile without a Kraftfile
+  unikraft image build ./Dockerfile --arch x86_64 --output my-org/my-app:latest
 
   # Build with custom build arguments
   unikraft image build ./app --build-arg VERSION=1.2.3 --build-arg COMMIT=abc123
@@ -77,7 +80,7 @@ Flags:
   -o, --output
           Output destination.
       --arch
-          Only build the Kraftfile targets of these architectures. Defaults to every declared target; required when none are declared.
+          Only build the Kraftfile targets of these architectures. Defaults to every declared target; required when none are declared, such as when building from a Dockerfile.
           [examples: x86_64, arm64]
       --build-arg
           Set build-time variables.

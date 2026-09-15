@@ -16,7 +16,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/containerd/platforms"
@@ -67,8 +66,7 @@ func DetectSourceType(path string) (kraftfile.SourceType, error) {
 		return "", fmt.Errorf("empty rootfs path")
 	}
 
-	base := filepath.Base(path)
-	if base == "Dockerfile" || slices.Contains(strings.Split(base, "."), "Dockerfile") {
+	if isDockerfileName(filepath.Base(path)) {
 		return kraftfile.SourceTypeDockerfile, nil
 	}
 
