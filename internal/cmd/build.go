@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strings"
 
-	"golang.org/x/mod/semver"
 	"unikraft.com/cli/internal/builder"
 	"unikraft.com/cli/internal/builder/buildflags"
 	"unikraft.com/cli/internal/config"
@@ -18,14 +17,12 @@ import (
 	"unikraft.com/cli/internal/resource"
 	imagespec "unikraft.com/x/image-spec"
 	"unikraft.com/x/kingkong"
-	"unikraft.com/x/kraftfile"
-	"unikraft.com/x/log"
 )
 
 type ImageBuildCmd struct {
-	Input  string   `arg:"" default:"." help:"Path to the input directory."`
+	Input  string   `arg:"" default:"." help:"Path to the project directory, Kraftfile, or Dockerfile. A directory without a Kraftfile is built from its Dockerfile."`
 	Output string   `short:"o" help:"Output destination"`
-	Arch   []string `help:"Only build the Kraftfile targets of these architectures. Defaults to every declared target; required when none are declared." example:"x86_64,arm64"`
+	Arch   []string `help:"Only build the Kraftfile targets of these architectures. Defaults to every declared target. Required when the project declares no targets and no runtime, such as a bare Dockerfile." example:"x86_64,arm64"`
 
 	// similar to docker compose build
 	BuildArg []string `sep:"none" help:"Set build-time variables."`
@@ -48,6 +45,12 @@ func (ImageBuildCmd) Examples() []kingkong.Example {
 			Description: "Build and publish an image from a Kraftfile",
 			Commands: []string{
 				"unikraft image build . --output my-org/my-app:latest",
+			},
+		},
+		{
+			Description: "Build from a Dockerfile without a Kraftfile",
+			Commands: []string{
+				"unikraft image build ./Dockerfile --arch x86_64 --output my-org/my-app:latest",
 			},
 		},
 		{
@@ -78,23 +81,7 @@ func (ImageBuildCmd) Examples() []kingkong.Example {
 }
 
 func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
-	kf, err := kraftfile.ParseDirectory(c.Input, kraftfile.WithSkippedVersionCheck())
-	if err != nil {
-		return err
-	}
-	if semver.Compare(kf.Spec, kraftfile.SpecVersionMin) < 0 {
-		log.G(ctx).Warn().
-			Str("spec", kf.Spec).
-			Str("min", kraftfile.SpecVersionMin).
-			Msg("Kraftfile spec version is older than minimum; parsing is best-effort")
-	} else if semver.Compare(kf.Spec, kraftfile.SpecVersionMax) > 0 {
-		log.G(ctx).Warn().
-			Str("spec", kf.Spec).
-			Str("max", kraftfile.SpecVersionMax).
-			Msg("Kraftfile spec version is newer than maximum; parsing is best-effort")
-	}
-
-	buildOpts, err := builder.KraftfileToBuildOpts(c.Input, kf)
+	buildOpts, err := builder.LoadBuildOpts(ctx, c.Input)
 	if err != nil {
 		return err
 	}
@@ -109,6 +96,9 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	}
 	if err := buildOpts.FilterArch(arches...); err != nil {
 		return err
+	}
+	if buildOpts.Runtime == "" && len(buildOpts.Platform) == 0 {
+		return fmt.Errorf("no target architecture: use --arch, or declare a target or runtime in a Kraftfile")
 	}
 
 	buildOpts.NoCache = c.NoCache

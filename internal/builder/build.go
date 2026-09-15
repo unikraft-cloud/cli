@@ -243,7 +243,9 @@ func Build(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error) {
 				}
 				cfg.Env = append(env, cfg.Env...)
 			}
-			cfg.Labels = opts.Labels
+			if opts.Labels != nil {
+				cfg.Labels = opts.Labels
+			}
 		}
 		imgOpts = append(imgOpts, imagespec.WithImageConfig(cfg))
 

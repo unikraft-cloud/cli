@@ -61,7 +61,7 @@ require (
 	unikraft.com/x/io v0.0.0-20260917141509-02a61e7c1812
 	unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de
 	unikraft.com/x/kingkong v0.0.0-20260824095305-c69507b68d29
-	unikraft.com/x/kraftfile v0.0.0-20260522114044-e2da24d09716
+	unikraft.com/x/kraftfile v0.0.0-20260922102225-cfab838c8e73
 	unikraft.com/x/log v0.0.0-20260904140856-1944f6df62e1
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
 	unikraft.com/x/shell v0.0.0-20260917103502-010252eb5050
