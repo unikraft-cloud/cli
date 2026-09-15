@@ -324,6 +324,28 @@ CMD ["/dockerfile-cmd"]
 	require.Contains(t, imgs[0].Image.Config.Env, "DOCKERFILE_ENV=from-dockerfile")
 }
 
+func TestBuildDockerfileLabelsIntegration(t *testing.T) {
+	ctx := integrationContext(t)
+	dockerfile := `
+FROM scratch
+LABEL org.unikraft.source=dockerfile org.unikraft.only=dockerfile
+`
+	imgs := runBuild(t, ctx, BuildOpts{
+		Runtime: "unikraft.io/official/base-compat",
+		Rootfs: FSOpts{
+			Format: kraftfile.FsTypeCpio,
+			Type:   kraftfile.SourceTypeDockerfile,
+			Path:   writeDockerfile(t, dockerfile),
+		},
+		Platform: []ocispec.Platform{{OS: "kraftcloud", Architecture: "x86_64"}},
+	})
+	require.Len(t, imgs, 1)
+	require.NotNil(t, imgs[0])
+	require.NotNil(t, imgs[0].Image)
+	require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["org.unikraft.source"])
+	require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["org.unikraft.only"])
+}
+
 func integrationContext(t *testing.T) context.Context {
 	t.Helper()
 	integration.SkipUnlessIntegration(t)

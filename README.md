@@ -346,6 +346,12 @@ unikraft volumes clone my-volume --set name=my-volume-backup
 unikraft build . --output my-org/my-app:latest
 ```
 
+**Build and publish an image from a Dockerfile, without a Kraftfile:**
+
+```sh
+unikraft build ./Dockerfile --arch x86_64 --output my-org/my-app:latest
+```
+
 ## Configuration
 
 The CLI stores configuration in `~/.config/unikraft/config.yaml` (or the path specified by `UNIKRAFT_CONFIG`).
