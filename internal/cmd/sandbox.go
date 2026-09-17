@@ -7,13 +7,16 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/alecthomas/kong"
 
+	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
@@ -23,21 +26,26 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/sandbox"
+	"unikraft.com/cli/internal/tui/selector"
 	xio "unikraft.com/x/io"
 	"unikraft.com/x/shell"
 )
 
 const copyPathSeparator = ":"
 
-var sandboxKongVars = kong.Vars{"sandbox_plugin": sandbox.PluginName}
+var sandboxKongVars = kong.Vars{
+	"sandbox_plugin":       sandbox.PluginName,
+	"sandbox_plugin_image": sandbox.DefaultImage,
+}
 
 type ExecSandboxInstanceCmd struct {
 	Target string   `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instance to run the command on."`
 	Cmd    []string `arg:"" name:"command" help:"Command to pass to the instance." placeholder:"cmd"`
 
-	Plugin string   `name:"plugin" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
-	Dir    string   `name:"dir" short:"w" help:"Directory to execute the command from." placeholder:"dir"`
-	Env    []string `name:"env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
+	Plugin      string   `name:"plugin-name" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
+	PluginImage string   `name:"plugin-image" default:"${sandbox_plugin_image}" help:"Image of the sandbox plugin to attach when the instance has none." placeholder:"ref"`
+	Dir         string   `name:"dir" short:"w" help:"Directory to execute the command from." placeholder:"dir"`
+	Env         []string `name:"env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
 }
 
 func (ExecSandboxInstanceCmd) Help() string {
@@ -76,7 +84,7 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 		return err
 	}
 
-	target, err := resolveSandboxTarget(ctx, partition, c.Target, c.Plugin)
+	target, err := resolveSandboxTarget(ctx, stdio, partition, c.Target, c.Plugin, c.PluginImage)
 	if err != nil {
 		return err
 	}
@@ -125,52 +133,83 @@ func parseEnv(records []string) (map[string]string, error) {
 	return env, nil
 }
 
-func resolveSandboxTarget(ctx context.Context, partition *resource.Partition, target, plugin string) (sandbox.Target, error) {
-	key := multimetro.ParseKey(target)
-
-	gettable := partition.WrapGettable(Instance{})
-	resources, err := gettable.Get(ctx, []string{key.String()})
+// resolveSandboxTarget is the instance target names, ready to be addressed
+// through plugin. An instance without the plugin is offered it first, when
+// there is someone at the terminal to ask; image is what is attached then.
+func resolveSandboxTarget(ctx context.Context, stdio config.Stdio, partition *resource.Partition, target, plugin, image string) (sandbox.Target, error) {
+	instance, err := lookupInstance(ctx, partition, target)
 	if err != nil {
 		return sandbox.Target{}, err
 	}
-	if len(resources) == 0 {
-		return sandbox.Target{}, fmt.Errorf("instance %q not found", target)
-	}
-	if len(resources) > 1 {
-		var keys []string
-		for _, res := range resources {
-			keys = append(keys, res.Key().String())
-		}
-		return sandbox.Target{}, fmt.Errorf("ambiguous instance: %s (found %v)", target, keys)
-	}
 
-	instance, ok := resources[0].(Instance)
-	if !ok {
-		return sandbox.Target{}, fmt.Errorf("%q is not an instance", target)
+	if cause := missingPlugin(instance, plugin); cause != nil {
+		if err := offerAttachPlugin(ctx, stdio, instance, plugin, image, cause); err != nil {
+			return sandbox.Target{}, err
+		}
+		// Attached and started: see what the instance became.
+		if instance, err = lookupInstance(ctx, partition, target); err != nil {
+			return sandbox.Target{}, err
+		}
+		if err := missingPlugin(instance, plugin); err != nil {
+			return sandbox.Target{}, fmt.Errorf("after attaching: %w", err)
+		}
 	}
 
 	if !instance.State.IsRunning() {
 		return sandbox.Target{}, fmt.Errorf("instance %q is not running (state: %s)", instance.Name, string(instance.State))
 	}
 
+	return sandboxTargetFor(ctx, instance, plugin)
+}
+
+// lookupInstance is the one instance target names.
+func lookupInstance(ctx context.Context, partition *resource.Partition, target string) (Instance, error) {
+	key := multimetro.ParseKey(target)
+
+	gettable := partition.WrapGettable(Instance{})
+	resources, err := gettable.Get(ctx, []string{key.String()})
+	if err != nil {
+		return Instance{}, err
+	}
+	if len(resources) == 0 {
+		return Instance{}, fmt.Errorf("instance %q not found", target)
+	}
+	if len(resources) > 1 {
+		var keys []string
+		for _, res := range resources {
+			keys = append(keys, res.Key().String())
+		}
+		return Instance{}, fmt.Errorf("ambiguous instance: %s (found %v)", target, keys)
+	}
+
+	instance, ok := resources[0].(Instance)
+	if !ok {
+		return Instance{}, fmt.Errorf("%q is not an instance", target)
+	}
+	return instance, nil
+}
+
+// missingPlugin is why instance cannot be addressed through plugin, or nil
+// when it has the plugin loaded.
+func missingPlugin(instance Instance, plugin string) error {
 	var loaded []string
-	hasPlugin := false
 	for _, p := range instance.Plugins {
 		if p == nil || p.Name == "" {
 			continue
 		}
 		if p.Name == plugin {
-			hasPlugin = true
+			return nil
 		}
 		loaded = append(loaded, p.Name)
 	}
-	if !hasPlugin {
-		if len(loaded) == 0 {
-			return sandbox.Target{}, fmt.Errorf("instance %q has no plugins loaded", instance.Name)
-		}
-		return sandbox.Target{}, fmt.Errorf("instance %q has no plugin named %q; it has: %s", instance.Name, plugin, strings.Join(loaded, ", "))
+	if len(loaded) == 0 {
+		return fmt.Errorf("instance %q has no plugins loaded", instance.Name)
 	}
+	return fmt.Errorf("instance %q has no plugin named %q; it has: %s", instance.Name, plugin, strings.Join(loaded, ", "))
+}
 
+// sandboxTargetFor is instance addressed through plugin, in its metro.
+func sandboxTargetFor(ctx context.Context, instance Instance, plugin string) (sandbox.Target, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return sandbox.Target{}, err
@@ -191,14 +230,102 @@ func resolveSandboxTarget(ctx context.Context, partition *resource.Partition, ta
 	})
 }
 
+// attachHint is how plugin would be attached to instance by hand.
+func attachHint(instance Instance, plugin, image string) string {
+	return fmt.Sprintf("attach it with `unikraft instance edit %s --plugin name=%s,image=%s` while the instance is stopped",
+		instance.Key().String(), plugin, image)
+}
+
+// offerAttachPlugin asks whether to attach the plugin instance is missing, and
+// attaches image as it on a yes. cause is why the plugin is missing: it is the
+// error when the question cannot be asked, or is answered no.
+func offerAttachPlugin(ctx context.Context, stdio config.Stdio, instance Instance, plugin, image string, cause error) error {
+	if slices.Contains(instance.Instance.Features, platform.InstanceFeatureDeleteOnStop) {
+		// Attaching means stopping, and stopping this one deletes it.
+		return fmt.Errorf("%w\nhint: the instance is deleted when it stops, so the plugin cannot be attached in place; recreate it with --plugin name=%s,image=%s", cause, plugin, image)
+	}
+	if !xio.IsTTYReader(stdio.Stdin) || !xio.IsTTY(stdio.Stderr) {
+		return fmt.Errorf("%w\nhint: %s", cause, attachHint(instance, plugin, image))
+	}
+
+	verb := "start"
+	if instance.State.IsRunning() {
+		verb = "restart"
+	}
+	question := fmt.Sprintf("instance %q has no plugin %q; attach %s and %s the instance", instance.Name, plugin, image, verb)
+	yes, err := selector.Confirm(ctx, stdio.Stdin, xio.Unwrap(stdio.Stderr), question)
+	switch {
+	case errors.Is(err, selector.ErrNoOptionSelected):
+		yes = false
+	case err != nil:
+		return err
+	}
+	if !yes {
+		return cause
+	}
+	return attachInstancePlugin(ctx, instance, &InstancePlugin{Name: plugin, Image: image})
+}
+
+// attachInstancePlugin adds p to instance's plugins, stopping the instance
+// first if it runs, and starts it.
+func attachInstancePlugin(ctx context.Context, instance Instance, p *InstancePlugin) error {
+	keys := multimetro.Keys{instance.Key().(multimetro.Key)}
+
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	if instance.State.IsRunning() {
+		if _, err := stopInstances(ctx, g, keys, StopOpts{DrainTimeout: -1}); err != nil {
+			return fmt.Errorf("stopping instance %q: %w", instance.Name, err)
+		}
+	}
+
+	prop, value, err := instancePatchSpec("plugins", patchOpAdd, []*InstancePlugin{p})
+	if err != nil {
+		return err
+	}
+	err = group.DoRefs(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+		reqs := make([]platform.UpdateInstancesRequestItem, 0, len(refs))
+		for _, ref := range refs {
+			req := platform.UpdateInstancesRequestItem{
+				Op:    platform.MutableInstanceOperationAdd,
+				Prop:  prop,
+				Value: new(value),
+			}
+			if ref.UUID != "" {
+				req.Uuid = &ref.UUID
+			} else {
+				req.Name = &ref.Name
+			}
+			reqs = append(reqs, req)
+		}
+		log.G(ctx).Trace().Str("plugin", p.Name).Msg("attaching plugin")
+		if _, err := c.UpdateInstances(ctx, reqs); err != nil {
+			return nil, err
+		}
+		return refs, nil
+	})
+	if err != nil {
+		return fmt.Errorf("attaching plugin %q: %w", p.Name, err)
+	}
+
+	if _, err := startInstances(ctx, g, keys); err != nil {
+		return fmt.Errorf("starting instance %q: %w", instance.Name, err)
+	}
+	return nil
+}
+
 type WriteSandboxInstanceCmd struct {
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instance to write the file to."`
 	Local  string `arg:"" name:"local" help:"Local file path to read from."`
 	Remote string `arg:"" name:"remote" help:"Remote destination path on the instance."`
 
-	Plugin  string `name:"plugin" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
-	Append  bool   `name:"append" help:"Append to the remote file instead of overwriting it."`
-	Parents bool   `name:"parents" short:"p" help:"Create missing parent directories on the remote path."`
+	Plugin      string `name:"plugin-name" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
+	PluginImage string `name:"plugin-image" default:"${sandbox_plugin_image}" help:"Image of the sandbox plugin to attach when the instance has none." placeholder:"ref"`
+	Append      bool   `name:"append" help:"Append to the remote file instead of overwriting it."`
+	Parents     bool   `name:"parents" short:"p" help:"Create missing parent directories on the remote path."`
 }
 
 func (WriteSandboxInstanceCmd) Help() string {
@@ -230,7 +357,7 @@ func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 		return err
 	}
 
-	target, err := resolveSandboxTarget(ctx, partition, c.Target, c.Plugin)
+	target, err := resolveSandboxTarget(ctx, stdio, partition, c.Target, c.Plugin, c.PluginImage)
 	if err != nil {
 		return err
 	}
@@ -259,9 +386,10 @@ type ReadSandboxInstanceCmd struct {
 	Remote string `arg:"" name:"remote" help:"Remote file path to read."`
 	Local  string `arg:"" name:"local" optional:"" help:"Local destination path. Defaults to the remote file's base name."`
 
-	Plugin  string `name:"plugin" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
-	Force   bool   `name:"force" help:"Overwrite the local file if it already exists."`
-	Parents bool   `name:"parents" short:"p" help:"Create missing parent directories on the local path."`
+	Plugin      string `name:"plugin-name" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
+	PluginImage string `name:"plugin-image" default:"${sandbox_plugin_image}" help:"Image of the sandbox plugin to attach when the instance has none." placeholder:"ref"`
+	Force       bool   `name:"force" help:"Overwrite the local file if it already exists."`
+	Parents     bool   `name:"parents" short:"p" help:"Create missing parent directories on the local path."`
 }
 
 func (ReadSandboxInstanceCmd) Help() string {
@@ -292,7 +420,7 @@ func (cmd ReadSandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
-	target, err := resolveSandboxTarget(ctx, partition, c.Target, c.Plugin)
+	target, err := resolveSandboxTarget(ctx, stdio, partition, c.Target, c.Plugin, c.PluginImage)
 	if err != nil {
 		return err
 	}
@@ -348,9 +476,10 @@ type CopySandboxInstanceCmd struct {
 	Source      string `arg:"" name:"source" help:"File to copy from, either a local path or <instance>:<path>."`
 	Destination string `arg:"" name:"destination" help:"Where to copy it to, either a local path or <instance>:<path>."`
 
-	Plugin  string `name:"plugin" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
-	Force   bool   `name:"force" help:"Overwrite the local file if it already exists."`
-	Parents bool   `name:"parents" short:"p" help:"Create missing parent directories on the destination path."`
+	Plugin      string `name:"plugin-name" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
+	PluginImage string `name:"plugin-image" default:"${sandbox_plugin_image}" help:"Image of the sandbox plugin to attach when the instance has none." placeholder:"ref"`
+	Force       bool   `name:"force" help:"Overwrite the local file if it already exists."`
+	Parents     bool   `name:"parents" short:"p" help:"Create missing parent directories on the destination path."`
 }
 
 func (CopySandboxInstanceCmd) Help() string {
@@ -409,7 +538,7 @@ func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 			return err
 		}
 
-		target, err := resolveSandboxTarget(ctx, partition, dstTarget, c.Plugin)
+		target, err := resolveSandboxTarget(ctx, stdio, partition, dstTarget, c.Plugin, c.PluginImage)
 		if err != nil {
 			return err
 		}
@@ -432,7 +561,7 @@ func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 		return nil
 
 	default:
-		target, err := resolveSandboxTarget(ctx, partition, srcTarget, c.Plugin)
+		target, err := resolveSandboxTarget(ctx, stdio, partition, srcTarget, c.Plugin, c.PluginImage)
 		if err != nil {
 			return err
 		}

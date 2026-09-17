@@ -2540,9 +2540,12 @@ Examples:
   unikraft instance shell my-instance -c 'cd /var/log && ls *.log'
 
 Flags:
-      --plugin=<name>
+      --plugin-name=<name>
           Name of the sandbox plugin to use.
           [default: sandbox]
+      --plugin-image=<ref>
+          Image of the sandbox plugin to attach when the instance has none.
+          [default: plugins/sandbox:staging]
   -w, --dir=<dir>
           Directory to start the shell in.
           [default: /]
@@ -2609,9 +2612,12 @@ Examples:
   unikraft instance exec my-instance -e DEBUG=true -- ./start.sh
 
 Flags:
-      --plugin=<name>
+      --plugin-name=<name>
           Name of the sandbox plugin to use.
           [default: sandbox]
+      --plugin-image=<ref>
+          Image of the sandbox plugin to attach when the instance has none.
+          [default: plugins/sandbox:staging]
   -w, --dir=<dir>
           Directory to execute the command from.
   -e, --env=<key>=<value> ...
@@ -2673,9 +2679,12 @@ Examples:
   unikraft instance copy ./data.bin fra/my-instance:/var/lib/app.bin
 
 Flags:
-      --plugin=<name>
+      --plugin-name=<name>
           Name of the sandbox plugin to use.
           [default: sandbox]
+      --plugin-image=<ref>
+          Image of the sandbox plugin to attach when the instance has none.
+          [default: plugins/sandbox:staging]
       --force
           Overwrite the local file if it already exists.
   -p, --parents
@@ -2727,9 +2736,12 @@ Examples:
   unikraft instance write my-instance ./extra.log /var/log/app.log --append
 
 Flags:
-      --plugin=<name>
+      --plugin-name=<name>
           Name of the sandbox plugin to use.
           [default: sandbox]
+      --plugin-image=<ref>
+          Image of the sandbox plugin to attach when the instance has none.
+          [default: plugins/sandbox:staging]
       --append
           Append to the remote file instead of overwriting it.
   -p, --parents
@@ -2784,9 +2796,12 @@ Examples:
   unikraft instance read my-instance /var/log/app.log --force
 
 Flags:
-      --plugin=<name>
+      --plugin-name=<name>
           Name of the sandbox plugin to use.
           [default: sandbox]
+      --plugin-image=<ref>
+          Image of the sandbox plugin to attach when the instance has none.
+          [default: plugins/sandbox:staging]
       --force
           Overwrite the local file if it already exists.
   -p, --parents

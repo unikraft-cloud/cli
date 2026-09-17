@@ -27,7 +27,16 @@ const (
 	forgetTimeout   = 10 * time.Second
 )
 
-const PluginName = plugin.PluginName
+const (
+	// PluginName is the plugin every sandbox command addresses by default.
+	PluginName = plugin.PluginName
+
+	// DefaultImage is the plugin image attached to an instance that has no
+	// sandbox plugin yet.
+	//
+	// TODO: point this back at "plugins/sandbox:latest" once that tag pulls.
+	DefaultImage = "plugins/sandbox:staging"
+)
 
 type ExitError struct {
 	UUID string

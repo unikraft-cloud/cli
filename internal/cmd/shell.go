@@ -27,10 +27,11 @@ const shellBanner = "⚠︎ this shell is experimental"
 type ShellSandboxInstanceCmd struct {
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instance to open a shell on."`
 
-	Plugin  string   `name:"plugin" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
-	Dir     string   `name:"dir" short:"w" default:"/" help:"Directory to start the shell in." placeholder:"dir"`
-	Env     []string `name:"env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
-	Command string   `name:"command" short:"c" help:"Run a single command line and exit." placeholder:"line"`
+	Plugin      string   `name:"plugin-name" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
+	PluginImage string   `name:"plugin-image" default:"${sandbox_plugin_image}" help:"Image of the sandbox plugin to attach when the instance has none." placeholder:"ref"`
+	Dir         string   `name:"dir" short:"w" default:"/" help:"Directory to start the shell in." placeholder:"dir"`
+	Env         []string `name:"env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
+	Command     string   `name:"command" short:"c" help:"Run a single command line and exit." placeholder:"line"`
 
 	InterruptGrace time.Duration `name:"interrupt-grace" default:"10s" placeholder:"duration" help:"How long an interrupted command is given to report what it died of before the prompt comes back."`
 	ReapTimeout    time.Duration `name:"reap-timeout" default:"30s" placeholder:"duration" help:"How long a command the shell stopped waiting for is given to finish in the background."`
@@ -77,7 +78,7 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 		return err
 	}
 
-	target, err := resolveSandboxTarget(ctx, partition, c.Target, c.Plugin)
+	target, err := resolveSandboxTarget(ctx, stdio, partition, c.Target, c.Plugin, c.PluginImage)
 	if err != nil {
 		return err
 	}
