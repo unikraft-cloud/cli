@@ -67,6 +67,7 @@ type InstancesCmd struct {
 	Tunnel  InstancesTunnelCmd  `cmd:"" aliases:"port-forward" help:"Forward a local port to an unexposed instance."`
 	History InstanceHistoryCmd  `cmd:"" help:"Show checkpoint history for an instance."`
 
+	Shell ShellSandboxInstanceCmd `cmd:"" aliases:"sh" help:"Open an interactive shell on a sandbox instance."`
 	Exec  ExecSandboxInstanceCmd  `cmd:"" help:"Execute a command on a sandbox instance."`
 	Copy  CopySandboxInstanceCmd  `cmd:"" aliases:"cp" help:"Copy a file to or from a sandbox instance."`
 	Write WriteSandboxInstanceCmd `cmd:"" help:"Write a file to a sandbox instance."`

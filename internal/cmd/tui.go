@@ -15,7 +15,7 @@ import (
 	"unikraft.com/cli/internal/resource"
 	resourcetui "unikraft.com/cli/internal/resource/tui"
 	"unikraft.com/cli/internal/tui/uitui"
-	xio "unikraft.com/cli/internal/x/io"
+	xio "unikraft.com/x/io"
 )
 
 type TUICmd struct {

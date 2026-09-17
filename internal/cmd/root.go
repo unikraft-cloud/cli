@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
+	xsignal "unikraft.com/x/signal"
 	"unikraft.com/x/version"
 
 	"unikraft.com/cli/internal/cmd/login"
@@ -113,7 +114,7 @@ type globalFlags struct {
 	Timeout   time.Duration `group:"flag-global" name:"timeout" env:"UNIKRAFT_TIMEOUT" help:"Set a deadline for the command (e.g. 30s, 5m, 1h)." placeholder:"duration" optional:""`
 }
 
-func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio) (context.Context, *kong.Context, *UnikraftCLI, func() error, error) {
+func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals *xsignal.Signals) (context.Context, *kong.Context, *UnikraftCLI, func() error, error) {
 	cli := UnikraftCLI{}
 
 	parser, err := NewParser(&cli)
@@ -234,6 +235,7 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio) (context
 			Msg("loaded partition from environment")
 	}
 	kctx.Bind(partition)
+	kctx.Bind(signals)
 	kctx.Bind(kctx)
 
 	cleanup := func() error {

@@ -83,6 +83,11 @@ func TestSandboxPluginDefault(t *testing.T) {
 		plugin func(*UnikraftCLI) string
 	}{
 		{
+			name:   "shell",
+			args:   []string{"instance", "shell", "my-inst"},
+			plugin: func(cli *UnikraftCLI) string { return cli.Instances.Shell.Plugin },
+		},
+		{
 			name:   "exec",
 			args:   []string{"instance", "exec", "my-inst", "--", "echo", "hi"},
 			plugin: func(cli *UnikraftCLI) string { return cli.Instances.Exec.Plugin },

@@ -14,7 +14,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	xio "unikraft.com/cli/internal/x/io"
+	xio "unikraft.com/x/io"
 )
 
 func WatchOutput(ctx context.Context, interval time.Duration, out io.Writer, render func(io.Writer) error) error {
