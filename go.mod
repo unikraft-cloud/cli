@@ -60,7 +60,7 @@ require (
 	unikraft.com/x/image-spec v0.0.0-20260813113709-544c471e0bc9
 	unikraft.com/x/io v0.0.0-20260917141509-02a61e7c1812
 	unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de
-	unikraft.com/x/kingkong v0.0.0-20260824095305-c69507b68d29
+	unikraft.com/x/kingkong v0.0.0-20260911100131-754e7f063da5
 	unikraft.com/x/kraftfile v0.0.0-20260522114044-e2da24d09716
 	unikraft.com/x/log v0.0.0-20260904140856-1944f6df62e1
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
@@ -173,6 +173,7 @@ require (
 	github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
+	github.com/yuin/goldmark v1.8.6 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0 // indirect
