@@ -23,6 +23,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/logfmt"
 	"unikraft.com/cli/internal/telemetry"
+	"unikraft.com/cli/pkg/shellbuiltins"
 	"unikraft.com/x/colors"
 	"unikraft.com/x/log"
 	xsignal "unikraft.com/x/signal"
@@ -136,6 +137,10 @@ func run(ctx context.Context, args []string, stdio config.Stdio, signals *xsigna
 	if err != nil {
 		return ctx, err
 	}
+
+	// The shell's ":" builtins are made of the command tree, so they are wired
+	// in from here.
+	cli.Bind(cmd.ShellBuiltins(shellbuiltins.New))
 
 	// Build command path early for telemetry decisions (e.g., "instances list")
 	cmdPath := buildCommandPath(cli)

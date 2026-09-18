@@ -45,6 +45,9 @@ func (ShellSandboxInstanceCmd) Help() string {
 		here, while paths resolve against the instance, so %[1]scd%[1]s, %[1]s*.log%[1]s and %[1]s> file%[1]s
 		all mean what you would expect.
 
+		A line starting with %[1]s:%[1]s is a builtin — %[1]s:get%[1]s, %[1]s:restart%[1]s, %[1]s:mount%[1]s and the
+		like; %[1]s:help%[1]s lists them.
+
 		The instance offers no terminal and no job control, so programs that need
 		one — %[1]svim%[1]s, %[1]stop%[1]s, %[1]sless%[1]s — and %[1]sctrl-z%[1]s, %[1]sbg%[1]s or %[1]sfg%[1]s will not work there yet.
 	`, "`")
@@ -73,7 +76,10 @@ func (ShellSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, signals *xsignal.Signals) error {
+// ShellBuiltins makes the shell's ":" builtins and is bound by main, as the package making them imports this one.
+type ShellBuiltins func(instance string, target sandbox.Target) (map[string]shell.Builtin, error)
+
+func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, answers ShellBuiltins, signals *xsignal.Signals) error {
 	env, err := parseEnv(c.Env)
 	if err != nil {
 		return err
@@ -83,6 +89,11 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 	if err != nil {
 		return err
 	}
+	builtins, err := answers(c.Target, target)
+	if err != nil {
+		return err
+	}
+	ctx = resource.WithPartition(ctx, partition)
 
 	code, err := shell.Run(ctx, shell.Config{
 		Instance: c.Target,
@@ -93,6 +104,7 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 			Target:   target,
 			Timeouts: sandbox.Timeouts{InterruptGrace: c.InterruptGrace, Reap: c.ReapTimeout},
 		}.Shell(),
+		Builtins:       builtins,
 		SuspendSignals: signals.Suspend,
 		Banner:         shellBanner,
 	}, xstdio.Stdio{Stdin: stdio.Stdin, Stdout: stdio.Stdout, Stderr: stdio.Stderr})

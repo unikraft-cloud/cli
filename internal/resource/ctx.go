@@ -24,3 +24,14 @@ func FilterFromContext(ctx context.Context) filters.Filter {
 	}
 	return filters.Always
 }
+
+type contextKeyPartition struct{}
+
+func WithPartition(ctx context.Context, p *Partition) context.Context {
+	return context.WithValue(ctx, contextKeyPartition{}, p)
+}
+
+func PartitionFromContext(ctx context.Context) *Partition {
+	p, _ := ctx.Value(contextKeyPartition{}).(*Partition)
+	return p
+}
