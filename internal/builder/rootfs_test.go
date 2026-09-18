@@ -242,7 +242,7 @@ EOF
 func TestRootfsDockerfileLabelsIntegration(t *testing.T) {
 	dockerfile := `
 FROM scratch
-LABEL org.unikraft.source=dockerfile org.unikraft.only=dockerfile
+LABEL com.example.source=dockerfile com.example.only=dockerfile
 `
 
 	t.Run("preserved when no labels are given", func(t *testing.T) {
@@ -256,8 +256,8 @@ LABEL org.unikraft.source=dockerfile org.unikraft.only=dockerfile
 			Platform: []ocispec.Platform{{OS: "fc", Architecture: "x86_64"}},
 		})
 		require.Len(t, imgs, 1)
-		require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["org.unikraft.source"])
-		require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["org.unikraft.only"])
+		require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["com.example.source"])
+		require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["com.example.only"])
 	})
 
 	t.Run("replaced by the given labels", func(t *testing.T) {
@@ -269,10 +269,10 @@ LABEL org.unikraft.source=dockerfile org.unikraft.only=dockerfile
 				Type:   kraftfile.SourceTypeDockerfile,
 			},
 			Platform: []ocispec.Platform{{OS: "fc", Architecture: "x86_64"}},
-			Labels:   map[string]string{"org.unikraft.source": "opts"},
+			Labels:   map[string]string{"com.example.source": "opts"},
 		})
 		require.Len(t, imgs, 1)
-		require.Equal(t, map[string]string{"org.unikraft.source": "opts"}, imgs[0].Image.Config.Labels)
+		require.Equal(t, map[string]string{"com.example.source": "opts"}, imgs[0].Image.Config.Labels)
 	})
 }
 
