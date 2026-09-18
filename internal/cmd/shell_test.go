@@ -6,11 +6,13 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -30,8 +32,77 @@ import (
 	"unikraft.com/cli/internal/sandbox"
 
 	"unikraft.com/x/shell"
+	"unikraft.com/x/shell/builtins"
 	"unikraft.com/x/stdio"
 )
+
+func newTestBuiltins(t *testing.T) *builtins.Kong {
+	t.Helper()
+
+	answers, err := newShellBuiltins(shellBuiltins{key: "inst-1"})
+	require.NoError(t, err)
+	return answers
+}
+
+// runBuiltin runs the builtin the line names, as the session would.
+func runBuiltin(t *testing.T, answers *builtins.Kong, streams stdio.Stdio, line ...string) (int, error) {
+	t.Helper()
+
+	b, ok := answers.Builtins()[line[0]]
+	require.True(t, ok, "no builtin %q", line[0])
+	return b.Run(t.Context(), streams, line)
+}
+
+// restarts is what the session asks a builtin before waiting on the instance.
+type restarts interface{ Restarts(args []string) bool }
+
+func TestShellBuiltinNames(t *testing.T) {
+	assert.Equal(t, []string{
+		"edit", "get", "help", "mount", "restart", "start", "stop", "suspend",
+		"unmount", "volumes",
+	}, slices.Sorted(maps.Keys(newTestBuiltins(t).Builtins())),
+		"every command of the grammar answers, by the name the session routes on")
+}
+
+func TestShellBuiltinHelp(t *testing.T) {
+	answers := newTestBuiltins(t)
+
+	var out bytes.Buffer
+	code, err := runBuiltin(t, answers, stdio.Stdio{Stdout: &out}, "help")
+
+	require.NoError(t, err)
+	assert.Zero(t, code)
+
+	printed := out.String()
+	assert.Contains(t, printed, ":mount <volume> <path>")
+	assert.Contains(t, printed, ":unmount <volume>")
+	assert.Contains(t, printed, ":edit <field=value>")
+	assert.Contains(t, printed, "Detach a volume from this instance.")
+	for name := range answers.Builtins() {
+		assert.Contains(t, printed, ":"+name)
+	}
+}
+
+func TestShellBuiltinsThatRestart(t *testing.T) {
+	answers := newTestBuiltins(t).Builtins()
+
+	restarting := func(name string) bool {
+		lifecycle, ok := answers[name].(restarts)
+		require.True(t, ok, "every builtin of the grammar answers about restarting")
+		return lifecycle.Restarts([]string{name})
+	}
+
+	for _, name := range []string{"restart", "start"} {
+		assert.True(t, restarting(name), "%s brings the instance back", name)
+	}
+	for _, name := range []string{"edit", "get", "help", "mount", "stop", "suspend", "unmount", "volumes"} {
+		assert.False(t, restarting(name), "%s leaves the shell nothing to wait for", name)
+	}
+}
+
+func TestShellHelpMentionsBuiltins(t *testing.T) {
+	assert.Contains(t, ShellSandboxInstanceCmd{}.Help(), ":help")
+}
 
 func TestShellStatusIsTheCLIsExitStatus(t *testing.T) {
 	assert.Equal(t, 3, ExitStatus(3).ExitCode())

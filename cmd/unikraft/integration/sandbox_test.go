@@ -361,6 +361,52 @@ func TestSandbox(t *testing.T) {
 			r.Run(t, []string{"unikraft", "instance", "delete", instName})
 		})
 
+		t.Run("builtins", func(t *testing.T) {
+			r := runner(t, true, []string{staging})
+			instName := newSandboxInstance(t, r)
+
+			help := shell(t, r, instName, ":help")
+			for _, name := range []string{
+				":edit", ":get", ":help", ":mount", ":restart", ":start", ":stop",
+				":suspend", ":unmount", ":volumes",
+			} {
+				assert.Contains(t, help, name)
+			}
+			// The session lists its own builtin after ours.
+			assert.Contains(t, help, ":history")
+
+			out := shell(t, r, instName, ":get")
+			assert.Contains(t, out, instName)
+			assert.Contains(t, out, "running")
+
+			assert.Contains(t, shell(t, r, instName, ":volumes"), "NAME")
+
+			// Builtins take part in the shell language like any other command.
+			assert.Contains(t, shell(t, r, instName, ":help | grep mount"), ":mount")
+			assert.Contains(t, shell(t, r, instName, `echo "[$(:get | head -1)]"`), "[")
+
+			piped := "/sb-builtin-" + uniq() + ".txt"
+			shell(t, r, instName, ":help > "+piped)
+			assert.Contains(t, remoteContents(t, r, instName, piped), ":mount")
+
+			// An unknown builtin is the shell's "command not found".
+			out = shell(t, r, instName, ":nope; echo status=$?")
+			assert.Contains(t, out, `unknown builtin "nope"`)
+			assert.Contains(t, out, "status=127")
+
+			assert.Contains(t, shell(t, r, instName, ": ; echo status=$?"), "status=0")
+
+			// A line that ends on a failed builtin is what the CLI exits with.
+			assert.Contains(t, shell(t, r, instName, ":mount only-a-volume", integ.ExpectExitCode(1)), `expected "<path>"`)
+			assert.Contains(t, shell(t, r, instName, ":unmount", integ.ExpectExitCode(1)), `expected "<volume>"`)
+			assert.Contains(t, shell(t, r, instName, ":edit", integ.ExpectExitCode(1)), `expected "<field=value> ..."`)
+			assert.Contains(t, shell(t, r, instName, ":edit nonsense", integ.ExpectExitCode(1)), "is not <field>=<value>")
+			assert.Contains(t, shell(t, r, instName, ":get --nonsense", integ.ExpectExitCode(1)), "unknown flag --nonsense")
+			assert.Contains(t, shell(t, r, instName, ":mount --help"), "--readonly")
+
+			r.Run(t, []string{"unikraft", "instance", "delete", instName})
+		})
+
 		t.Run("interrupt", func(t *testing.T) {
 			r := runner(t, true, []string{staging})
 			instName := newSandboxInstance(t, r)
