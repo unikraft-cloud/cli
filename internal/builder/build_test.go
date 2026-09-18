@@ -289,7 +289,7 @@ func TestBuildCmdEnvLabelsIntegration(t *testing.T) {
 	ctx := integrationContext(t)
 	dockerfile := `
 FROM scratch
-LABEL org.unikraft.source=dockerfile org.unikraft.only=dockerfile
+LABEL com.example.source=dockerfile com.example.only=dockerfile
 ENV DOCKERFILE_ENV=from-dockerfile
 CMD ["/dockerfile-cmd"]
 `
@@ -308,8 +308,8 @@ CMD ["/dockerfile-cmd"]
 			{Key: "OPTS_FLAG", Value: "1"},
 		},
 		Labels: map[string]string{
-			"org.unikraft.source": "opts",
-			"org.unikraft.extra":  "true",
+			"com.example.source": "opts",
+			"com.example.extra":  "true",
 		},
 	}
 
@@ -328,7 +328,7 @@ func TestBuildDockerfileLabelsIntegration(t *testing.T) {
 	ctx := integrationContext(t)
 	dockerfile := `
 FROM scratch
-LABEL org.unikraft.source=dockerfile org.unikraft.only=dockerfile
+LABEL com.example.source=dockerfile com.example.only=dockerfile
 `
 	imgs := runBuild(t, ctx, BuildOpts{
 		Runtime: "unikraft.io/official/base-compat",
@@ -342,8 +342,8 @@ LABEL org.unikraft.source=dockerfile org.unikraft.only=dockerfile
 	require.Len(t, imgs, 1)
 	require.NotNil(t, imgs[0])
 	require.NotNil(t, imgs[0].Image)
-	require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["org.unikraft.source"])
-	require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["org.unikraft.only"])
+	require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["com.example.source"])
+	require.Equal(t, "dockerfile", imgs[0].Image.Config.Labels["com.example.only"])
 }
 
 func integrationContext(t *testing.T) context.Context {
