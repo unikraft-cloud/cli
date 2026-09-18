@@ -522,8 +522,8 @@ unikraft.com/x/log v0.0.0-20260904140856-1944f6df62e1 h1:DH20nLl8GmOqVB3u33RT5eC
 unikraft.com/x/log v0.0.0-20260904140856-1944f6df62e1/go.mod h1:ZjQzJJ01mh+h5ISIxbh0TzOmO9Bweq/1gYSIjLU4QKo=
 unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679 h1:ohptI7loX492JCbbn6yk13hAxysZHyGIZWN8hTw3080=
 unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679/go.mod h1:une+KauhLNYkBFnT0R4bzVvD8bJ54xACjXMBPMnc5ig=
-unikraft.com/x/shell v0.0.0-20260917103502-010252eb5050 h1:dWgcLZ21lTWaUC19BgGX/rl+cxZ99ypevav9QYalZmE=
-unikraft.com/x/shell v0.0.0-20260917103502-010252eb5050/go.mod h1:vDKDPby6s2FOVuTltcoJaYF4I+16NtqKehTiU81oNAY=
+unikraft.com/x/shell v0.0.0-20260918073943-e9ad57aaea8d h1:qwXHL9BapQj4KVJgb+RmPZtaJaEcpDowt6qEqKSYEcs=
+unikraft.com/x/shell v0.0.0-20260918073943-e9ad57aaea8d/go.mod h1:Uw+49507kInNp5AOq10S1MtXqBkyQitPWlxeyYeASD0=
 unikraft.com/x/signal v0.0.0-20260917103502-010252eb5050 h1:hs1tg9QrQf+S0Xch8HRN3gNlOaLDlC7FAp+OIrZN8tM=
 unikraft.com/x/signal v0.0.0-20260917103502-010252eb5050/go.mod h1:S0cdyYEpi1FUKmxZPr4jQKeGQhNQvrppYTfyKdhHl98=
 unikraft.com/x/stdio v0.0.0-20260917103502-010252eb5050 h1:H5mvC13Yi8nCf7s9WEoMBL2MYE0qSWO9SWA7l6AFWPo=
