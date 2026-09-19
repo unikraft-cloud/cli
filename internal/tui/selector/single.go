@@ -6,6 +6,8 @@
 package selector
 
 import (
+	"context"
+	"io"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -52,7 +54,34 @@ func singleSelect[T ~string](question string, defaultValue string, options []T) 
 		}
 	}
 
-	p := tea.NewProgram(&singleSelectModel{
+	selected, err := runSingleSelect(newSingleSelectModel(question, items, cursor))
+	if err != nil {
+		return zero, err
+	}
+	return mapped[items[selected].text], nil
+}
+
+// Confirm asks the user a yes/no question, reading their answer from in and
+// drawing on out. The cursor starts on "no", so that an absent-minded enter
+// declines; so does giving up on the question with esc or ctrl-c, which is
+// [ErrNoOptionSelected].
+func Confirm(ctx context.Context, in io.Reader, out io.Writer, question string) (bool, error) {
+	return confirm(ctx, in, out, question)
+}
+
+func confirm(ctx context.Context, in io.Reader, out io.Writer, question string, opts ...tea.ProgramOption) (bool, error) {
+	items := []radioItem{{text: "yes"}, {text: "no"}}
+	opts = append([]tea.ProgramOption{tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out)}, opts...)
+
+	selected, err := runSingleSelect(newSingleSelectModel(question, items, 1), opts...)
+	if err != nil {
+		return false, err
+	}
+	return selected == 0, nil
+}
+
+func newSingleSelectModel(question string, items []radioItem, cursor int) *singleSelectModel {
+	return &singleSelectModel{
 		question: question,
 		options:  items,
 		cursor:   cursor,
@@ -71,19 +100,22 @@ func singleSelect[T ~string](question string, defaultValue string, options []T) 
 				FullSeparator:  lipgloss.NewStyle().Foreground(dimmestColor),
 			},
 		},
-	})
+	}
+}
 
-	m, err := p.Run()
+// runSingleSelect runs the selection to its end and returns the index of the
+// option picked, or [ErrNoOptionSelected] when none was.
+func runSingleSelect(m *singleSelectModel, opts ...tea.ProgramOption) (int, error) {
+	final, err := tea.NewProgram(m, opts...).Run()
 	if err != nil {
-		return zero, jujuerrors.Annotate(err, "could not start single selection prompt")
+		return -1, jujuerrors.Annotate(err, "could not start single selection prompt")
 	}
 
-	mo := m.(*singleSelectModel)
+	mo := final.(*singleSelectModel)
 	if mo.selected < 0 || mo.selected >= len(mo.options) {
-		return zero, ErrNoOptionSelected
+		return -1, ErrNoOptionSelected
 	}
-
-	return mapped[mo.options[mo.selected].text], nil
+	return mo.selected, nil
 }
 
 type singleSelectModel struct {
