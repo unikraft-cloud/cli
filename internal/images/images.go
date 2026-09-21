@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/containerd/containerd/v2/core/remotes"
 	"github.com/containerd/containerd/v2/core/remotes/docker"
 	"github.com/distribution/reference"
 	imagespec "unikraft.com/x/image-spec"
@@ -33,6 +34,33 @@ func WithInsecureContext(ctx context.Context, opts ...AccessorOpt) context.Conte
 }
 
 func Accessor(ctx context.Context, opts ...AccessorOpt) (*imagespec.Accessor, error) {
+	options, err := resolverOptionsFor(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return imagespec.NewAccessor(
+		imagespec.WithResolver(docker.NewResolver(options)),
+		imagespec.WithRegistryHosts(options.Hosts),
+		imagespec.WithRegistryHeaders(options.Headers),
+		imagespec.WithReferenceParser(ParseNormalizedNamed),
+	), nil
+}
+
+// Resolver gives the registry resolver that Accessor uses, for callers that
+// fetch or push content themselves.
+func Resolver(ctx context.Context, opts ...AccessorOpt) (remotes.Resolver, error) {
+	options, err := resolverOptionsFor(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return docker.NewResolver(options), nil
+}
+
+// resolverOptionsFor builds the registry options from the profile in ctx. With
+// no opts, the insecure options that WithInsecureContext carries are used.
+func resolverOptionsFor(ctx context.Context, opts ...AccessorOpt) (docker.ResolverOptions, error) {
 	if len(opts) == 0 {
 		if ctxOpts, ok := ctx.Value(insecureContextKey{}).([]AccessorOpt); ok {
 			opts = ctxOpts
@@ -44,20 +72,12 @@ func Accessor(ctx context.Context, opts ...AccessorOpt) (*imagespec.Accessor, er
 		opt(&o)
 	}
 
-	cfg := config.FromContextOrDefault(ctx)
-	profile, err := cfg.CurrentProfile()
+	profile, err := config.FromContextOrDefault(ctx).CurrentProfile()
 	if err != nil {
-		return nil, err
+		return docker.ResolverOptions{}, err
 	}
 
-	options := resolverOptions(profile, o.insecureRegistries, o.allInsecure)
-	resolver := docker.NewResolver(options)
-	return imagespec.NewAccessor(
-		imagespec.WithResolver(resolver),
-		imagespec.WithRegistryHosts(options.Hosts),
-		imagespec.WithRegistryHeaders(options.Headers),
-		imagespec.WithReferenceParser(ParseNormalizedNamed),
-	), nil
+	return resolverOptions(profile, o.insecureRegistries, o.allInsecure), nil
 }
 
 // AccessorOpt is a functional option for configuring an Accessor.

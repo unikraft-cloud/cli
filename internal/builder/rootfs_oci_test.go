@@ -23,6 +23,7 @@ import (
 	imagespec "unikraft.com/x/image-spec"
 
 	"unikraft.com/cli/internal/builder/buildfs"
+	"unikraft.com/cli/internal/integration"
 	"unikraft.com/x/kraftfile"
 )
 
@@ -350,16 +351,15 @@ func TestRootfsOCIRegularImageNonRegistry(t *testing.T) {
 // no unikraft components) from a registry and verifies that BuildKit flattens
 // the layers and that the result is re-packaged into the requested rootfs
 // format.
-// regularImageRef is a small multi-arch image of plain OCI layers, which is
-// what the flatten path needs.
-const regularImageRef = "index.docker.io/library/hello-world:latest"
-
 func TestRootfsOCIRegularImageIntegration(t *testing.T) {
+	ctx := rootfsIntegrationContext(t)
+	ref := integration.HelloWorld.Mirror(t, ctx)
+
 	for _, format := range []kraftfile.FsType{kraftfile.FsTypeCpio, kraftfile.FsTypeErofs} {
 		t.Run(string(format), func(t *testing.T) {
-			imgs := runBuildRootfsIntegration(t, rootfsIntegrationContext(t), BuildOpts{
+			imgs := runBuildRootfsIntegration(t, ctx, BuildOpts{
 				Rootfs: FSOpts{
-					Path:   regularImageRef,
+					Path:   ref,
 					Type:   kraftfile.SourceTypeOCI,
 					Format: format,
 				},
@@ -383,9 +383,10 @@ func TestRootfsOCIRegularImageIntegration(t *testing.T) {
 // --no-cache into a raw LLB solve, which does not see the frontend attribute the
 // Dockerfile path uses.
 func TestRootfsOCIRegularImageNoCacheIntegration(t *testing.T) {
-	imgs := runBuildRootfsIntegration(t, rootfsIntegrationContext(t), BuildOpts{
+	ctx := rootfsIntegrationContext(t)
+	imgs := runBuildRootfsIntegration(t, ctx, BuildOpts{
 		Rootfs: FSOpts{
-			Path:   regularImageRef,
+			Path:   integration.HelloWorld.Mirror(t, ctx),
 			Type:   kraftfile.SourceTypeOCI,
 			Format: kraftfile.FsTypeCpio,
 		},
@@ -400,9 +401,10 @@ func TestRootfsOCIRegularImageNoCacheIntegration(t *testing.T) {
 // to different manifests of one multi-arch image: each must be flattened on its
 // own rather than sharing the first one's filesystem.
 func TestRootfsOCIRegularImagePerArchIntegration(t *testing.T) {
-	imgs := runBuildRootfsIntegration(t, rootfsIntegrationContext(t), BuildOpts{
+	ctx := rootfsIntegrationContext(t)
+	imgs := runBuildRootfsIntegration(t, ctx, BuildOpts{
 		Rootfs: FSOpts{
-			Path:   regularImageRef,
+			Path:   integration.HelloWorld.Mirror(t, ctx),
 			Type:   kraftfile.SourceTypeOCI,
 			Format: kraftfile.FsTypeCpio,
 		},
@@ -421,9 +423,10 @@ func TestRootfsOCIRegularImagePerArchIntegration(t *testing.T) {
 // platforms that normalise onto the same linux platform: they share one source
 // image, so the flatten is done once and reused rather than solved per platform.
 func TestRootfsOCIRegularImageSharedFlattenIntegration(t *testing.T) {
-	imgs := runBuildRootfsIntegration(t, rootfsIntegrationContext(t), BuildOpts{
+	ctx := rootfsIntegrationContext(t)
+	imgs := runBuildRootfsIntegration(t, ctx, BuildOpts{
 		Rootfs: FSOpts{
-			Path:   regularImageRef,
+			Path:   integration.HelloWorld.Mirror(t, ctx),
 			Type:   kraftfile.SourceTypeOCI,
 			Format: kraftfile.FsTypeCpio,
 		},
