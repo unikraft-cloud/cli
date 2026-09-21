@@ -6,7 +6,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -27,7 +26,7 @@ import (
 	"unikraft.com/cloud/sdk/platform"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/pkg/sandbox"
+	"unikraft.com/cloud/sdk/plugins/sandbox"
 
 	"unikraft.com/x/shell"
 	"unikraft.com/x/stdio"
@@ -46,10 +45,10 @@ func TestShellTimeoutFlags(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		args []string
-		want sandbox.Transport
+		want sandbox.Timeouts
 	}{
-		{"defaults", nil, sandbox.Transport{InterruptGrace: sandbox.DefaultInterruptGrace, ReapTimeout: sandbox.DefaultReapTimeout}},
-		{"set", []string{"--interrupt-grace", "3s", "--reap-timeout", "7s"}, sandbox.Transport{InterruptGrace: 3 * time.Second, ReapTimeout: 7 * time.Second}},
+		{"defaults", nil, sandbox.Timeouts{InterruptGrace: 10 * time.Second, Reap: 30 * time.Second}},
+		{"set", []string{"--interrupt-grace", "3s", "--reap-timeout", "7s"}, sandbox.Timeouts{InterruptGrace: 3 * time.Second, Reap: 7 * time.Second}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var cli UnikraftCLI
@@ -60,7 +59,7 @@ func TestShellTimeoutFlags(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want.InterruptGrace, cli.Instances.Shell.InterruptGrace)
-			assert.Equal(t, tt.want.ReapTimeout, cli.Instances.Shell.ReapTimeout)
+			assert.Equal(t, tt.want.Reap, cli.Instances.Shell.ReapTimeout)
 		})
 	}
 }
@@ -137,13 +136,14 @@ func (f *onePlugin) sent() []int {
 	return slices.Clone(f.signals)
 }
 
-func fakeSandboxTransport(t *testing.T, fake http.Handler, grace time.Duration) sandbox.Transport {
+// fakeSandboxTarget is an instance the plugin answers for, served locally.
+func fakeSandboxTarget(t *testing.T, fake http.Handler) sandbox.Target {
 	t.Helper()
 
 	srv := httptest.NewServer(fake)
 	t.Cleanup(srv.Close)
 
-	return sandbox.Transport{InterruptGrace: grace, Target: sandbox.Target{
+	return sandbox.Target{
 		Client:   plugin.NewClient(),
 		Instance: platform.Instance{Uuid: "inst-1"},
 		Plugin:   "sandbox",
@@ -152,25 +152,7 @@ func fakeSandboxTransport(t *testing.T, fake http.Handler, grace time.Duration) 
 			plugin.WithPluginName("sandbox"),
 			plugin.WithHTTPClient(srv.Client()),
 		},
-	}}
-}
-
-// command is a line's worth of work for the transport, its output going nowhere.
-func command(args ...string) shell.Command {
-	return shell.Command{
-		Args:    args,
-		Dir:     "/",
-		Streams: stdio.Stdio{Stdout: io.Discard, Stderr: io.Discard},
 	}
-}
-
-func TestAFailedCommandIsNotAFailedCLI(t *testing.T) {
-	transport := fakeSandboxTransport(t, &onePlugin{code: 3}, 0)
-
-	code, err := transport.Exec(t.Context(), command("false"))
-
-	require.NoError(t, err, "sending the command forward is what the CLI was asked to do")
-	assert.Equal(t, 3, code, "the status is the shell's to put in $?, not the CLI's to exit with")
 }
 
 // deafWriter is the far end of a pipeline whose reader has gone.
@@ -178,51 +160,14 @@ type deafWriter struct{}
 
 func (deafWriter) Write([]byte) (int, error) { return 0, syscall.EPIPE }
 
-func TestAnUninterruptibleCommandGivesThePromptBack(t *testing.T) {
-	fake := &onePlugin{hang: make(chan struct{})}
-	grace := 500 * time.Millisecond
-	transport := fakeSandboxTransport(t, fake, grace)
-
-	ctx, cancel := context.WithCancel(t.Context())
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_, _ = transport.Exec(ctx, command("stubborn"))
-	}()
-
-	<-fake.hang
-	cancel()
-
-	select {
-	case <-done:
-	case <-time.After(grace + 20*time.Second):
-		t.Fatal("a command that ignores the signal held the prompt forever")
-	}
-}
-
-func TestAClosedPipeReachesTheInstance(t *testing.T) {
-	fake := &onePlugin{out: "output nobody reads\n", code: 3}
-	transport := fakeSandboxTransport(t, fake, 0)
-
-	cmd := command("yes")
-	cmd.Streams.Stdout = deafWriter{}
-	code, err := transport.Exec(t.Context(), cmd)
-
-	require.NoError(t, err)
-	assert.Equal(t, 3, code, "the command still ran to the end, so its status is the one to report")
-	assert.Equal(t, []int{int(syscall.SIGPIPE)}, fake.sent(),
-		"the instance is told the reader has gone, the way a local pipeline tells it")
-}
-
 func TestAFailedCommandLineIsTheCLIsStatus(t *testing.T) {
-	transport := fakeSandboxTransport(t, &onePlugin{code: 3}, 0)
+	target := fakeSandboxTarget(t, &onePlugin{code: 3})
 
 	code, err := shell.Run(t.Context(), shell.Config{
 		Instance:  "inst-1",
 		Dir:       "/",
 		Command:   "/bin/nonsense",
-		Transport: transport.Shell(),
+		Transport: sandbox.Transport{Target: target}.Shell(),
 	}, stdio.Stdio{Stdin: strings.NewReader(""), Stdout: io.Discard, Stderr: io.Discard})
 
 	require.NoError(t, err, "a command that failed on the instance is not the CLI failing")
@@ -235,7 +180,7 @@ func TestAFailedCommandLineIsTheCLIsStatus(t *testing.T) {
 // reporting a broken pipe instead of what the command did.
 func TestExecSurvivesAClosedPipe(t *testing.T) {
 	fake := &onePlugin{out: "output nobody reads\n", code: 3}
-	target := fakeSandboxTransport(t, fake, 0).Target
+	target := fakeSandboxTarget(t, fake)
 
 	err := (&ExecSandboxInstanceCmd{Cmd: []string{"yes"}}).runOn(t.Context(), target,
 		config.Stdio{Stdout: deafWriter{}, Stderr: io.Discard})

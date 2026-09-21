@@ -1,6 +1,6 @@
 module unikraft.com/cli
 
-go 1.27.0
+go 1.27.1
 
 tool github.com/caarlos0/svu/v3
 
@@ -50,8 +50,9 @@ require (
 	gotest.tools/v3 v3.5.2
 	mvdan.cc/sh/v3 v3.14.1
 	sigs.k8s.io/yaml v1.6.0
-	unikraft.com/cloud/plugins/sandbox v0.0.0-20260814150108-0d07a5aa09c6
+	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
 	unikraft.com/cloud/sdk v0.3.1-0.20260918130854-9a85fea47006
+	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260922063024-475f714ff2f8
 	unikraft.com/x/colors v0.0.0-20260904140856-1944f6df62e1
 	unikraft.com/x/filters v0.0.0-20260804153219-d1b47a40e047
 	unikraft.com/x/fingerprint v0.0.0-20260126094137-ab6e717e5679
@@ -64,7 +65,7 @@ require (
 	unikraft.com/x/kraftfile v0.0.0-20260522114044-e2da24d09716
 	unikraft.com/x/log v0.0.0-20260904140856-1944f6df62e1
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
-	unikraft.com/x/shell v0.0.0-20260917103502-010252eb5050
+	unikraft.com/x/shell v0.0.0-20260918074422-4f7e661c21b7
 	unikraft.com/x/signal v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/stdio v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/version v0.0.0-20260819081122-82fdef94867a
