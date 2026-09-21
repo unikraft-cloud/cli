@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/moby/buildkit/util/contentutil"
 	imagespec "unikraft.com/x/image-spec"
 
 	"unikraft.com/cli/internal/config"
@@ -83,6 +84,81 @@ func (i *Image) Build(t *testing.T, env *TestEnv, ref string, opts ...CmdOption)
 	return nil
 }
 
+// HelloWorld is a regular OCI image, with plain layers and no unikraft
+// components.
+var HelloWorld = &MirroredImage{
+	Name:   "hello-world",
+	Source: "index.docker.io/library/hello-world:latest",
+}
+
+// MirroredImage is a public image that tests copy into the organization of the
+// profile, so that each user runs against their own project. Mirror copies it
+// one time, and the cleanup deletes it when the test binary ends.
+type MirroredImage struct {
+	// Name is the image name, without the organization and the tag.
+	Name string
+	// Source is the full reference of the image to copy.
+	Source string
+
+	once sync.Once
+	ref  string
+	err  error
+}
+
+// Mirror copies the image one time and gives the full reference. Later calls
+// give the reference of the first copy.
+func (m *MirroredImage) Mirror(t *testing.T, ctx context.Context) string {
+	t.Helper()
+	m.once.Do(func() {
+		m.ref, m.err = m.mirror(ctx)
+	})
+	require.NoError(t, m.err)
+	return m.ref
+}
+
+// mirror copies every manifest and blob of the source image, so that a
+// multi-platform image keeps all of its platforms.
+func (m *MirroredImage) mirror(ctx context.Context) (string, error) {
+	cfg := config.FromContextOrDefault(ctx)
+	profile, err := cfg.CurrentProfile()
+	if err != nil {
+		return "", err
+	}
+	if profile.Organization == "" {
+		return "", fmt.Errorf("profile %q has no organization to mirror %s into", profile.Name, m.Name)
+	}
+	named, err := images.ParseNormalizedNamed(profile.Organization + "/" + m.Name + ":" + sharedImageTag)
+	if err != nil {
+		return "", fmt.Errorf("parsing mirror reference of %s: %w", m.Name, err)
+	}
+	ref := named.String()
+
+	resolver, err := images.Resolver(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	_, desc, err := resolver.Resolve(ctx, m.Source)
+	if err != nil {
+		return "", fmt.Errorf("resolving %s: %w", m.Source, err)
+	}
+	fetcher, err := resolver.Fetcher(ctx, m.Source)
+	if err != nil {
+		return "", fmt.Errorf("fetching %s: %w", m.Source, err)
+	}
+	pusher, err := resolver.Pusher(ctx, ref)
+	if err != nil {
+		return "", fmt.Errorf("pushing to %s: %w", ref, err)
+	}
+
+	if err := contentutil.CopyChain(ctx, contentutil.FromPusher(pusher), contentutil.FromFetcher(fetcher), desc); err != nil {
+		return "", fmt.Errorf("mirroring %s to %s: %w", m.Source, ref, err)
+	}
+
+	registerImageConfig(cfg, ref)
+	return ref, nil
+}
+
 // SharedImage is an image that tests use. Build makes the image one time,
 // and Cleanup deletes it when the test binary ends.
 type SharedImage struct {
@@ -128,17 +204,17 @@ func (s *SharedImage) build(t *testing.T, env *TestEnv) (string, error) {
 	if err := s.Image.Build(t, env, ref, WithNoPartition(), WithoutCancel()); err != nil {
 		return "", err
 	}
-	registerSharedImage(env, ref)
+	registerImageConfig(env.Config.Config, ref)
 	return ref, nil
 }
 
-// registerSharedImage records ref for deletion after the tests end.
-func registerSharedImage(env *TestEnv, ref string) {
+// registerImageConfig records ref for deletion after the tests end.
+func registerImageConfig(cfg *config.Config, ref string) {
 	sharedImageMu.Lock()
 	defer sharedImageMu.Unlock()
 
 	if sharedImageConfig == nil {
-		sharedImageConfig = env.Config.Config
+		sharedImageConfig = cfg
 	}
 	sharedImageRefs = append(sharedImageRefs, ref)
 }

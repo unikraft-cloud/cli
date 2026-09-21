@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,7 +37,7 @@ func TestDetectSourceTypeEmpty(t *testing.T) {
 
 func TestDetectSourceTypeNonexistent(t *testing.T) {
 	_, err := DetectSourceType(filepath.Join(t.TempDir(), "nonexistent"))
-	require.ErrorContains(t, err, "rootfs path does not exist")
+	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
 func TestDetectSourceTypeDockerfile(t *testing.T) {
@@ -89,6 +90,11 @@ func TestDetectSourceTypeTarball(t *testing.T) {
 	typ, err := DetectSourceType(tarPath)
 	require.NoError(t, err)
 	require.Equal(t, kraftfile.SourceTypeTarball, typ)
+}
+
+func TestDetectSourceTypeNotAnImageRef(t *testing.T) {
+	_, err := DetectSourceType("index.docker.io/hello-world:latest")
+	require.Error(t, err)
 }
 
 func TestDetectSourceTypeUnknown(t *testing.T) {
@@ -561,6 +567,81 @@ func TestRomPerPlatform(t *testing.T) {
 	require.NotSame(t, romFiles[0][0], romFiles[0][1])
 }
 
+func TestApplyConfigOverrides(t *testing.T) {
+	base := ocispec.ImageConfig{
+		Cmd:    []string{"/base"},
+		Env:    []string{"PATH=/bin", "SHADOWED=base"},
+		Labels: map[string]string{"base": "base", "shared": "base"},
+	}
+	opts := BuildOpts{
+		Cmd: []string{"/override"},
+		Env: kraftfile.Map{
+			{Key: "FOO", Value: "bar"},
+			{Key: "SHADOWED", Value: "opt"},
+		},
+		Labels: map[string]string{"opt": "opt", "shared": "opt"},
+	}
+
+	cfg := applyConfigOverrides(base, opts)
+	require.Equal(t, []string{"/override"}, cfg.Cmd)
+	require.Equal(t, []string{"PATH=/bin", "SHADOWED=opt", "FOO=bar"}, cfg.Env,
+		"an entry of the caller must replace the entry of the base, not shadow it")
+	require.Equal(t, opts.Labels, cfg.Labels,
+		"labels must replace the base's, not merge with them")
+}
+
+func TestApplyConfigOverridesEmpty(t *testing.T) {
+	base := ocispec.ImageConfig{
+		Cmd:    []string{"/base"},
+		Env:    []string{"PATH=/bin"},
+		Labels: map[string]string{"base": "base"},
+	}
+
+	cfg := applyConfigOverrides(base, BuildOpts{})
+	require.Equal(t, base.Cmd, cfg.Cmd)
+	require.Equal(t, base.Env, cfg.Env)
+	require.Equal(t, base.Labels, cfg.Labels,
+		"the labels of the base must survive when the caller sets none")
+}
+
+func TestResolveSourceRelativeToRoot(t *testing.T) {
+	dir := writeTestDirectory(t)
+	root, base := filepath.Split(dir)
+
+	fsOpts := FSOpts{Path: base}
+	require.NoError(t, resolveSource(root, &fsOpts))
+	require.Equal(t, dir, fsOpts.Path)
+	require.Equal(t, kraftfile.SourceTypeDirectory, fsOpts.Type)
+}
+
+func TestResolveSourceDockerfileType(t *testing.T) {
+	fsOpts := FSOpts{Path: "context", Dockerfile: "MyDockerfile"}
+	require.NoError(t, resolveSource("/root", &fsOpts))
+	require.Equal(t, "/root/context", fsOpts.Path)
+	require.Equal(t, kraftfile.SourceTypeDockerfile, fsOpts.Type)
+}
+
+func TestResolveSourceDockerfileConflictingType(t *testing.T) {
+	fsOpts := FSOpts{Path: "context", Dockerfile: "MyDockerfile", Type: kraftfile.SourceTypeTarball}
+	require.ErrorContains(t, resolveSource("/root", &fsOpts), "source type must be")
+}
+
+func TestResolveSourceOCIWithDockerfile(t *testing.T) {
+	fsOpts := FSOpts{Path: "index.unikraft.io/test/img:latest", Type: kraftfile.SourceTypeOCI, Dockerfile: "MyDockerfile"}
+	require.ErrorContains(t, resolveSource("/root", &fsOpts), "dockerfile cannot be set")
+}
+
+func TestResolveSourceOCIKeepsReference(t *testing.T) {
+	fsOpts := FSOpts{Path: "index.unikraft.io/test/img:latest", Type: kraftfile.SourceTypeOCI}
+	require.NoError(t, resolveSource("/root", &fsOpts))
+	require.Equal(t, "index.unikraft.io/test/img:latest", fsOpts.Path)
+}
+
+func TestResolveSourceMissingPath(t *testing.T) {
+	fsOpts := FSOpts{Path: "rootfs.tar"}
+	require.ErrorIs(t, resolveSource(t.TempDir(), &fsOpts), fs.ErrNotExist)
+}
+
 func TestRootfsUnsupportedType(t *testing.T) {
 	ctx := t.Context()
 	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
@@ -605,6 +686,22 @@ func TestRootfsErofsSourceCpioFormatMismatch(t *testing.T) {
 		Platform: []ocispec.Platform{{OS: "fc", Architecture: "x86_64"}},
 	})
 	require.ErrorContains(t, err, "rootfs format mismatch")
+}
+
+// builderTestContext returns a context with the minimal config the builder
+// needs, which for an OCI source is a profile for the accessor's resolver
+// options.
+func builderTestContext(t *testing.T) context.Context {
+	t.Helper()
+	ctx := t.Context()
+	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+
+	return config.WithConfig(ctx, &config.Config{
+		DefaultProfile: "default",
+		Profiles: map[string]config.Profile{
+			"default": {Name: "default", Type: config.ProfileTypeLocal},
+		},
+	})
 }
 
 func rootfsIntegrationContext(t *testing.T) context.Context {
@@ -825,10 +922,8 @@ func writeTestTarballFile(t *testing.T) string {
 // runBuildRootfs calls BuildRootfs and registers cleanup for the returned images.
 func runBuildRootfs(t *testing.T, opts BuildOpts) []*imagespec.Image {
 	t.Helper()
-	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
 
-	imgs, err := BuildRootfs(ctx, opts)
+	imgs, err := BuildRootfs(builderTestContext(t), opts)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		for _, img := range imgs {
