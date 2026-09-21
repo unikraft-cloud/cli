@@ -180,4 +180,83 @@ cmd: ["sh", "/entrypoint.sh"]
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
+
+	t.Run("build-context-local", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+
+		imagePrefix := r.Config.Profile.Organization + "/build-context-local-e2e"
+		imageTag := uniq()
+		instName := uniq()
+		image := imagePrefix + ":" + imageTag
+
+		dir := t.TempDir()
+		require.NoError(t, fstest.Apply(
+			fstest.CreateDir("shared", 0o755),
+			fstest.CreateFile("shared/hello.txt", []byte("Hello from local build context!\n"), 0o644),
+			fstest.CreateFile("Dockerfile", []byte(`
+FROM busybox:latest
+COPY --from=shared hello.txt /hello.txt
+`), 0o644),
+			fstest.CreateFile("Kraftfile", []byte(`
+spec: v0.7
+name: build-context-local-e2e
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+cmd: ["cat", "/hello.txt"]
+`), 0o644),
+		).Apply(dir))
+
+		r.Run(t, []string{"unikraft", "build", ".", "--build-context", "shared=./shared", "--output", image}, integ.WithWorkDir(dir))
+
+		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image})
+		r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
+
+		out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
+		assert.Regexp(t, `Hello from local build context!`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+		r.Run(t, []string{"unikraft", "image", "delete", image})
+	})
+
+	t.Run("build-context-image-override", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+
+		imagePrefix := r.Config.Profile.Organization + "/build-context-image-e2e"
+		imageTag := uniq()
+		instName := uniq()
+		image := imagePrefix + ":" + imageTag
+
+		dir := t.TempDir()
+
+		require.NoError(t, fstest.Apply(
+			fstest.CreateFile("Dockerfile", []byte(`
+FROM busybox:latest AS override
+
+FROM busybox:latest
+COPY --from=override /etc/os-release /os-release.txt
+`), 0o644),
+			fstest.CreateFile("Kraftfile", []byte(`
+spec: v0.7
+name: build-context-image-e2e
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+cmd: ["cat", "/os-release.txt"]
+`), 0o644),
+		).Apply(dir))
+
+		r.Run(t, []string{"unikraft", "build", ".", "--build-context", "override=docker-image://alpine:edge", "--output", image}, integ.WithWorkDir(dir))
+
+		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image})
+		r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
+
+		out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
+		assert.Regexp(t, `Alpine Linux`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+		r.Run(t, []string{"unikraft", "image", "delete", image})
+	})
 }

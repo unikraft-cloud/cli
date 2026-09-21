@@ -562,6 +562,15 @@ func applyBuildOpts(attrs map[string]string, localDirs map[string]string, sessio
 		attrs["no-cache"] = ""
 	}
 
+	for name, value := range opts.BuildContexts {
+		if isLocalBuildContext(value) {
+			localDirs[name] = value
+			attrs["context:"+name] = "local:" + name
+		} else {
+			attrs["context:"+name] = value
+		}
+	}
+
 	for _, buildArg := range opts.BuildArg {
 		if buildArg == "" {
 			continue
