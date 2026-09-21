@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -98,7 +99,8 @@ type Cmd struct {
 	done   chan error
 	closed bool
 
-	waited bool
+	waited    bool
+	forgotten bool
 }
 
 func (c *Cmd) commandLine() (string, error) {
@@ -169,7 +171,6 @@ func (c *Cmd) Start() error {
 
 	log.G(c.ctx).Trace().
 		Str("cmd", c.UUID).
-		Str("cmdline", cmdline).
 		Msg("waiting for command")
 
 	c.done = make(chan error, 1)
@@ -179,6 +180,20 @@ func (c *Cmd) Start() error {
 }
 
 func (c *Cmd) stream() {
+	// A panic in an output writer ends this command, not the process.
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		log.G(c.ctx).Warn().
+			Str("cmd", c.UUID).
+			Interface("panic", r).
+			Bytes("stack", debug.Stack()).
+			Msg("command output handler panicked")
+		c.done <- fmt.Errorf("command %s: output handler panicked: %v", c.UUID, r)
+	}()
+
 	ended := make(chan error, 1)
 	go func() {
 		_, err := c.target.Client.WaitForCommand(c.waitCtx, c.target.Instance, c.UUID, c.target.Opts...)
@@ -297,7 +312,11 @@ func (c *Cmd) Wait() error {
 			}
 
 		case <-expired:
-			return c.interrupted()
+			c.kill()
+			c.awaitEnd(signalTimeout)
+			c.stop()
+			c.Forget(c.ctx)
+			return c.killed()
 
 		case stdinErr := <-c.stdinErr:
 			log.G(c.ctx).Warn().Err(stdinErr).Str("cmd", c.UUID).Msg("standard input failed")
@@ -305,18 +324,30 @@ func (c *Cmd) Wait() error {
 
 		case err := <-c.done:
 			c.closed = true
-			// The command has ended, however it ended, so the instance need not
-			// keep its record any longer.
-			c.Forget(c.ctx)
-			if err != nil {
-				_, exited := errors.AsType[*ExitError](err)
-				if c.ctx.Err() != nil && !exited {
-					return c.ctx.Err()
-				}
+			_, exited := errors.AsType[*ExitError](err)
+			if err == nil || exited {
+				c.Forget(c.ctx)
 				return err
 			}
-			return nil
+			if c.ctx.Err() != nil {
+				return c.ctx.Err()
+			}
+			return err
 		}
+	}
+}
+
+// awaitEnd gives the stream up to d to report the command's end.
+func (c *Cmd) awaitEnd(d time.Duration) {
+	if c.closed {
+		return
+	}
+	limit := time.NewTimer(d)
+	defer limit.Stop()
+	select {
+	case <-c.done:
+		c.closed = true
+	case <-limit.C:
 	}
 }
 
@@ -335,11 +366,13 @@ func (c *Cmd) Run() error {
 	return c.Wait()
 }
 
-// Forget drops the instance's record of the command
+// Forget drops the instance's record of a finished command. A failure to do
+// so harms nothing, so it is only logged.
 func (c *Cmd) Forget(ctx context.Context) {
-	if c.UUID == "" {
+	if c.UUID == "" || c.forgotten {
 		return
 	}
+	c.forgotten = true
 
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), forgetTimeout)
 	defer cancel()
@@ -372,6 +405,15 @@ func (c *Cmd) cancel() error {
 	return nil
 }
 
+// kill sends SIGKILL to a command that did not stop on the interrupt.
+func (c *Cmd) kill() {
+	signalCtx, cancel := context.WithTimeout(c.waitCtx, signalTimeout)
+	defer cancel()
+	if err := c.Signal(signalCtx, syscall.SIGKILL); err != nil {
+		log.G(c.ctx).Debug().Err(err).Str("cmd", c.UUID).Msg("failed to kill remote command")
+	}
+}
+
 func (c *Cmd) closeStdin(ctx context.Context) {
 	if c.Stdin == nil {
 		return
@@ -379,8 +421,10 @@ func (c *Cmd) closeStdin(ctx context.Context) {
 	(&stdinPump{target: c.target, uuid: c.UUID, eof: c.stdinEOF}).close(ctx)
 }
 
-func (c *Cmd) interrupted() error {
-	return fmt.Errorf("command %s is still running: %w", c.UUID, c.ctx.Err())
+// killed reports a command that did not stop on the interrupt, and that this
+// ended by force.
+func (c *Cmd) killed() error {
+	return fmt.Errorf("command %s was killed: %w", c.UUID, c.ctx.Err())
 }
 
 // HACK: this will be removed once the sandbox plugin will accept parsed args

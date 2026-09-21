@@ -22,7 +22,7 @@ import (
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/value"
-	"unikraft.com/cli/internal/sandbox"
+	"unikraft.com/cli/pkg/sandbox"
 	xio "unikraft.com/x/io"
 	"unikraft.com/x/shell"
 )

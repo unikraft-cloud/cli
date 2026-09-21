@@ -37,6 +37,7 @@ type mockPlugin struct {
 
 	exited   chan struct{}
 	exitCode int32
+	dead     bool
 
 	run      plugin.RunCommandRequest
 	stdin    []byte
@@ -63,10 +64,16 @@ func (f *mockPlugin) write(stdout, stderr string) {
 	f.stderr = append(f.stderr, stderr...)
 }
 
+// exit ends the command once; a later call, as from a SIGKILL after the
+// command already died, changes nothing.
 func (f *mockPlugin) exit(code int32) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.dead {
+		return
+	}
+	f.dead = true
 	f.exitCode = code
-	f.mu.Unlock()
 	close(f.exited)
 }
 
@@ -189,6 +196,10 @@ func (f *mockPlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.signals = append(f.signals, req.Signal)
 		f.mu.Unlock()
+		// SIGKILL cannot be ignored: the command dies of it, as a real one does.
+		if req.Signal == int(syscall.SIGKILL) {
+			f.exit(137)
+		}
 		reply(nil)
 
 	default:
@@ -514,8 +525,8 @@ func TestCmdCancelWaitsByDefault(t *testing.T) {
 }
 
 // TestCmdCancelWaitDelayExpires pins that a command that ignores the interrupt
-// is given up on once a delay that was asked for is out, and is still
-// addressable by UUID.
+// is killed once a delay that was asked for is out, is reported as
+// interrupted, and leaves no record on the instance.
 func TestCmdCancelWaitDelayExpires(t *testing.T) {
 	fake := newFakePlugin()
 	target := newTarget(t, fake)
@@ -531,7 +542,8 @@ func TestCmdCancelWaitDelayExpires(t *testing.T) {
 	err := cmd.Wait()
 	require.ErrorIs(t, err, context.Canceled)
 	require.ErrorContains(t, err, "cmd-1")
-	assert.Equal(t, []int{int(syscall.SIGINT)}, fake.sentSignals())
+	assert.Equal(t, []int{int(syscall.SIGINT), int(syscall.SIGKILL)}, fake.sentSignals())
+	assert.True(t, fake.forgotten(), "the killed command's record was dropped")
 }
 
 // TestCmdCancelError pins that an error from Cancel ends the wait with it.
@@ -577,11 +589,28 @@ func TestCmdOutputStreamedWhileRunning(t *testing.T) {
 	select {
 	case <-seen:
 	case <-time.After(5 * time.Second):
-		t.Fatal("output was not delivered while the command was still running")
+		require.FailNow(t, "output was not delivered while the command was still running")
 	}
 
 	fake.exit(0)
 	require.NoError(t, cmd.Wait())
+}
+
+// TestCmdOutputPanicEndsTheCommand pins that a writer that panics ends the
+// command with an error, and takes nothing else down with it.
+func TestCmdOutputPanicEndsTheCommand(t *testing.T) {
+	fake := newFakePlugin()
+	target := newTarget(t, fake)
+
+	cmd := target.Command(t.Context(), "sh", "-c", "...")
+	cmd.Stdout = writerFunc(func(p []byte) (int, error) { panic("lone ESC") })
+
+	require.NoError(t, cmd.Start())
+	fake.write("\x1b", "")
+
+	err := cmd.Wait()
+	require.ErrorContains(t, err, "panicked")
+	assert.ErrorContains(t, err, "cmd-1")
 }
 
 // TestCmdMisuse pins what a Cmd refuses: no command, a second Start, a Wait
@@ -686,6 +715,31 @@ func TestAStoppedInstanceIsSaidInOneLine(t *testing.T) {
 	assert.Equal(t, `the instance is not running, or has no "sandbox" plugin`, err.Error())
 }
 
+// TestATransportFailureNamesNoURL pins that a node that cannot be reached is
+// reported without its API URL.
+func TestATransportFailureNamesNoURL(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	srv.Close()
+
+	target := Target{
+		Client:   plugin.NewClient(),
+		Instance: platform.Instance{Uuid: "inst-1"},
+		Plugin:   "sandbox",
+		Opts: []plugin.Option{
+			plugin.WithEndpoint(srv.URL),
+			plugin.WithPluginName("sandbox"),
+			plugin.WithToken("token"),
+		},
+	}
+
+	err := target.Command(t.Context(), "true").Run()
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to start command")
+	assert.NotContains(t, err.Error(), "http")
+	assert.NotContains(t, err.Error(), srv.URL)
+}
+
 func TestAPluginFailureKeepsItsOwnAccount(t *testing.T) {
 	target := newTargetServing(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -740,10 +794,9 @@ func TestCmdForget(t *testing.T) {
 	assert.True(t, fake.forgotten(), "the wait dropped it, so no caller has to")
 }
 
-// TestCmdForgetOnNonZeroExit pins that a command which ran and failed is
-// dropped from the instance just the same: in a shell session that is every
-// false, every typo and every grep that matched nothing.
-func TestCmdForgetOnNonZeroExit(t *testing.T) {
+// TestCmdForgetOnFailure pins that a command that exits non-zero is forgotten
+// all the same: its record and buffered output do not outlive the wait.
+func TestCmdForgetOnFailure(t *testing.T) {
 	fake := newFakePlugin()
 	target := newTarget(t, fake)
 
@@ -755,7 +808,7 @@ func TestCmdForgetOnNonZeroExit(t *testing.T) {
 	var exit *ExitError
 	require.ErrorAs(t, cmd.Wait(), &exit)
 	assert.Equal(t, 1, exit.Code)
-	assert.True(t, fake.forgotten(), "a command that failed should still be dropped")
+	assert.True(t, fake.forgotten(), "a failed command is dropped too")
 }
 
 // TestCmdCancelClosesStdin pins that an interrupted command sees the end of its

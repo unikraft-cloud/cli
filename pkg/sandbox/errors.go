@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	plugin "unikraft.com/cloud/plugins/sandbox"
 )
@@ -41,6 +42,10 @@ func (t Target) apiError(what string, err error) error {
 	if apiErr, ok := notServing(err); ok {
 		return fmt.Errorf("%s: the %q plugin answered %d %s",
 			what, t.Plugin, apiErr.StatusCode, http.StatusText(apiErr.StatusCode))
+	}
+	// The node's API URL stays out of what the user reads.
+	if urlErr, ok := errors.AsType[*url.Error](err); ok {
+		return fmt.Errorf("%s: %s request failed: %w", what, urlErr.Op, urlErr.Err)
 	}
 	return fmt.Errorf("%s: %w", what, err)
 }

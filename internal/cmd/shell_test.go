@@ -27,7 +27,7 @@ import (
 	"unikraft.com/cloud/sdk/platform"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/sandbox"
+	"unikraft.com/cli/pkg/sandbox"
 
 	"unikraft.com/x/shell"
 	"unikraft.com/x/stdio"
@@ -46,10 +46,10 @@ func TestShellTimeoutFlags(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		args []string
-		want sandboxTimeouts
+		want sandbox.Transport
 	}{
-		{"defaults", nil, defaultSandboxTimeouts},
-		{"set", []string{"--interrupt-grace", "3s", "--reap-timeout", "7s"}, sandboxTimeouts{InterruptGrace: 3 * time.Second, Reap: 7 * time.Second}},
+		{"defaults", nil, sandbox.Transport{InterruptGrace: sandbox.DefaultInterruptGrace, ReapTimeout: sandbox.DefaultReapTimeout}},
+		{"set", []string{"--interrupt-grace", "3s", "--reap-timeout", "7s"}, sandbox.Transport{InterruptGrace: 3 * time.Second, ReapTimeout: 7 * time.Second}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var cli UnikraftCLI
@@ -60,17 +60,9 @@ func TestShellTimeoutFlags(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want.InterruptGrace, cli.Instances.Shell.InterruptGrace)
-			assert.Equal(t, tt.want.Reap, cli.Instances.Shell.ReapTimeout)
+			assert.Equal(t, tt.want.ReapTimeout, cli.Instances.Shell.ReapTimeout)
 		})
 	}
-}
-
-func TestSandboxTransportFillsInDefaultTimeouts(t *testing.T) {
-	assert.Equal(t, defaultSandboxTimeouts, newSandboxTransport(sandbox.Target{}, sandboxTimeouts{}).timeouts)
-
-	partial := newSandboxTransport(sandbox.Target{}, sandboxTimeouts{Reap: time.Minute}).timeouts
-	assert.Equal(t, sandboxTimeouts{InterruptGrace: defaultSandboxTimeouts.InterruptGrace, Reap: time.Minute}, partial,
-		"a timeout left unset is the default, not zero: zero would wait forever")
 }
 
 func TestShellEnvFlagKeepsCommas(t *testing.T) {
@@ -145,13 +137,13 @@ func (f *onePlugin) sent() []int {
 	return slices.Clone(f.signals)
 }
 
-func fakeSandboxTransport(t *testing.T, fake http.Handler, timeouts sandboxTimeouts) *sandboxTransport {
+func fakeSandboxTransport(t *testing.T, fake http.Handler, grace time.Duration) sandbox.Transport {
 	t.Helper()
 
 	srv := httptest.NewServer(fake)
 	t.Cleanup(srv.Close)
 
-	return newSandboxTransport(sandbox.Target{
+	return sandbox.Transport{InterruptGrace: grace, Target: sandbox.Target{
 		Client:   plugin.NewClient(),
 		Instance: platform.Instance{Uuid: "inst-1"},
 		Plugin:   "sandbox",
@@ -160,7 +152,7 @@ func fakeSandboxTransport(t *testing.T, fake http.Handler, timeouts sandboxTimeo
 			plugin.WithPluginName("sandbox"),
 			plugin.WithHTTPClient(srv.Client()),
 		},
-	}, timeouts)
+	}}
 }
 
 // command is a line's worth of work for the transport, its output going nowhere.
@@ -173,7 +165,7 @@ func command(args ...string) shell.Command {
 }
 
 func TestAFailedCommandIsNotAFailedCLI(t *testing.T) {
-	transport := fakeSandboxTransport(t, &onePlugin{code: 3}, sandboxTimeouts{})
+	transport := fakeSandboxTransport(t, &onePlugin{code: 3}, 0)
 
 	code, err := transport.Exec(t.Context(), command("false"))
 
@@ -189,7 +181,7 @@ func (deafWriter) Write([]byte) (int, error) { return 0, syscall.EPIPE }
 func TestAnUninterruptibleCommandGivesThePromptBack(t *testing.T) {
 	fake := &onePlugin{hang: make(chan struct{})}
 	grace := 500 * time.Millisecond
-	transport := fakeSandboxTransport(t, fake, sandboxTimeouts{InterruptGrace: grace})
+	transport := fakeSandboxTransport(t, fake, grace)
 
 	ctx, cancel := context.WithCancel(t.Context())
 
@@ -211,7 +203,7 @@ func TestAnUninterruptibleCommandGivesThePromptBack(t *testing.T) {
 
 func TestAClosedPipeReachesTheInstance(t *testing.T) {
 	fake := &onePlugin{out: "output nobody reads\n", code: 3}
-	transport := fakeSandboxTransport(t, fake, sandboxTimeouts{})
+	transport := fakeSandboxTransport(t, fake, 0)
 
 	cmd := command("yes")
 	cmd.Streams.Stdout = deafWriter{}
@@ -224,13 +216,13 @@ func TestAClosedPipeReachesTheInstance(t *testing.T) {
 }
 
 func TestAFailedCommandLineIsTheCLIsStatus(t *testing.T) {
-	transport := fakeSandboxTransport(t, &onePlugin{code: 3}, sandboxTimeouts{})
+	transport := fakeSandboxTransport(t, &onePlugin{code: 3}, 0)
 
 	code, err := shell.Run(t.Context(), shell.Config{
 		Instance:  "inst-1",
 		Dir:       "/",
 		Command:   "/bin/nonsense",
-		Transport: transport,
+		Transport: transport.Shell(),
 	}, stdio.Stdio{Stdin: strings.NewReader(""), Stdout: io.Discard, Stderr: io.Discard})
 
 	require.NoError(t, err, "a command that failed on the instance is not the CLI failing")
@@ -243,7 +235,7 @@ func TestAFailedCommandLineIsTheCLIsStatus(t *testing.T) {
 // reporting a broken pipe instead of what the command did.
 func TestExecSurvivesAClosedPipe(t *testing.T) {
 	fake := &onePlugin{out: "output nobody reads\n", code: 3}
-	target := fakeSandboxTransport(t, fake, sandboxTimeouts{}).target
+	target := fakeSandboxTransport(t, fake, 0).Target
 
 	err := (&ExecSandboxInstanceCmd{Cmd: []string{"yes"}}).runOn(t.Context(), target,
 		config.Stdio{Stdout: deafWriter{}, Stderr: io.Discard})
