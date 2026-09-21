@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	logChunkSize    = 1 * units.MiB
+	logChunkSize    = 256 * units.KiB
 	logFetchTimeout = 10 * time.Second
 	logDrainBudget  = 10 * time.Second
 )

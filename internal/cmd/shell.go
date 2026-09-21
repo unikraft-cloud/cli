@@ -20,6 +20,7 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/pkg/sandbox"
 )
 
 const shellBanner = "⚠︎ this shell is experimental"
@@ -87,7 +88,7 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 		Dir:            c.Dir,
 		Env:            env,
 		Command:        c.Command,
-		Transport:      newSandboxTransport(target, sandboxTimeouts{InterruptGrace: c.InterruptGrace, Reap: c.ReapTimeout}),
+		Transport:      sandbox.Transport{Target: target, InterruptGrace: c.InterruptGrace, ReapTimeout: c.ReapTimeout}.Shell(),
 		SuspendSignals: signals.Suspend,
 		Banner:         shellBanner,
 	}, xstdio.Stdio{Stdin: stdio.Stdin, Stdout: stdio.Stdout, Stderr: stdio.Stderr})
