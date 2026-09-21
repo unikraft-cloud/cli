@@ -34,3 +34,28 @@ var InsecureHTTPClient = sdkhttpclient.NewHTTPClient(
 	sdkhttpclient.WithUserAgent(version.UserAgent()),
 	sdkhttpclient.WithInsecure(),
 )
+
+// RegistryHTTPClient is the HTTP client used for container registry traffic.
+// Unlike DefaultHTTPClient it sets no response header timeout.
+// Pushes remain bounded by the request context.
+var RegistryHTTPClient = sdkhttpclient.NewHTTPClient(
+	sdkhttpclient.WithUserAgent(version.UserAgent()),
+	sdkhttpclient.WithTransport(newRegistryTransport()),
+)
+
+// InsecureRegistryHTTPClient is RegistryHTTPClient with TLS verification
+// skipped.
+var InsecureRegistryHTTPClient = sdkhttpclient.NewHTTPClient(
+	sdkhttpclient.WithUserAgent(version.UserAgent()),
+	sdkhttpclient.WithTransport(newRegistryTransport()),
+	sdkhttpclient.WithInsecure(),
+)
+
+func newRegistryTransport() *http.Transport {
+	transport, ok := sdkhttpclient.NewHTTPClient().Transport.(*http.Transport)
+	if !ok {
+		transport = http.DefaultTransport.(*http.Transport).Clone()
+	}
+	transport.ResponseHeaderTimeout = 0
+	return transport
+}
