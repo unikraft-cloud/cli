@@ -10,6 +10,12 @@ import "strings"
 // escapeMdx escapes '<' and '{'/'}' in prose so MDX doesn't parse them as
 // JSX, leaving fenced code blocks and inline code spans untouched.
 func escapeMdx(text string) string {
+	return mapProseLines(text, escapeMdxLine)
+}
+
+// mapProseLines applies transform to each line of text which is outside a
+// fenced code block.
+func mapProseLines(text string, transform func(string) string) string {
 	lines := strings.Split(text, "\n")
 	fence := ""
 	for i, line := range lines {
@@ -24,7 +30,7 @@ func escapeMdx(text string) string {
 			fence = f
 			continue
 		}
-		lines[i] = escapeMdxLine(line)
+		lines[i] = transform(line)
 	}
 	return strings.Join(lines, "\n")
 }

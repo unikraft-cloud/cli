@@ -16,6 +16,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/MakeNowJust/heredoc"
 	jujuerrors "github.com/juju/errors"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
@@ -246,106 +247,121 @@ func readBodySource(source string, stdio config.Stdio) ([]byte, error) {
 }
 
 func (APICmd) Help() string {
-	return `The API command allows you to make direct HTTP requests to the Unikraft Cloud API
-without using a higher-level CLI subcommand. This is useful for endpoints that
-do not yet have a dedicated command, or for scripting advanced workflows.
+	return heredoc.Docf(`
+		The API command allows you to make direct HTTP requests to the
+		Unikraft Cloud API without using a higher-level CLI subcommand. This
+		is useful for endpoints that do not yet have a dedicated command, or
+		for scripting advanced workflows.
 
-REQUEST BODY SYNTAX
+		## Request body syntax
 
-The request body can be specified as positional arguments. Each argument is
-one of:
+		The request body can be specified as positional arguments. Each
+		argument is one of:
 
-  @file        Read the body from a file on disk.
-  @-           Read the body from standard input (stdin).
-  {...}        Inline JSON object (merges with other arguments).
-  [...]        Inline JSON array (replaces the entire body).
-  key=value    Set a key to a literal string value.
-  key:=raw     Set a key to a raw JSON value (number, boolean, null, object,
-               or array constructed from raw JSON).
+		%[2]s
+		@file        Read the body from a file on disk.
+		@-           Read the body from standard input (stdin).
+		{...}        Inline JSON object (merges with other arguments).
+		[...]        Inline JSON array (replaces the entire body).
+		key=value    Set a key to a literal string value.
+		key:=raw     Set a key to a raw JSON value (number, boolean, null,
+		             object, or array constructed from raw JSON).
+		%[2]s
 
-NESTED JSON SYNTAX
+		## Nested JSON syntax
 
-key=value / key:=raw forms can be used to build complex nested
-structures:
+		The %[1]skey=value%[1]s and %[1]skey:=raw%[1]s forms can be used to
+		build complex nested structures. The keys of an object are sent in
+		alphabetical order:
 
-  key[sub]=value
-      Sets a nested key inside an object. Multiple bracket segments create
-      deeply nested objects.
-      Example: user[name]=Alice user[age]:=30
-      Produces: {"user":{"name":"Alice","age":30}}
+		%[2]s
+		key[sub]=value
+		    Sets a nested key inside an object. Multiple bracket segments
+		    create deeply nested objects.
+		    Example: user[name]=Alice user[age]:=30
+		    Produces: {"user":{"age":30,"name":"Alice"}}
 
-  key[]=value
-      Appends a value to an array. Multiple [] arguments add more elements.
-      Example: apps[]=Terminal apps[]=Desktop
-      Produces: {"apps":["Terminal","Desktop"]}
+		key[]=value
+		    Appends a value to an array. Multiple [] arguments add more
+		    elements.
+		    Example: apps[]=Terminal apps[]=Desktop
+		    Produces: {"apps":["Terminal","Desktop"]}
 
-  key[][sub]=value
-      Creates a new object, assigns the sub-key inside it, and appends the
-      whole object to the array. Further [sub] segments nest deeper.
-      Example: arr[][key]=value arr[][count]:=42
-      Produces: {"arr":[{"key":"value"},{"count":42}]}
+		key[][sub]=value
+		    Creates a new object, assigns the sub-key inside it, and appends
+		    the whole object to the array. Further [sub] segments nest deeper.
+		    Example: arr[][key]=value arr[][count]:=42
+		    Produces: {"arr":[{"key":"value"},{"count":42}]}
 
-  key[N]=value
-      Assigns at a specific numeric index in an array. Gaps are padded with
-      null. The maximum index is 10000.
-      Example: arr[0]=first arr[2]=third
-      Produces: {"arr":["first",null,"third"]}
+		key[N]=value
+		    Assigns at a specific numeric index in an array. Gaps are padded
+		    with null. The maximum index is 10000.
+		    Example: arr[0]=first arr[2]=third
+		    Produces: {"arr":["first",null,"third"]}
+		%[2]s
 
-TOP-LEVEL ARRAY SYNTAX
+		## Top-level array syntax
 
-When the first argument starts with a bracket (e.g. [0][key]=value or
-[]=value), the root of the request body becomes a JSON array instead of an
-object.
+		When the first argument starts with a bracket (e.g. %[1]s[0][key]=value%[1]s
+		or %[1]s[]=value%[1]s), the root of the request body becomes a JSON
+		array instead of an object.
 
-  [N][key]=value
-      Creates an array of objects and assigns at index N.
-      Example: [0][type]=platform [0][name]=desktop [1][type]=platform [1][name]=web
-      Produces: [{"type":"platform","name":"desktop"},{"type":"platform","name":"web"}]
+		%[2]s
+		[N][key]=value
+		    Creates an array of objects and assigns at index N.
+		    Example: [0][name]=web [0][port]:=80 [1][name]=api [1][port]:=90
+		    Produces: [{"name":"web","port":80},{"name":"api","port":90}]
 
-  []=value
-      Appends raw values to the root array.
-      Example: []=a []=b []=c
-      Produces: ["a","b","c"]
+		[]=value
+		    Appends raw values to the root array.
+		    Example: []=a []=b []=c
+		    Produces: ["a","b","c"]
 
-  []:=raw
-      Appends a raw JSON value (number, boolean, null) to the root array.
-      Example: []:=1 []:=2 []:=3
-      Produces: [1,2,3]
+		[]:=raw
+		    Appends a raw JSON value (number, boolean, null) to the root array.
+		    Example: []:=1 []:=2 []:=3
+		    Produces: [1,2,3]
+		%[2]s
 
-RAW JSON VALUES
+		## Raw JSON values
 
-Use the := operator (instead of =) to pass a raw JSON value:
+		Use the %[1]s:=%[1]s operator (instead of %[1]s=%[1]s) to pass a raw
+		JSON value:
 
-  count:=42           Number, not a string.
-  active:=true        Boolean.
-  data:=null          Null value.
-  nested:={"a":1}     Nested JSON object.
-  arr:=["x","y"]      Nested JSON array.
+		%[2]s
+		count:=42           Number, not a string.
+		active:=true        Boolean.
+		data:=null          Null value.
+		nested:={"a":1}     Nested JSON object.
+		arr:=["x","y"]      Nested JSON array.
+		%[2]s
 
-ESCAPING
+		## Escaping
 
-Special characters in key names can be escaped with a backslash:
+		Special characters in key names can be escaped with a backslash:
 
-  key\[sub\]=value    Literal bracket in key name.
-  key\=value=test     Literal equals sign in key name.
-  key[\\]=value       Literal backslash in key name.
-  key[\1]=value       Force a numeric segment to be treated as a string map
-                      key instead of an array index.
+		%[2]s
+		key\[sub\]=value    Literal bracket in key name.
+		key\=value=test     Literal equals sign in key name.
+		key[\\]=value       Literal backslash in key name.
+		key[\1]=value       Force a numeric segment to be treated as a
+		                    string map key instead of an array index.
+		%[2]s
 
-MULTIPLE ARGUMENTS
+		## Multiple arguments
 
-Multiple body arguments can be passed on a single line or across multiple
-lines. Arguments are processed in order; later values overwrite earlier ones at
-the same path.
+		Multiple body arguments can be passed on a single line or across
+		multiple lines. Arguments are processed in order; later values
+		overwrite earlier ones at the same path.
 
-WHITESPACE IN VALUES
+		## Whitespace in values
 
-If a value contains spaces, quote the entire argument:
-  unikraft api /v1/volumes "name=my test volume" stars:=54000
+		If a value contains spaces, quote the entire argument:
 
-EXAMPLES
-
-The examples below demonstrate many of the syntax forms described above.`
+		%[2]s
+		unikraft api /v1/volumes "name=my test volume" stars:=54000
+		%[2]s
+	`, "`", "```")
 }
 
 func (APICmd) Examples() []kingkong.Example {
