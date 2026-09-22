@@ -8,10 +8,10 @@ package multimetro
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
-	"unikraft.com/x/iata"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
 
@@ -88,15 +88,10 @@ func GetMetros(ctx context.Context, profile *config.Profile) ([]config.Metro, er
 
 	var metros []config.Metro
 	for _, metro := range metroResp.Data.Metros {
-		// Normalize the metro's IATA code via the iata package.
-		location := metro.IataCode
-		if matched := iata.ToIata(location); matched != iata.IataUnknown {
-			location = matched.Code
-		}
 		metros = append(metros, config.Metro{
 			Name:     metro.Name,
 			Endpoint: metro.Endpoint,
-			Location: location,
+			Location: strings.ToLower(metro.IataCode),
 		})
 	}
 	return metros, nil
