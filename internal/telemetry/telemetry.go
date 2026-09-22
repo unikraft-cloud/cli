@@ -170,6 +170,8 @@ func SendEvent(payloadJSON string) error {
 	// Read API key and endpoint from package-level vars (not passed via argv for security)
 	client, err := posthog.NewWithConfig(apiKey, posthog.Config{
 		Endpoint: host,
+		// Mark events as client-side so PostHog attributes the device OS.
+		IsServer: new(false),
 		// Use a short batch interval for CLI tools since they exit quickly
 		BatchSize: 1,
 		Interval:  100 * time.Millisecond,
