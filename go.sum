@@ -508,8 +508,6 @@ unikraft.com/x/fingerprint v0.0.0-20260126094137-ab6e717e5679 h1:zdvJjNkjsriS8RM
 unikraft.com/x/fingerprint v0.0.0-20260126094137-ab6e717e5679/go.mod h1:FP7uOxux/W5PKqSRQsR4tyjNuLq4Cfio7mc5QVH1kW8=
 unikraft.com/x/guesstermwidth v0.0.0-20260904140856-1944f6df62e1 h1:1gkowpZPI25+G+lpuNbjdcUxQZPXnAuJA1e03WAt998=
 unikraft.com/x/guesstermwidth v0.0.0-20260904140856-1944f6df62e1/go.mod h1:q3EH6bLqLAJ1PqZgHlCJPpvvP6scnjJJspBMyGQtMt4=
-unikraft.com/x/iata v0.0.0-20260713183529-fd34645687a0 h1:wpRYHKQbrcJM4xSb8MyumZkBYhaEnWpdvywMnYcvqjo=
-unikraft.com/x/iata v0.0.0-20260713183529-fd34645687a0/go.mod h1:M9v3TZKETfctR1aqFxM6UqYM+3DJ+nHKtqrxGb8X8oc=
 unikraft.com/x/image-spec v0.0.0-20260813113709-544c471e0bc9 h1:S0Er9pKNkS4SdifkcXUAQ+P+ndMIBRMheyLZP8f6g9E=
 unikraft.com/x/image-spec v0.0.0-20260813113709-544c471e0bc9/go.mod h1:7HwHLKMC6Ican+0HeMFVN8qI3mSyf0M64iEZj++FoPs=
 unikraft.com/x/io v0.0.0-20260917141509-02a61e7c1812 h1:OZcX6u+KB5AnO7svzHLf9UYfKUDqxtknzakoW4EaTMs=
