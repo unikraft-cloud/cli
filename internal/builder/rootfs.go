@@ -67,8 +67,7 @@ func DetectSourceType(path string) (kraftfile.SourceType, error) {
 		return "", fmt.Errorf("empty rootfs path")
 	}
 
-	base := filepath.Base(path)
-	if base == "Dockerfile" || slices.Contains(strings.Split(base, "."), "Dockerfile") {
+	if slices.Contains(strings.Split(filepath.Base(path), "."), DefaultDockerfileName) {
 		return kraftfile.SourceTypeDockerfile, nil
 	}
 
@@ -463,7 +462,9 @@ func buildRootfsDockerfile(ctx context.Context, opts BuildOpts) (_ []*imagespec.
 			}
 			config.Config.Env = append(env, config.Config.Env...)
 		}
-		config.Config.Labels = opts.Labels
+		if opts.Labels != nil {
+			config.Config.Labels = opts.Labels
+		}
 
 		imgs = append(imgs, imagespec.NewImage(
 			imagespec.WithImageConfig(config.Config),
