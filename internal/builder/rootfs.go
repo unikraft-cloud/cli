@@ -29,6 +29,7 @@ import (
 	"github.com/moby/buildkit/session/auth/authprovider"
 	"github.com/moby/buildkit/util/progress/progresswriter"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/tonistiigi/fsutil"
 	imagespec "unikraft.com/x/image-spec"
 
 	goerofs "github.com/unikraft/go-archivefs/erofs"
@@ -342,6 +343,14 @@ func buildRootfsDockerfile(ctx context.Context, opts BuildOpts) (_ []*imagespec.
 	if err := applyBuildOpts(attrs, localDirs, &session, opts); err != nil {
 		return nil, err
 	}
+	localMounts := make(map[string]fsutil.FS, len(localDirs))
+	for name, dir := range localDirs {
+		mount, err := fsutil.NewFS(dir)
+		if err != nil {
+			return nil, fmt.Errorf("could not open local directory %q: %w", dir, err)
+		}
+		localMounts[name] = mount
+	}
 
 	c, cleanup, err := buildkit.ConnectToBuildkit(ctx)
 	if err != nil {
@@ -396,7 +405,7 @@ func buildRootfsDockerfile(ctx context.Context, opts BuildOpts) (_ []*imagespec.
 					},
 				},
 			},
-			LocalDirs:     localDirs,
+			LocalMounts:   localMounts,
 			Frontend:      "dockerfile.v0",
 			FrontendAttrs: platformAttrs,
 		}
