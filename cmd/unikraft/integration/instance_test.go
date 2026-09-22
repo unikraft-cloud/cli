@@ -51,7 +51,7 @@ cmd: ["python3", "/app/server.py"]
 // instance stays running while the test reads the output of the boot.
 const followArgs = `runtime.args=["sh","-c","n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; sleep 30s"]`
 
-const sandboxPluginRom = "plugins/sandbox:staging"
+const sandboxPluginRom = "plugins/sandbox:latest"
 
 // tunnelProxyUUIDs queries the platform directly (bypassing the CLI's
 // resource partition, which never tracks the tunnel command's internal proxy

@@ -22,7 +22,7 @@ import (
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/value"
-	"unikraft.com/cli/pkg/sandbox"
+	"unikraft.com/cloud/sdk/plugins/sandbox"
 	xio "unikraft.com/x/io"
 	"unikraft.com/x/shell"
 )
@@ -95,7 +95,7 @@ func (c *ExecSandboxInstanceCmd) runOn(ctx context.Context, target sandbox.Targe
 
 	cmd := target.CommandArgs(ctx, c.Cmd)
 	cmd.Dir = c.Dir
-	cmd.Env = c.Env
+	cmd.Env = sandbox.EnvMap(c.Env)
 	cmd.Stdin = in
 	cmd.Stdout = out
 	cmd.Stderr = out

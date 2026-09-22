@@ -13,6 +13,8 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 
+	"unikraft.com/cloud/sdk/plugins/sandbox"
+
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/shell"
 	xsignal "unikraft.com/x/signal"
@@ -20,7 +22,6 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/pkg/sandbox"
 )
 
 const shellBanner = "⚠︎ this shell is experimental"
@@ -84,11 +85,14 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 	}
 
 	code, err := shell.Run(ctx, shell.Config{
-		Instance:       c.Target,
-		Dir:            c.Dir,
-		Env:            env,
-		Command:        c.Command,
-		Transport:      sandbox.Transport{Target: target, InterruptGrace: c.InterruptGrace, ReapTimeout: c.ReapTimeout}.Shell(),
+		Instance: c.Target,
+		Dir:      c.Dir,
+		Env:      env,
+		Command:  c.Command,
+		Transport: sandbox.Transport{
+			Target:   target,
+			Timeouts: sandbox.Timeouts{InterruptGrace: c.InterruptGrace, Reap: c.ReapTimeout},
+		}.Shell(),
 		SuspendSignals: signals.Suspend,
 		Banner:         shellBanner,
 	}, xstdio.Stdio{Stdin: stdio.Stdin, Stdout: stdio.Stdout, Stderr: stdio.Stderr})
