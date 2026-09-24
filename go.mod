@@ -53,19 +53,19 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
 	unikraft.com/cloud/sdk v0.3.1-0.20260918130854-9a85fea47006
-	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260922063024-475f714ff2f8
+	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260924101000-eefc1a5b7d13
 	unikraft.com/x/colors v0.0.0-20260904140856-1944f6df62e1
 	unikraft.com/x/filters v0.0.0-20260804153219-d1b47a40e047
-	unikraft.com/x/fingerprint v0.0.0-20260126094137-ab6e717e5679
-	unikraft.com/x/guesstermwidth v0.0.0-20260904140856-1944f6df62e1
-	unikraft.com/x/image-spec v0.0.0-20260813113709-544c471e0bc9
-	unikraft.com/x/io v0.0.0-20260917141509-02a61e7c1812
+	unikraft.com/x/fingerprint v0.0.0-20260924094500-0cd438c09ad3
+	unikraft.com/x/guesstermwidth v0.0.0-20260924094500-0cd438c09ad3
+	unikraft.com/x/image-spec v0.0.0-20260924094500-0cd438c09ad3
+	unikraft.com/x/io v0.0.0-20260924094500-0cd438c09ad3
 	unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de
 	unikraft.com/x/kingkong v0.0.0-20260824095305-c69507b68d29
 	unikraft.com/x/kraftfile v0.0.0-20260922102225-cfab838c8e73
 	unikraft.com/x/log v0.0.0-20260904140856-1944f6df62e1
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
-	unikraft.com/x/shell v0.0.0-20260918074422-4f7e661c21b7
+	unikraft.com/x/shell v0.0.0-20260924094500-0cd438c09ad3
 	unikraft.com/x/signal v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/stdio v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/version v0.0.0-20260819081122-82fdef94867a
@@ -110,8 +110,8 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
-	github.com/gofrs/flock v0.13.0 // indirect
-	github.com/gofrs/uuid/v5 v5.4.0 // indirect
+	github.com/gofrs/flock v0.13.1 // indirect
+	github.com/gofrs/uuid/v5 v5.5.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
@@ -128,8 +128,8 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-isatty v0.0.23 // indirect
 	github.com/mattn/go-runewidth v0.0.27 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
@@ -146,7 +146,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
+	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/reeflective/readline v1.3.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/riywo/loginshell v0.0.0-20200815045211-7d26008be1ab // indirect; indirec fmt
@@ -156,7 +156,7 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.11.0 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/shoenig/go-m1cpu v0.2.2 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
@@ -167,8 +167,8 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
-	github.com/tklauser/go-sysconf v0.3.12 // indirect
-	github.com/tklauser/numcpus v0.6.1 // indirect
+	github.com/tklauser/go-sysconf v0.4.0 // indirect
+	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
 	github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
@@ -188,18 +188,18 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
-	golang.org/x/crypto v0.56.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
-	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/term v0.45.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/term v0.46.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260825221802-da73d73af1c5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260825221802-da73d73af1c5 // indirect
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	tailscale.com v1.94.1 // indirect
+	tailscale.com v1.102.4 // indirect
 )
 
 // Pin ultraviolet to the last revision before it started misbehaving.
