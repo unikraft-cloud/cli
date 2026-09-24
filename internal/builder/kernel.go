@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/containerd/platforms"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	imagespec "unikraft.com/x/image-spec"
 
 	"unikraft.com/cli/internal/images"
@@ -34,7 +33,7 @@ func BuildKernel(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error
 	if opts.Platform == nil {
 		platform = platforms.All
 	} else {
-		platform = ignoringOSFeatures(platforms.Any(opts.Platform...))
+		platform = platforms.Any(opts.Platform...)
 	}
 
 	imgs, err := access.LoadAll(ctx, runtime, platform)
@@ -57,30 +56,4 @@ func BuildKernel(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error
 	}
 
 	return imgs, nil
-}
-
-// ignoringOSFeatures wraps a MatchComparer and strips OSFeatures from the
-// candidate platform before delegating to the inner matcher. In
-// containerd/platforms v1, NewMatcher requires the matcher's OSFeatures to be
-// a superset of the candidate's, so a spec without OSFeatures would fail to
-// match any manifest entry that carries them (e.g. EROFS feature flags). By
-// stripping OSFeatures from the candidate at match time we get OS/arch/variant
-// matching semantics regardless of what features the manifest entry advertises.
-type ignoringOSFeaturesMatcher struct {
-	platforms.MatchComparer
-}
-
-func ignoringOSFeatures(m platforms.MatchComparer) platforms.MatchComparer {
-	return ignoringOSFeaturesMatcher{m}
-}
-
-func (m ignoringOSFeaturesMatcher) Match(p ocispec.Platform) bool {
-	p.OSFeatures = nil
-	return m.MatchComparer.Match(p)
-}
-
-func (m ignoringOSFeaturesMatcher) Less(p1, p2 ocispec.Platform) bool {
-	p1.OSFeatures = nil
-	p2.OSFeatures = nil
-	return m.MatchComparer.Less(p1, p2)
 }
