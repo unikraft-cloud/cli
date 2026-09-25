@@ -655,7 +655,7 @@ func TestResolveSourceRelativeToRoot(t *testing.T) {
 func TestResolveSourceDockerfileType(t *testing.T) {
 	fsOpts := FSOpts{Path: "context", Dockerfile: "MyDockerfile"}
 	require.NoError(t, resolveSource("/root", &fsOpts))
-	require.Equal(t, "/root/context", fsOpts.Path)
+	require.Equal(t, filepath.Join("/root", "context"), fsOpts.Path)
 	require.Equal(t, kraftfile.SourceTypeDockerfile, fsOpts.Type)
 }
 
