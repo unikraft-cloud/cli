@@ -298,7 +298,10 @@ func (cmd *LoginCmd) getAuth(ctx context.Context, profile *config.Profile) (*con
 	// TODO: run a spinner here
 	for {
 		select {
-		case event := <-checkResp:
+		case event, ok := <-checkResp:
+			if !ok {
+				return nil, jujuerrors.New("the control plane ended the sign-in check without a result, please try again")
+			}
 			if event == nil {
 				continue
 			}
