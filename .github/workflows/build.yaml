@@ -34,6 +34,10 @@ jobs:
           GOARCH: amd64
         - GOOS: linux
           GOARCH: arm64
+        - GOOS: windows
+          GOARCH: amd64
+        - GOOS: windows
+          GOARCH: arm64
         - GOOS: js
           GOARCH: wasm
           task: wasm
