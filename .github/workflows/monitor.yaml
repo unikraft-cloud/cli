@@ -1,0 +1,96 @@
+name: monitor
+permissions:
+  contents: read
+
+on:
+  schedule:
+  - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+# Automatically cancel in-progress runs of this workflow
+concurrency:
+  group: ${{ github.workflow }}
+
+jobs:
+  integration:
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'arc-ubuntu24.04-standard' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [STAGING, STABLE, PROD]
+    env:
+      TASK_X_REMOTE_TASKFILES: 1
+      UNIKRAFT_SERVER_STAGING: staging
+      UNIKRAFT_SERVER_STABLE: stable
+      UNIKRAFT_SERVER_PROD: prod
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: prod-staging
+      - uses: go-task/setup-task@v2
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Set Go variables
+        id: goenv
+        run: |
+          {
+            echo "cache=$(go env GOCACHE)"
+            echo "modcache=$(go env GOMODCACHE)"
+            echo "mod=$(go env GOMOD)"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Go caches
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.goenv.outputs.cache }}
+            ${{ steps.goenv.outputs.modcache }}
+          key: ${{ github.job }}-${{ runner.os }}-go-${{ hashFiles(steps.goenv.outputs.mod) }}
+          restore-keys: |
+            ${{ github.job }}-${{ runner.os }}-go-
+
+      - name: Configure profile
+        shell: bash
+        run: |
+          mkdir -p ~/.config/unikraft
+          cat <<EOF > ~/.config/unikraft/config.yaml
+          profile: default
+          profiles:
+            default:
+              type: cloud
+              name: default
+              organization: ${UNIKRAFT_ORG}
+              token: ${UNIKRAFT_TOKEN}
+              metros:
+                - name: ${UNIKRAFT_X_TEST_SERVER}
+                  endpoint: ${UNIKRAFT_ENDPOINT}
+                  location: fra
+                  insecure: true
+          EOF
+        env:
+          UNIKRAFT_ORG: ${{ vars.UNIKRAFT_ORG }}
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
+          UNIKRAFT_ENDPOINT: ${{ secrets[format('UNIKRAFT_ENDPOINT_{0}', matrix.target)] }}
+          UNIKRAFT_X_TEST_SERVER: ${{ env[format('UNIKRAFT_SERVER_{0}', matrix.target)] }}
+
+      - name: Run integration tests
+        shell: bash
+        run: |
+          task --yes integration RERUN_FAILS=3
+        env:
+          UNIKRAFT_X_TEST_SERVER: ${{ env[format('UNIKRAFT_SERVER_{0}', matrix.target)] }}
+
+  export-trace:
+    if: always()
+    name: Export trace to Better Stack
+    runs-on: ubuntu-latest
+    needs: [integration]
+    steps:
+      - name: Export workflow trace
+        uses: dash0hq/otel-cicd-action@v4
+        with:
+          otlpEndpoint: https://${{ secrets.BETTERSTACK_INGESTING_HOST }}/v1/traces
+          otlpHeaders: Authorization=Bearer ${{ secrets.BETTERSTACK_SOURCE_TOKEN }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
