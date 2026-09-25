@@ -10,6 +10,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,8 +22,6 @@ import (
 	"unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
-	rcmd "unikraft.com/cli/internal/resource/cmd"
-	"unikraft.com/cli/internal/types"
 )
 
 type fakeInstance struct {
@@ -30,6 +29,7 @@ type fakeInstance struct {
 }
 
 type (
+	getCall    builtins.Format
 	editCall   map[string]string
 	attachCall struct {
 		volume, at string
@@ -38,39 +38,43 @@ type (
 	detachCall  string
 	stopCall    StopOpts
 	restartCall StopOpts
-	suspendCall types.DurationMS
+	suspendCall DurationMS
 )
 
-func (f *fakeInstance) Get(context.Context, config.Stdio, rcmd.FormatOpts) error     { return nil }
-func (f *fakeInstance) Volumes(context.Context, config.Stdio, rcmd.FormatOpts) error { return nil }
-func (f *fakeInstance) Start(context.Context, config.Stdio) error                    { return nil }
+func (f *fakeInstance) Get(_ context.Context, _ stdio.Stdio, format builtins.Format) error {
+	f.calls = append(f.calls, getCall(format))
+	return nil
+}
 
-func (f *fakeInstance) Edit(_ context.Context, _ config.Stdio, set map[string]string) error {
+func (f *fakeInstance) Volumes(context.Context, stdio.Stdio, builtins.Format) error { return nil }
+func (f *fakeInstance) Start(context.Context, stdio.Stdio) error                    { return nil }
+
+func (f *fakeInstance) Edit(_ context.Context, _ stdio.Stdio, set map[string]string) error {
 	f.calls = append(f.calls, editCall(set))
 	return nil
 }
 
-func (f *fakeInstance) Attach(_ context.Context, _ config.Stdio, volume, at string, readonly bool) error {
+func (f *fakeInstance) Attach(_ context.Context, _ stdio.Stdio, volume, at string, readonly bool) error {
 	f.calls = append(f.calls, attachCall{volume, at, readonly})
 	return nil
 }
 
-func (f *fakeInstance) Detach(_ context.Context, _ config.Stdio, volume string) error {
+func (f *fakeInstance) Detach(_ context.Context, _ stdio.Stdio, volume string) error {
 	f.calls = append(f.calls, detachCall(volume))
 	return nil
 }
 
-func (f *fakeInstance) Stop(_ context.Context, _ config.Stdio, opts StopOpts) error {
+func (f *fakeInstance) Stop(_ context.Context, _ stdio.Stdio, opts StopOpts) error {
 	f.calls = append(f.calls, stopCall(opts))
 	return nil
 }
 
-func (f *fakeInstance) Restart(_ context.Context, _ config.Stdio, opts StopOpts) error {
+func (f *fakeInstance) Restart(_ context.Context, _ stdio.Stdio, opts StopOpts) error {
 	f.calls = append(f.calls, restartCall(opts))
 	return nil
 }
 
-func (f *fakeInstance) Suspend(_ context.Context, _ config.Stdio, drainTimeout types.DurationMS) error {
+func (f *fakeInstance) Suspend(_ context.Context, _ stdio.Stdio, drainTimeout DurationMS) error {
 	f.calls = append(f.calls, suspendCall(drainTimeout))
 	return nil
 }
@@ -148,15 +152,18 @@ func TestShellBuiltinsCallInstance(t *testing.T) {
 		line []string
 		want any
 	}{
+		{[]string{"get"}, getCall{}},
+		{[]string{"get", "-o", "json", "-f", "name,state"}, getCall{Field: []string{"name", "state"}, Output: "json"}},
 		{[]string{"edit", "memory=256Mi", "env=A=B"}, editCall{"memory": "256Mi", "env": "A=B"}},
 		{[]string{"mount", "--readonly", "vol", "/data"}, attachCall{"vol", "/data", true}},
 		{[]string{"unmount", "vol"}, detachCall("vol")},
 		{[]string{"stop"}, stopCall{DrainTimeout: -1}},
 		{[]string{"stop", "--force", "--drain-timeout=500"}, stopCall{Force: true, DrainTimeout: 500}},
+		{[]string{"stop", "--drain-timeout=1s"}, stopCall{DrainTimeout: 1000}},
 		{[]string{"restart", "--force"}, restartCall{Force: true, DrainTimeout: -1}},
 		{[]string{"suspend", "--drain-timeout=100"}, suspendCall(100)},
 	} {
-		t.Run(tc.line[0], func(t *testing.T) {
+		t.Run(strings.Join(tc.line, " "), func(t *testing.T) {
 			inst := &fakeInstance{}
 			code, err := runBuiltin(t, newTestBuiltins(t, inst), stdio.Stdio{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}, tc.line...)
 

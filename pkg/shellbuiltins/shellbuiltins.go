@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,8 +24,6 @@ import (
 	xstdio "unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
-	rcmd "unikraft.com/cli/internal/resource/cmd"
-	"unikraft.com/cli/internal/types"
 )
 
 // instanceReadyTimeout is an arbitrary allowance for ":start" and ":restart" to wait for the instance to answer.
@@ -32,20 +31,36 @@ const instanceReadyTimeout = 90 * time.Second
 
 // Instance is the instance the builtins act on.
 type Instance interface {
-	Get(ctx context.Context, stdio config.Stdio, format rcmd.FormatOpts) error
-	Volumes(ctx context.Context, stdio config.Stdio, format rcmd.FormatOpts) error
-	Edit(ctx context.Context, stdio config.Stdio, set map[string]string) error
-	Attach(ctx context.Context, stdio config.Stdio, volume, at string, readonly bool) error
-	Detach(ctx context.Context, stdio config.Stdio, volume string) error
-	Start(ctx context.Context, stdio config.Stdio) error
-	Stop(ctx context.Context, stdio config.Stdio, opts StopOpts) error
-	Restart(ctx context.Context, stdio config.Stdio, opts StopOpts) error
-	Suspend(ctx context.Context, stdio config.Stdio, drainTimeout types.DurationMS) error
+	Get(ctx context.Context, stdio xstdio.Stdio, format builtins.Format) error
+	Volumes(ctx context.Context, stdio xstdio.Stdio, format builtins.Format) error
+	Edit(ctx context.Context, stdio xstdio.Stdio, set map[string]string) error
+	Attach(ctx context.Context, stdio xstdio.Stdio, volume, at string, readonly bool) error
+	Detach(ctx context.Context, stdio xstdio.Stdio, volume string) error
+	Start(ctx context.Context, stdio xstdio.Stdio) error
+	Stop(ctx context.Context, stdio xstdio.Stdio, opts StopOpts) error
+	Restart(ctx context.Context, stdio xstdio.Stdio, opts StopOpts) error
+	Suspend(ctx context.Context, stdio xstdio.Stdio, drainTimeout DurationMS) error
 }
 
 type StopOpts struct {
-	Force        bool             `help:"Force stop the instance immediately."`
-	DrainTimeout types.DurationMS `help:"Timeout in milliseconds for draining connections before stopping." default:"-1"`
+	Force        bool       `help:"Force stop the instance immediately."`
+	DrainTimeout DurationMS `help:"Timeout in milliseconds for draining connections before stopping." default:"-1"`
+}
+
+// DurationMS is a duration in milliseconds, typed as a bare count of them or as a duration such as "1s".
+type DurationMS int64
+
+func (d *DurationMS) UnmarshalText(text []byte) error {
+	if ms, err := strconv.Atoi(string(text)); err == nil {
+		*d = DurationMS(ms)
+		return nil
+	}
+	dur, err := time.ParseDuration(string(text))
+	if err != nil {
+		return err
+	}
+	*d = DurationMS(dur.Milliseconds())
+	return nil
 }
 
 func New(inst Instance, target sandbox.Target) (map[string]shell.Builtin, error) {
@@ -80,7 +95,7 @@ type shellBuiltins struct {
 	target sandbox.Target
 }
 
-func (b shellBuiltins) awaitReady(ctx context.Context, stdio config.Stdio) error {
+func (b shellBuiltins) awaitReady(ctx context.Context, stdio xstdio.Stdio) error {
 	if b.target.Client == nil {
 		return nil
 	}
@@ -97,11 +112,7 @@ func newShellBuiltins(b shellBuiltins) (*builtins.Kong, error) {
 		Commands: func() any { return &shellBuiltinCmds{} },
 		Options:  []kong.Option{kong.Description("Builtins run on this CLI rather than the instance.")},
 		Bind: func(_ context.Context, streams xstdio.Stdio) []any {
-			return []any{
-				config.Stdio{Stdin: streams.Stdin, Stdout: streams.Stdout, Stderr: streams.Stderr},
-				b,
-				builtinList(answers.List),
-			}
+			return []any{streams, b, builtinList(answers.List)}
 		},
 	})
 	return answers, err
@@ -121,26 +132,24 @@ type shellBuiltinCmds struct {
 }
 
 type shellGetBuiltin struct {
-	rcmd.FormatOpts
+	builtins.Format
 }
 
-func (c shellGetBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	return b.inst.Get(ctx, stdio, c.FormatOpts)
+func (c shellGetBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {
+	return b.inst.Get(ctx, stdio, c.Format)
 }
 
 type shellVolumesBuiltin struct {
-	rcmd.FormatOpts
+	builtins.Format
 }
 
-func (c shellVolumesBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	return b.inst.Volumes(ctx, stdio, c.FormatOpts)
+func (c shellVolumesBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {
+	return b.inst.Volumes(ctx, stdio, c.Format)
 }
 
-type shellEditBuiltin struct {
-	Fields []string `arg:"" name:"field=value" help:"Fields to set on this instance."`
-}
+type shellEditBuiltin builtins.EditArgs
 
-func (c shellEditBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
+func (c shellEditBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {
 	set := map[string]string{}
 	for _, field := range c.Fields {
 		name, value, ok := strings.Cut(field, "=")
@@ -158,13 +167,9 @@ func (c shellEditBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBu
 	return nil
 }
 
-type shellMountBuiltin struct {
-	Volume   string `arg:"" completion-predictor:"resource-key-volume" help:"Volume to attach."`
-	At       string `arg:"" name:"path" help:"Absolute mount path inside the instance."`
-	Readonly bool   `help:"Mount the volume as read-only."`
-}
+type shellMountBuiltin builtins.MountArgs
 
-func (c shellMountBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
+func (c shellMountBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {
 	if err := b.inst.Attach(ctx, quiet(stdio), c.Volume, c.At, c.Readonly); err != nil {
 		return err
 	}
@@ -173,11 +178,9 @@ func (c shellMountBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellB
 	return nil
 }
 
-type shellUnmountBuiltin struct {
-	Volume string `arg:"" completion-predictor:"resource-key-volume" help:"Volume to detach."`
-}
+type shellUnmountBuiltin builtins.UnmountArgs
 
-func (c shellUnmountBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
+func (c shellUnmountBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {
 	if err := b.inst.Detach(ctx, quiet(stdio), c.Volume); err != nil {
 		return err
 	}
@@ -188,7 +191,7 @@ func (c shellUnmountBuiltin) Run(ctx context.Context, stdio config.Stdio, b shel
 
 type shellStartBuiltin struct{}
 
-func (shellStartBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
+func (shellStartBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {
 	if err := b.inst.Start(ctx, stdio); err != nil {
 		return err
 	}
@@ -199,7 +202,7 @@ type shellStopBuiltin struct {
 	StopOpts
 }
 
-func (c shellStopBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
+func (c shellStopBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {
 	return b.inst.Stop(ctx, stdio, c.StopOpts)
 }
 
@@ -207,7 +210,7 @@ type shellRestartBuiltin struct {
 	StopOpts
 }
 
-func (c shellRestartBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
+func (c shellRestartBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {
 	if err := b.inst.Restart(ctx, stdio, c.StopOpts); err != nil {
 		return err
 	}
@@ -215,16 +218,16 @@ func (c shellRestartBuiltin) Run(ctx context.Context, stdio config.Stdio, b shel
 }
 
 type shellSuspendBuiltin struct {
-	DrainTimeout types.DurationMS `help:"Timeout in milliseconds for draining connections before suspending." default:"-1"`
+	DrainTimeout DurationMS `help:"Timeout in milliseconds for draining connections before suspending." default:"-1"`
 }
 
-func (c shellSuspendBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
+func (c shellSuspendBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {
 	return b.inst.Suspend(ctx, stdio, c.DrainTimeout)
 }
 
 type shellHelpBuiltin struct{}
 
-func (shellHelpBuiltin) Run(stdio config.Stdio, list builtinList) error {
+func (shellHelpBuiltin) Run(stdio xstdio.Stdio, list builtinList) error {
 	fmt.Fprintln(stdio.Stdout, "Builtins run on this CLI rather than the instance:")
 	list(stdio.Stdout)
 	return nil
@@ -235,7 +238,7 @@ func restartHint(what string) string {
 }
 
 // quiet keeps a builtin's own report off the shell.
-func quiet(stdio config.Stdio) config.Stdio {
+func quiet(stdio xstdio.Stdio) xstdio.Stdio {
 	stdio.Stdout = io.Discard
 	return stdio
 }

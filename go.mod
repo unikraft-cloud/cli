@@ -65,7 +65,7 @@ require (
 	unikraft.com/x/kraftfile v0.0.0-20260922102225-cfab838c8e73
 	unikraft.com/x/log v0.0.0-20260904140856-1944f6df62e1
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
-	unikraft.com/x/shell v0.0.0-20260918074422-4f7e661c21b7
+	unikraft.com/x/shell v0.0.0-20260923095132-d4fa916204af
 	unikraft.com/x/signal v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/stdio v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/version v0.0.0-20260819081122-82fdef94867a
