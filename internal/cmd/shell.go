@@ -17,11 +17,16 @@ import (
 
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/shell"
+	"unikraft.com/x/shell/builtins"
 	xsignal "unikraft.com/x/signal"
 	xstdio "unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/types"
+	xkong "unikraft.com/cli/internal/x/kong"
+	"unikraft.com/cli/pkg/shellbuiltins"
 )
 
 const shellBanner = "⚠︎ this shell is experimental"
@@ -44,6 +49,9 @@ func (ShellSandboxInstanceCmd) Help() string {
 		Session state — the working directory, variables, functions, %[1]s$?%[1]s — is kept
 		here, while paths resolve against the instance, so %[1]scd%[1]s, %[1]s*.log%[1]s and %[1]s> file%[1]s
 		all mean what you would expect.
+
+		A line starting with %[1]s:%[1]s is a builtin — %[1]s:get%[1]s, %[1]s:restart%[1]s, %[1]s:mount%[1]s and the
+		like; %[1]s:help%[1]s lists them.
 
 		The instance offers no terminal and no job control, so programs that need
 		one — %[1]svim%[1]s, %[1]stop%[1]s, %[1]sless%[1]s — and %[1]sctrl-z%[1]s, %[1]sbg%[1]s or %[1]sfg%[1]s will not work there yet.
@@ -83,6 +91,10 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 	if err != nil {
 		return err
 	}
+	builtins, err := shellbuiltins.New(ShellInstance{Key: c.Target, Partition: partition}, target)
+	if err != nil {
+		return err
+	}
 
 	code, err := shell.Run(ctx, shell.Config{
 		Instance: c.Target,
@@ -93,6 +105,7 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 			Target:   target,
 			Timeouts: sandbox.Timeouts{InterruptGrace: c.InterruptGrace, Reap: c.ReapTimeout},
 		}.Shell(),
+		Builtins:       builtins,
 		SuspendSignals: signals.Suspend,
 		Banner:         shellBanner,
 	}, xstdio.Stdio{Stdin: stdio.Stdin, Stdout: stdio.Stdout, Stderr: stdio.Stderr})
@@ -105,6 +118,72 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 		return err
 	}
 	return ExitStatus(code)
+}
+
+// ShellInstance runs the shell's builtins with the CLI's own commands.
+type ShellInstance struct {
+	Key       string
+	Partition *resource.Partition
+}
+
+func (i ShellInstance) Get(ctx context.Context, stdio xstdio.Stdio, format builtins.Format) error {
+	opts, err := formatOpts(format)
+	if err != nil {
+		return err
+	}
+	return (&cmd.ResourceGetCmd[Instance]{Targets: []string{i.Key}, FormatOpts: opts}).Run(ctx, cliStdio(stdio), i.Partition)
+}
+
+func (i ShellInstance) Volumes(ctx context.Context, stdio xstdio.Stdio, format builtins.Format) error {
+	opts, err := formatOpts(format)
+	if err != nil {
+		return err
+	}
+	return (&cmd.ResourceListCmd[Volume]{FormatOpts: opts}).Run(ctx, cliStdio(stdio), i.Partition)
+}
+
+func (i ShellInstance) Edit(ctx context.Context, stdio xstdio.Stdio, set map[string]string) error {
+	return (&cmd.ResourceEditCmd[Instance]{Target: i.Key, Set: []map[string]string{set}}).Run(ctx, cliStdio(stdio), i.Partition)
+}
+
+func (i ShellInstance) Attach(ctx context.Context, stdio xstdio.Stdio, volume, at string, readonly bool) error {
+	return (&VolumeAttachCmd{Volume: volume, To: i.Key, At: at, Readonly: readonly}).Run(ctx, cliStdio(stdio), i.Partition)
+}
+
+func (i ShellInstance) Detach(ctx context.Context, stdio xstdio.Stdio, volume string) error {
+	return (&VolumeDetachCmd{Volume: volume, From: i.Key}).Run(ctx, cliStdio(stdio), i.Partition)
+}
+
+func (i ShellInstance) Start(ctx context.Context, stdio xstdio.Stdio) error {
+	return (&InstancesStartCmd{Targets: []string{i.Key}}).Run(ctx, cliStdio(stdio))
+}
+
+func (i ShellInstance) Stop(ctx context.Context, stdio xstdio.Stdio, opts shellbuiltins.StopOpts) error {
+	return (&InstancesStopCmd{Targets: []string{i.Key}, StopOpts: stopOpts(opts)}).Run(ctx, cliStdio(stdio))
+}
+
+func (i ShellInstance) Restart(ctx context.Context, stdio xstdio.Stdio, opts shellbuiltins.StopOpts) error {
+	return (&InstancesRestartCmd{Targets: []string{i.Key}, StopOpts: stopOpts(opts)}).Run(ctx, cliStdio(stdio))
+}
+
+func (i ShellInstance) Suspend(ctx context.Context, stdio xstdio.Stdio, drainTimeout types.DurationMS) error {
+	return (&InstancesSuspendCmd{Targets: []string{i.Key}, DrainTimeout: drainTimeout}).Run(ctx, cliStdio(stdio))
+}
+
+func cliStdio(s xstdio.Stdio) config.Stdio {
+	return config.Stdio{Stdin: s.Stdin, Stdout: s.Stdout, Stderr: s.Stderr}
+}
+
+func formatOpts(f builtins.Format) (cmd.FormatOpts, error) {
+	printer, err := cmd.ParsePrinter(f.Output)
+	if err != nil {
+		return cmd.FormatOpts{}, err
+	}
+	return cmd.FormatOpts{Field: xkong.GreedyStrings(f.Field), Output: printer}, nil
+}
+
+func stopOpts(o shellbuiltins.StopOpts) StopOpts {
+	return StopOpts{Force: o.Force, DrainTimeout: o.DrainTimeout}
 }
 
 type ExitStatus int

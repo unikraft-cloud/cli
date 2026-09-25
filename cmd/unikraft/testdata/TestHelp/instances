@@ -2519,6 +2519,9 @@ Session state — the working directory, variables, functions, `$?` — is kept
 here, while paths resolve against the instance, so `cd`, `*.log` and `> file`
 all mean what you would expect.
 
+A line starting with `:` is a builtin — `:get`, `:restart`, `:mount` and the
+like; `:help` lists them.
+
 The instance offers no terminal and no job control, so programs that need
 one — `vim`, `top`, `less` — and `ctrl-z`, `bg` or `fg` will not work there yet.
 

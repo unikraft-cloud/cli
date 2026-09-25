@@ -114,13 +114,14 @@ func profileFromEnv(name string) Profile {
 	}
 
 	if raw := os.Getenv("UKC_METRO"); raw != "" {
-		p.Metros = []Metro{metroFromEnv(raw)}
+		p.Metros = []Metro{MetroFrom(raw)}
 	}
 	return p
 }
 
-// metroFromEnv parses the UKC_METRO environment variable into a Metro.
-func metroFromEnv(raw string) Metro {
+// MetroFrom parses a metro given as a name ("fra") or as an endpoint URL,
+// the way UKC_METRO is read. UKC_ALLOW_INSECURE, when set, decides Insecure.
+func MetroFrom(raw string) Metro {
 	var name, endpoint string
 	if u, err := url.Parse(raw); err == nil && u.IsAbs() && u.Host != "" {
 		u.Path = strings.TrimSuffix(strings.TrimSuffix(u.Path, "/"), "/v1")
