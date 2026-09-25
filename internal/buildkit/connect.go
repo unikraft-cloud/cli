@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 
 	"github.com/moby/buildkit/client"
 	bkappdefaults "github.com/moby/buildkit/util/appdefaults"
@@ -18,6 +19,7 @@ import (
 	_ "github.com/moby/buildkit/client/connhelper/dockercontainer"
 	_ "github.com/moby/buildkit/client/connhelper/kubepod"
 	_ "github.com/moby/buildkit/client/connhelper/nerdctlcontainer"
+	_ "github.com/moby/buildkit/client/connhelper/npipe"
 	_ "github.com/moby/buildkit/client/connhelper/podmancontainer"
 	_ "github.com/moby/buildkit/client/connhelper/ssh"
 
@@ -47,8 +49,9 @@ func ConnectToBuildkit(ctx context.Context) (c *client.Client, cleanup func(), r
 		log.G(ctx).Debug().Str("addr", addr).Msg("using configured buildkit")
 	}
 
-	// Check if the default buildkit socket is available
-	if c == nil {
+	// Check if the default buildkit socket is available.  On Windows, the
+	// default is a native buildkitd, which cannot build Linux images.
+	if c == nil && runtime.GOOS != "windows" {
 		var err error
 		c, err = client.New(ctx, bkappdefaults.Address)
 		if err != nil {

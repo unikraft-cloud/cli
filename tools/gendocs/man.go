@@ -19,13 +19,13 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/alecthomas/kong"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/cpuguy83/go-md2man/v2/md2man"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/x/colors"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 )
@@ -43,7 +43,7 @@ type ManCmd struct {
 }
 
 func (c *ManCmd) Run(ctx context.Context) error {
-	compat.Profile = colorprofile.NoTTY
+	colors.Profile = colorprofile.NoTTY
 	lipgloss.Writer.Profile = colorprofile.NoTTY
 	_ = os.Setenv("NO_COLOR", "1")
 

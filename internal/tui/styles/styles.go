@@ -8,12 +8,11 @@ package styles
 
 import (
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 
 	"unikraft.com/x/colors"
 )
 
 var (
 	Error = lipgloss.NewStyle().Foreground(colors.Error)
-	Hint  = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500})
+	Hint  = lipgloss.NewStyle().Foreground(colors.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500})
 )

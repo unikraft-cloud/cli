@@ -9,7 +9,6 @@ import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"unikraft.com/x/colors"
 )
 
@@ -24,11 +23,11 @@ var (
 
 // Private color variables and styles used internally
 var (
-	borderColor        = compat.AdaptiveColor{Light: colors.Slate300, Dark: colors.Slate700}
-	focusedBorderColor = compat.AdaptiveColor{Light: colors.Blue400, Dark: colors.Slate400}
-	menuColor          = compat.AdaptiveColor{Light: colors.Slate600, Dark: colors.Slate400}
-	hintColor          = compat.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500}
-	selectedRowBgColor = compat.AdaptiveColor{Light: colors.Slate100, Dark: colors.Slate800}
+	borderColor        = colors.AdaptiveColor{Light: colors.Slate300, Dark: colors.Slate700}
+	focusedBorderColor = colors.AdaptiveColor{Light: colors.Blue400, Dark: colors.Slate400}
+	menuColor          = colors.AdaptiveColor{Light: colors.Slate600, Dark: colors.Slate400}
+	hintColor          = colors.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500}
+	selectedRowBgColor = colors.AdaptiveColor{Light: colors.Slate100, Dark: colors.Slate800}
 
 	panelStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).

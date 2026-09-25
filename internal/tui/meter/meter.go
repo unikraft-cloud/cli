@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/lipgloss/v2/compat"
 	"github.com/charmbracelet/x/ansi"
 
 	"unikraft.com/x/colors"
@@ -33,10 +32,10 @@ const (
 var (
 	dots = []rune{'⣀', '⣄', '⣤', '⣦', '⣶', '⣷', '⣿'}
 
-	emptyColor   = compat.AdaptiveColor{Light: colors.Slate300, Dark: colors.Slate700}
-	safeColor    = compat.AdaptiveColor{Light: colors.Emerald600, Dark: colors.Emerald400}
-	warningColor = compat.AdaptiveColor{Light: colors.Orange600, Dark: colors.Orange400}
-	dangerColor  = compat.AdaptiveColor{Light: colors.Rose600, Dark: colors.Rose400}
+	emptyColor   = colors.AdaptiveColor{Light: colors.Slate300, Dark: colors.Slate700}
+	safeColor    = colors.AdaptiveColor{Light: colors.Emerald600, Dark: colors.Emerald400}
+	warningColor = colors.AdaptiveColor{Light: colors.Orange600, Dark: colors.Orange400}
+	dangerColor  = colors.AdaptiveColor{Light: colors.Rose600, Dark: colors.Rose400}
 )
 
 // Width returns the width of the meter bar. It is read from the UKC_METER_WIDTH

@@ -15,11 +15,11 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/alecthomas/kong"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"sigs.k8s.io/yaml"
+	"unikraft.com/x/colors"
 
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
@@ -34,7 +34,7 @@ type MdxCmd struct {
 }
 
 func (c *MdxCmd) Run(ctx context.Context) error {
-	compat.Profile = colorprofile.NoTTY
+	colors.Profile = colorprofile.NoTTY
 	lipgloss.Writer.Profile = colorprofile.NoTTY
 	_ = os.Setenv("NO_COLOR", "1")
 
