@@ -411,8 +411,8 @@ unikraft completion -c zsh > "${fpath[1]}/_unikraft"
 # Fish
 unikraft completion -c fish > ~/.config/fish/completions/unikraft.fish
 
-# PowerShell
-unikraft completion -c powershell > unikraft.ps1
+# PowerShell (add to $PROFILE for every session)
+unikraft completion -c powershell | Out-String | Invoke-Expression
 ```
 
 ## Telemetry

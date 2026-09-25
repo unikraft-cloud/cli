@@ -7,7 +7,13 @@ package cmd
 
 import kongcompletion "github.com/jotaen/kong-completion"
 
-// CompletionCmd wraps the kong-completion command.
+// CompletionCmd prints the shell code that activates tab completion.  It adds
+// PowerShell to the shells that kong-completion knows.
 type CompletionCmd struct {
-	kongcompletion.Completion `embed:""`
+	Shell string `arg:"" help:"The name of the shell you are using" enum:"bash,zsh,fish,powershell," default:""`
+	Code  bool   `short:"c" help:"Generate the initialization code"`
+}
+
+func (c *CompletionCmd) Help() string {
+	return (&kongcompletion.Completion{}).Help()
 }
