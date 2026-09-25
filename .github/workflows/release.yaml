@@ -191,18 +191,19 @@ jobs:
           OS=$(jq -r '.goos' <<<"${ITEM}")
           ARCH=$(jq -r '.goarch' <<<"${ITEM}")
           BIN=$(jq -r '.path' <<<"${ITEM}")
+          EXT=$(jq -r '.extra.Format' <<<"${ITEM}")
 
-          echo "Uploading ${VERSION}/unikraft-${OS}-${ARCH}..."
+          echo "Uploading ${VERSION}/unikraft-${OS}-${ARCH}.${EXT}..."
 
-          curl "https://pkg.unikraft.com/endpoints/cli/content/${VERSION}/unikraft-${OS}-${ARCH}.tar.gz" \
+          curl "https://pkg.unikraft.com/endpoints/cli/content/${VERSION}/unikraft-${OS}-${ARCH}.${EXT}" \
             --fail-with-body \
             --show-error \
             --user "api:${{ secrets.PKG_TOKEN }}" \
             --upload-file "${BIN}"
           
-          echo "Uploading ${VERSION}/unikraft-${OS}-${ARCH}.sha256..."
+          echo "Uploading ${VERSION}/unikraft-${OS}-${ARCH}.${EXT}.sha256..."
 
-          curl "https://pkg.unikraft.com/endpoints/cli/content/${VERSION}/unikraft-${OS}-${ARCH}.tar.gz.sha256" \
+          curl "https://pkg.unikraft.com/endpoints/cli/content/${VERSION}/unikraft-${OS}-${ARCH}.${EXT}.sha256" \
             --fail-with-body \
             --show-error \
             --user "api:${{ secrets.PKG_TOKEN }}" \
