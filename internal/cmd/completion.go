@@ -5,7 +5,9 @@
 
 package cmd
 
-type TUICmd struct {
-	Resource string `arg:"" optional:"" help:"Resource type to browse."`
-	Name     string `arg:"" optional:"" help:"Resource key to open."`
+import kongcompletion "github.com/jotaen/kong-completion"
+
+// CompletionCmd wraps the kong-completion command.
+type CompletionCmd struct {
+	kongcompletion.Completion `embed:""`
 }

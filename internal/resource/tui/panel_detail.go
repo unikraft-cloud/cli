@@ -19,6 +19,7 @@ import (
 	"unikraft.com/cli/internal/resource"
 	resourcecmd "unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/tui/styles"
 	"unikraft.com/cli/internal/tui/uitui"
 )
 
@@ -146,13 +147,13 @@ func (p *detailPanel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (p *detailPanel) View() tea.View {
 	if p.err != nil {
-		return tea.NewView(uitui.ErrorStyle.Render(p.err.Error()))
+		return tea.NewView(styles.Error.Render(p.err.Error()))
 	}
 	if p.loading && len(p.rowLinks) == 0 {
-		return tea.NewView(uitui.HintStyle.Render("Loading..."))
+		return tea.NewView(styles.Hint.Render("Loading..."))
 	}
 	if len(p.rowLinks) == 0 {
-		return tea.NewView(uitui.HintStyle.Render("No fields"))
+		return tea.NewView(styles.Hint.Render("No fields"))
 	}
 
 	return tea.NewView(p.table.View())

@@ -15,10 +15,6 @@ import (
 
 // Exported styles for use outside package
 var (
-	ErrorStyle         = lipgloss.NewStyle().Foreground(colors.Error)
-	HintStyle          = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500})
-	HeaderStyle        = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500})
-	FocusedHeaderStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{Light: colors.Blue400, Dark: colors.Slate400})
 	DefaultTableStyles = table.Styles{
 		Header:   table.DefaultStyles().Header,
 		Cell:     table.DefaultStyles().Cell,

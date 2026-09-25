@@ -34,6 +34,10 @@ jobs:
           GOARCH: amd64
         - GOOS: linux
           GOARCH: arm64
+        - GOOS: js
+          GOARCH: wasm
+          task: wasm
+          dist: ./dist/wasm
 
     steps:
     - name: Checkout
@@ -73,14 +77,14 @@ jobs:
       env:
         TASK_X_REMOTE_TASKFILES: 1
       run: |
-        VERSION=pr-${{ github.event.number }} GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} task --yes cli
+        VERSION=pr-${{ github.event.number }} GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} task --yes ${{ matrix.task || 'cli' }}
 
     - name: Upload build artifacts to GitHub
       uses: actions/upload-artifact@v7
       if: github.event_name == 'push'
       with:
         name: unikraft-cli-${{ matrix.GOOS }}-${{ matrix.GOARCH }}-${{ github.sha }}
-        path: ./dist/unikraft
+        path: ${{ matrix.dist || './dist/unikraft' }}
         if-no-files-found: error
         retention-days: 7
         overwrite: true

@@ -203,6 +203,8 @@ func run(ctx context.Context, args []string, stdio config.Stdio, signals *xsigna
 		ctx = telemetry.WithCommand(ctx, cmdPath)
 	}
 
+	defer installCancelHook(signals.Stop)()
+
 	err = cli.RunNode(node, &opts.ConfigPath)
 
 	// Report why the context ended, rather than whatever the cancellation
