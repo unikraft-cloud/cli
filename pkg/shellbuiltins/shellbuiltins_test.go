@@ -127,6 +127,13 @@ func TestWithCredentialsIsTheProfileTheBuiltinsRunWith(t *testing.T) {
 	assert.Equal(t, "https://10.0.0.7:8443", profile.Metros[0].Endpoint)
 	require.NotNil(t, profile.Metros[0].Insecure)
 	assert.True(t, *profile.Metros[0].Insecure)
+
+	ctx = WithCredentials(t.Context(), Credentials{Token: "t0ken", Metro: "fra0", Endpoint: "https://node-3.fra0.unikraft.cloud"})
+	profile, err = config.G(ctx).CurrentProfile()
+	require.NoError(t, err)
+	require.Len(t, profile.Metros, 1)
+	assert.Equal(t, "fra0", profile.Metros[0].Name)
+	assert.Equal(t, "https://node-3.fra0.unikraft.cloud", profile.Metros[0].Endpoint)
 }
 
 func TestShellBuiltinHelp(t *testing.T) {

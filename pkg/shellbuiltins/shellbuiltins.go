@@ -7,6 +7,7 @@
 package shellbuiltins
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -58,14 +59,16 @@ func New(inst Instance, target sandbox.Target) (map[string]shell.Builtin, error)
 type Credentials struct {
 	Token    string
 	Metro    string
+	Endpoint string
 	Insecure bool
 }
 
 // WithCredentials puts a config made of creds alone on ctx. It is for outside programs and nothing in the CLI calls it.
 func WithCredentials(ctx context.Context, creds Credentials) context.Context {
 	profile := config.Profile{Name: config.DefaultProfile, Token: creds.Token}
-	if creds.Metro != "" {
-		metro := config.MetroFrom(creds.Metro)
+	if creds.Metro != "" || creds.Endpoint != "" {
+		metro := config.MetroFrom(cmp.Or(creds.Endpoint, creds.Metro))
+		metro.Name = cmp.Or(creds.Metro, metro.Name)
 		metro.Insecure = new(creds.Insecure)
 		profile.Metros = []config.Metro{metro}
 	}
@@ -94,7 +97,7 @@ func newShellBuiltins(b shellBuiltins) (*builtins.Kong, error) {
 
 	answers, err := builtins.NewKong(builtins.KongConfig{
 		Commands: func() any { return &shellBuiltinCmds{} },
-		Options:  []kong.Option{kong.Description("Builtins run on this CLI rather than the instance.")},
+		Options:  []kong.Option{kong.Description("Builtins answered here rather than on the instance.")},
 		Bind: func(_ context.Context, streams xstdio.Stdio) []any {
 			return []any{streams, b, builtinList(answers.List)}
 		},
@@ -212,7 +215,7 @@ func (c shellSuspendBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shel
 type shellHelpBuiltin struct{}
 
 func (shellHelpBuiltin) Run(stdio xstdio.Stdio, list builtinList) error {
-	fmt.Fprintln(stdio.Stdout, "Builtins run on this CLI rather than the instance:")
+	fmt.Fprintln(stdio.Stdout, "Builtins answered here rather than on the instance:")
 	list(stdio.Stdout)
 	return nil
 }
