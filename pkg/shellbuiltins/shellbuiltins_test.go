@@ -22,6 +22,7 @@ import (
 	"unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/pkg/types"
 )
 
 type fakeInstance struct {
@@ -38,7 +39,7 @@ type (
 	detachCall  string
 	stopCall    StopOpts
 	restartCall StopOpts
-	suspendCall DurationMS
+	suspendCall types.DurationMS
 )
 
 func (f *fakeInstance) Get(_ context.Context, _ stdio.Stdio, format builtins.Format) error {
@@ -74,7 +75,7 @@ func (f *fakeInstance) Restart(_ context.Context, _ stdio.Stdio, opts StopOpts) 
 	return nil
 }
 
-func (f *fakeInstance) Suspend(_ context.Context, _ stdio.Stdio, drainTimeout DurationMS) error {
+func (f *fakeInstance) Suspend(_ context.Context, _ stdio.Stdio, drainTimeout types.DurationMS) error {
 	f.calls = append(f.calls, suspendCall(drainTimeout))
 	return nil
 }

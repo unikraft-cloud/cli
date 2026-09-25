@@ -166,8 +166,8 @@ func (i ShellInstance) Restart(ctx context.Context, stdio xstdio.Stdio, opts she
 	return (&InstancesRestartCmd{Targets: []string{i.Key}, StopOpts: stopOpts(opts)}).Run(ctx, cliStdio(stdio))
 }
 
-func (i ShellInstance) Suspend(ctx context.Context, stdio xstdio.Stdio, drainTimeout shellbuiltins.DurationMS) error {
-	return (&InstancesSuspendCmd{Targets: []string{i.Key}, DrainTimeout: types.DurationMS(drainTimeout)}).Run(ctx, cliStdio(stdio))
+func (i ShellInstance) Suspend(ctx context.Context, stdio xstdio.Stdio, drainTimeout types.DurationMS) error {
+	return (&InstancesSuspendCmd{Targets: []string{i.Key}, DrainTimeout: drainTimeout}).Run(ctx, cliStdio(stdio))
 }
 
 func cliStdio(s xstdio.Stdio) config.Stdio {
@@ -183,7 +183,7 @@ func formatOpts(f builtins.Format) (cmd.FormatOpts, error) {
 }
 
 func stopOpts(o shellbuiltins.StopOpts) StopOpts {
-	return StopOpts{Force: o.Force, DrainTimeout: types.DurationMS(o.DrainTimeout)}
+	return StopOpts{Force: o.Force, DrainTimeout: o.DrainTimeout}
 }
 
 type ExitStatus int

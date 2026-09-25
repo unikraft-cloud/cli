@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +23,7 @@ import (
 	xstdio "unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/pkg/types"
 )
 
 // instanceReadyTimeout is an arbitrary allowance for ":start" and ":restart" to wait for the instance to answer.
@@ -39,28 +39,12 @@ type Instance interface {
 	Start(ctx context.Context, stdio xstdio.Stdio) error
 	Stop(ctx context.Context, stdio xstdio.Stdio, opts StopOpts) error
 	Restart(ctx context.Context, stdio xstdio.Stdio, opts StopOpts) error
-	Suspend(ctx context.Context, stdio xstdio.Stdio, drainTimeout DurationMS) error
+	Suspend(ctx context.Context, stdio xstdio.Stdio, drainTimeout types.DurationMS) error
 }
 
 type StopOpts struct {
-	Force        bool       `help:"Force stop the instance immediately."`
-	DrainTimeout DurationMS `help:"Timeout in milliseconds for draining connections before stopping." default:"-1"`
-}
-
-// DurationMS is a duration in milliseconds, typed as a bare count of them or as a duration such as "1s".
-type DurationMS int64
-
-func (d *DurationMS) UnmarshalText(text []byte) error {
-	if ms, err := strconv.Atoi(string(text)); err == nil {
-		*d = DurationMS(ms)
-		return nil
-	}
-	dur, err := time.ParseDuration(string(text))
-	if err != nil {
-		return err
-	}
-	*d = DurationMS(dur.Milliseconds())
-	return nil
+	Force        bool             `help:"Force stop the instance immediately."`
+	DrainTimeout types.DurationMS `help:"Timeout in milliseconds for draining connections before stopping." default:"-1"`
 }
 
 func New(inst Instance, target sandbox.Target) (map[string]shell.Builtin, error) {
@@ -218,7 +202,7 @@ func (c shellRestartBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shel
 }
 
 type shellSuspendBuiltin struct {
-	DrainTimeout DurationMS `help:"Timeout in milliseconds for draining connections before suspending." default:"-1"`
+	DrainTimeout types.DurationMS `help:"Timeout in milliseconds for draining connections before suspending." default:"-1"`
 }
 
 func (c shellSuspendBuiltin) Run(ctx context.Context, stdio xstdio.Stdio, b shellBuiltins) error {

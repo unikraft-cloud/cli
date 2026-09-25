@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/types"
 )
 
 // TestDurationSRoundsUp checks that a sub-second duration never collapses to
