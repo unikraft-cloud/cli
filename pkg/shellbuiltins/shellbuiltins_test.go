@@ -7,6 +7,7 @@ package shellbuiltins
 
 import (
 	"bytes"
+	"context"
 	"maps"
 	"slices"
 	"testing"
@@ -20,12 +21,64 @@ import (
 	"unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
+	rcmd "unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/types"
 )
 
-func newTestBuiltins(t *testing.T) *builtins.Kong {
+type fakeInstance struct {
+	calls []any
+}
+
+type (
+	editCall   map[string]string
+	attachCall struct {
+		volume, at string
+		readonly   bool
+	}
+	detachCall  string
+	stopCall    StopOpts
+	restartCall StopOpts
+	suspendCall types.DurationMS
+)
+
+func (f *fakeInstance) Get(context.Context, config.Stdio, rcmd.FormatOpts) error     { return nil }
+func (f *fakeInstance) Volumes(context.Context, config.Stdio, rcmd.FormatOpts) error { return nil }
+func (f *fakeInstance) Start(context.Context, config.Stdio) error                    { return nil }
+
+func (f *fakeInstance) Edit(_ context.Context, _ config.Stdio, set map[string]string) error {
+	f.calls = append(f.calls, editCall(set))
+	return nil
+}
+
+func (f *fakeInstance) Attach(_ context.Context, _ config.Stdio, volume, at string, readonly bool) error {
+	f.calls = append(f.calls, attachCall{volume, at, readonly})
+	return nil
+}
+
+func (f *fakeInstance) Detach(_ context.Context, _ config.Stdio, volume string) error {
+	f.calls = append(f.calls, detachCall(volume))
+	return nil
+}
+
+func (f *fakeInstance) Stop(_ context.Context, _ config.Stdio, opts StopOpts) error {
+	f.calls = append(f.calls, stopCall(opts))
+	return nil
+}
+
+func (f *fakeInstance) Restart(_ context.Context, _ config.Stdio, opts StopOpts) error {
+	f.calls = append(f.calls, restartCall(opts))
+	return nil
+}
+
+func (f *fakeInstance) Suspend(_ context.Context, _ config.Stdio, drainTimeout types.DurationMS) error {
+	f.calls = append(f.calls, suspendCall(drainTimeout))
+	return nil
+}
+
+func newTestBuiltins(t *testing.T, inst Instance) *builtins.Kong {
 	t.Helper()
 
-	answers, err := newShellBuiltins(shellBuiltins{key: "inst-1"})
+	answers, err := newShellBuiltins(shellBuiltins{inst: inst})
 	require.NoError(t, err)
 	return answers
 }
@@ -40,7 +93,7 @@ func runBuiltin(t *testing.T, answers *builtins.Kong, streams stdio.Stdio, line 
 }
 
 func TestShellBuiltinNames(t *testing.T) {
-	answers, err := New("inst-1", sandbox.Target{})
+	answers, err := New(&fakeInstance{}, sandbox.Target{})
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{
@@ -72,7 +125,7 @@ func TestWithCredentialsIsTheProfileTheBuiltinsRunWith(t *testing.T) {
 }
 
 func TestShellBuiltinHelp(t *testing.T) {
-	answers := newTestBuiltins(t)
+	answers := newTestBuiltins(t, &fakeInstance{})
 
 	var out bytes.Buffer
 	code, err := runBuiltin(t, answers, stdio.Stdio{Stdout: &out}, "help")
@@ -87,5 +140,29 @@ func TestShellBuiltinHelp(t *testing.T) {
 	assert.Contains(t, printed, "Detach a volume from this instance.")
 	for name := range answers.Builtins() {
 		assert.Contains(t, printed, ":"+name)
+	}
+}
+
+func TestShellBuiltinsCallInstance(t *testing.T) {
+	for _, tc := range []struct {
+		line []string
+		want any
+	}{
+		{[]string{"edit", "memory=256Mi", "env=A=B"}, editCall{"memory": "256Mi", "env": "A=B"}},
+		{[]string{"mount", "--readonly", "vol", "/data"}, attachCall{"vol", "/data", true}},
+		{[]string{"unmount", "vol"}, detachCall("vol")},
+		{[]string{"stop"}, stopCall{DrainTimeout: -1}},
+		{[]string{"stop", "--force", "--drain-timeout=500"}, stopCall{Force: true, DrainTimeout: 500}},
+		{[]string{"restart", "--force"}, restartCall{Force: true, DrainTimeout: -1}},
+		{[]string{"suspend", "--drain-timeout=100"}, suspendCall(100)},
+	} {
+		t.Run(tc.line[0], func(t *testing.T) {
+			inst := &fakeInstance{}
+			code, err := runBuiltin(t, newTestBuiltins(t, inst), stdio.Stdio{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}, tc.line...)
+
+			require.NoError(t, err)
+			assert.Zero(t, code)
+			assert.Equal(t, []any{tc.want}, inst.calls)
+		})
 	}
 }

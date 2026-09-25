@@ -22,6 +22,9 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/shellbuiltins"
 )
 
 const shellBanner = "⚠︎ this shell is experimental"
@@ -76,10 +79,7 @@ func (ShellSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-// ShellBuiltins makes the shell's ":" builtins and is bound by main, as the package making them imports this one.
-type ShellBuiltins func(instance string, target sandbox.Target) (map[string]shell.Builtin, error)
-
-func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, answers ShellBuiltins, signals *xsignal.Signals) error {
+func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, signals *xsignal.Signals) error {
 	env, err := parseEnv(c.Env)
 	if err != nil {
 		return err
@@ -89,11 +89,10 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 	if err != nil {
 		return err
 	}
-	builtins, err := answers(c.Target, target)
+	builtins, err := shellbuiltins.New(ShellInstance{Key: c.Target, Partition: partition}, target)
 	if err != nil {
 		return err
 	}
-	ctx = resource.WithPartition(ctx, partition)
 
 	code, err := shell.Run(ctx, shell.Config{
 		Instance: c.Target,
@@ -117,6 +116,48 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 		return err
 	}
 	return ExitStatus(code)
+}
+
+// ShellInstance runs the shell's builtins with the CLI's own commands.
+type ShellInstance struct {
+	Key       string
+	Partition *resource.Partition
+}
+
+func (i ShellInstance) Get(ctx context.Context, stdio config.Stdio, format cmd.FormatOpts) error {
+	return (&cmd.ResourceGetCmd[Instance]{Targets: []string{i.Key}, FormatOpts: format}).Run(ctx, stdio, i.Partition)
+}
+
+func (i ShellInstance) Volumes(ctx context.Context, stdio config.Stdio, format cmd.FormatOpts) error {
+	return (&cmd.ResourceListCmd[Volume]{FormatOpts: format}).Run(ctx, stdio, i.Partition)
+}
+
+func (i ShellInstance) Edit(ctx context.Context, stdio config.Stdio, set map[string]string) error {
+	return (&cmd.ResourceEditCmd[Instance]{Target: i.Key, Set: []map[string]string{set}}).Run(ctx, stdio, i.Partition)
+}
+
+func (i ShellInstance) Attach(ctx context.Context, stdio config.Stdio, volume, at string, readonly bool) error {
+	return (&VolumeAttachCmd{Volume: volume, To: i.Key, At: at, Readonly: readonly}).Run(ctx, stdio, i.Partition)
+}
+
+func (i ShellInstance) Detach(ctx context.Context, stdio config.Stdio, volume string) error {
+	return (&VolumeDetachCmd{Volume: volume, From: i.Key}).Run(ctx, stdio, i.Partition)
+}
+
+func (i ShellInstance) Start(ctx context.Context, stdio config.Stdio) error {
+	return (&InstancesStartCmd{Targets: []string{i.Key}}).Run(ctx, stdio)
+}
+
+func (i ShellInstance) Stop(ctx context.Context, stdio config.Stdio, opts shellbuiltins.StopOpts) error {
+	return (&InstancesStopCmd{Targets: []string{i.Key}, StopOpts: StopOpts(opts)}).Run(ctx, stdio)
+}
+
+func (i ShellInstance) Restart(ctx context.Context, stdio config.Stdio, opts shellbuiltins.StopOpts) error {
+	return (&InstancesRestartCmd{Targets: []string{i.Key}, StopOpts: StopOpts(opts)}).Run(ctx, stdio)
+}
+
+func (i ShellInstance) Suspend(ctx context.Context, stdio config.Stdio, drainTimeout types.DurationMS) error {
+	return (&InstancesSuspendCmd{Targets: []string{i.Key}, DrainTimeout: drainTimeout}).Run(ctx, stdio)
 }
 
 type ExitStatus int

@@ -22,9 +22,7 @@ import (
 	"unikraft.com/x/shell/builtins"
 	xstdio "unikraft.com/x/stdio"
 
-	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/resource"
 	rcmd "unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
 )
@@ -32,8 +30,26 @@ import (
 // instanceReadyTimeout is an arbitrary allowance for ":start" and ":restart" to wait for the instance to answer.
 const instanceReadyTimeout = 90 * time.Second
 
-func New(instance string, target sandbox.Target) (map[string]shell.Builtin, error) {
-	answers, err := newShellBuiltins(shellBuiltins{key: instance, target: target})
+// Instance is the instance the builtins act on.
+type Instance interface {
+	Get(ctx context.Context, stdio config.Stdio, format rcmd.FormatOpts) error
+	Volumes(ctx context.Context, stdio config.Stdio, format rcmd.FormatOpts) error
+	Edit(ctx context.Context, stdio config.Stdio, set map[string]string) error
+	Attach(ctx context.Context, stdio config.Stdio, volume, at string, readonly bool) error
+	Detach(ctx context.Context, stdio config.Stdio, volume string) error
+	Start(ctx context.Context, stdio config.Stdio) error
+	Stop(ctx context.Context, stdio config.Stdio, opts StopOpts) error
+	Restart(ctx context.Context, stdio config.Stdio, opts StopOpts) error
+	Suspend(ctx context.Context, stdio config.Stdio, drainTimeout types.DurationMS) error
+}
+
+type StopOpts struct {
+	Force        bool             `help:"Force stop the instance immediately."`
+	DrainTimeout types.DurationMS `help:"Timeout in milliseconds for draining connections before stopping." default:"-1"`
+}
+
+func New(inst Instance, target sandbox.Target) (map[string]shell.Builtin, error) {
+	answers, err := newShellBuiltins(shellBuiltins{inst: inst, target: target})
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +76,7 @@ func WithCredentials(ctx context.Context, creds Credentials) context.Context {
 }
 
 type shellBuiltins struct {
-	key    string
+	inst   Instance
 	target sandbox.Target
 }
 
@@ -109,10 +125,7 @@ type shellGetBuiltin struct {
 }
 
 func (c shellGetBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	return (&rcmd.ResourceGetCmd[cmd.Instance]{
-		Targets:    []string{b.key},
-		FormatOpts: c.FormatOpts,
-	}).Run(ctx, stdio, resource.PartitionFromContext(ctx))
+	return b.inst.Get(ctx, stdio, c.FormatOpts)
 }
 
 type shellVolumesBuiltin struct {
@@ -120,7 +133,7 @@ type shellVolumesBuiltin struct {
 }
 
 func (c shellVolumesBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	return (&rcmd.ResourceListCmd[cmd.Volume]{FormatOpts: c.FormatOpts}).Run(ctx, stdio, resource.PartitionFromContext(ctx))
+	return b.inst.Volumes(ctx, stdio, c.FormatOpts)
 }
 
 type shellEditBuiltin struct {
@@ -137,10 +150,7 @@ func (c shellEditBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBu
 		set[name] = value
 	}
 
-	if err := (&rcmd.ResourceEditCmd[cmd.Instance]{
-		Target: b.key,
-		Set:    []map[string]string{set},
-	}).Run(ctx, quiet(stdio), resource.PartitionFromContext(ctx)); err != nil {
+	if err := b.inst.Edit(ctx, quiet(stdio), set); err != nil {
 		return err
 	}
 
@@ -155,12 +165,7 @@ type shellMountBuiltin struct {
 }
 
 func (c shellMountBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	if err := (&cmd.VolumeAttachCmd{
-		Volume:   c.Volume,
-		To:       b.key,
-		At:       c.At,
-		Readonly: c.Readonly,
-	}).Run(ctx, quiet(stdio), resource.PartitionFromContext(ctx)); err != nil {
+	if err := b.inst.Attach(ctx, quiet(stdio), c.Volume, c.At, c.Readonly); err != nil {
 		return err
 	}
 
@@ -173,7 +178,7 @@ type shellUnmountBuiltin struct {
 }
 
 func (c shellUnmountBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	if err := (&cmd.VolumeDetachCmd{Volume: c.Volume, From: b.key}).Run(ctx, quiet(stdio), resource.PartitionFromContext(ctx)); err != nil {
+	if err := b.inst.Detach(ctx, quiet(stdio), c.Volume); err != nil {
 		return err
 	}
 
@@ -184,26 +189,26 @@ func (c shellUnmountBuiltin) Run(ctx context.Context, stdio config.Stdio, b shel
 type shellStartBuiltin struct{}
 
 func (shellStartBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	if err := (&cmd.InstancesStartCmd{Targets: []string{b.key}}).Run(ctx, stdio); err != nil {
+	if err := b.inst.Start(ctx, stdio); err != nil {
 		return err
 	}
 	return b.awaitReady(ctx, stdio)
 }
 
 type shellStopBuiltin struct {
-	cmd.StopOpts
+	StopOpts
 }
 
 func (c shellStopBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	return (&cmd.InstancesStopCmd{Targets: []string{b.key}, StopOpts: c.StopOpts}).Run(ctx, stdio)
+	return b.inst.Stop(ctx, stdio, c.StopOpts)
 }
 
 type shellRestartBuiltin struct {
-	cmd.StopOpts
+	StopOpts
 }
 
 func (c shellRestartBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	if err := (&cmd.InstancesRestartCmd{Targets: []string{b.key}, StopOpts: c.StopOpts}).Run(ctx, stdio); err != nil {
+	if err := b.inst.Restart(ctx, stdio, c.StopOpts); err != nil {
 		return err
 	}
 	return b.awaitReady(ctx, stdio)
@@ -214,7 +219,7 @@ type shellSuspendBuiltin struct {
 }
 
 func (c shellSuspendBuiltin) Run(ctx context.Context, stdio config.Stdio, b shellBuiltins) error {
-	return (&cmd.InstancesSuspendCmd{Targets: []string{b.key}, DrainTimeout: c.DrainTimeout}).Run(ctx, stdio)
+	return b.inst.Suspend(ctx, stdio, c.DrainTimeout)
 }
 
 type shellHelpBuiltin struct{}
