@@ -6,6 +6,7 @@
 package builder
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func TestKraftfileToBuildOpts(t *testing.T) {
 	require.Equal(t, map[string]string{"label": "value"}, opts.Labels)
 	require.Equal(t, "unikraft.io/unikraft.org/base", opts.Runtime)
 	require.Equal(t, kraftfile.FsTypeErofs, opts.Rootfs.Format)
-	require.Equal(t, rootfsDir+"/Dockerfile", opts.Rootfs.Path)
+	require.Equal(t, filepath.Join(rootfsDir, "Dockerfile"), opts.Rootfs.Path)
 	require.Equal(t, kraftfile.SourceTypeDockerfile, opts.Rootfs.Type)
 	require.Len(t, opts.Platform, 1)
 	require.Equal(t, "x86_64", opts.Platform[0].Architecture)
@@ -95,7 +96,7 @@ func TestKraftfileToBuildOptsRootfsPathJoined(t *testing.T) {
 
 	opts, err := KraftfileToBuildOpts(rootfsDir, kf)
 	require.NoError(t, err)
-	require.Equal(t, rootfsDir+"/Dockerfile", opts.Rootfs.Path,
+	require.Equal(t, filepath.Join(rootfsDir, "Dockerfile"), opts.Rootfs.Path,
 		"rootfs path must be joined with the kraftfile directory")
 }
 
@@ -117,7 +118,7 @@ func TestKraftfileToBuildOptsDockerfileWithType(t *testing.T) {
 
 	opts, err := KraftfileToBuildOpts(rootfsDir, kf)
 	require.NoError(t, err)
-	require.Equal(t, rootfsDir+"/context", opts.Rootfs.Path)
+	require.Equal(t, filepath.Join(rootfsDir, "context"), opts.Rootfs.Path)
 	require.Equal(t, "MyDockerfile", opts.Rootfs.Dockerfile)
 	require.Equal(t, kraftfile.SourceTypeDockerfile, opts.Rootfs.Type)
 	require.Equal(t, kraftfile.FsTypeErofs, opts.Rootfs.Format)
@@ -140,7 +141,7 @@ func TestKraftfileToBuildOptsDockerfileWithoutType(t *testing.T) {
 
 	opts, err := KraftfileToBuildOpts(rootfsDir, kf)
 	require.NoError(t, err)
-	require.Equal(t, rootfsDir+"/context", opts.Rootfs.Path)
+	require.Equal(t, filepath.Join(rootfsDir, "context"), opts.Rootfs.Path)
 	require.Equal(t, "MyDockerfile", opts.Rootfs.Dockerfile)
 	require.Equal(t, kraftfile.SourceTypeDockerfile, opts.Rootfs.Type,
 		"type must be inferred as dockerfile when dockerfile field is set")
