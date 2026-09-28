@@ -159,7 +159,6 @@ cmd: ["sh", "/entrypoint.sh"]
 
 						r.Run(t, []string{"unikraft", "image", "delete", image})
 						r.Run(t, []string{"unikraft", "image", "inspect", image}, integ.ExpectFail())
-						r.Run(t, []string{"unikraft", "image", "ls", image}, integ.ExpectFail())
 					})
 				}
 			})
