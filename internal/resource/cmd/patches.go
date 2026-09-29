@@ -11,11 +11,45 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alecthomas/kong"
+
+	"unikraft.com/cli/internal/jason"
 	"unikraft.com/cli/internal/resource/patch"
+	xkong "unikraft.com/cli/internal/x/kong"
 )
 
+// SetValue is one --set: either a <name>=<value> pair, or a name followed by
+// jason items.
+type SetValue struct {
+	Key   string
+	Value string
+	Items []jason.Item
+}
+
+// SetValues decodes repeated --set flags, taking the jason items that follow a
+// bare name, as in `--set scale-to-zero policy=on cooldown-time=300`.
+type SetValues []SetValue
+
+func (s *SetValues) Decode(ctx *kong.DecodeContext) error {
+	token := ctx.Scan.Pop()
+	if token.IsEOL() {
+		return fmt.Errorf(`missing value, expecting "<name>=<value>" or "<name> <item>..."`)
+	}
+	arg := fmt.Sprint(token.Value)
+	if key, value, ok := strings.Cut(arg, "="); ok {
+		*s = append(*s, SetValue{Key: key, Value: value})
+		return nil
+	}
+	items := xkong.ScanItems(ctx)
+	if len(items) == 0 {
+		return fmt.Errorf(`expected "<name>=<value>" or "%s <item>..." but got %q`, arg, arg)
+	}
+	*s = append(*s, SetValue{Key: arg, Items: items})
+	return nil
+}
+
 type SetArgs struct {
-	Set     []map[string]string `collapse:"patch-set" placeholder:"<name>=<value>" help:"Key-value pairs to set on the ${name}." sep:"none" mapsep:"none"`
+	Set     SetValues           `collapse:"patch-set" placeholder:"<name>=<value>" help:"Key-value pairs to set on the ${name}. Use <name> <key>=<value> ... to set a structured field by key."`
 	SetFile []map[string]string `collapse:"patch-set" placeholder:"<name>=<filename>" help:"Files containing key-value pairs to set on the ${name}." sep:"none" mapsep:"none"`
 }
 
@@ -23,7 +57,16 @@ func (args SetArgs) Apply(spec *patch.PatchSpec) error {
 	if spec.Set == nil {
 		spec.Set = make(map[string][]string)
 	}
-	appendArgs(spec.Set, args.Set)
+	for _, set := range args.Set {
+		if set.Items == nil {
+			spec.Set[set.Key] = append(spec.Set[set.Key], set.Value)
+			continue
+		}
+		if spec.SetItems == nil {
+			spec.SetItems = make(map[string][]jason.Item)
+		}
+		spec.SetItems[set.Key] = append(spec.SetItems[set.Key], set.Items...)
+	}
 	return appendFileArgs(spec.Set, args.SetFile, "set")
 }
 

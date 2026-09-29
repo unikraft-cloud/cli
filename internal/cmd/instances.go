@@ -84,7 +84,7 @@ type InstanceCreateCmd struct {
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	if c.DeleteOnStop {
-		c.Set = append(c.Set, map[string]string{"features": string(platform.InstanceFeatureDeleteOnStop)})
+		c.Set = append(c.Set, cmd.SetValue{Key: "features", Value: string(platform.InstanceFeatureDeleteOnStop)})
 	}
 	flags := c.GeneratedFlags()
 	if flags.IsSet("service") {
