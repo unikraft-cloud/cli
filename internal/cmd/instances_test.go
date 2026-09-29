@@ -187,3 +187,22 @@ func TestInstanceRomName(t *testing.T) {
 		})
 	}
 }
+
+func TestInstanceRomNameFromJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		in       string
+		wantName string
+	}{
+		{name: "explicit name", in: `{"name":"my-rom","at":"/data"}`, wantName: "my-rom"},
+		{name: "derived from at", in: `{"image":"r:1","at":"/mnt/my_data.v2"}`, wantName: "mnt-mydatav2"},
+		{name: "neither name nor at", in: `{"image":"r:1"}`, wantName: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got cmd.InstanceRom
+			require.NoError(t, json.Unmarshal([]byte(tt.in), &got))
+			assert.Equal(t, tt.wantName, got.Name)
+		})
+	}
+}

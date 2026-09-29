@@ -362,23 +362,28 @@ func (r *InstanceRom) UnmarshalText(data []byte) error {
 		return err
 	}
 	*r = InstanceRom(parsed)
-	if r.Name == "" {
-		if r.At == "" {
-			return fmt.Errorf("a ROM must specify at least one of name= or at=")
-		}
-		name := strings.TrimLeft(r.At, "/")
-		name = strings.ReplaceAll(name, "/", "-")
-		var b strings.Builder
-		for _, c := range name {
-			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' {
-				b.WriteRune(c)
-			}
-		}
-		if b.Len() == 0 {
-			return fmt.Errorf("cannot derive a ROM name from at=%q, must specify name=", r.At)
-		}
-		r.Name = b.String()
+	return r.deriveName()
+}
+
+func (r *InstanceRom) deriveName() error {
+	if r.Name != "" {
+		return nil
 	}
+	if r.At == "" {
+		return fmt.Errorf("a ROM must specify at least one of name= or at=")
+	}
+	name := strings.TrimLeft(r.At, "/")
+	name = strings.ReplaceAll(name, "/", "-")
+	var b strings.Builder
+	for _, c := range name {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' {
+			b.WriteRune(c)
+		}
+	}
+	if b.Len() == 0 {
+		return fmt.Errorf("cannot derive a ROM name from at=%q, must specify name=", r.At)
+	}
+	r.Name = b.String()
 	return nil
 }
 
@@ -391,7 +396,13 @@ func (r *InstanceRom) UnmarshalJSON(data []byte) error {
 		return r.UnmarshalText([]byte(text))
 	}
 	type romJSON InstanceRom // alias to avoid recursion
-	return json.Unmarshal(data, (*romJSON)(r))
+	if err := json.Unmarshal(data, (*romJSON)(r)); err != nil {
+		return err
+	}
+	if r.At == "" {
+		return nil
+	}
+	return r.deriveName()
 }
 
 // PluginConfig is a plugin's arbitrary JSON configuration, carried as raw JSON
