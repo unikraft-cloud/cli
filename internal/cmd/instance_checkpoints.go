@@ -50,7 +50,7 @@ type InstanceCheckpoint struct {
 	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
 	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the checkpoint."`
 
-	Autokill Autokill `field:",embed" mirror:"instance.checkpoint_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time without a restore before the checkpoint is deleted" placeholder:"<key>=<value>" example:"time=24h"`
+	Autokill Autokill `field:",embed" mirror:"instance.checkpoint_autokill" create:"set" edit:"set" flag:"autokill" type:"jason" help:"Autokill options.\n  time: time without a restore before the checkpoint is deleted" placeholder:"<key>=<value>" example:"time=24h"`
 
 	State types.InstanceState             `mirror:"instance.state" field:",short"`
 	Image types.ImageRef[reference.Named] `mirror:"instance.image" field:",short"`

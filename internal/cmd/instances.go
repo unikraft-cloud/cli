@@ -104,7 +104,7 @@ type Instance struct {
 	UUID  string          `mirror:"instance.uuid" field:",long"`
 
 	Tags        []string          `mirror:"instance.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Instance tag." placeholder:"tag" example:"env-prod"`
-	Annotations map[string]string `mirror:"instance.annotations" field:",long" create:"set" edit:"set,add,del=keys" flag:"annotation" sep:"none" mapsep:"none" help:"Instance annotation." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
+	Annotations map[string]string `mirror:"instance.annotations" field:",long" create:"set" edit:"set,add,del=keys" flag:"annotation" type:"jason" sep:"none" mapsep:"none" help:"Instance annotation." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
 
 	State types.InstanceState `mirror:"instance.state" field:",short" edit:"set"`
 
@@ -114,7 +114,7 @@ type Instance struct {
 
 	Runtime struct {
 		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set" flag:"args" help:"Arguments to pass to the instance." placeholder:"arg"`
-		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" short:"e" sep:"none" mapsep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
+		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" type:"jason" short:"e" sep:"none" mapsep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
 	}
 
 	Resources struct {
@@ -123,10 +123,10 @@ type Instance struct {
 		GPUs   int                 `field:"gpus,long" create:"set" flag:"gpus" help:"Number of GPUs to attach. Requires type \"full\" and a plan with GPU support. Currently limited to 1." placeholder:"n" example:"0,1"`
 	}
 
-	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set" flag:"service" help:"Service group name or key." placeholder:"name"`
-	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings" flag:"volume" short:"v" sep:"none" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
-	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Attach ROM." placeholder:"name=<name>,image=<ref>,at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
-	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,image=<ref>[,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
+	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set" flag:"service" type:"jason" help:"Service group name or key." placeholder:"name"`
+	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings" flag:"volume" type:"jason" short:"v" sep:"none" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
+	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" type:"jason" sep:"none" help:"Attach ROM." placeholder:"name=<name>,image=<ref>,at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
+	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" type:"jason" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,image=<ref>[,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
 
 	Networks []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
 	Gpus     []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
@@ -137,8 +137,8 @@ type Instance struct {
 		Stopped types.RelativeTime `mirror:"instance.stopped_at"`
 	}
 
-	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" create:"set" edit:"set" flag:"scale-to-zero" help:"Scale-to-zero options.\n  policy: on | idle | off\n  cooldown-time: cooldown in ms before scaling to zero\n  notify-time: notification time in ms before scaling to zero\n  stateful: true | false" placeholder:"<key>=<value>" example:"on,policy=on\\,cooldown-time=300,policy=on\\,stateful=true\\,cooldown-time=500\\,notify-time=100"`
-	Autokill    InstanceAutokill    `field:",embed" mirror:"instance.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time after the instance stops before it is deleted\n  num-requests: max requests before the instance is deleted" placeholder:"<key>=<value>" example:"time=5s,num-requests=100,time=5s\\,num-requests=100"`
+	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" create:"set" edit:"set" flag:"scale-to-zero" type:"jason" help:"Scale-to-zero options.\n  policy: on | idle | off\n  cooldown-time: cooldown in ms before scaling to zero\n  notify-time: notification time in ms before scaling to zero\n  stateful: true | false" placeholder:"<key>=<value>" example:"on,policy=on\\,cooldown-time=300,policy=on\\,stateful=true\\,cooldown-time=500\\,notify-time=100"`
+	Autokill    InstanceAutokill    `field:",embed" mirror:"instance.autokill" create:"set" edit:"set" flag:"autokill" type:"jason" help:"Autokill options.\n  time: time after the instance stops before it is deleted\n  num-requests: max requests before the instance is deleted" placeholder:"<key>=<value>" example:"time=5s,num-requests=100,time=5s\\,num-requests=100"`
 
 	Timing struct {
 		Uptime   types.DurationMS `mirror:"instance.uptime_ms"`
@@ -190,8 +190,8 @@ type InstanceGpu struct {
 
 type InstanceService struct {
 	Link[ServiceGroup]
-	Services  []*Service `mirror:"services" json:"services,omitempty" field:",invisible,valueless" create:"set" flag:"publish" short:"p" sep:"none" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
-	Domains   []Domain   `mirror:"domains" json:"domains,omitempty" field:",short,embed" create:"set" flag:"domain" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
+	Services  []*Service `mirror:"services" json:"services,omitempty" field:",invisible,valueless" create:"set" flag:"publish" type:"jason" short:"p" sep:"none" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
+	Domains   []Domain   `mirror:"domains" json:"domains,omitempty" field:",short,embed" create:"set" flag:"domain" type:"jason" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
 	SoftLimit uint32     `json:"soft-limit,omitempty" field:"soft-limit,invisible,valueless" create:"set"`
 	HardLimit uint32     `json:"hard-limit,omitempty" field:"hard-limit,invisible,valueless" create:"set"`
 }
