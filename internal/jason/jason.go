@@ -19,6 +19,8 @@ package jason
 
 import (
 	"encoding/json"
+	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -42,11 +44,27 @@ func Unmarshal[T any](data []byte, v *Jason[T]) error {
 		_ = json.Unmarshal([]byte("{}"), &v.Value)
 		return nil
 	}
-	jsonData, err := buildNestedJSON(input)
+	items, err := parseItems(input)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(jsonData, &v.Value)
+	return UnmarshalItems(items, &v.Value)
+}
+
+// UnmarshalItems decodes parsed nested items into v, which must be a pointer.
+//
+// A literal ('=') value is decoded as a boolean or number when that is what
+// its destination in v holds, so ':=' is only needed where v can't tell.
+func UnmarshalItems(items []Item, v any) error {
+	root, err := buildTree(items)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(coerce(root, reflect.TypeOf(v)))
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	return json.Unmarshal(data, v)
 }
 
 // Marshal encodes the wrapped value as JSON.

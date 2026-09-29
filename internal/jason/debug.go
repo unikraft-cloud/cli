@@ -78,14 +78,14 @@ func visualize(b *strings.Builder, v any, depth int) {
 // The output shows every item grouped by its top-level key, with parsed
 // path segments and the final assigned value.
 func debugTree(items []string) (string, error) {
-	parsed := make([]parsedItem, 0, len(items))
+	parsed := make([]Item, 0, len(items))
 	hasArrayRoot := false
 	for _, item := range items {
-		p, err := parseItem(item)
+		p, err := ParseItem(item)
 		if err != nil {
 			return "", err
 		}
-		if len(p.path) > 0 && p.path[0] == "" {
+		if len(p.Path) > 0 && p.Path[0] == "" {
 			hasArrayRoot = true
 		}
 		parsed = append(parsed, p)
@@ -94,16 +94,16 @@ func debugTree(items []string) (string, error) {
 	var b strings.Builder
 	fmt.Fprint(&b, "Input items:\n")
 	for i, p := range parsed {
-		pathStr := strings.Join(p.path, "][")
+		pathStr := strings.Join(p.Path, "][")
 		if pathStr != "" {
 			pathStr = "[" + pathStr + "]"
 		}
 		op := "="
-		if p.isRaw {
+		if p.Raw {
 			op = ":="
 		}
 		fmt.Fprintf(&b, "  %d: %s%s%s  → path=%v  isRaw=%v  value=%q\n",
-			i, pathStr, op, p.value, p.path, p.isRaw, p.value)
+			i, pathStr, op, p.Value, p.Path, p.Raw, p.Value)
 	}
 
 	fmt.Fprintf(&b, "\nRoot is array: %v\n\n", hasArrayRoot)
@@ -118,14 +118,14 @@ func debugTree(items []string) (string, error) {
 	fmt.Fprint(&b, "Assignments (in order):\n")
 	for _, p := range parsed {
 		var val any
-		if p.isRaw {
-			if err := json.Unmarshal([]byte(p.value), &val); err != nil {
-				return "", fmt.Errorf("invalid raw JSON value %q: %w", p.value, err)
+		if p.Raw {
+			if err := json.Unmarshal([]byte(p.Value), &val); err != nil {
+				return "", fmt.Errorf("invalid raw JSON value %q: %w", p.Value, err)
 			}
 		} else {
-			val = p.value
+			val = p.Value
 		}
-		path := p.path
+		path := p.Path
 		if len(path) > 0 && path[0] == "" {
 			path = path[1:]
 		}

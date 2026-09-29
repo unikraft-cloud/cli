@@ -26,7 +26,7 @@ func FuzzParseItem(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, input string) {
-		_, _ = parseItem(input)
+		_, _ = ParseItem(input)
 	})
 }
 
