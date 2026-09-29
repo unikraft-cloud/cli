@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"unikraft.com/cloud/sdk/platform/group"
@@ -105,7 +106,11 @@ func (InstanceRunCmd) Examples() []kingkong.Example {
 
 func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	// Unlike create, run starts the instance unless told otherwise.
-	if !c.GeneratedFlags().IsSet("autostart") {
+	setsAutostart := slices.ContainsFunc(slices.Concat(c.Set, c.SetFile), func(m map[string]string) bool {
+		_, ok := m["autostart"]
+		return ok
+	})
+	if !c.GeneratedFlags().IsSet("autostart") && !setsAutostart {
 		c.Set = append(c.Set, map[string]string{"autostart": "true"})
 	}
 	created, err := c.RunResources(ctx, stdio, partition)

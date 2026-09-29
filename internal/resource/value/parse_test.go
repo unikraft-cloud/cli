@@ -473,3 +473,37 @@ func TestParseMapLiteralValues(t *testing.T) {
 		}
 	})
 }
+
+type testText struct {
+	Value string
+}
+
+func (t *testText) UnmarshalText(data []byte) error {
+	t.Value = string(data)
+	return nil
+}
+
+func TestParseMultipleInputs(t *testing.T) {
+	t.Run("struct merges", func(t *testing.T) {
+		got, err := Parse[testStruct]([]string{"name=a", "value=1"})
+		require.NoError(t, err)
+		assert.Equal(t, testStruct{Name: "a", Value: 1}, got)
+	})
+
+	t.Run("slice appends", func(t *testing.T) {
+		got, err := Parse[[]string]([]string{"a", "b"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a", "b"}, got)
+	})
+
+	for name, parse := range map[string]func([]string) error{
+		"string":           func(in []string) error { _, err := Parse[string](in); return err },
+		"int":              func(in []string) error { _, err := Parse[int](in); return err },
+		"pointer":          func(in []string) error { _, err := Parse[*string](in); return err },
+		"text unmarshaler": func(in []string) error { _, err := Parse[testText](in); return err },
+	} {
+		t.Run(name+" rejects", func(t *testing.T) {
+			require.EqualError(t, parse([]string{"1", "2"}), "expected a single value, got 2")
+		})
+	}
+}
