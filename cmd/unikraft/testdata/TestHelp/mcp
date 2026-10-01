@@ -1,0 +1,63 @@
+$ unikraft mcp --help
+
+The server speaks the Model Context Protocol over stdin and stdout, so an AI
+assistant such as Claude Code, Claude Desktop or Cursor can manage Unikraft
+Cloud through typed tools instead of shelling out to the CLI.
+
+Every resource type gets list, create, edit and delete tools, named like
+`instance_list` or `volume_create`; a list tool also fetches specific resources
+when given keys. Instances additionally get `instance_control` for start, stop,
+restart and suspend, and `instance_logs`. The tools use the current profile and
+fan out across its metros exactly like the matching CLI commands do.
+
+The documentation is served as resources: `unikraft://docs` is the table of
+contents and `unikraft://docs/<path>` a page, such as
+`unikraft://docs/cli/fields`.
+Pages are fetched from the documentation site when read, so they cost
+nothing until an assistant asks for one.
+
+Stdout carries the protocol, so diagnostics go to stderr; raise them with
+`--log-level debug`. A `--timeout` ends the whole session when it expires.
+
+Register the server with a client as a stdio server, for example:
+
+    {"mcpServers": {"unikraft": {"command": "unikraft", "args": ["mcp"]}}}
+
+Usage:
+  unikraft mcp [flags]
+
+Examples:
+  # Serve every tool over stdio
+  unikraft mcp
+
+  # Serve only the tools that cannot change anything
+  unikraft mcp --read-only
+
+  # Serve another profile with debug logs on stderr
+  unikraft mcp --profile staging --log-level debug
+
+Flags:
+      --read-only
+          Expose only the tools that cannot change anything: list, image_get and instance_logs.
+      --docs-url=<url> ($UNIKRAFT_DOCS_URL)
+          Documentation site served as resources. Pass an empty value to serve none.
+          [default: https://unikraft.com/docs/]
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
