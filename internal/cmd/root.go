@@ -54,6 +54,7 @@ type UnikraftCLI struct {
 	Resources    AnyResourceCmd  `cmd:"" group:"cmd-resources" hidden:"" help:"Manage any Unikraft Cloud resource." aliases:"resource,resources" set:"name=resource" set:"names=resources"`
 
 	API APICmd `cmd:"" group:"cmd-utilities" help:"Make an authenticated HTTP request to the Unikraft Cloud API."`
+	MCP MCPCmd `cmd:"" group:"cmd-utilities" help:"Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio."`
 
 	Login   login.LoginCmd  `cmd:"" group:"cmd-config" help:"Login to Unikraft Cloud."`
 	Logout  login.LogoutCmd `cmd:"" group:"cmd-config" help:"Logout from Unikraft Cloud."`

@@ -44,6 +44,7 @@ func TestHelp(t *testing.T) {
 	run("run", runHelpTests)
 	run("config", configHelpTests)
 	run("api", apiHelpTests)
+	run("mcp", mcpHelpTests)
 }
 
 // TestVersion checks that `unikraft version` output contains expected fields.
@@ -227,6 +228,13 @@ func apiHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
 	integ.Gild(t, cli(r),
 		[]string{"unikraft", "api", "--help"},
+	)
+}
+
+func mcpHelpTests(t *testing.T, unikraftPath string) {
+	r := integ.NewTestEnv(t, unikraftPath)
+	integ.Gild(t, cli(r),
+		[]string{"unikraft", "mcp", "--help"},
 	)
 }
 
