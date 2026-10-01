@@ -25,7 +25,7 @@ type Config struct {
 	Apps  []string `json:"apps"`
 }
 
-type Item struct {
+type Platform struct {
 	Type string `json:"type"`
 	Name string `json:"name"`
 }
@@ -66,7 +66,7 @@ func TestFromNestedJSON_ObjectRoot(t *testing.T) {
 }
 
 func TestFromNestedJSON_TopLevelArray(t *testing.T) {
-	var n Jason[[]Item]
+	var n Jason[[]Platform]
 	err := unmarshalItems(&n, []string{
 		"[0][type]=platform",
 		"[0][name]=terminal",

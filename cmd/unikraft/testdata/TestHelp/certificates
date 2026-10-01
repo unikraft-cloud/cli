@@ -259,8 +259,8 @@ Fields:
   timestamps, timestamps.created, timestamps.not-before, timestamps.not-after
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the certificate.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the certificate. Use <name> <key>=<value> ... to set a structured field by key.
       --visual
           Open an editor to modify fields visually.
       --cmd

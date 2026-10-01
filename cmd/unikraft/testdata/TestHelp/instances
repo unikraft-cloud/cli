@@ -438,8 +438,8 @@ Fields:
   delete-lock
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the instance.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the instance. Use <name> <key>=<value> ... to set a structured field by key.
       --visual
           Open an editor to modify fields visually.
       --cmd
@@ -636,8 +636,8 @@ Fields:
   delete-lock
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the instance.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the instance. Use <name> <key>=<value> ... to set a structured field by key.
       --visual
           Open an editor to modify fields visually.
       --cmd
@@ -842,8 +842,8 @@ Fields:
   delete-lock
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the instance.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the instance. Use <name> <key>=<value> ... to set a structured field by key.
       --visual
           Open an editor to modify fields visually.
       --cmd
@@ -1036,8 +1036,8 @@ Fields:
   delete-lock
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the instance.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the instance. Use <name> <key>=<value> ... to set a structured field by key.
       --add=<name>=<value> ..., --add-file=<name>=<filename> ...
           Key-value pairs to add to the instance.
       --del=<name>=<value> ..., --del-file=<name>=<filename> ...
@@ -1441,8 +1441,8 @@ Fields:
   instance
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the instance-template.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the instance-template. Use <name> <key>=<value> ... to set a structured field by key.
       --visual
           Open an editor to modify fields visually.
       --cmd
@@ -1520,8 +1520,8 @@ Fields:
   instance
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the instance-template.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the instance-template. Use <name> <key>=<value> ... to set a structured field by key.
       --add=<name>=<value> ..., --add-file=<name>=<filename> ...
           Key-value pairs to add to the instance-template.
       --del=<name>=<value> ..., --del-file=<name>=<filename> ...
@@ -1939,8 +1939,8 @@ Fields:
   instance
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the instance-checkpoint.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the instance-checkpoint. Use <name> <key>=<value> ... to set a structured field by key.
       --visual
           Open an editor to modify fields visually.
       --cmd
@@ -2017,8 +2017,8 @@ Fields:
   instance
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the instance-checkpoint.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the instance-checkpoint. Use <name> <key>=<value> ... to set a structured field by key.
       --add=<name>=<value> ..., --add-file=<name>=<filename> ...
           Key-value pairs to add to the instance-checkpoint.
       --del=<name>=<value> ..., --del-file=<name>=<filename> ...

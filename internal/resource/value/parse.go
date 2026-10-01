@@ -133,14 +133,15 @@ func parseReflect(input []string, value reflect.Value) error {
 	}
 
 	text, ok := value.Interface().(encoding.TextUnmarshaler)
+	if !ok && value.CanAddr() {
+		text, ok = value.Addr().Interface().(encoding.TextUnmarshaler)
+	}
+	kind := output.Kind()
+	if len(input) > 1 && (ok || (kind != reflect.Slice && kind != reflect.Map && kind != reflect.Struct)) {
+		return fmt.Errorf("expected a single value, got %d", len(input))
+	}
 	if ok {
 		return text.UnmarshalText([]byte(input[0]))
-	}
-	if value.CanAddr() {
-		textPtr, ok := value.Addr().Interface().(encoding.TextUnmarshaler)
-		if ok {
-			return textPtr.UnmarshalText([]byte(input[0]))
-		}
 	}
 
 	switch output.Kind() {

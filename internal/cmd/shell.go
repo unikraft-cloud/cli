@@ -143,7 +143,11 @@ func (i ShellInstance) Volumes(ctx context.Context, stdio xstdio.Stdio, format b
 }
 
 func (i ShellInstance) Edit(ctx context.Context, stdio xstdio.Stdio, set map[string]string) error {
-	return (&cmd.ResourceEditCmd[Instance]{Target: i.Key, Set: []map[string]string{set}}).Run(ctx, cliStdio(stdio), i.Partition)
+	var values cmd.SetValues
+	for k, v := range set {
+		values = append(values, cmd.SetValue{Key: k, Value: v})
+	}
+	return (&cmd.ResourceEditCmd[Instance]{Target: i.Key, Set: values}).Run(ctx, cliStdio(stdio), i.Partition)
 }
 
 func (i ShellInstance) Attach(ctx context.Context, stdio xstdio.Stdio, volume, at string, readonly bool) error {

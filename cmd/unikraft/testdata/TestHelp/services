@@ -261,8 +261,8 @@ Fields:
   services.*.handlers
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the service.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the service. Use <name> <key>=<value> ... to set a structured field by key.
       --visual
           Open an editor to modify fields visually.
       --cmd
@@ -349,8 +349,8 @@ Fields:
   services.*.handlers
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the service.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the service. Use <name> <key>=<value> ... to set a structured field by key.
       --add=<name>=<value> ..., --add-file=<name>=<filename> ...
           Key-value pairs to add to the service.
       --del=<name>=<value> ..., --del-file=<name>=<filename> ...

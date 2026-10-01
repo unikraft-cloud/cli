@@ -367,6 +367,7 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 			},
 		}),
 		kong.NamedMapper("optional", xkong.Optional()),
+		kong.NamedMapper("jason", xkong.Jason()),
 		sandboxKongVars,
 	}
 
