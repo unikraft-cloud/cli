@@ -62,7 +62,8 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 	errs := []error{
 		s.addCommandTool(&mcp.Tool{
 			Name:        "instance_logs",
-			Description: "Read the most recent console output of an instance.",
+			Title:       "Instance logs",
+			Description: "Read the last lines of an instance's console output; the first place to look when an instance fails to start or misbehaves. Returns plain text.",
 			Annotations: readOnlyAnnotations(),
 		}, false, func(ctx context.Context, in instanceLogsArgs, stdio config.Stdio) error {
 			return commands.Logs(ctx, stdio, in.Instance, cmp.Or(in.Tail, defaultLogTail))
@@ -79,7 +80,8 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 	schema.Properties["action"].Enum = []any{instanceActionStart, instanceActionStop, instanceActionRestart, instanceActionSuspend}
 	errs = append(errs, s.addCommandTool(&mcp.Tool{
 		Name:        "instance_control",
-		Description: "Start, stop, restart or suspend instances. Stop and restart drain connections first unless forced; a suspended instance resumes from memory on its next request. The updated instances are returned.",
+		Title:       "Control instances",
+		Description: "Start, stop, restart or suspend instances. Stop and restart drain connections first unless force is set; a suspended instance resumes from memory on its next request. Returns the updated instances.",
 		InputSchema: schema,
 		Annotations: mutatingAnnotations(false),
 	}, true, func(ctx context.Context, in instanceControlArgs, stdio config.Stdio) error {

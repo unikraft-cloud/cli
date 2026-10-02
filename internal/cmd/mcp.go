@@ -26,6 +26,8 @@ import (
 	"unikraft.com/cli/internal/model"
 )
 
+const imageGetDescription = "Inspect images by reference, resolving each one from its registry, so public images such as nginx:latest work as well as your own. image_list only covers the images already in your account. Returns one JSON object per image."
+
 type MCPCmd struct {
 	ReadOnly    bool   `help:"Expose only the tools that cannot change anything: list, image_get and instance_logs."`
 	DocsURL     string `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"https://unikraft.com/docs/" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
@@ -106,9 +108,19 @@ func (MCPCmd) Examples() []kingkong.Example {
 func (c *MCPCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	loopback := true
 	if c.Listen != "" {
-		var err error
-		if loopback, err = loopbackAddress(c.Listen); err != nil {
-			return err
+		host, port, err := net.SplitHostPort(c.Listen)
+		if err != nil {
+			return fmt.Errorf("invalid listen address %q: %w", c.Listen, err)
+		}
+		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+			return fmt.Errorf("invalid listen address %q: port must be a number from 0 to 65535", c.Listen)
+		}
+		// Loopback check: IP literals are tested directly, "localhost" is trusted
+		// without resolving it, and any other hostname counts as remote.
+		if ip, err := netip.ParseAddr(host); err == nil {
+			loopback = ip.IsLoopback()
+		} else {
+			loopback = host == "localhost"
 		}
 		if !loopback && !c.AllowRemote {
 			return fmt.Errorf("--listen %s binds a non-loopback address and the server has no authentication, so every client would act with this profile's credentials; pass --allow-remote to accept that", c.Listen)
@@ -134,24 +146,6 @@ func (c *MCPCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.P
 		return err
 	}
 	return nil
-}
-
-func loopbackAddress(addr string) (bool, error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return false, fmt.Errorf("invalid listen address %q: %w", addr, err)
-	}
-	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
-		return false, fmt.Errorf("invalid listen address %q: port must be a number from 0 to 65535", addr)
-	}
-	if host == "localhost" {
-		return true, nil
-	}
-	ip, err := netip.ParseAddr(host)
-	if err != nil {
-		return false, nil
-	}
-	return ip.IsLoopback(), nil
 }
 
 func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partition, c MCPCmd) (*mcpserver.Server, error) {
@@ -181,7 +175,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		srv.AddCreateTool[Certificate](ctx),
 		srv.AddDeleteTool[Certificate](ctx),
 		srv.AddListTool[ImageEntry](ctx),
-		srv.AddGetTool[Image](ctx),
+		srv.AddGetTool[Image](ctx, imageGetDescription),
 		srv.AddDeleteTool[Image](ctx),
 		srv.AddListTool[Metro](ctx),
 		srv.AddListTool[Profile](ctx),

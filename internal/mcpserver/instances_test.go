@@ -63,6 +63,8 @@ func TestInstanceTools(t *testing.T) {
 	tools := listTools(t, ctx, session)
 	assert.ElementsMatch(t, []string{"instance_control", "instance_logs"}, slices.Collect(maps.Keys(tools)))
 	assert.True(t, tools["instance_logs"].Annotations.ReadOnlyHint)
+	assert.True(t, strings.HasPrefix(tools["instance_logs"].Description, "Read the last lines"), tools["instance_logs"].Description)
+	assert.Equal(t, "Control instances", tools["instance_control"].Title)
 	assert.False(t, tools["instance_control"].Annotations.ReadOnlyHint)
 	control := tools["instance_control"].InputSchema.(map[string]any)
 	assert.ElementsMatch(t, []any{"action", "instances"}, control["required"])
