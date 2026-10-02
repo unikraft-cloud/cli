@@ -659,6 +659,7 @@ func TestRootfsErofsSourceCpioFormatMismatch(t *testing.T) {
 func rootfsIntegrationContext(t *testing.T) context.Context {
 	t.Helper()
 	integration.SkipUnlessIntegration(t)
+	integration.SkipUnlessBuildKit(t)
 	t.Setenv("BUILDKIT_PROGRESS", "quiet")
 
 	ctx := t.Context()
