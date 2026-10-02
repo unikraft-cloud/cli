@@ -8,8 +8,12 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/netip"
+	"strconv"
 
 	"github.com/MakeNowJust/heredoc"
 
@@ -23,8 +27,10 @@ import (
 )
 
 type MCPCmd struct {
-	ReadOnly bool   `help:"Expose only the tools that cannot change anything: list, image_get and instance_logs."`
-	DocsURL  string `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"https://unikraft.com/docs/" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
+	ReadOnly    bool   `help:"Expose only the tools that cannot change anything: list, image_get and instance_logs."`
+	DocsURL     string `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"https://unikraft.com/docs/" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
+	Listen      string `name:"listen" placeholder:"host:port" help:"Serve the protocol over plain HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set."`
+	AllowRemote bool   `name:"allow-remote" help:"Let --listen bind a non-loopback address. Every client then acts with this profile's credentials, so only do this behind an authenticating proxy or on a private network."`
 }
 
 func (MCPCmd) Help() string {
@@ -50,6 +56,15 @@ func (MCPCmd) Help() string {
 		Register the server with a client as a stdio server, for example:
 
 		    {"mcpServers": {"unikraft": {"command": "unikraft", "args": ["mcp"]}}}
+
+		With %[1]s--listen host:port%[1]s the same tools are served over plain HTTP at %[1]s/mcp%[1]s,
+		with a liveness check at %[1]s/healthz%[1]s, still using this profile's credentials.
+		Only loopback addresses are accepted unless %[1]s--allow-remote%[1]s is given; when it
+		is, put an authenticating proxy or the platform's TLS termination in front,
+		since every client acts as you. A %[1]s--timeout%[1]s then stops accepting requests
+		and drains the calls in flight. Clients register the server by URL:
+
+		    {"mcpServers": {"unikraft": {"type": "http", "url": "http://127.0.0.1:8080/mcp"}}}
 	`, "`")
 }
 
@@ -73,19 +88,70 @@ func (MCPCmd) Examples() []kingkong.Example {
 				"unikraft mcp --profile staging --log-level debug",
 			},
 		},
+		{
+			Description: "Serve over HTTP on the loopback interface",
+			Commands: []string{
+				"unikraft mcp --listen 127.0.0.1:8080",
+			},
+		},
+		{
+			Description: "Serve every interface, for a hosted deployment behind the platform's TLS",
+			Commands: []string{
+				"unikraft mcp --listen :8080 --allow-remote",
+			},
+		},
 	}
 }
 
 func (c *MCPCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+	loopback := true
+	if c.Listen != "" {
+		var err error
+		if loopback, err = loopbackAddress(c.Listen); err != nil {
+			return err
+		}
+		if !loopback && !c.AllowRemote {
+			return fmt.Errorf("--listen %s binds a non-loopback address and the server has no authentication, so every client would act with this profile's credentials; pass --allow-remote to accept that", c.Listen)
+		}
+	}
+
 	srv, err := newMCPServer(ctx, stdio.Stderr, partition, *c)
 	if err != nil {
 		return err
 	}
-	log.G(ctx).Info().Bool("read-only", c.ReadOnly).Msg("serving MCP over stdio")
-	if err := srv.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+
+	if c.Listen == "" {
+		log.G(ctx).Info().Bool("read-only", c.ReadOnly).Msg("serving MCP over stdio")
+		err = srv.Run(ctx)
+	} else {
+		if !loopback {
+			log.G(ctx).Warn().Str("listen", c.Listen).Msg("serving MCP without authentication on a non-loopback address: every client acts with this profile's credentials")
+		}
+		log.G(ctx).Info().Bool("read-only", c.ReadOnly).Str("listen", c.Listen).Msg("serving MCP over HTTP")
+		err = srv.ListenAndServe(ctx, c.Listen)
+	}
+	if err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
 	return nil
+}
+
+func loopbackAddress(addr string) (bool, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false, fmt.Errorf("invalid listen address %q: %w", addr, err)
+	}
+	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+		return false, fmt.Errorf("invalid listen address %q: port must be a number from 0 to 65535", addr)
+	}
+	if host == "localhost" {
+		return true, nil
+	}
+	ip, err := netip.ParseAddr(host)
+	if err != nil {
+		return false, nil
+	}
+	return ip.IsLoopback(), nil
 }
 
 func newMCPServer(ctx context.Context, stderr io.Writer, partition *resource.Partition, c MCPCmd) (*mcpserver.Server, error) {

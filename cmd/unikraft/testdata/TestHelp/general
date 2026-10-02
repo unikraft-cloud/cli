@@ -39,7 +39,7 @@ Utilities:
   api
           Make an authenticated HTTP request to the Unikraft Cloud API.
   mcp
-          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio.
+          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP.
   completion
           Outputs shell code for initialising tab completions.
   version, ver, v
@@ -143,7 +143,7 @@ Utilities:
   api
           Make an authenticated HTTP request to the Unikraft Cloud API.
   mcp
-          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio.
+          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP.
   completion
           Outputs shell code for initialising tab completions.
   version, ver, v
@@ -249,7 +249,7 @@ Utilities:
   api
           Make an authenticated HTTP request to the Unikraft Cloud API.
   mcp
-          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio.
+          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP.
   completion
           Outputs shell code for initialising tab completions.
   version, ver, v
@@ -352,7 +352,7 @@ Utilities:
   api
           Make an authenticated HTTP request to the Unikraft Cloud API.
   mcp
-          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio.
+          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP.
   completion
           Outputs shell code for initialising tab completions.
   version, ver, v
