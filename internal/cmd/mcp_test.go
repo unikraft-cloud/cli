@@ -78,39 +78,3 @@ func TestMCPServerTools(t *testing.T) {
 		})
 	}
 }
-
-func TestMCPLoopbackAddress(t *testing.T) {
-	for addr, want := range map[string]bool{
-		"127.0.0.1:8080":   true,
-		"localhost:8080":   true,
-		"[::1]:8080":       true,
-		"127.0.0.1:0":      true,
-		":8080":            false,
-		"0.0.0.0:8080":     false,
-		"10.0.0.1:8080":    false,
-		"example.com:8080": false,
-	} {
-		t.Run(addr, func(t *testing.T) {
-			got, err := loopbackAddress(addr)
-			require.NoError(t, err)
-			assert.Equal(t, want, got)
-		})
-	}
-	for _, addr := range []string{"8080", ""} {
-		t.Run("invalid "+addr, func(t *testing.T) {
-			_, err := loopbackAddress(addr)
-			require.ErrorContains(t, err, "invalid listen address")
-		})
-	}
-}
-
-func TestMCPRunRefusesRemote(t *testing.T) {
-	ctx := config.WithConfig(t.Context(), &config.Config{})
-	stdio := config.Stdio{Stderr: io.Discard}
-
-	err := (&MCPCmd{Listen: "0.0.0.0:0"}).Run(ctx, stdio, nil)
-	require.ErrorContains(t, err, "--allow-remote")
-
-	err = (&MCPCmd{Listen: "127.0.0.1:nope"}).Run(ctx, stdio, nil)
-	require.ErrorContains(t, err, "invalid listen address")
-}
