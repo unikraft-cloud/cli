@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1430,6 +1431,355 @@ cmd: ["cat", "/marker.txt"]
 		assert.Regexp(t, `image:\s+nginx`, out)
 
 		r.Run(t, append([]string{"unikraft", "instance", "delete"}, instances...))
+	})
+
+	t.Run("service-rollout", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.Config.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+			"--replicas", "1",
+		})
+		before := strings.Fields(out)
+		require.Len(t, before, 2)
+
+		controlName := "test-" + uniq()
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--name", controlName,
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:1.25",
+			"--memory", "128",
+			"--vcpus", "1",
+		})
+		controlImage := strings.TrimSpace(r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "inspect",
+			"--output", "template={{ .image }}", controlName,
+		}))
+
+		out = r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:1.25",
+			"--service", svcName,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+			"--service-rollout",
+		})
+		after := strings.Fields(out)
+		require.Len(t, after, 2)
+		assert.NotEqual(t, before, after)
+
+		out = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range before {
+			assert.NotContains(t, out, name)
+		}
+		for _, name := range after {
+			assert.Contains(t, out, name)
+		}
+
+		for _, name := range after {
+			inspected := r.Run(t, []string{"unikraft", "instance", "inspect", name})
+			assert.Regexp(t, `image:\s+nginx`, inspected)
+			assert.Regexp(t, `state:\s+running`, inspected)
+		}
+
+		afterImage := r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "inspect", "--output", "template={{ .image }}",
+		}, after...))
+		assert.Equal(t, []string{controlImage, controlImage}, strings.Fields(afterImage))
+
+		svcSolo := "test-" + uniq()
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcSolo,
+			"--metro", r.Config.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+		soloBefore := strings.TrimSpace(r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:latest",
+			"--service", svcSolo,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+		}))
+		soloAfter := strings.Fields(r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "run",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:1.25",
+			"--service", svcSolo,
+			"--memory", "128",
+			"--vcpus", "1",
+			"--service-rollout",
+		}))
+		require.Len(t, soloAfter, 1)
+		assert.NotEqual(t, soloBefore, soloAfter[0])
+
+		out = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		assert.NotContains(t, out, soloBefore)
+		assert.Contains(t, out, soloAfter[0])
+
+		r.Run(t, append(append([]string{"unikraft", "instance", "delete", controlName}, after...), soloAfter...))
+		r.Run(t, []string{"unikraft", "service", "delete", svcName, svcSolo})
+	})
+
+	t.Run("service-rollout-replace", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.Config.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+			"--replicas", "1",
+		})
+		before := strings.Fields(out)
+		require.Len(t, before, 2)
+
+		// Replace stops the old instances before it starts the new ones, and
+		// --rollout-healthy-after holds the new ones up before the old ones go.
+		out = r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:1.25",
+			"--service", svcName,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+			"--service-rollout=replace",
+			"--rollout-healthy-after=2s",
+		})
+		after := strings.Fields(out)
+		require.Len(t, after, 2)
+
+		out = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range before {
+			assert.NotContains(t, out, name)
+		}
+		for _, name := range after {
+			assert.Contains(t, out, name)
+		}
+
+		for _, name := range after {
+			inspected := r.Run(t, []string{"unikraft", "instance", "inspect", name})
+			assert.Regexp(t, `state:\s+running`, inspected)
+		}
+
+		r.Run(t, append([]string{"unikraft", "instance", "delete"}, after...))
+		r.Run(t, []string{"unikraft", "service", "delete", svcName})
+	})
+
+	t.Run("service-rollout-rejects", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		base := []string{
+			"unikraft", "instance", "create",
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:latest",
+		}
+
+		out := r.Run(t, append(slices.Clone(base),
+			"--service", "some-service",
+			"--autostart",
+			"--service-rollout",
+			"--replicas", "2",
+		), integ.ExpectFail())
+		assert.Contains(t, out, "--replicas cannot be used with --service-rollout")
+
+		out = r.Run(t, append(slices.Clone(base),
+			"--autostart",
+			"--service-rollout",
+		), integ.ExpectFail())
+		assert.Contains(t, out, "requires an existing service group")
+
+		out = r.Run(t, append(slices.Clone(base),
+			"--service", "some-service",
+			"--set", "autostart=false",
+			"--service-rollout",
+		), integ.ExpectFail())
+		assert.Contains(t, out, "requires --autostart")
+
+		out = r.Run(t, append(slices.Clone(base),
+			"--service", "some-service",
+			"--autostart",
+			"--service-rollout=sideways",
+		), integ.ExpectFail())
+		assert.Contains(t, out, `unknown rollout mode "sideways"`)
+
+		out = r.Run(t, append(slices.Clone(base),
+			"--rollout-healthy-after=30s",
+		), integ.ExpectFail())
+		assert.Contains(t, out, "--rollout-healthy-after requires --service-rollout")
+
+		out = r.Run(t, append(slices.Clone(base),
+			"--service", "some-service",
+			"--autostart",
+			"--service-rollout",
+			"--rollout-healthy-after=-30s",
+		), integ.ExpectFail())
+		assert.Contains(t, out, "--rollout-healthy-after cannot be negative")
+
+		out = r.Run(t, append(slices.Clone(base),
+			"--service", "test-"+uniq(),
+			"--autostart",
+			"--service-rollout",
+		), integ.ExpectFail())
+		assert.Contains(t, out, "not found")
+
+		out = r.Run(t, append(slices.Clone(base),
+			"--service", "some-service",
+			"--autostart",
+			"--service-rollout=sideways",
+			"--save", "-",
+		), integ.ExpectFail())
+		assert.Contains(t, out, `unknown rollout mode "sideways"`)
+	})
+
+	t.Run("service-rollout-dry-run", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.Config.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+		before := strings.Fields(r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+			"--replicas", "1",
+		}))
+		require.Len(t, before, 2)
+
+		out := r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:1.25",
+			"--service", svcName,
+			"--autostart",
+			"--memory", "128",
+			"--vcpus", "1",
+			"--service-rollout",
+			"--dry-run",
+		})
+		assert.Regexp(t, `replicas\s+:= 1`, out)
+		for _, name := range before {
+			assert.Contains(t, out, name)
+		}
+
+		list := r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range before {
+			assert.Contains(t, list, name)
+		}
+
+		r.Run(t, append([]string{"unikraft", "instance", "delete"}, before...))
+		r.Run(t, []string{"unikraft", "service", "delete", svcName})
+	})
+
+	t.Run("service-rollout-rollback", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+
+		for _, mode := range []string{"rolling", "replace"} {
+			t.Run(mode, func(t *testing.T) {
+				svcName := "test-" + uniq()
+				r.Run(t, []string{
+					"unikraft", "service", "create",
+					"--output", "quiet",
+					"--name", svcName,
+					"--metro", r.Config.MetroName,
+					"--service", "443:8080/http+tls",
+				})
+				before := strings.TrimSpace(r.Run(t, []string{
+					"unikraft", "instance", "create",
+					"--output", "template={{ .name }}",
+					"--name", "test-" + uniq(),
+					"--metro", r.Config.MetroName,
+					"--image", "nginx:latest",
+					"--service", svcName,
+					"--autostart",
+					"--memory", "128",
+					"--vcpus", "1",
+				}))
+
+				rolled := "test-" + uniq()
+				out := r.Run(t, []string{
+					"unikraft", "--timeout=90s", "instance", "create",
+					"--output", "quiet",
+					"--name", rolled,
+					"--metro", r.Config.MetroName,
+					"--image", "nginx:1.25",
+					"--service", svcName,
+					"--autostart",
+					"--memory", "128",
+					"--vcpus", "1",
+					"--service-rollout=" + mode,
+					"--rollout-healthy-after=300s",
+				}, integ.ExpectFail())
+				assert.Regexp(t, `rollout interrupted|timed out`, out)
+
+				list := r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+				assert.NotContains(t, list, rolled)
+				assert.Contains(t, list, before)
+
+				inspected := r.Run(t, []string{"unikraft", "instance", "inspect", before})
+				assert.Regexp(t, `state:\s+running`, inspected)
+
+				r.Run(t, []string{"unikraft", "instance", "delete", before})
+				r.Run(t, []string{"unikraft", "service", "delete", svcName})
+			})
+		}
 	})
 
 	t.Run("watch-timeout", func(t *testing.T) {

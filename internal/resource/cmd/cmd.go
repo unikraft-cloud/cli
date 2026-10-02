@@ -773,7 +773,8 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, part
 type ResourceCreateCmd[R resource.CreatableResource] struct {
 	SetArgs
 
-	generated *FlagSet
+	generated  *FlagSet
+	resolution *createResolution
 
 	Visual bool   `xor:"edit-mode" help:"Open an editor to modify fields visually."`
 	Cmd    string `xor:"edit-mode" help:"Run a command to edit fields (receives YAML on stdin, outputs edited YAML on stdout)."`
@@ -828,14 +829,25 @@ func (cmd *ResourceCreateCmd[R]) Run(ctx context.Context, stdio config.Stdio, pa
 	return err
 }
 
-func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.Stdio, partition *resource.Partition) ([]resource.Resource, error) {
+// createResolution is the field state a create works from.
+type createResolution struct {
+	fields  []resource.Field
+	patched []resource.Field
+	create  []resource.Field
+}
+
+// resolve works out the field state from the flags.
+func (cmd *ResourceCreateCmd[R]) resolve(ctx context.Context) (*createResolution, error) {
+	if cmd.resolution != nil {
+		return cmd.resolution, nil
+	}
 	spec, err := cmd.toPatchSpec()
 	if err != nil {
 		return nil, err
 	}
 
 	var empty R
-	r := partition.WrapCreatable(empty)
+	var res createResolution
 	fieldsResource := resource.Resource(empty)
 	if typed, ok := any(empty).(interface {
 		WithType(string) resource.Resource
@@ -846,18 +858,13 @@ func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.
 			fieldsResource = typed.WithType(values[0])
 		}
 	}
-	fields, err := fieldsResource.Fields(ctx)
+	res.fields, err = fieldsResource.Fields(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get fields: %w", err)
 	}
-	patched, err := patch.PatchedFields(ctx, fields, spec)
+	res.patched, err = patch.PatchedFields(ctx, res.fields, spec)
 	if err != nil {
 		return nil, err
-	}
-
-	// Handle --save: write YAML to file and exit
-	if cmd.Save != "" {
-		return nil, saveYAML(cmd.Save, stdio, empty, fields, patched, true)
 	}
 
 	// Handle different editing modes (mutually exclusive via xor:"edit-mode" tag)
@@ -874,24 +881,60 @@ func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.
 		editor = patch.ContentEditorFunc(cmd.Load)
 	}
 	if editor != nil {
-		patched, err = patch.Create(ctx, empty, fields, patched, editor)
+		res.patched, err = patch.Create(ctx, empty, res.fields, res.patched, editor)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	patchedFields := patch.FilterCreateFields(patched)
+	res.create = patch.FilterCreateFields(res.patched)
+	cmd.resolution = &res
+	return cmd.resolution, nil
+}
 
-	// Validate required fields before printing/applying
-	if err := patch.ValidateRequired(fields, patched, true); err != nil {
+// CreateFields returns the create patches this command applies.
+func (cmd *ResourceCreateCmd[R]) CreateFields(ctx context.Context) ([]resource.Field, error) {
+	res, err := cmd.resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return res.create, nil
+}
+
+// SetCreateFields replaces the create patches CreateFields returned, so a
+// wrapping command can decide a value the flags do not carry.
+func (cmd *ResourceCreateCmd[R]) SetCreateFields(ctx context.Context, fields []resource.Field) error {
+	res, err := cmd.resolve(ctx)
+	if err != nil {
+		return err
+	}
+	res.create = fields
+	return nil
+}
+
+func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.Stdio, partition *resource.Partition) ([]resource.Resource, error) {
+	res, err := cmd.resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var empty R
+
+	if cmd.Save != "" {
+		return nil, saveYAML(cmd.Save, stdio, empty, res.fields, res.patched, true)
+	}
+
+	// Validate required fields before printing/applying, against the patches
+	// the create applies.
+	if err := patch.ValidateRequired(res.fields, res.create, true); err != nil {
 		return nil, err
 	}
 
 	if cmd.DryRun {
-		return nil, PrintPatches(stdio.Stdout, patchedFields, true)
+		return nil, PrintPatches(stdio.Stdout, res.create, true)
 	}
 
-	resources, opErr := r.Create(ctx, patchedFields)
+	resources, opErr := partition.WrapCreatable(empty).Create(ctx, res.create)
 	if opErr != nil && len(resources) == 0 {
 		return nil, opErr
 	}
