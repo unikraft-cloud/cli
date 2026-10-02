@@ -145,6 +145,7 @@ func (t TestResource) Fields(ctx context.Context) ([]resource.Field, error) {
 			Name:      "state",
 			Value:     t.State,
 			Verbosity: resource.FieldVerbosityShort,
+			Help:      "Lifecycle state: running or stopped.",
 		},
 		{
 			Name:      "url",
@@ -204,6 +205,7 @@ func (t TestResource) Fields(ctx context.Context) ([]resource.Field, error) {
 					Name:      "foo",
 					Value:     t.Settings.Foo,
 					Verbosity: resource.FieldVerbosityLong,
+					Help:      "Foo setting.",
 					Flag:      &resource.FlagSpec{Name: "foo", Tag: `help:"Foo setting."`},
 					Create: &resource.Patch{
 						Set: t.Settings.Foo, // Use actual value
@@ -216,6 +218,7 @@ func (t TestResource) Fields(ctx context.Context) ([]resource.Field, error) {
 					Name:      "bar",
 					Value:     t.Settings.Bar,
 					Verbosity: resource.FieldVerbosityLong,
+					Help:      "Bar setting.",
 					Flag:      &resource.FlagSpec{Name: "bar", Tag: `help:"Bar setting."`},
 					Create: &resource.Patch{
 						Set: t.Settings.Bar, // Use actual value

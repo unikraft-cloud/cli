@@ -338,27 +338,27 @@ Global flags:
 
 Create flags:
       --metro=<metro>
-          Metro to create in.
+          Metro to create in. Defaults to the profile's default metro.
           [examples: fra, sfo]
   -n, --name=<name>
-          Volume name.
+          Volume name, unique per metro; generated as vol-XXXX when omitted.
       --tag=<tag> ...
-          Volume tag.
+          Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest.
           [example: env-prod]
       --size=<size>
-          Volume size.
+          Volume size, such as 10GiB or 100MiB; the plan sets the allowed range (see metro quotas limits.volume). On edit the volume grows, never below its current usage.
           [examples: 10GiB, 100MiB]
       --filesystem=<filesystem>
-          Volume filesystem.
-          [example: ext4]
+          Filesystem for a new volume: ext4 (default) or virtiofs; the available set depends on the deployment.
+          [examples: ext4, virtiofs]
       --quota-policy=<quota-policy>
-          Volume quota policy.
+          static (default) reserves the full size against your quota; dynamic counts only used space and allows overcommit but is discouraged for file-based volumes.
           [examples: static, dynamic]
       --access-mode=<access-mode>
-          Volume access mode.
+          rwo (default): one read-write mount or many read-only; rox: read-only mounts only; rwx: many read-write mounts with guest caching off.
           [examples: rwo, rox, rwx]
       --template=<name>
-          Create from volume template.
+          Clone a volume template by name or UUID instead of creating an empty volume.
 
 $ unikraft volume clone --help
 
@@ -627,16 +627,16 @@ Global flags:
 
 Edit flags:
       --tag=<tag> ...
-          Volume tag.
+          Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest.
           [example: env-prod]
       --size=<size>
-          Volume size.
+          Volume size, such as 10GiB or 100MiB; the plan sets the allowed range (see metro quotas limits.volume). On edit the volume grows, never below its current usage.
           [examples: 10GiB, 100MiB]
       --quota-policy=<quota-policy>
-          Volume quota policy.
+          static (default) reserves the full size against your quota; dynamic counts only used space and allows overcommit but is discouraged for file-based volumes.
           [examples: static, dynamic]
       --delete-lock
-          Prevent volume deletion until the lock is removed.
+          Prevent deletion until the lock is removed.
 
 $ unikraft volume delete --help
 
@@ -882,7 +882,7 @@ Usage:
 
 Arguments:
   [<volume>]
-          Volume to convert into a template.
+          Volume to turn into a template, by name or UUID.
 
 Examples:
   # Convert a volume into a template
@@ -1005,10 +1005,10 @@ Global flags:
 
 Edit flags:
       --tag=<tag> ...
-          Template tag.
+          Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest.
           [example: env-dev]
       --delete-lock
-          Prevent deletion of the template.
+          Prevent deletion until the lock is removed.
 
 $ unikraft volume template delete --help
 

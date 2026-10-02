@@ -7,6 +7,7 @@ package mcpserver
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
@@ -57,8 +58,9 @@ func (s *Server) AddListTool[R resource.GettableListableResource](ctx context.Co
 	typ := empty.Type()
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "list"),
-		Description: listDescription(typ, fields),
-		InputSchema: listSchema(typ),
+		Title:       "List " + typ.Names,
+		Description: listDescription(typ),
+		InputSchema: listSchema(typ, fields),
 		Annotations: readOnlyAnnotations(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args listArgs
@@ -82,16 +84,19 @@ type getArgs struct {
 	Fields []string `json:"fields"`
 }
 
-func (s *Server) AddGetTool[R resource.GettableResource](ctx context.Context) error {
+// AddGetTool registers a get tool; an empty description selects the generic one.
+func (s *Server) AddGetTool[R resource.GettableResource](ctx context.Context, description string) error {
 	var empty R
-	if _, err := empty.Fields(ctx); err != nil {
+	fields, err := empty.Fields(ctx)
+	if err != nil {
 		return err
 	}
 	typ := empty.Type()
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "get"),
-		Description: getDescription(typ),
-		InputSchema: getSchema(typ),
+		Title:       "Inspect " + typ.Names,
+		Description: cmp.Or(description, getDescription(typ)),
+		InputSchema: getSchema(typ, fields),
 		Annotations: readOnlyAnnotations(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args getArgs
@@ -123,10 +128,12 @@ func (s *Server) AddCreateTool[R resource.CreatableResource](ctx context.Context
 		return err
 	}
 	typ := empty.Type()
+	schema := createSchema(fields)
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "create"),
-		Description: createDescription(typ),
-		InputSchema: createSchema(fields),
+		Title:       "Create " + typ.Name,
+		Description: createDescription(typ, fields, schema.Properties["set"]),
+		InputSchema: schema,
 		Annotations: mutatingAnnotations(false),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args createArgs
@@ -164,6 +171,7 @@ func (s *Server) AddEditTool[R resource.EditableResource](ctx context.Context) e
 	typ := empty.Type()
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "edit"),
+		Title:       "Edit " + typ.Name,
 		Description: editDescription(typ),
 		InputSchema: editSchema(typ, fields),
 		Annotations: mutatingAnnotations(false),
@@ -201,6 +209,7 @@ func (s *Server) AddDeleteTool[R resource.DeletableResource](ctx context.Context
 	typ := empty.Type()
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "delete"),
+		Title:       "Delete " + typ.Names,
 		Description: deleteDescription(typ),
 		InputSchema: deleteSchema(typ),
 		Annotations: destructiveAnnotations(),

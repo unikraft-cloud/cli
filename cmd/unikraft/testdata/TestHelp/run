@@ -121,86 +121,88 @@ Global flags:
 
 Create flags:
       --metro=<metro>
-          Metro to deploy in.
+          Metro to deploy in. Defaults to the profile's default metro.
           [examples: fra, sfo]
   -n, --name=<name>
-          Instance name.
+          Instance name: a lowercase DNS label of up to 118 characters, unique per metro. Generated from the image name when omitted.
       --tag=<tag> ...
-          Instance tag.
+          Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest.
           [example: env-prod]
       --annotation=<key>=<value> ...
-          Instance annotation.
+          key=value metadata, up to 256 entries; keys are Kubernetes-style [prefix/]name. Unlike tags, annotations reach the guest in its start data.
           [examples: env=production, example.com/team=platform]
       --image=<name>:<tag>
-          Image to deploy.
+          Image to deploy, as an OCI reference such as nginx:latest or a full registry URL. Required unless template, branch or checkpoint is given, and cannot be combined with them.
           [examples: nginx:latest, my-app:v1.2.3]
       --pull-policy=<policy>
-          Image pull policy.
-          [examples: always, never, if_not_present]
+          When to pull the image relative to the node's cache: always, if_not_present or never.
+          [examples: always, if_not_present, never]
       --type=<type>
-          Type of virtual machine to run. "full" requires a plan with full VM support.
+          Virtual machine type: micro (Firecracker microVM, the default) or full (QEMU; required for GPUs, no scale-to-zero, templates, branching or checkpoints).
           [examples: micro, full]
       --args=<arg>
-          Arguments to pass to the instance.
+          Command-line arguments passed to the instance at start, up to 128.
+          [example: --port=8080]
   -e, --env=<key>=<value> ...
-          Environment variable.
+          Environment variable as KEY=value, up to 256.
           [example: DEBUG=true]
   -m, --memory=<size>
-          Memory allocation.
+          Memory for the instance, such as 128MiB or 1GiB. Defaults to 128MiB; the plan sets the allowed range (see metro quotas limits.memory).
           [examples: 128MiB, 1GiB]
       --vcpus=<n>
-          Number of vCPUs.
+          Number of vCPUs, default 1; the plan sets the allowed range (see metro quotas limits.vcpus).
           [examples: 1, 2, 4]
       --gpus=<n>
-          Number of GPUs to attach. Requires type "full" and a plan with GPU support. Currently limited to 1.
+          Number of GPUs to attach, 0 or 1. Requires type full and a plan with GPU support; the GPU stays assigned until the instance is deleted. Not with template, branch or checkpoint.
           [examples: 0, 1]
       --service=<name>
-          Service group name or key.
+          Service group to join, by name or UUID. Leave unset and give service.services or service.domains to create a group owned by the instance; without any service the instance is reachable only privately.
   -p, --publish=<src>:<dest>[/<handlers>] ...
-          Publish port.
-          [example: 443:8080/http+tls]
+          Published port as PORT:DESTINATION/HANDLERS. Handlers: http (per-request load balancing), tls (TLS terminated by the platform), redirect. Port 80 must be http, 443 must be http+tls, other TCP ports tls only; 80:443/http+redirect redirects to HTTPS.
+          [examples: 443:8080/http+tls, 80:443/http+redirect]
       --domain=<fqdn> ...
-          Service domain.
-          [example: example.com]
+          Domain for the group: a bare label such as myapp becomes a subdomain of the metro, a dotted name such as example.com is a custom domain whose certificate is issued automatically unless given as name=example.com,certificate=my-cert. Up to 8.
+          [examples: example.com, myapp]
   -v, --volume=<name>:<path>[:<options>] ...
-          Attach volume.
-          [examples: my-vol:/data, cache:/tmp:ro, data:/mnt:size=10GiB]
+          Volume to attach as NAME:/MOUNT[:ro]; the mount path must be absolute. Up to 4 per instance.
+          [examples: my-vol:/data, cache:/tmp:ro]
       --rom=name=<name>,image=<ref>,at=<path> ...
-          Attach ROM.
+          Read-only ROM device from an image or a local directory; the name uses letters, digits, - and _ and appears as /dev/ukp_rom_NAME in the guest. Up to 8.
           [examples: name=my-rom,image=myuser/my-rom:latest,at=/rom0, name=mydata,dir=./mydata,at=/rom]
       --plugin=name=<name>,image=<ref>[,config=<json>] ...
-          Load plugin into the instance.
+          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance.
           [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
       --scale-to-zero=<key>=<value>
-          Scale-to-zero options.
-            policy: on | idle | off
-            cooldown-time: cooldown in ms before scaling to zero
-            notify-time: notification time in ms before scaling to zero
-            stateful: true | false.
+          Scale-to-zero options; requires a service group.
+            policy: on | idle (also while open TCP connections are idle; needs stateful=true) | off
+            cooldown-time: ms of inactivity before scaling to zero (default 1000, minimum 100)
+            notify-time: ms the instance is warned beforehand; 0 disables, must be below cooldown-time
+            stateful: true keeps RAM in a snapshot and resumes from it, false restarts from scratch.
           [examples: on, policy=on,cooldown-time=300, policy=on,stateful=true,cooldown-time=500,notify-time=100]
       --autokill=<key>=<value>
           Autokill options.
-            time: time after the instance stops before it is deleted
-            num-requests: max requests before the instance is deleted.
+            time: time after the instance stops before it is deleted, such as 5s or 24h; 0 disables
+            num-requests: delete the instance after it has served this many requests or connections.
           [examples: time=5s, num-requests=100, time=5s,num-requests=100]
       --restart=<policy>
-          Restart policy.
+          Restart policy: never (default), always (restart whenever the instance exits by itself) or on-failure (only after a crash). Restarts back off from immediate up to 5m. Not with the delete-on-stop feature.
           [examples: always, on-failure, never]
       --sched-priority=<priority>
-          Scheduling priority for the instance.
+          Scheduling priority: normal (default), medium, high or admin. Requires the override_vm_priority permission.
           [examples: normal, medium, high, admin]
       --autostart
-          Start instance automatically.
+          Start the instance right after creation. When false it stays stopped, except that scale-to-zero puts it in standby, where incoming traffic starts it.
       --replicas=<n>
-          Number of replicas.
+          Additional identical instances to create; replicas=2 creates three in total.
           [examples: 1, 3]
       --feature=<feature> ...
-          Instance feature.
+          Instance feature: delete-on-stop deletes the instance when it stops (not with a restart policy or delete-lock); nested-virt enables nested virtualisation and needs a special permission.
+          [example: delete-on-stop]
       --template=<name>
-          Create from instance template.
+          Create from an instance template, by name or UUID; the clone inherits its configuration and, when the template has a snapshot, its memory state. Not with image, branch, checkpoint, type or gpus.
       --branch=<instance>
-          Branch from an existing instance.
+          Clone an existing instance by name or UUID; a running source is snapshotted asynchronously and keeps running. Not with image, args, env, memory, vcpus, type or gpus.
       --checkpoint=<checkpoint>
-          Create from a checkpoint.
+          Create from a checkpoint by name or UUID, restoring its memory and disk. Same restrictions as branch.
       --rm
           Automatically delete the instance when it stops.

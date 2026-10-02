@@ -112,7 +112,8 @@ func TestPatchSchema(t *testing.T) {
 	assert.Equal(t, "integer", set.Properties["settings.foo"].AnyOf[0].Type)
 	assert.Equal(t, "string", set.Properties["settings.foo"].AnyOf[1].Type)
 	assert.Equal(t, "Foo setting.", set.Properties["settings.foo"].Description)
-	assert.Equal(t, "name", set.Properties["name"].Description)
+	assert.Equal(t, "name (string)", set.Properties["name"].Description)
+	assert.Equal(t, "create_only (string)", set.Properties["create_only"].Description)
 	assert.Empty(t, add.Properties)
 	assert.Empty(t, del.Properties)
 
@@ -144,4 +145,53 @@ func TestFieldPaths(t *testing.T) {
 
 	paths := fieldPaths(fields)
 	assert.Subset(t, paths, []string{"name", "settings.foo", "settings.bar", "tags"})
+}
+
+func TestArticle(t *testing.T) {
+	assert.Equal(t, "an", article("instance"))
+	assert.Equal(t, "an", article("image"))
+	assert.Equal(t, "a", article("volume"))
+	assert.Equal(t, "a", article("service"))
+}
+
+func TestExampleValues(t *testing.T) {
+	assert.Equal(t, []string{"a", "b"}, exampleValues("a,b"))
+	assert.Equal(t, []string{"name=x,y", "z"}, exampleValues(`name=x\,y,z`))
+	assert.Equal(t, []string{"a"}, exampleValues(" a , "))
+	assert.Empty(t, exampleValues(""))
+}
+
+func TestExampleSet(t *testing.T) {
+	fields := []resource.Field{
+		{Name: "image", Help: "Image.", Example: "nginx:latest,my-app:v1", Create: &resource.Patch{Set: ""}},
+		{Name: "ports", Example: "443:8080/http+tls", Create: &resource.Patch{Set: []string(nil)}},
+		{Name: "replicas", Example: "1,3", Create: &resource.Patch{Set: 0}},
+		{Name: "token", Create: &resource.Patch{Set: "", Required: true}},
+		{Name: "zeta", Example: "z", Create: &resource.Patch{Set: ""}},
+		{Name: "alpha", Example: "a", Create: &resource.Patch{Set: ""}},
+	}
+	set, _, _ := patchSchema(fields, true)
+	//nolint:testifylint // the key order is part of the contract, which JSONEq would ignore
+	assert.Equal(t, `{"token": "<token>", "image": "nginx:latest", "alpha": "a", "ports": ["443:8080/http+tls"]}`, exampleSet(fields, set))
+	assert.Equal(t, `Image. For example "nginx:latest" or "my-app:v1".`, set.Properties["image"].Description)
+	assert.Equal(t, `replicas (integer) For example "1" or "3".`, set.Properties["replicas"].Description)
+
+	plain := []resource.Field{{Name: "x", Create: &resource.Patch{Set: ""}}}
+	set, _, _ = patchSchema(plain, true)
+	assert.Empty(t, exampleSet(plain, set))
+
+	numeric := []resource.Field{{Name: "replicas", Example: "3", Create: &resource.Patch{Set: 0}}}
+	set, _, _ = patchSchema(numeric, true)
+	assert.Equal(t, `{"replicas": 3}`, exampleSet(numeric, set))
+}
+
+func TestFieldGlossary(t *testing.T) {
+	fields := []resource.Field{
+		{Name: "name", Help: "Instance name.", Create: &resource.Patch{Set: ""}},
+		{Name: "state", Help: "Lifecycle state:\n  running or stopped.", Edit: &resource.Patch{Set: ""}},
+		{Name: "uuid"},
+		{Name: "timestamps", Subfields: []resource.Field{{Name: "created", Help: "Creation time."}}},
+	}
+	assert.Equal(t, " Field meanings: state: Lifecycle state: running or stopped; timestamps.created: Creation time.", fieldGlossary(fields))
+	assert.Empty(t, fieldGlossary([]resource.Field{{Name: "uuid"}}))
 }

@@ -40,8 +40,8 @@ type VolumeTemplate struct {
 	Name  string          `mirror:"volume.name" field:",short"`
 	UUID  string          `mirror:"volume.uuid" field:",long"`
 
-	Tags       []string `mirror:"volume.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
-	DeleteLock bool     `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the template."`
+	Tags       []string `mirror:"volume.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-dev"`
+	DeleteLock bool     `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed."`
 
 	State      types.VolumeState   `mirror:"volume.state" field:",short"`
 	Size       types.SizeMebibytes `mirror:"volume.size_mb" field:",short"`
@@ -52,7 +52,7 @@ type VolumeTemplate struct {
 		Created types.RelativeTime `mirror:"volume.created_at" field:",short"`
 	}
 
-	VolumeRef string `field:"volume,invisible,valueless" create:"set,required" flag-arg:"volume" completion-predictor:"resource-key-volume" help:"Volume to convert into a template."`
+	VolumeRef string `field:"volume,invisible,valueless" create:"set,required" flag-arg:"volume" completion-predictor:"resource-key-volume" help:"Volume to turn into a template, by name or UUID."`
 
 	Volume  platform.Volume `field:"-" json:"volume"`
 	Profile *config.Profile `field:"-" json:"profile"`

@@ -110,7 +110,13 @@ func TestListTools(t *testing.T) {
 	assert.False(t, *tools["test_edit"].Annotations.DestructiveHint)
 	assert.True(t, *tools["test_delete"].Annotations.DestructiveHint)
 
-	assert.Contains(t, tools["test_list"].Description, "settings.foo")
+	assert.Equal(t, "List tests", tools["test_list"].Title)
+	assert.NotContains(t, tools["test_list"].Description, "settings.foo")
+	assert.Contains(t, properties(t, tools["test_list"].InputSchema)["filter"].(map[string]any)["description"], "settings.foo")
+	assert.Contains(t, properties(t, tools["test_list"].InputSchema)["filter"].(map[string]any)["description"], "Field meanings: state: Lifecycle state: running or stopped.")
+	assert.True(t, strings.HasPrefix(tools["test_create"].Description, "Create a test. "), tools["test_create"].Description)
+	assert.Contains(t, tools["test_create"].Description, "Required: none.")
+	assert.Equal(t, "Create test", tools["test_create"].Title)
 
 	create := properties(t, tools["test_create"].InputSchema)
 	set := properties(t, create["set"])
