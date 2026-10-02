@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"strings"
 
-	"charm.land/lipgloss/v2/compat"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/sergi/go-diff/diffmatchpatch"
 	"unikraft.com/x/colors"
@@ -244,17 +243,17 @@ func (line line) render(buff *bytes.Buffer) {
 // ANSI color codes for backgrounds
 var (
 	// combined
-	lineRemoveColor = compat.AdaptiveColor{Light: colors.Rose200, Dark: colors.Rose900}
-	wordRemoveColor = compat.AdaptiveColor{Light: colors.Rose300, Dark: colors.Rose700}
-	lineAddColor    = compat.AdaptiveColor{Light: colors.Emerald200, Dark: colors.Emerald900}
-	wordAddColor    = compat.AdaptiveColor{Light: colors.Emerald300, Dark: colors.Emerald700}
+	lineRemoveColor = colors.AdaptiveColor{Light: colors.Rose200, Dark: colors.Rose900}
+	wordRemoveColor = colors.AdaptiveColor{Light: colors.Rose300, Dark: colors.Rose700}
+	lineAddColor    = colors.AdaptiveColor{Light: colors.Emerald200, Dark: colors.Emerald900}
+	wordAddColor    = colors.AdaptiveColor{Light: colors.Emerald300, Dark: colors.Emerald700}
 
 	// use ansi styles explicitly, since lipgloss styles don't nest nicely (they
 	// emit resets) and we might have input with existing ANSI codes that we
 	// don't want to reset.
 	resetStyle      = ansi.NewStyle(ansi.AttrDefaultBackgroundColor)
-	lineRemoveStyle = ansi.NewStyle().BackgroundColor(compat.Profile.Convert(lineRemoveColor))
-	lineAddStyle    = ansi.NewStyle().BackgroundColor(compat.Profile.Convert(lineAddColor))
-	wordRemoveStyle = ansi.NewStyle().BackgroundColor(compat.Profile.Convert(wordRemoveColor))
-	wordAddStyle    = ansi.NewStyle().BackgroundColor(compat.Profile.Convert(wordAddColor))
+	lineRemoveStyle = ansi.NewStyle().BackgroundColor(colors.Profile.Convert(lineRemoveColor))
+	lineAddStyle    = ansi.NewStyle().BackgroundColor(colors.Profile.Convert(lineAddColor))
+	wordRemoveStyle = ansi.NewStyle().BackgroundColor(colors.Profile.Convert(wordRemoveColor))
+	wordAddStyle    = ansi.NewStyle().BackgroundColor(colors.Profile.Convert(wordAddColor))
 )

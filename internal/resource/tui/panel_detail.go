@@ -12,7 +12,6 @@ import (
 
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/charmbracelet/x/ansi"
 	"unikraft.com/x/colors"
 
@@ -252,8 +251,8 @@ func (p *detailPanel) layout() {
 }
 
 func appendKVRows(rows *[]table.Row, links *[]resource.Link, parent *resource.Field, fields []resource.Field, indent int) error {
-	linkColor := compat.AdaptiveColor{Light: colors.Slate600, Dark: colors.Slate400}
-	linkSeq := ansi.NewStyle(ansi.AttrItalic, ansi.AttrUnderline).ForegroundColor(compat.Profile.Convert(linkColor)).String()
+	linkColor := colors.AdaptiveColor{Light: colors.Slate600, Dark: colors.Slate400}
+	linkSeq := ansi.NewStyle(ansi.AttrItalic, ansi.AttrUnderline).ForegroundColor(colors.Profile.Convert(linkColor)).String()
 	linkReset := ansi.NewStyle(ansi.AttrNoItalic, ansi.AttrNoUnderline).ForegroundColor(nil).String()
 
 	for _, field := range fields {

@@ -367,6 +367,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 	// further to 5, restores from the checkpoint (counter=3), then increments
 	// each independently to prove isolation.
 	t.Run("checkpoint-state", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		restoredName := uniq()

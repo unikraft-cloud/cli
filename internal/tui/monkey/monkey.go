@@ -12,7 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
+	"unikraft.com/x/colors"
 )
 
 const (
@@ -26,28 +26,28 @@ const (
 // Color scheme for the monkey animation.
 var (
 	BodyStyle = lipgloss.NewStyle().Bold(true).Foreground(
-		compat.AdaptiveColor{
+		colors.AdaptiveColor{
 			Light: lipgloss.Color("#6B7280"), // neutral gray-500
 			Dark:  lipgloss.Color("#9CA3AF"), // gray-400 (brighter for dark bg)
 		},
 	)
 
 	FaceStyle = lipgloss.NewStyle().Foreground(
-		compat.AdaptiveColor{
+		colors.AdaptiveColor{
 			Light: lipgloss.Color("#111827"), // near-black
 			Dark:  lipgloss.Color("#F9FAFB"), // near-white (softer than pure white)
 		},
 	)
 
 	EyeStyle = lipgloss.NewStyle().Foreground(
-		compat.AdaptiveColor{
+		colors.AdaptiveColor{
 			Light: lipgloss.Color("#4B5563"), // gray-600
 			Dark:  lipgloss.Color("#D1D5DB"), // gray-300
 		},
 	)
 
 	MouthStyle = lipgloss.NewStyle().Foreground(
-		compat.AdaptiveColor{
+		colors.AdaptiveColor{
 			Light: lipgloss.Color("#1F2933"), // slightly softer than pure black
 			Dark:  lipgloss.Color("#E5E7EB"), // softer than face
 		},

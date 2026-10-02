@@ -46,25 +46,27 @@ require (
 	github.com/unikraft/go-cpio v0.0.0-20260415131742-4f1984ca41f3
 	golang.org/x/mod v0.41.0
 	golang.org/x/sync v0.23.0
+	golang.org/x/sys v0.48.0
+	golang.org/x/text v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.5.2
 	mvdan.cc/sh/v3 v3.14.1
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
 	unikraft.com/cloud/sdk v0.3.1-0.20260928125536-cabf4afa223a
-	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260924135025-aabba46ee20a
-	unikraft.com/x/colors v0.0.0-20260904140856-1944f6df62e1
+	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260925102313-8051b659e1ce
+	unikraft.com/x/colors v0.0.0-20261002143445-0cd2b17cc06c
 	unikraft.com/x/filters v0.0.0-20260929150216-7e946e02e58b
 	unikraft.com/x/fingerprint v0.0.0-20261001064809-1661668e8c87
 	unikraft.com/x/guesstermwidth v0.0.0-20260924124354-cba1e2dc1921
 	unikraft.com/x/image-spec v0.0.0-20260930145451-e11e6b4df7f4
 	unikraft.com/x/io v0.0.0-20260924124354-cba1e2dc1921
 	unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de
-	unikraft.com/x/kingkong v0.0.0-20260824095305-c69507b68d29
+	unikraft.com/x/kingkong v0.0.0-20261002143445-0cd2b17cc06c
 	unikraft.com/x/kraftfile v0.0.0-20260922102225-cfab838c8e73
-	unikraft.com/x/log v0.0.0-20260904140856-1944f6df62e1
+	unikraft.com/x/log v0.0.0-20261002143445-0cd2b17cc06c
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
-	unikraft.com/x/shell v0.0.0-20260924124354-cba1e2dc1921
+	unikraft.com/x/shell v0.0.0-20261002143445-0cd2b17cc06c
 	unikraft.com/x/signal v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/stdio v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/version v0.0.0-20260819081122-82fdef94867a
@@ -180,7 +182,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0 // indirect
 	go.opentelemetry.io/otel v1.46.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0 // indirect
-	go.opentelemetry.io/otel/log v0.20.0 // indirect
+	go.opentelemetry.io/otel/log v0.22.0 // indirect
 	go.opentelemetry.io/otel/metric v1.46.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.46.0 // indirect
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
@@ -191,9 +193,7 @@ require (
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
 	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260825221802-da73d73af1c5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260825221802-da73d73af1c5 // indirect

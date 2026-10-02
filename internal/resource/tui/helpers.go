@@ -7,9 +7,9 @@ package tui
 
 import (
 	"charm.land/bubbles/v2/table"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
+	"unikraft.com/x/colors"
 
 	"unikraft.com/cli/internal/tableutil"
 )
@@ -72,7 +72,7 @@ func hyperlink(s, url string) string {
 	if url == "" {
 		return s
 	}
-	if compat.Profile == colorprofile.NoTTY {
+	if colors.Profile == colorprofile.NoTTY {
 		return s
 	}
 	underlineSeq := ansi.NewStyle(ansi.AttrUnderline).String()

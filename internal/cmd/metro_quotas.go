@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/docker/go-units"
 	"golang.org/x/sync/errgroup"
 
@@ -185,7 +184,7 @@ func renderQuotaView(q *platform.Quotas, userName string, barWidth int) string {
 }
 
 func writeMetricRow(out io.Writer, label string, used, limit int64, isMB bool, barWidth int) {
-	emptyStyle := lipgloss.NewStyle().Background(compat.AdaptiveColor{Light: colors.Slate300, Dark: colors.Slate700})
+	emptyStyle := lipgloss.NewStyle().Background(colors.AdaptiveColor{Light: colors.Slate300, Dark: colors.Slate700})
 	fullStyle := lipgloss.NewStyle().Foreground(colors.Primary)
 
 	var renderBar string

@@ -9,11 +9,14 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	jujuerrors "github.com/juju/errors"
 	"github.com/pkg/browser"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 	"unikraft.com/cloud/sdk/controlplane"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
@@ -67,7 +70,9 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 		log.G(ctx).Info().
 			Msg("reading authentication token from file")
 
-		dt, err := os.ReadFile(cmd.Token.Name())
+		// Windows editors and PowerShell can write the file as UTF-16, or with a BOM.
+		dec := unicode.BOMOverride(unicode.UTF8.NewDecoder())
+		dt, err := io.ReadAll(transform.NewReader(cmd.Token, dec))
 		if err != nil {
 			return jujuerrors.Annotate(err, "reading token file")
 		}

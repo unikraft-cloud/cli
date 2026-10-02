@@ -9,6 +9,7 @@ package cmd
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -18,6 +19,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -176,7 +178,12 @@ func fetchLatestVersion(ctx context.Context, baseURL, channel string) (string, e
 
 // downloadAndInstall downloads the CLI binary and installs it.
 func downloadAndInstall(ctx context.Context, stdio config.Stdio, force bool, baseURL, ver, plat, arch, destDir string) error {
-	asset := fmt.Sprintf("unikraft-%s-%s.tar.gz", plat, arch)
+	// Windows releases are zip archives, as Windows tools expect.
+	ext := ".tar.gz"
+	if plat == "windows" {
+		ext = ".zip"
+	}
+	asset := fmt.Sprintf("unikraft-%s-%s%s", plat, arch, ext)
 	assetURL := fmt.Sprintf("%s/endpoints/cli/content/%s/%s", baseURL, ver, asset)
 	checksumURL := assetURL + ".sha256"
 
@@ -354,8 +361,12 @@ func verifyChecksum(ctx context.Context, filePath, checksumURL string) error {
 	return nil
 }
 
-// extractBinary extracts the unikraft binary from a tar.gz archive.
+// extractBinary extracts the unikraft binary from a tar.gz or zip archive.
 func extractBinary(archivePath, destDir string) (string, error) {
+	if strings.HasSuffix(archivePath, ".zip") {
+		return extractZipBinary(archivePath, destDir)
+	}
+
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return "", jujuerrors.Annotate(err, "opening archive")
@@ -403,6 +414,46 @@ func extractBinary(archivePath, destDir string) (string, error) {
 	return "", jujuerrors.New("binary not found in archive")
 }
 
+// extractZipBinary extracts the unikraft binary from a zip archive.
+func extractZipBinary(archivePath, destDir string) (string, error) {
+	zr, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return "", jujuerrors.Annotate(err, "opening archive")
+	}
+	defer zr.Close()
+
+	binaryName := "unikraft"
+	if runtime.GOOS == "windows" {
+		binaryName = "unikraft.exe"
+	}
+
+	for _, entry := range zr.File {
+		if !entry.Mode().IsRegular() || path.Base(entry.Name) != binaryName {
+			continue
+		}
+
+		src, err := entry.Open()
+		if err != nil {
+			return "", jujuerrors.Annotate(err, "reading zip entry")
+		}
+		defer src.Close()
+
+		destPath := filepath.Join(destDir, binaryName)
+		outFile, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY, 0o755)
+		if err != nil {
+			return "", jujuerrors.Annotate(err, "creating output file")
+		}
+		if _, err := io.Copy(outFile, src); err != nil {
+			outFile.Close()
+			return "", jujuerrors.Annotate(err, "extracting binary")
+		}
+		outFile.Close()
+		return destPath, nil
+	}
+
+	return "", jujuerrors.New("binary not found in archive")
+}
+
 // installBinary copies the new binary to the destination, handling the case
 // where the destination is the currently running executable.
 func installBinary(srcPath, destPath string) error {
@@ -423,14 +474,27 @@ func installBinary(srcPath, destPath string) error {
 
 	// On Unix-like systems, we can't write to a running executable directly.
 	// Instead, we rename the old binary and write the new one.
-	destDir := filepath.Dir(destPath)
-	destBase := filepath.Base(destPath)
+	backupPath := upgradeBackupPath(destPath)
 
-	// Create a backup path
-	backupPath := filepath.Join(destDir, "."+destBase+".old")
+	// Remove any existing backup, including the ones with a unique name.
+	dir, base := filepath.Dir(backupPath), filepath.Base(backupPath)
+	entries, _ := os.ReadDir(dir)
+	for _, entry := range entries {
+		if entry.Name() == base || strings.HasPrefix(entry.Name(), base+".") {
+			_ = os.Remove(filepath.Join(dir, entry.Name()))
+		}
+	}
 
-	// Remove any existing backup
-	_ = os.Remove(backupPath)
+	// On Windows, a process that still runs an old binary keeps its backup,
+	// so give the new backup a unique name.
+	if _, err := os.Lstat(backupPath); err == nil {
+		f, err := os.CreateTemp(dir, base+".*")
+		if err != nil {
+			return jujuerrors.Annotate(err, "creating backup")
+		}
+		f.Close()
+		backupPath = f.Name()
+	}
 
 	// Rename current executable to backup (skip if destination doesn't exist)
 	destExists := true
@@ -451,6 +515,7 @@ func installBinary(srcPath, destPath string) error {
 	}
 
 	// Remove backup if we made one
+	// On Windows, this fails for the running binary and RemoveUpgradeBackup removes it later.
 	if destExists {
 		_ = os.Remove(backupPath)
 	}

@@ -37,7 +37,11 @@ func main() {
 		kong.UsageOnError(),
 	)
 
-	ctx = log.WithLogger(ctx, log.New(os.Stderr, cli.LogType, cli.LogLevel))
+	logger, err := log.New(ctx, log.Config{Sink: os.Stderr, Type: cli.LogType, Level: cli.LogLevel})
+
+	kctx.FatalIfErrorf(err)
+
+	ctx = log.WithLogger(ctx, logger)
 	kctx.BindTo(ctx, (*context.Context)(nil))
 
 	if err := kctx.Run(); err != nil {

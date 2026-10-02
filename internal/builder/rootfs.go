@@ -16,6 +16,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -269,7 +270,11 @@ func buildRootfsDirectory(ctx context.Context, opts BuildOpts) (_ []*imagespec.I
 			}
 		}()
 
-		if err := packageFS(ctx, opts.Rootfs.Format, f, os.DirFS(opts.Rootfs.Path), opts.Rootfs); err != nil {
+		srcFS := os.DirFS(opts.Rootfs.Path)
+		if runtime.GOOS == "windows" {
+			srcFS = buildfs.WindowsDirFS(srcFS)
+		}
+		if err := packageFS(ctx, opts.Rootfs.Format, f, srcFS, opts.Rootfs); err != nil {
 			return nil, err
 		}
 
