@@ -352,7 +352,9 @@ func integrationContext(t *testing.T) context.Context {
 	t.Setenv("BUILDKIT_PROGRESS", "quiet")
 
 	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 	cfg, err := integration.LoadConfig(t)
 	if errors.Is(err, os.ErrNotExist) {
 		t.Skip("integration config not found")
