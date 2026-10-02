@@ -61,6 +61,7 @@ cmd: ["/server"]
 }
 
 func TestInstancesHTTPOCI(t *testing.T) {
+	integ.SkipUnlessBuildKit(t)
 	r := runner(t, true, []string{staging, stable})
 	payload := integ.Busybox.Build(t, r)
 	server := httpOCIServer.Build(t, r)

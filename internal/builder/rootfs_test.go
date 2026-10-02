@@ -753,6 +753,7 @@ func builderTestContext(t *testing.T) context.Context {
 func rootfsIntegrationContext(t *testing.T) context.Context {
 	t.Helper()
 	integration.SkipUnlessIntegration(t)
+	integration.SkipUnlessBuildKit(t)
 	t.Setenv("BUILDKIT_PROGRESS", "quiet")
 
 	ctx := t.Context()
