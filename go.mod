@@ -20,7 +20,7 @@ require (
 	github.com/containerd/log v0.2.0
 	github.com/containerd/platforms v1.0.0-rc.5
 	github.com/cpuguy83/go-md2man/v2 v2.0.7
-	github.com/docker/cli v29.8.1+incompatible
+	github.com/docker/cli v29.8.2+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/ettle/strcase v0.2.0
 	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68
@@ -28,13 +28,13 @@ require (
 	github.com/jotaen/kong-completion v0.0.14
 	github.com/juju/errors v1.0.0
 	github.com/mitchellh/copystructure v1.2.0
-	github.com/moby/buildkit v0.31.1
+	github.com/moby/buildkit v0.33.1
 	github.com/moby/moby/client v0.6.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/posener/complete v1.2.3
-	github.com/posthog/posthog-go v1.27.0
+	github.com/posthog/posthog-go v1.28.1
 	github.com/rs/zerolog v1.35.1
 	github.com/sergi/go-diff v1.4.0
 	github.com/sirupsen/logrus v1.10.2
