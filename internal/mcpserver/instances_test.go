@@ -67,29 +67,29 @@ func TestInstanceTools(t *testing.T) {
 	assert.Equal(t, "Control instances", tools["instance_control"].Title)
 	assert.False(t, tools["instance_control"].Annotations.ReadOnlyHint)
 	control := tools["instance_control"].InputSchema.(map[string]any)
-	assert.ElementsMatch(t, []any{"action", "instances"}, control["required"])
+	assert.ElementsMatch(t, []any{"action", "keys"}, control["required"])
 	assert.Equal(t, []any{"start", "stop", "restart", "suspend"}, properties(t, control)["action"].(map[string]any)["enum"])
-	assert.Equal(t, "array", properties(t, control)["instances"].(map[string]any)["type"])
+	assert.Equal(t, "array", properties(t, control)["keys"].(map[string]any)["type"])
 	assert.Equal(t, "integer", properties(t, control)["drain_timeout_ms"].(map[string]any)["type"])
 
-	res := call(t, ctx, session, "instance_control", map[string]any{"action": "start", "instances": []string{"web"}})
+	res := call(t, ctx, session, "instance_control", map[string]any{"action": "start", "keys": []string{"web"}})
 	require.False(t, res.IsError, text(res))
 	assert.Equal(t, []map[string]any{{"name": "web", "state": "running"}}, resources(t, res))
 
 	for _, args := range []map[string]any{
-		{"action": "stop", "instances": []string{"web", "db"}, "force": true},
-		{"action": "restart", "instances": []string{"web"}, "drain_timeout_ms": 5000},
-		{"action": "suspend", "instances": []string{"web"}},
+		{"action": "stop", "keys": []string{"web", "db"}, "force": true},
+		{"action": "restart", "keys": []string{"web"}, "drain_timeout_ms": 5000},
+		{"action": "suspend", "keys": []string{"web"}},
 	} {
 		res = call(t, ctx, session, "instance_control", args)
 		require.False(t, res.IsError, text(res))
 	}
 
-	res = call(t, ctx, session, "instance_control", map[string]any{"action": "explode", "instances": []string{"web"}})
+	res = call(t, ctx, session, "instance_control", map[string]any{"action": "explode", "keys": []string{"web"}})
 	assert.True(t, res.IsError)
 	assert.Contains(t, text(res), `unknown action "explode"`)
 
-	res = call(t, ctx, session, "instance_logs", map[string]any{"instance": "web"})
+	res = call(t, ctx, session, "instance_logs", map[string]any{"key": "web"})
 	require.False(t, res.IsError, text(res))
 	assert.Nil(t, res.StructuredContent)
 	assert.Contains(t, text(res), "line 1")

@@ -37,14 +37,14 @@ type InstanceStopOptions struct {
 
 type instanceControlArgs struct {
 	Action         string   `json:"action" jsonschema:"What to do with the instances."`
-	Instances      []string `json:"instances" jsonschema:"Instances to act on: names, UUIDs or metro/name keys."`
+	Keys           []string `json:"keys" jsonschema:"Instances to act on: names, UUIDs or metro/name keys."`
 	Force          bool     `json:"force,omitzero" jsonschema:"For stop and restart: stop immediately instead of draining connections first."`
 	DrainTimeoutMS *int64   `json:"drain_timeout_ms,omitzero" jsonschema:"For stop, restart and suspend: milliseconds to drain connections first. Defaults to the platform's timeout."`
 }
 
 type instanceLogsArgs struct {
-	Instance string `json:"instance" jsonschema:"The instance to read logs from: a name, UUID or metro/name key."`
-	Tail     int    `json:"tail,omitzero" jsonschema:"How many lines from the end of the log to return. Defaults to 200."`
+	Key  string `json:"key" jsonschema:"The instance to read logs from: a name, UUID or metro/name key."`
+	Tail int    `json:"tail,omitzero" jsonschema:"How many lines from the end of the log to return. Defaults to 200."`
 }
 
 const (
@@ -66,7 +66,7 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 			Description: "Read the last lines of an instance's console output; the first place to look when an instance fails to start or misbehaves. Returns plain text.",
 			Annotations: readOnlyAnnotations(),
 		}, false, func(ctx context.Context, in instanceLogsArgs, stdio config.Stdio) error {
-			return commands.Logs(ctx, stdio, in.Instance, cmp.Or(in.Tail, defaultLogTail))
+			return commands.Logs(ctx, stdio, in.Key, cmp.Or(in.Tail, defaultLogTail))
 		}),
 	}
 	if s.opts.ReadOnly {
@@ -85,16 +85,19 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 		InputSchema: schema,
 		Annotations: mutatingAnnotations(false),
 	}, true, func(ctx context.Context, in instanceControlArgs, stdio config.Stdio) error {
+		if len(in.Keys) == 0 {
+			return errors.New("no instances specified")
+		}
 		drain := drainTimeout(in.DrainTimeoutMS)
 		switch in.Action {
 		case instanceActionStart:
-			return commands.Start(ctx, stdio, in.Instances)
+			return commands.Start(ctx, stdio, in.Keys)
 		case instanceActionStop:
-			return commands.Stop(ctx, stdio, in.Instances, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
+			return commands.Stop(ctx, stdio, in.Keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
 		case instanceActionRestart:
-			return commands.Restart(ctx, stdio, in.Instances, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
+			return commands.Restart(ctx, stdio, in.Keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
 		case instanceActionSuspend:
-			return commands.Suspend(ctx, stdio, in.Instances, drain)
+			return commands.Suspend(ctx, stdio, in.Keys, drain)
 		default:
 			return fmt.Errorf("unknown action %q: use %s, %s, %s or %s", in.Action,
 				instanceActionStart, instanceActionStop, instanceActionRestart, instanceActionSuspend)
