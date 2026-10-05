@@ -31,12 +31,14 @@ import (
 
 // InstanceRollout holds the options of a rollout.
 type InstanceRollout struct {
-	Type         InstanceRolloutMode `name:"type" json:"type,omitempty"`
-	Batch        int                 `name:"batch" json:"batch,omitempty"`
-	HealthyAfter types.DurationS     `name:"healthy-after" json:"healthy-after,omitempty"`
+	Type         InstanceRolloutMode     `name:"type" json:"type,omitempty"`
+	By           InstanceRolloutSelector `name:"by" json:"by,omitempty"`
+	Batch        int                     `name:"batch" json:"batch,omitempty"`
+	HealthyAfter types.DurationS         `name:"healthy-after" json:"healthy-after,omitempty"`
 }
 
-// UnmarshalText reads the rollout options. A bare type sets the type.
+// UnmarshalText reads the rollout options. A bare type or selector sets the
+// type or the selector.
 func (r *InstanceRollout) UnmarshalText(data []byte) error {
 	str := strings.TrimSpace(string(data))
 	if str == "" {
@@ -53,10 +55,15 @@ func (r *InstanceRollout) UnmarshalText(data []byte) error {
 				continue
 			}
 			var mode InstanceRolloutMode
-			if mode.UnmarshalText([]byte(item)) != nil {
-				return fmt.Errorf("unknown rollout option %q, want %q, %q or <key>=<value>", item, RolloutRolling, RolloutRecreate)
+			var by InstanceRolloutSelector
+			switch {
+			case mode.UnmarshalText([]byte(item)) == nil:
+				items[i] = "type=" + item
+			case by.UnmarshalText([]byte(item)) == nil:
+				items[i] = "by=" + item
+			default:
+				return fmt.Errorf("unknown rollout option %q, want %q, %q, %q, %q or <key>=<value>", item, RolloutRolling, RolloutRecreate, RolloutByService, RolloutByTags)
 			}
-			items[i] = "type=" + item
 		}
 		str = strings.Join(items, ",")
 	}
@@ -99,14 +106,35 @@ func (m *InstanceRolloutMode) UnmarshalText(data []byte) error {
 	return fmt.Errorf("unknown rollout type %q, want %q or %q", data, RolloutRolling, RolloutRecreate)
 }
 
+// InstanceRolloutSelector is the field of the new instance that selects the old set.
+type InstanceRolloutSelector string
+
+const (
+	// RolloutByService selects the instances in the service group of the new one.
+	RolloutByService InstanceRolloutSelector = "service"
+	// RolloutByTags selects the instances that have every tag of the new one.
+	RolloutByTags InstanceRolloutSelector = "tags"
+)
+
+// UnmarshalText reads a rollout selector and refuses an unknown one.
+func (b *InstanceRolloutSelector) UnmarshalText(data []byte) error {
+	switch by := InstanceRolloutSelector(data); by {
+	case RolloutByService, RolloutByTags:
+		*b = by
+		return nil
+	}
+	return fmt.Errorf("unknown rollout by %q, want %q or %q", data, RolloutByService, RolloutByTags)
+}
+
 // rolloutPollInterval is how long a rollout leaves between two reads.
 const rolloutPollInterval = 2 * time.Second
 
-// runRollout replaces every instance in the service group with a new one, and
+// runRollout replaces every instance the rollout selects with a new one, and
 // deletes the old set once the new one runs.
 func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, partition *resource.Partition) ([]resource.Resource, error) {
 	opts := *c.Rollout
 	opts.Type = cmp.Or(opts.Type, RolloutRolling)
+	opts.By = cmp.Or(opts.By, RolloutByService)
 	opts.Batch = cmp.Or(opts.Batch, 1)
 
 	fields, err := c.CreateFields(ctx)
@@ -115,6 +143,7 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 	}
 	var metro string
 	var svc *InstanceService
+	var tags []string
 	named, replicas, autostart := false, false, false
 	for key, field := range resource.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
@@ -131,6 +160,8 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 			autostart = field.Create.Set.(bool)
 		case "service":
 			svc = field.Create.Set.(*InstanceService)
+		case "tags":
+			tags = field.Create.Set.([]string)
 		}
 	}
 	if named {
@@ -142,24 +173,36 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 	if !autostart {
 		return nil, fmt.Errorf("--rollout requires --autostart")
 	}
-	if svc == nil || (svc.Name == "" && svc.UUID == "") {
-		return nil, fmt.Errorf("--rollout requires an existing service group")
+	selected := strings.Join(tags, ",")
+	switch opts.By {
+	case RolloutByService:
+		if svc == nil || (svc.Name == "" && svc.UUID == "") {
+			return nil, fmt.Errorf("--rollout requires an existing service group")
+		}
+		selected = cmp.Or(svc.Name, svc.UUID)
+	case RolloutByTags:
+		if len(tags) == 0 {
+			return nil, fmt.Errorf("--rollout=by=tags requires --tag")
+		}
 	}
 
-	svcGroup, old, err := rolloutTarget(ctx, metro, svc)
+	groups, old, err := rolloutTarget(ctx, opts.By, metro, svc, tags)
 	if err != nil {
 		if !c.DryRun {
 			return nil, err
 		}
 		log.G(ctx).Warn().Err(err).
-			Msg("cannot read the service group, replaced instances not shown")
-	} else if svcGroup.Autoscale {
-		return nil, fmt.Errorf("autoscaling enabled, can't rollout service group %q", cmp.Or(svcGroup.Name, svcGroup.UUID))
+			Msg("cannot read the instances to replace, replaced instances not shown")
 	}
 	old = slices.DeleteFunc(old, func(inst Instance) bool { return partition.Missing(inst) })
+	for _, svcGroup := range groups {
+		if svcGroup.Autoscale {
+			return nil, fmt.Errorf("autoscaling enabled, can't rollout service group %q", cmp.Or(svcGroup.Name, svcGroup.UUID))
+		}
+	}
 	if err == nil && len(old) == 0 {
 		log.G(ctx).Info().
-			Str("service", svcGroup.Name).
+			Str(string(opts.By), selected).
 			Msg("no instances to replace, creating without a rollout")
 		return c.Create(ctx, stdio, partition, fields)
 	}
@@ -212,7 +255,7 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 		return nil, err
 	}
 	log.G(ctx).Info().
-		Str("service", svcGroup.Name).
+		Str(string(opts.By), selected).
 		Str("mode", string(opts.Type)).
 		Int("instances", len(oldKeys)).
 		Msg("rolling out")
@@ -250,20 +293,82 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 	return printed, err
 }
 
-// rolloutTarget reads back the service group whose instances a rollout
-// replaces, and those instances.
-func rolloutTarget(ctx context.Context, metro string, svc *InstanceService) (ServiceGroup, []Instance, error) {
-	var none ServiceGroup
-	key := multimetro.Key{Metro: cmp.Or(svc.Metro, metro), UUID: svc.UUID}
-	if svc.UUID == "" {
-		key.Name = svc.Name
+// rolloutTarget reads back the instances a rollout replaces, and the service
+// groups that the old and the new instances are in.
+func rolloutTarget(ctx context.Context, by InstanceRolloutSelector, metro string, svc *InstanceService, tags []string) ([]ServiceGroup, []Instance, error) {
+	if by == RolloutByTags {
+		if metro == "" {
+			return nil, nil, fmt.Errorf("--rollout=by=tags requires --metro")
+		}
+		g, err := multimetro.NewClient(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		profile, err := config.G(ctx).CurrentProfile()
+		if err != nil {
+			return nil, nil, err
+		}
+		old, err := group.CollectMetro(ctx, g, metro, func(ctx context.Context, c multimetro.MetroClient) ([]Instance, error) {
+			resp, err := c.GetInstances(ctx, nil, platform.GetInstancesOpts{Details: new(true), Tags: tags})
+			if err != nil {
+				return nil, err
+			}
+			if resp == nil || resp.Data == nil {
+				return nil, nil
+			}
+			var found []Instance
+			for _, instance := range resp.Data.Instances {
+				inst, err := Instance{}.load(nil, instance, &c.Metro, profile)
+				if err != nil {
+					return nil, err
+				}
+				missing := slices.ContainsFunc(tags, func(tag string) bool {
+					return !slices.Contains(inst.Tags, tag)
+				})
+				if !missing {
+					found = append(found, inst)
+				}
+			}
+			return found, nil
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("listing the instances with tags %s: %w", strings.Join(tags, ","), err)
+		}
+
+		links := []*InstanceService{svc}
+		for _, inst := range old {
+			links = append(links, inst.Service)
+		}
+		var keys []string
+		for _, link := range links {
+			if link == nil || (link.Name == "" && link.UUID == "") {
+				continue
+			}
+			keys = append(keys, serviceGroupKey(link, metro))
+		}
+		slices.Sort(keys)
+		keys = slices.Compact(keys)
+		if len(keys) == 0 {
+			return nil, old, nil
+		}
+		results, err := (ServiceGroup{}).Get(ctx, keys)
+		if err != nil {
+			return nil, nil, fmt.Errorf("reading the service groups of the instances with tags %s: %w", strings.Join(tags, ","), err)
+		}
+		groups := make([]ServiceGroup, len(results))
+		for i, r := range results {
+			groups[i] = r.(ServiceGroup)
+		}
+		return groups, old, nil
 	}
-	results, err := (ServiceGroup{}).Get(ctx, []string{key.Canonical()})
+
+	key := serviceGroupKey(svc, metro)
+	results, err := (ServiceGroup{}).Get(ctx, []string{key})
 	if err != nil {
-		return none, nil, fmt.Errorf("looking up service group %q: %w", key.Canonical(), err)
+		return nil, nil, fmt.Errorf("looking up service group %q: %w", key, err)
 	}
 	if len(results) == 0 {
-		return none, nil, fmt.Errorf("service group %q not found", key.Canonical())
+		return nil, nil, fmt.Errorf("service group %q not found", key)
 	}
 	svcGroup := results[0].(ServiceGroup)
 
@@ -280,17 +385,27 @@ func rolloutTarget(ctx context.Context, metro string, svc *InstanceService) (Ser
 		keys = append(keys, key)
 	}
 	if len(keys) == 0 {
-		return svcGroup, nil, nil
+		return []ServiceGroup{svcGroup}, nil, nil
 	}
 	results, err = (Instance{}).Get(ctx, keys.Strings())
 	if err != nil {
-		return none, nil, fmt.Errorf("reading the instances of service group %q: %w", svcGroup.Name, err)
+		return nil, nil, fmt.Errorf("reading the instances of service group %q: %w", svcGroup.Name, err)
 	}
 	old := make([]Instance, len(results))
 	for i, r := range results {
 		old[i] = r.(Instance)
 	}
-	return svcGroup, old, nil
+	return []ServiceGroup{svcGroup}, old, nil
+}
+
+// serviceGroupKey keys the service group a link names, by its UUID when the
+// link has one.
+func serviceGroupKey(link *InstanceService, metro string) string {
+	key := multimetro.Key{Metro: cmp.Or(link.Metro, metro), UUID: link.UUID}
+	if link.UUID == "" {
+		key.Name = link.Name
+	}
+	return key.Canonical()
 }
 
 // instanceSet is a set of instances that a rollout acts on. Start and Up act

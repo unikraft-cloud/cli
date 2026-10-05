@@ -77,7 +77,7 @@ type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
 	DeleteOnStop bool             `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
-	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | recreate\n  batch: instances that a rolling rollout replaces at a time (default: 1)\n  healthy-after: time each new batch must keep running before the rollout goes on" placeholder:"<key>=<value>" example:"recreate,batch=2\\,healthy-after=30s"`
+	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | recreate\n  by: service (default) | tags\n  batch: instances that a rolling rollout replaces at a time (default: 1)\n  healthy-after: time each new batch must keep running before the rollout goes on" placeholder:"<key>=<value>" example:"recreate,batch=2\\,healthy-after=30s,tags"`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {

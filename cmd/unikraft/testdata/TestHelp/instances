@@ -590,11 +590,12 @@ Create flags:
       --rm
           Automatically delete the instance when it stops.
       --rollout=<key>=<value>
-          Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.
+          Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | recreate
+            by: service (default) | tags
             batch: instances that a rolling rollout replaces at a time (default: 1)
             healthy-after: time each new batch must keep running before the rollout goes on.
-          [examples: recreate, batch=2,healthy-after=30s]
+          [examples: recreate, batch=2,healthy-after=30s, tags]
 
 $ unikraft instance new --help
 
@@ -814,11 +815,12 @@ Create flags:
       --rm
           Automatically delete the instance when it stops.
       --rollout=<key>=<value>
-          Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.
+          Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | recreate
+            by: service (default) | tags
             batch: instances that a rolling rollout replaces at a time (default: 1)
             healthy-after: time each new batch must keep running before the rollout goes on.
-          [examples: recreate, batch=2,healthy-after=30s]
+          [examples: recreate, batch=2,healthy-after=30s, tags]
 
 $ unikraft instance run --help
 
@@ -1034,11 +1036,12 @@ Create flags:
       --rm
           Automatically delete the instance when it stops.
       --rollout=<key>=<value>
-          Replace every instance in the service group with a new one and delete the old ones. Requires --autostart.
+          Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | recreate
+            by: service (default) | tags
             batch: instances that a rolling rollout replaces at a time (default: 1)
             healthy-after: time each new batch must keep running before the rollout goes on.
-          [examples: recreate, batch=2,healthy-after=30s]
+          [examples: recreate, batch=2,healthy-after=30s, tags]
 
 $ unikraft instance edit --help
 
