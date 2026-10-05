@@ -8,6 +8,7 @@ package mcpserver
 import (
 	"cmp"
 	"encoding"
+	"encoding/json/jsontext"
 	"fmt"
 	"maps"
 	"reflect"
@@ -57,7 +58,7 @@ func getDescription(typ resource.Type) string {
 	return fmt.Sprintf("Fetch %s by key with every field. Returns one JSON object per %s.", typ.Names, typ.Name)
 }
 
-func createDescription(typ resource.Type, fields []resource.Field, set *jsonschema.Schema) string {
+func createDescription(typ resource.Type, fields []resource.Field, set *jsonschema.Schema, defaults map[string]jsontext.Value) string {
 	required := "none"
 	if len(set.Required) > 0 {
 		required = strings.Join(set.Required, ", ")
@@ -69,14 +70,25 @@ func createDescription(typ resource.Type, fields []resource.Field, set *jsonsche
 	if example := exampleSet(fields, set); example != "" {
 		text += " Example set: " + example + "."
 	}
+	if len(defaults) > 0 {
+		parts := make([]string, 0, len(defaults))
+		for _, path := range slices.Sorted(maps.Keys(defaults)) {
+			parts = append(parts, path+" defaults to "+string(defaults[path]))
+		}
+		text += " Unless set, " + strings.Join(parts, " and ") + "."
+	}
 	return text + fmt.Sprintf(" Returns the created %s.", typ.Name)
 }
 
-func editDescription(typ resource.Type) string {
-	return fmt.Sprintf(
-		"Change an existing %s: set replaces field values, add appends to list fields and del removes entries from them, all keyed by field path. Use dry_run to preview the change. Returns the updated %s.",
-		typ.Name, typ.Name,
+func editDescription(typ resource.Type, note string) string {
+	text := fmt.Sprintf(
+		"Change an existing %s: set replaces field values, add appends to list fields and del removes entries from them, all keyed by field path. Use dry_run to preview the change.",
+		typ.Name,
 	)
+	if note != "" {
+		text += " " + note
+	}
+	return text + fmt.Sprintf(" Returns the updated %s.", typ.Name)
 }
 
 func deleteDescription(typ resource.Type) string {
@@ -186,7 +198,7 @@ func patchSchema(fields []resource.Field, create bool) (set, add, del *jsonschem
 		}
 		if patch.Del != nil {
 			prop := addProperty(del, key, patch.Del)
-			prop.Description = describe(key, field, prop, nil)
+			prop.Description = cmp.Or(delDescription(key, field, patch), describe(key, field, prop, nil))
 		}
 	}
 	return set, add, del
@@ -199,6 +211,23 @@ func addProperty(schema *jsonschema.Schema, key string, template any) *jsonschem
 	}
 	schema.Properties[key] = prop
 	return prop
+}
+
+// delDescription describes a del entry whose shape differs from the field's
+// own values: a name for a list of structured entries, a key for a map.
+func delDescription(path string, field *resource.Field, patch *resource.Patch) string {
+	delType, fieldType := reflect.TypeOf(patch.Del), reflect.TypeOf(field.Value)
+	if delType == nil || delType.Kind() != reflect.Slice || delType.Elem().Kind() != reflect.String || delType == fieldType {
+		return ""
+	}
+	switch {
+	case field.ElemMap || (fieldType != nil && fieldType.Kind() == reflect.Map):
+		return "Entries to remove from " + path + ", by key."
+	case field.Elem != nil:
+		return "Entries to remove from " + path + ", by name."
+	default:
+		return ""
+	}
 }
 
 func describe(path string, field *resource.Field, prop *jsonschema.Schema, patch *resource.Patch) string {
