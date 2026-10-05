@@ -18,6 +18,16 @@ import (
 	"unikraft.com/cli/internal/types"
 )
 
+const (
+	instanceActionStart   = "start"
+	instanceActionStop    = "stop"
+	instanceActionRestart = "restart"
+	instanceActionSuspend = "suspend"
+
+	defaultLogTail                       = 200
+	defaultDrainTimeout types.DurationMS = -1
+)
+
 // InstanceCommands runs the CLI's instance commands on behalf of the
 // instance tools, writing their output to the given stdio.
 type InstanceCommands interface {
@@ -46,17 +56,6 @@ type instanceLogsArgs struct {
 	Key  string `json:"key" jsonschema:"The instance to read logs from: a name, UUID or metro/name key."`
 	Tail int    `json:"tail,omitzero" jsonschema:"How many lines from the end of the log to return. Defaults to 200."`
 }
-
-const (
-	instanceActionStart   = "start"
-	instanceActionStop    = "stop"
-	instanceActionRestart = "restart"
-	instanceActionSuspend = "suspend"
-
-	defaultLogTail = 200
-)
-
-const defaultDrainTimeout types.DurationMS = -1
 
 func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 	errs := []error{
