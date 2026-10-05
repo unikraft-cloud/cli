@@ -26,6 +26,8 @@ import (
 	"unikraft.com/cli/internal/model"
 )
 
+const instanceEditNote = "Edits to tags, delete-lock, autokill, scale-to-zero and sched-priority apply at once, even while the instance runs. Other edits to a running instance are queued until it next stops. Adding plugins, roms or volumes takes effect after instance_control suspend followed by start. Changing image, runtime.args, runtime.env, resources.memory, resources.vcpus or annotations, replacing or removing plugins or roms, and removing volumes take effect only after instance_control restart, or stop followed by start. An instance in standby keeps a snapshot of its memory, so those changes stay queued until a stop, which discards the snapshot."
+
 const imageGetDescription = "Inspect images by reference, resolving each one from its registry, so public images such as nginx:latest work as well as your own. image_list only covers the images already in your account. Returns one JSON object per image."
 
 type MCPCmd struct {
@@ -165,7 +167,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		return nil, err
 	}
 	if err := errors.Join(
-		srv.AddTools[Instance](ctx),
+		srv.AddTools[Instance](ctx, mcpserver.WithCreateDefault("autostart", true), mcpserver.WithEditNote(instanceEditNote)),
 		srv.AddTools[InstanceTemplate](ctx),
 		srv.AddTools[InstanceCheckpoint](ctx),
 		srv.AddTools[Volume](ctx),

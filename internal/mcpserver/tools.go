@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -33,11 +34,11 @@ func (s *Server) AddTools[R interface {
 	model.CreatableModel
 	model.EditableModel
 	model.DeletableModel
-}](ctx context.Context) error {
+}](ctx context.Context, opts ...ToolOption) error {
 	return errors.Join(
 		s.AddListTool[R](ctx),
-		s.AddCreateTool[R](ctx),
-		s.AddEditTool[R](ctx),
+		s.AddCreateTool[R](ctx, opts...),
+		s.AddEditTool[R](ctx, opts...),
 		s.AddDeleteTool[R](ctx),
 	)
 }
@@ -56,15 +57,16 @@ func (s *Server) AddListTool[R model.GettableListableModel](ctx context.Context)
 		return err
 	}
 	typ := empty.Type()
+	schema := listSchema(typ, fields)
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "list"),
 		Title:       "List " + typ.Names,
 		Description: listDescription(typ),
-		InputSchema: listSchema(typ, fields),
+		InputSchema: schema,
 		Annotations: readOnlyAnnotations(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args listArgs
-		if err := unmarshalArgs(req, &args); err != nil {
+		if err := unmarshalArgs(req, schema, &args); err != nil {
 			return rejected(ctx, req, err), nil
 		}
 		return s.capture(ctx, req, true, func(ctx context.Context, stdio config.Stdio) error {
@@ -92,15 +94,16 @@ func (s *Server) AddGetTool[R model.GettableModel](ctx context.Context, descript
 		return err
 	}
 	typ := empty.Type()
+	schema := getSchema(typ, fields)
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "get"),
 		Title:       "Inspect " + typ.Names,
 		Description: cmp.Or(description, getDescription(typ)),
-		InputSchema: getSchema(typ, fields),
+		InputSchema: schema,
 		Annotations: readOnlyAnnotations(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args getArgs
-		if err := unmarshalArgs(req, &args); err != nil {
+		if err := unmarshalArgs(req, schema, &args); err != nil {
 			return rejected(ctx, req, err), nil
 		}
 		return s.capture(ctx, req, true, func(ctx context.Context, stdio config.Stdio) error {
@@ -113,12 +116,38 @@ func (s *Server) AddGetTool[R model.GettableModel](ctx context.Context, descript
 	return nil
 }
 
+// ToolOption adjusts how a resource type's tools are registered.
+type ToolOption func(*toolOptions)
+
+type toolOptions struct {
+	createDefaults map[string]any
+	editNote       string
+}
+
+// WithCreateDefault makes the create tool set the field at path to value
+// unless the caller sets it.
+func WithCreateDefault(path string, value any) ToolOption {
+	return func(o *toolOptions) {
+		if o.createDefaults == nil {
+			o.createDefaults = map[string]any{}
+		}
+		o.createDefaults[path] = value
+	}
+}
+
+// WithEditNote appends note to the edit tool's description.
+func WithEditNote(note string) ToolOption {
+	return func(o *toolOptions) {
+		o.editNote = note
+	}
+}
+
 type createArgs struct {
 	Set    map[string]jsontext.Value `json:"set"`
 	DryRun bool                      `json:"dry_run"`
 }
 
-func (s *Server) AddCreateTool[R model.CreatableModel](ctx context.Context) error {
+func (s *Server) AddCreateTool[R model.CreatableModel](ctx context.Context, opts ...ToolOption) error {
 	if s.opts.ReadOnly {
 		return nil
 	}
@@ -129,20 +158,46 @@ func (s *Server) AddCreateTool[R model.CreatableModel](ctx context.Context) erro
 	}
 	typ := empty.Type()
 	schema := createSchema(fields)
+	var o toolOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	defaults := make(map[string]jsontext.Value, len(o.createDefaults))
+	for path, value := range o.createDefaults {
+		prop, ok := schema.Properties["set"].Properties[path]
+		if !ok {
+			return fmt.Errorf("%s: cannot default %q: not a creatable field", toolName(typ.Name, "create"), path)
+		}
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("%s: cannot default %q: %w", toolName(typ.Name, "create"), path, err)
+		}
+		prop.Default = raw
+		defaults[path] = raw
+	}
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "create"),
 		Title:       "Create " + typ.Name,
-		Description: createDescription(typ, fields, schema.Properties["set"]),
+		Description: createDescription(typ, fields, schema.Properties["set"], defaults),
 		InputSchema: schema,
 		Annotations: mutatingAnnotations(false),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args createArgs
-		if err := unmarshalArgs(req, &args); err != nil {
+		if err := unmarshalArgs(req, schema, &args); err != nil {
 			return rejected(ctx, req, err), nil
+		}
+		set := args.Set
+		for path, value := range defaults {
+			if v, ok := set[path]; !ok || v.Kind() == 'n' {
+				if set == nil {
+					set = map[string]jsontext.Value{}
+				}
+				set[path] = value
+			}
 		}
 		return s.capture(ctx, req, true, func(ctx context.Context, stdio config.Stdio) error {
 			return (&cmd.ModelCreateCmd[R]{
-				Set:        patchArgs(args.Set),
+				Set:        patchArgs(set),
 				DryRun:     args.DryRun,
 				FormatOpts: JSONFormat(),
 			}).Run(ctx, stdio, s.opts.Partition)
@@ -159,7 +214,7 @@ type editArgs struct {
 	DryRun bool                      `json:"dry_run"`
 }
 
-func (s *Server) AddEditTool[R model.EditableModel](ctx context.Context) error {
+func (s *Server) AddEditTool[R model.EditableModel](ctx context.Context, opts ...ToolOption) error {
 	if s.opts.ReadOnly {
 		return nil
 	}
@@ -169,15 +224,20 @@ func (s *Server) AddEditTool[R model.EditableModel](ctx context.Context) error {
 		return err
 	}
 	typ := empty.Type()
+	schema := editSchema(typ, fields)
+	var o toolOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "edit"),
 		Title:       "Edit " + typ.Name,
-		Description: editDescription(typ),
-		InputSchema: editSchema(typ, fields),
+		Description: editDescription(typ, o.editNote),
+		InputSchema: schema,
 		Annotations: mutatingAnnotations(false),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args editArgs
-		if err := unmarshalArgs(req, &args); err != nil {
+		if err := unmarshalArgs(req, schema, &args); err != nil {
 			return rejected(ctx, req, err), nil
 		}
 		return s.capture(ctx, req, true, func(ctx context.Context, stdio config.Stdio) error {
@@ -207,15 +267,16 @@ func (s *Server) AddDeleteTool[R model.DeletableModel](ctx context.Context) erro
 		return err
 	}
 	typ := empty.Type()
+	schema := deleteSchema(typ)
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "delete"),
 		Title:       "Delete " + typ.Names,
 		Description: deleteDescription(typ),
-		InputSchema: deleteSchema(typ),
+		InputSchema: schema,
 		Annotations: destructiveAnnotations(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args deleteArgs
-		if err := unmarshalArgs(req, &args); err != nil {
+		if err := unmarshalArgs(req, schema, &args); err != nil {
 			return rejected(ctx, req, err), nil
 		}
 		if len(args.Keys) == 0 {
@@ -232,19 +293,20 @@ func (s *Server) AddDeleteTool[R model.DeletableModel](ctx context.Context) erro
 }
 
 func (s *Server) addCommandTool[In any](tool *mcp.Tool, structured bool, run func(context.Context, In, config.Stdio) error) error {
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	if tool.InputSchema == nil {
-		schema, err := jsonschema.For[In](nil)
-		if err != nil {
+		var err error
+		if schema, err = jsonschema.For[In](nil); err != nil {
 			return fmt.Errorf("%s: %w", tool.Name, err)
 		}
 		tool.InputSchema = schema
+	} else if !ok {
+		return fmt.Errorf("%s: input schema must be a *jsonschema.Schema", tool.Name)
 	}
-	if schema, ok := tool.InputSchema.(*jsonschema.Schema); ok {
-		singleTypes(schema)
-	}
+	singleTypes(schema)
 	s.srv.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var in In
-		if err := unmarshalArgs(req, &in); err != nil {
+		if err := unmarshalArgs(req, schema, &in); err != nil {
 			return rejected(ctx, req, err), nil
 		}
 		return s.capture(ctx, req, structured, func(ctx context.Context, stdio config.Stdio) error {
@@ -318,11 +380,26 @@ func errorResult(err error) *mcp.CallToolResult {
 	}
 }
 
-func unmarshalArgs(req *mcp.CallToolRequest, v any) error {
-	if len(req.Params.Arguments) == 0 {
-		return nil
+func unmarshalArgs(req *mcp.CallToolRequest, schema *jsonschema.Schema, v any) error {
+	args := req.Params.Arguments
+	if len(args) == 0 {
+		args = []byte("{}")
 	}
-	if err := json.Unmarshal(req.Params.Arguments, v); err != nil {
+	var members map[string]jsontext.Value
+	if err := json.Unmarshal(args, &members); err != nil {
+		return fmt.Errorf("invalid arguments: %w", err)
+	}
+	for _, name := range slices.Sorted(maps.Keys(members)) {
+		if _, ok := schema.Properties[name]; !ok {
+			return fmt.Errorf("invalid arguments: unknown argument %q; valid arguments: %s", name, strings.Join(slices.Sorted(maps.Keys(schema.Properties)), ", "))
+		}
+	}
+	for _, name := range schema.Required {
+		if m, ok := members[name]; !ok || m.Kind() == 'n' {
+			return fmt.Errorf("invalid arguments: %s is required", name)
+		}
+	}
+	if err := json.Unmarshal(args, v); err != nil {
 		return fmt.Errorf("invalid arguments: %w", err)
 	}
 	return nil

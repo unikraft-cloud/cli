@@ -69,7 +69,7 @@ func TestHTTPTools(t *testing.T) {
 	require.False(t, res.IsError, text(res))
 	assert.Equal(t, []map[string]any{{"name": "a"}}, resources(t, res))
 
-	res = call(t, ctx, session, "instance_logs", map[string]any{"instance": "web"})
+	res = call(t, ctx, session, "instance_logs", map[string]any{"key": "web"})
 	require.False(t, res.IsError, text(res))
 	assert.Contains(t, text(res), "line 1")
 	assert.Equal(t, []string{"logs web tail=200"}, fake.calls)

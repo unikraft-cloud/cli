@@ -72,7 +72,7 @@ func TestMCPServerTools(t *testing.T) {
 			assert.Subset(t, names, mutatingTools)
 
 			control := tools["instance_control"].InputSchema.(map[string]any)
-			assert.ElementsMatch(t, []any{"action", "instances"}, control["required"])
+			assert.ElementsMatch(t, []any{"action", "keys"}, control["required"])
 			action := control["properties"].(map[string]any)["action"].(map[string]any)
 			assert.Equal(t, []any{"start", "stop", "restart", "suspend"}, action["enum"])
 		})

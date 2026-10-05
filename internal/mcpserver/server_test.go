@@ -242,7 +242,7 @@ func TestCallDelete(t *testing.T) {
 
 	res = call(t, ctx, session, "test_delete", map[string]any{})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), "no tests specified")
+	assert.Contains(t, text(res), "keys is required")
 }
 
 func TestCallLogging(t *testing.T) {
@@ -265,5 +265,5 @@ func TestCallLogging(t *testing.T) {
 	assert.Contains(t, out, `"message":"tool call complete"`)
 	assert.Contains(t, out, `"tool":"test_create","took":`)
 	assert.Contains(t, out, `"error":"unknown fields: [nope]","message":"tool call failed"`)
-	assert.Contains(t, out, `"tool":"test_delete","error":"no tests specified","message":"tool call rejected"`)
+	assert.Contains(t, out, `"tool":"test_delete","error":"invalid arguments: keys is required","message":"tool call rejected"`)
 }
