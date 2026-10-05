@@ -17,6 +17,12 @@ import (
 	"unikraft.com/cli/internal/resource"
 )
 
+const (
+	serverName       = "unikraft"
+	serverTitle      = "Unikraft Cloud"
+	serverWebsiteURL = "https://unikraft.cloud"
+)
+
 // Options configures a Server.
 type Options struct {
 	Partition *resource.Partition
@@ -53,10 +59,10 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 
 	s := &Server{
 		srv: mcp.NewServer(&mcp.Implementation{
-			Name:       "unikraft",
-			Title:      "Unikraft Cloud",
+			Name:       serverName,
+			Title:      serverTitle,
 			Version:    opts.Version,
-			WebsiteURL: "https://unikraft.cloud",
+			WebsiteURL: serverWebsiteURL,
 		}, &mcp.ServerOptions{
 			Instructions: instructions(opts.ReadOnly, d),
 			Logger:       opts.Logger,
@@ -86,7 +92,7 @@ Resource keys accept a name, a UUID, or metro/name to target one metro. Reads fa
 
 Create and edit take set, add and del objects keyed by dotted field paths, exactly like the CLI's --set, --add and --del flags. Values may be strings, parsed as on the command line, or JSON values of the field's type. Pass dry_run to preview the resulting patch without applying it.
 
-A sandbox is an instance with the sandbox plugin loaded, so to create one call instance_create with the plugin in the same set as the image, for example {"image": "official/alpine:latest", "plugins": ["name=sandbox,image=plugins/sandbox:latest"]}. The image must run on the base-compat runtime; official/alpine:latest and official/debian-slim:latest ship the standard Linux utilities so most commands work. To keep files across restarts, attach a volume at /data with volumes and add config={"persist_path":"/data"} to the plugin entry. Plugins load at boot, so a plugin added to a running instance with instance_edit only takes effect after a restart with instance_control. Commands and files inside the sandbox are reached with the unikraft instance exec, shell, copy, read and write CLI commands, not through these tools.
+A sandbox is an instance with the sandbox plugin loaded, so to create one call instance_create with the plugin in the same set as the image, for example {"image": "official/alpine:latest", "plugins": ["name=sandbox,image=plugins/sandbox:latest"]}. The image must run on the base-compat runtime; official/alpine:latest and official/debian-slim:latest ship the standard Linux utilities so most commands work. To keep files across restarts, put a volume such as ":/data:size=1GiB" in volumes, which creates it and attaches it at /data in the same call, and add config={"persist_path":"/data"} to the plugin entry. Plugins load at boot, so a plugin added to a running instance with instance_edit only takes effect after a restart with instance_control. Commands and files inside the sandbox are reached with the unikraft instance exec, shell, copy, read and write CLI commands, not through these tools.
 
 Results come back as JSON text and as structured content under "resources". Pass fields to limit which field paths are returned.`
 	if d != nil {
