@@ -208,8 +208,8 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 		},
 		{
 			name: "every key",
-			in:   "type=replace,healthy-after=30s",
-			want: cmd.InstanceRollout{Type: cmd.RolloutReplace, HealthyAfter: types.DurationS(30)},
+			in:   "type=replace,by=tags,healthy-after=30s",
+			want: cmd.InstanceRollout{Type: cmd.RolloutReplace, By: cmd.RolloutByTags, HealthyAfter: types.DurationS(30)},
 		},
 		{
 			name: "json",
@@ -220,6 +220,11 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 			name:    "unknown type",
 			in:      "type=sideways",
 			wantErr: `unknown rollout type "sideways"`,
+		},
+		{
+			name:    "unknown selector",
+			in:      "by=sideways",
+			wantErr: `unknown rollout by "sideways"`,
 		},
 		{
 			name:    "negative healthy-after",

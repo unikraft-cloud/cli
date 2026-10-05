@@ -1536,6 +1536,59 @@ cmd: ["cat", "/marker.txt"]
 		r.Run(t, []string{"unikraft", "service", "delete", svcName})
 	})
 
+	t.Run("rollout-by-tags", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		tag := "t-" + uniq()
+		common := []string{
+			"--metro", r.Config.MetroName,
+			"--memory", "128",
+			"--vcpus", "1",
+		}
+
+		before := strings.Fields(r.Run(t, append([]string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--image", "nginx:latest",
+			"--tag", tag,
+			"--autostart",
+			"--replicas", "1",
+		}, common...)))
+		require.Len(t, before, 2)
+
+		controlName := "test-" + uniq()
+		r.Run(t, append([]string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--name", controlName,
+			"--image", "nginx:latest",
+		}, common...))
+
+		rolled := strings.Fields(r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--image", "nginx:1.25",
+			"--tag", tag,
+			"--autostart",
+			"--rollout=by=tags",
+		}, common...)))
+		require.Len(t, rolled, 2)
+
+		list := r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range before {
+			assert.NotContains(t, list, name)
+		}
+		assert.Contains(t, list, controlName)
+		for _, name := range rolled {
+			inspected := r.Run(t, []string{"unikraft", "instance", "inspect", name})
+			assert.Regexp(t, `state:\s+running`, inspected)
+			assert.Regexp(t, `tags:.*`+tag, inspected)
+		}
+
+		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName}, rolled...))
+	})
+
 	t.Run("rollout-rollback", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		svcName := "test-" + uniq()
