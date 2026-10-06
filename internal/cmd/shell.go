@@ -17,7 +17,6 @@ import (
 
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/shell"
-	"unikraft.com/x/shell/builtins"
 	xsignal "unikraft.com/x/signal"
 	xstdio "unikraft.com/x/stdio"
 
@@ -25,7 +24,6 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
-	wkong "unikraft.com/cli/internal/w/kong"
 	"unikraft.com/cli/pkg/shellbuiltins"
 )
 
@@ -126,20 +124,12 @@ type ShellInstance struct {
 	Partition *resource.Partition
 }
 
-func (i ShellInstance) Get(ctx context.Context, stdio xstdio.Stdio, format builtins.Format) error {
-	opts, err := formatOpts(format)
-	if err != nil {
-		return err
-	}
-	return (&cmd.ResourceGetCmd[Instance]{Targets: []string{i.Key}, FormatOpts: opts}).Run(ctx, cliStdio(stdio), i.Partition)
+func (i ShellInstance) Get(ctx context.Context, stdio xstdio.Stdio, format cmd.FormatOpts) error {
+	return (&cmd.ResourceGetCmd[Instance]{Targets: []string{i.Key}, FormatOpts: format}).Run(ctx, cliStdio(stdio), i.Partition)
 }
 
-func (i ShellInstance) Volumes(ctx context.Context, stdio xstdio.Stdio, format builtins.Format) error {
-	opts, err := formatOpts(format)
-	if err != nil {
-		return err
-	}
-	return (&cmd.ResourceListCmd[Volume]{FormatOpts: opts}).Run(ctx, cliStdio(stdio), i.Partition)
+func (i ShellInstance) Volumes(ctx context.Context, stdio xstdio.Stdio, format cmd.FormatOpts) error {
+	return (&cmd.ResourceListCmd[Volume]{FormatOpts: format}).Run(ctx, cliStdio(stdio), i.Partition)
 }
 
 func (i ShellInstance) Edit(ctx context.Context, stdio xstdio.Stdio, set map[string]string) error {
@@ -172,14 +162,6 @@ func (i ShellInstance) Suspend(ctx context.Context, stdio xstdio.Stdio, drainTim
 
 func cliStdio(s xstdio.Stdio) config.Stdio {
 	return config.Stdio{Stdin: s.Stdin, Stdout: s.Stdout, Stderr: s.Stderr}
-}
-
-func formatOpts(f builtins.Format) (cmd.FormatOpts, error) {
-	printer, err := cmd.ParsePrinter(f.Output)
-	if err != nil {
-		return cmd.FormatOpts{}, err
-	}
-	return cmd.FormatOpts{Field: wkong.GreedyStrings(f.Field), Output: printer}, nil
 }
 
 func stopOpts(o shellbuiltins.StopOpts) StopOpts {
