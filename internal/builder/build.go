@@ -27,6 +27,10 @@ type BuildOpts struct {
 
 	Runtime string
 
+	// Kernel is a path to an already-built kernel binary, used in place of
+	// resolving one from Runtime.
+	Kernel string
+
 	Platform []ocispec.Platform
 
 	Cmd    []string
@@ -123,8 +127,8 @@ func DefaultRootfsFormat(ps []ocispec.Platform) kraftfile.FsType {
 
 // Build a unikraft image based on the provided build options.
 func Build(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error) {
-	if opts.Runtime == "" && opts.Rootfs.Path == "" && len(opts.Roms) == 0 {
-		return nil, fmt.Errorf("no runtime, rootfs, or roms specified: nothing to build")
+	if opts.Runtime == "" && opts.Kernel == "" && opts.Rootfs.Path == "" && len(opts.Roms) == 0 {
+		return nil, fmt.Errorf("no runtime, kernel, rootfs, or roms specified: nothing to build")
 	}
 
 	meta := imagespec.ImageMetadata{
@@ -132,9 +136,22 @@ func Build(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error) {
 	}
 
 	// Build kernel if a runtime is specified. This also determines the
-	// set of platforms we're building for.
+	// set of platforms we're building for. An already-built kernel instead
+	// takes its platform from the declared targets.
 	var kernels []*imagespec.Image
-	if opts.Runtime != "" {
+	switch {
+	case opts.Kernel != "":
+		var err error
+		kernels, err = LoadKernel(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			for _, kernel := range kernels {
+				kernel.Close()
+			}
+		}()
+	case opts.Runtime != "":
 		var err error
 		kernels, err = BuildKernel(ctx, opts)
 		if err != nil {

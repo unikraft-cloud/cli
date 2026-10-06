@@ -8,6 +8,8 @@ package builder
 import (
 	"cmp"
 	"fmt"
+	"path/filepath"
+	"slices"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
@@ -26,8 +28,21 @@ func KraftfileToBuildOpts(dir string, kf *kraftfile.Kraftfile) (BuildOpts, error
 	}
 
 	if kf.Unikraft != nil {
-		return BuildOpts{}, fmt.Errorf("unikraft configuration not currently supported")
+		if kf.Unikraft.Type != kraftfile.UnikraftTypeKernel {
+			return BuildOpts{}, fmt.Errorf("building unikraft from source not currently supported")
+		}
+		if opts.Runtime != "" {
+			return BuildOpts{}, fmt.Errorf("kernel and runtime configuration are mutually exclusive")
+		}
+		if kf.Unikraft.Source == "" {
+			return BuildOpts{}, fmt.Errorf("kernel entry is missing a source path")
+		}
+		if kf.Unikraft.Version != "" {
+			return BuildOpts{}, fmt.Errorf("kernel entry does not support a version")
+		}
+		opts.Kernel = filepath.Join(dir, kf.Unikraft.Source)
 	}
+
 	if kf.Libraries != nil {
 		// these are the same build process as kf.Unikraft
 		return BuildOpts{}, fmt.Errorf("library configuration not currently supported")
@@ -40,11 +55,18 @@ func KraftfileToBuildOpts(dir string, kf *kraftfile.Kraftfile) (BuildOpts, error
 	}
 
 	for _, target := range kf.Targets {
-		features := make([]string, 0, len(target.KConfig))
-		for _, kv := range target.KConfig {
+		kconfig := target.KConfig
+		if kf.Unikraft != nil {
+			kconfig = slices.Concat(kf.Unikraft.KConfig, kconfig)
+		}
+		features := make([]string, 0, len(kconfig))
+		for _, kv := range kconfig {
 			features = append(features, fmt.Sprintf("%s=%v", kv.Key, kv.Value))
 		}
-		version := fmt.Sprint(target.KConfig.Get("CONFIG_UK_FULLVERSION"))
+		var version string
+		if value, ok := kconfig.Lookup("CONFIG_UK_FULLVERSION"); ok {
+			version = fmt.Sprint(value)
+		}
 		opts.Platform = append(opts.Platform, ocispec.Platform{
 			Architecture: target.Arch,
 			OS:           target.Plat,
