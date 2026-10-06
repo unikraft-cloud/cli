@@ -15,6 +15,7 @@ import (
 
 	"unikraft.com/x/log"
 
+	"unikraft.com/cli/internal/jason"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/value"
 	xmaps "unikraft.com/cli/internal/x/maps"
@@ -26,6 +27,9 @@ type PatchSpec struct {
 	Set map[string][]string
 	Add map[string][]string
 	Del map[string][]string
+
+	// SetItems holds jason items for a field, decoded into its type.
+	SetItems map[string][]jason.Item
 
 	// SetTyped skips parsing for values that already are the field's type.
 	// It takes precedence over Set.
@@ -45,6 +49,11 @@ func (spec *PatchSpec) Keys() iter.Seq[string] {
 			}
 		}
 		for key := range spec.Del {
+			if !yield(key) {
+				return
+			}
+		}
+		for key := range spec.SetItems {
 			if !yield(key) {
 				return
 			}
@@ -89,6 +98,7 @@ func PatchedFields(ctx context.Context, fields []resource.Field, spec PatchSpec)
 
 		typed, hasTyped := spec.SetTyped[keyStr]
 		strs, hasStrs := spec.Set[keyStr]
+		items, hasItems := spec.SetItems[keyStr]
 
 		typedFits := hasTyped && original.Set != nil &&
 			reflect.TypeOf(typed) == reflect.TypeOf(original.Set)
@@ -104,20 +114,29 @@ func PatchedFields(ctx context.Context, fields []resource.Field, spec PatchSpec)
 		}
 
 		switch {
-		case original.Set == nil && (hasTyped || hasStrs):
+		case original.Set == nil && (hasTyped || hasStrs || hasItems):
 			setForbiddenFields[keyStr] = struct{}{}
-		case typedFits || hasStrs:
+		case hasStrs && hasItems:
+			return nil, fmt.Errorf("failed to unpack set value for %s: cannot mix <name>=<value> with items", keyStr)
+		case typedFits || hasStrs || hasItems:
 			var set any
-			if hasStrs {
+			switch {
+			case hasStrs:
 				parsed, err := value.ParseNew(strs, original.Set)
 				if err != nil {
 					return nil, fmt.Errorf("failed to unpack set value for %s: %w", keyStr, err)
 				}
 				set = parsed
+			case hasItems:
+				parsed := reflect.New(reflect.TypeOf(original.Set))
+				if err := jason.UnmarshalItems(items, parsed.Interface()); err != nil {
+					return nil, fmt.Errorf("failed to unpack set value for %s: %w", keyStr, err)
+				}
+				set = parsed.Elem().Interface()
 			}
 			if typedFits {
 				typedFields[keyStr] = struct{}{}
-				set = mergeSet(set, typed, hasStrs)
+				set = mergeSet(set, typed, hasStrs || hasItems)
 			}
 			*patch = &resource.Patch{Set: set}
 		case spec.Create && original.Set != nil && !value.IsZero(original.Set):

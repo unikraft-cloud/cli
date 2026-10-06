@@ -302,8 +302,8 @@ Fields:
   delete-lock
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the volume.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the volume. Use <name> <key>=<value> ... to set a structured field by key.
       --visual
           Open an editor to modify fields visually.
       --cmd
@@ -376,8 +376,8 @@ Examples:
   unikraft volume clone demo-volume --name demo-volume-clone
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the volume.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the volume. Use <name> <key>=<value> ... to set a structured field by key.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -587,8 +587,8 @@ Fields:
   delete-lock
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the volume.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the volume. Use <name> <key>=<value> ... to set a structured field by key.
       --add=<name>=<value> ..., --add-file=<name>=<filename> ...
           Key-value pairs to add to the volume.
       --del=<name>=<value> ..., --del-file=<name>=<filename> ...
@@ -902,8 +902,8 @@ Fields:
   volume
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the volume-template.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the volume-template. Use <name> <key>=<value> ... to set a structured field by key.
       --visual
           Open an editor to modify fields visually.
       --cmd
@@ -965,8 +965,8 @@ Fields:
   volume
 
 Flags:
-      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
-          Key-value pairs to set on the volume-template.
+      --set=<name>=<value>, --set-file=<name>=<filename> ...
+          Key-value pairs to set on the volume-template. Use <name> <key>=<value> ... to set a structured field by key.
       --add=<name>=<value> ..., --add-file=<name>=<filename> ...
           Key-value pairs to add to the volume-template.
       --del=<name>=<value> ..., --del-file=<name>=<filename> ...

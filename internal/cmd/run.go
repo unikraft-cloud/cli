@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"unikraft.com/cloud/sdk/platform/group"
@@ -20,6 +21,7 @@ import (
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/muxreader"
 	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/resource/cmd"
 )
 
 // InstanceRunCmd is a convenience wrapper around `instance create` that adds
@@ -105,8 +107,14 @@ func (InstanceRunCmd) Examples() []kingkong.Example {
 
 func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
 	// Unlike create, run starts the instance unless told otherwise.
-	if !c.GeneratedFlags().IsSet("autostart") {
-		c.Set = append(c.Set, map[string]string{"autostart": "true"})
+	setsAutostart := slices.ContainsFunc(c.Set, func(s cmd.SetValue) bool {
+		return s.Key == "autostart"
+	}) || slices.ContainsFunc(c.SetFile, func(m map[string]string) bool {
+		_, ok := m["autostart"]
+		return ok
+	})
+	if !c.GeneratedFlags().IsSet("autostart") && !setsAutostart {
+		c.Set = append(c.Set, cmd.SetValue{Key: "autostart", Value: "true"})
 	}
 	created, err := c.RunResources(ctx, stdio, partition)
 	if err != nil {

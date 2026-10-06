@@ -52,19 +52,19 @@ type ServiceGroup struct {
 		Hard uint64 `mirror:"service_group.hard_limit" field:",long" create:"set" edit:"set" flag:"hard-limit" help:"Hard limit." placeholder:"n" example:"10,100"`
 	}
 
-	Autokill Autokill `field:",embed" mirror:"service_group.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time the group must stay empty before it is deleted" placeholder:"<key>=<value>" example:"time=5m"`
+	Autokill Autokill `field:",embed" mirror:"service_group.autokill" create:"set" edit:"set" flag:"autokill" type:"jason" help:"Autokill options.\n  time: time the group must stay empty before it is deleted" placeholder:"<key>=<value>" example:"time=5m"`
 
 	Timestamps struct {
 		Created types.RelativeTime `mirror:"service_group.created_at" field:",short"`
 	}
 
-	Domains []Domain `mirror:"service_group.domains" field:",embed" create:"set" edit:"set,add,del" flag:"domain" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
+	Domains []Domain `mirror:"service_group.domains" field:",embed" create:"set" edit:"set,add,del" flag:"domain" type:"jason" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
 
 	Instances []struct {
 		Link[Instance]
 	} `mirror:"service_group.instances"`
 
-	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del" flag:"service" sep:"none" help:"Service port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
+	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del" flag:"service" type:"jason" sep:"none" help:"Service port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
 
 	ServiceGroup platform.ServiceGroup `field:"-" json:"service_group"`
 

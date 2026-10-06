@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -18,39 +19,57 @@ import (
 
 const maxArrayIndex = 10_000
 
-// parsedItem stores one parsed nested-item entry.
-type parsedItem struct {
-	// path holds the bracketed segments.
-	path []string
-	// value holds the right-hand side.
-	value string
-	// isRaw reports whether the value came from ':=' and should be decoded
-	// as JSON.
-	isRaw bool
+// Item is one parsed nested-item entry.
+type Item struct {
+	// Path holds the bracketed segments.
+	Path []string
+	// Value holds the right-hand side.
+	Value string
+	// Raw reports whether the value came from ':=', or is a root JSON
+	// literal, and should be decoded as JSON.
+	Raw bool
 }
 
 // buildNestedJSON converts nested-item input into JSON bytes.
-//
-// It builds an intermediate tree, merges root-level JSON literals when needed,
-// and returns JSON that can be unmarshaled into the target value.
 func buildNestedJSON(input string) ([]byte, error) {
+	items, err := parseItems(input)
+	if err != nil {
+		return nil, err
+	}
+	root, err := buildTree(items)
+	if err != nil {
+		return nil, err
+	}
+	data, err := json.Marshal(root)
+	if err != nil {
+		return nil, fmt.Errorf("marshal: %w", err)
+	}
+	return data, nil
+}
+
+// parseItems splits and parses whitespace-separated nested-item input.
+func parseItems(input string) ([]Item, error) {
 	items, err := splitItems(input)
 	if err != nil {
 		return nil, err
 	}
-
-	parsed := make([]parsedItem, 0, len(items))
-	hasArrayRoot := false
+	parsed := make([]Item, 0, len(items))
 	for _, item := range items {
-		p, err := parseItem(item)
+		p, err := ParseItem(item)
 		if err != nil {
 			return nil, err
 		}
-		if len(p.path) > 0 && p.path[0] == "" {
-			hasArrayRoot = true
-		}
 		parsed = append(parsed, p)
 	}
+	return parsed, nil
+}
+
+// buildTree assigns every item into an intermediate tree, merging root-level
+// JSON literals when needed. Literal ('=') values are left as [literal].
+func buildTree(parsed []Item) (any, error) {
+	hasArrayRoot := slices.ContainsFunc(parsed, func(p Item) bool {
+		return len(p.Path) > 0 && p.Path[0] == ""
+	})
 
 	var root any
 	if hasArrayRoot {
@@ -61,14 +80,14 @@ func buildNestedJSON(input string) ([]byte, error) {
 
 	for _, p := range parsed {
 		var val any
-		if p.isRaw {
-			if err := json.Unmarshal([]byte(p.value), &val); err != nil {
-				return nil, fmt.Errorf("invalid raw JSON value %q: %w", p.value, err)
+		if p.Raw {
+			if err := json.Unmarshal([]byte(p.Value), &val); err != nil {
+				return nil, fmt.Errorf("invalid raw JSON value %q: %w", p.Value, err)
 			}
 		} else {
-			val = p.value
+			val = literal(p.Value)
 		}
-		path := p.path
+		path := p.Path
 		if len(path) > 0 && path[0] == "" {
 			path = path[1:]
 		}
@@ -77,7 +96,7 @@ func buildNestedJSON(input string) ([]byte, error) {
 		if len(path) == 0 {
 			if m, ok := val.(map[string]any); ok {
 				if hasArrayRoot {
-					return nil, fmt.Errorf("cannot merge a JSON object literal into an array-rooted body: %q", p.value)
+					return nil, fmt.Errorf("cannot merge a JSON object literal into an array-rooted body: %q", p.Value)
 				}
 				rootMap, ok := root.(map[string]any)
 				if !ok {
@@ -97,11 +116,7 @@ func buildNestedJSON(input string) ([]byte, error) {
 		}
 	}
 
-	data, err := json.Marshal(root)
-	if err != nil {
-		return nil, fmt.Errorf("marshal: %w", err)
-	}
-	return data, nil
+	return root, nil
 }
 
 // scanSegment reads one path segment from the start of s.
@@ -149,7 +164,7 @@ func splitItems(s string) ([]string, error) {
 			s = rest
 			continue
 		}
-		if _, err := parseItem(s); err != nil {
+		if _, err := ParseItem(s); err != nil {
 			return nil, err
 		}
 		return append(items, s), nil
@@ -166,7 +181,7 @@ func splitItemPrefix(s string) (item string, rest string, ok bool) {
 		if unicode.IsSpace(r) {
 			candidate := s[:i]
 			if candidate != "" {
-				if p, err := parseItem(candidate); err == nil && isCompleteCandidate(p) {
+				if p, err := ParseItem(candidate); err == nil && isCompleteCandidate(p) {
 					next := trimLeftIndex(s, i)
 					if next >= len(s) || startsItem(s[next:]) {
 						return candidate, s[next:], true
@@ -196,11 +211,11 @@ func splitItemPrefix(s string) (item string, rest string, ok bool) {
 // later token happens to look like the start of a new item — otherwise a
 // value like `data:={"a": 1 , "b": 2}` can be split apart at the interior
 // space before the comma.
-func isCompleteCandidate(p parsedItem) bool {
-	if !p.isRaw {
+func isCompleteCandidate(p Item) bool {
+	if !p.Raw {
 		return true
 	}
-	return json.Valid([]byte(p.value))
+	return json.Valid([]byte(p.Value))
 }
 
 // startsItem reports whether s begins with a valid nested-item input.
@@ -215,7 +230,7 @@ func startsItem(s string) bool {
 	if i := strings.IndexFunc(s, unicode.IsSpace); i >= 0 {
 		s = s[:i]
 	}
-	_, err := parseItem(s)
+	_, err := ParseItem(s)
 	return err == nil
 }
 
@@ -293,44 +308,42 @@ func parseAssignmentOp(item string, pos int) (isRaw bool, valuePos int, err erro
 	}
 }
 
-// parseItem splits a single item string into path segments and value.
+// ParseItem splits a single item string into path segments and value.
 // Input forms:
 //
-//	foo=bar           → path=["foo"],          value="bar",   isRaw=false
-//	foo:=42           → path=["foo"],          value="42",    isRaw=true
-//	foo[bar][]=x      → path=["foo","bar",""], value="x",     isRaw=false
-//	[0][key]=val      → path=["0","key"],       value="val",  isRaw=false
-//	{"key":"val"}     → path=[],               value=JSON,    isRaw=true
-//	[1,2,3]           → path=[],               value=JSON,    isRaw=true
-//
-// parseItem splits one nested-item string into path segments and a value.
+//	foo=bar           → Path=["foo"],          Value="bar",   Raw=false
+//	foo:=42           → Path=["foo"],          Value="42",    Raw=true
+//	foo[bar][]=x      → Path=["foo","bar",""], Value="x",     Raw=false
+//	[0][key]=val      → Path=["0","key"],       Value="val",  Raw=false
+//	{"key":"val"}     → Path=[],               Value=JSON,    Raw=true
+//	[1,2,3]           → Path=[],               Value=JSON,    Raw=true
 //
 // Supported forms include:
 //   - key=value for literal strings
 //   - key:=value for raw JSON values
 //   - key[sub]=value for nested objects and arrays
 //   - standalone JSON objects or arrays at the root
-func parseItem(item string) (parsedItem, error) {
+func ParseItem(item string) (Item, error) {
 	trimmed := strings.TrimSpace(item)
 	if isJSONLiteral(trimmed) {
-		return parsedItem{
-			path:  nil,
-			value: trimmed,
-			isRaw: true,
+		return Item{
+			Path:  nil,
+			Value: trimmed,
+			Raw:   true,
 		}, nil
 	}
 
 	segments, pos, err := parsePathSegments(item)
 	if err != nil {
-		return parsedItem{}, err
+		return Item{}, err
 	}
 
 	isRaw, valuePos, err := parseAssignmentOp(item, pos)
 	if err != nil {
-		return parsedItem{}, err
+		return Item{}, err
 	}
 
-	return parsedItem{path: segments, value: item[valuePos:], isRaw: isRaw}, nil
+	return Item{Path: segments, Value: item[valuePos:], Raw: isRaw}, nil
 }
 
 // assignAtPath walks path and assigns val at the leaf container.

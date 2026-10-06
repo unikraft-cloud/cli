@@ -657,7 +657,7 @@ func TestPartialResultsPrintedBeforeError(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			Set:    []map[string]string{{"name": "created"}},
+			Set:    SetValues{{Key: "name", Value: "created"}},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
 		err := cmd.Run(ctx, testStdio(&out), nil)
@@ -776,7 +776,7 @@ func TestPartialResultsOrderWhenCallerPrintsError(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			Set:    []map[string]string{{"name": "created"}},
+			Set:    SetValues{{Key: "name", Value: "created"}},
 			Output: Printer{Type: PrinterTypeKeyValue},
 		}
 		err := cmd.Run(ctx, testStdio(&out), nil)
@@ -1108,10 +1108,10 @@ func TestCreateOutput(t *testing.T) {
 		t.Helper()
 		var out bytes.Buffer
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
-			Set: []map[string]string{
-				{"name": "test-output"},
-				{"settings.foo": "100"},
-				{"settings.bar": "created"},
+			Set: SetValues{
+				{Key: "name", Value: "test-output"},
+				{Key: "settings.foo", Value: "100"},
+				{Key: "settings.bar", Value: "created"},
 			},
 			Output: printer,
 		}
@@ -1136,10 +1136,10 @@ func TestCreateDryRun(t *testing.T) {
 	var out bytes.Buffer
 	cmd := &ResourceCreateCmd[resourcet.TestResource]{
 		DryRun: true,
-		Set: []map[string]string{
-			{"name": "test-dry"},
-			{"settings.foo": "100"},
-			{"settings.bar": "created"},
+		Set: SetValues{
+			{Key: "name", Value: "test-dry"},
+			{Key: "settings.foo", Value: "100"},
+			{Key: "settings.bar", Value: "created"},
 		},
 	}
 	err := cmd.Run(ctx, testStdio(&out), partition)
@@ -1170,7 +1170,7 @@ func TestCreateDryRunWithGeneratedZeroValues(t *testing.T) {
 
 		cmd := &ResourceCreateCmd[resourcet.TestResource]{
 			DryRun: true,
-			Set:    []map[string]string{{"name": name}},
+			Set:    SetValues{{Key: "name", Value: name}},
 		}
 		set, err := cmd.BuildFlags()
 		require.NoError(t, err)
@@ -1206,7 +1206,7 @@ func TestCreatePatchSpecFileArgs(t *testing.T) {
 	setTextFile := tempFile(t, " created\n")
 
 	cmd := &ResourceCreateCmd[resourcet.TestResource]{
-		Set: []map[string]string{{"name": "test-inline"}},
+		Set: SetValues{{Key: "name", Value: "test-inline"}},
 		SetFile: []map[string]string{
 			{"name": nameFile},
 			{"settings.foo": setFile},
@@ -1320,8 +1320,8 @@ func TestEditOutput(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceEditCmd[resourcet.TestResource]{
 			Target: "test-edit",
-			Set: []map[string]string{
-				{"settings.foo": "999"},
+			Set: SetValues{
+				{Key: "settings.foo", Value: "999"},
 			},
 			Output: printer,
 		}
@@ -1356,9 +1356,9 @@ func TestEditDryRun(t *testing.T) {
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
 		Target: "test-edit",
 		DryRun: true,
-		Set: []map[string]string{
-			{"settings.foo": "999"},
-			{"settings.bar": "modified"},
+		Set: SetValues{
+			{Key: "settings.foo", Value: "999"},
+			{Key: "settings.bar", Value: "modified"},
 		},
 	}
 	err := cmd.Run(ctx, testStdio(&out), partition)
@@ -1452,7 +1452,7 @@ func TestEditPatchSpecFileArgs(t *testing.T) {
 	delFile := tempFile(t, " old-entry\n")
 
 	cmd := &ResourceEditCmd[resourcet.TestResource]{
-		Set:     []map[string]string{{"settings.bar": "inline"}},
+		Set:     SetValues{{Key: "settings.bar", Value: "inline"}},
 		SetFile: []map[string]string{{"settings.foo": setFile}},
 		Add:     []map[string]string{{"authors": "inline-entry"}},
 		AddFile: []map[string]string{{"authors": addFile}},
