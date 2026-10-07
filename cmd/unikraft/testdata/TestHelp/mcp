@@ -10,6 +10,11 @@ when given keys. Instances additionally get `instance_control` for start, stop,
 restart and suspend, and `instance_logs`. The tools use the current profile and
 fan out across its metros exactly like the matching CLI commands do.
 
+Pass `--resources` with a comma-separated list of resource types to serve
+only their tools, such as `--resources instance,volume,metro`; the names
+are the prefixes of the tool names. A shorter tool list costs an assistant
+less context on every turn.
+
 The documentation is served as resources: `unikraft://docs` is the table of
 contents and `unikraft://docs/<path>` a page, such as
 `unikraft://docs/cli/fields`.
@@ -43,6 +48,9 @@ Examples:
   # Serve only the tools that cannot change anything
   unikraft mcp --read-only
 
+  # Serve only the instance, volume and metro tools
+  unikraft mcp --resources instance,volume,metro
+
   # Serve another profile with debug logs on stderr
   unikraft mcp --profile staging --log-level debug
 
@@ -55,6 +63,8 @@ Examples:
 Flags:
       --read-only
           Expose only the tools that cannot change anything: list, image_get and instance_logs.
+      --resources=<type,...> ...
+          Serve only the tools of these resource types, such as instance, volume or metro; the names are the prefixes of the tool names. Defaults to every type.
       --docs-url=<url> ($UNIKRAFT_DOCS_URL)
           Documentation site served as resources. Pass an empty value to serve none.
           [default: https://unikraft.com/docs/]

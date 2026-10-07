@@ -37,7 +37,11 @@ var examplePreference = []string{
 }
 
 func toolName(typeName, op string) string {
-	return strings.NewReplacer("-", "_", " ", "_").Replace(strings.ToLower(typeName)) + "_" + op
+	return normalizeName(typeName) + "_" + op
+}
+
+func normalizeName(name string) string {
+	return strings.NewReplacer("-", "_", " ", "_").Replace(strings.ToLower(name))
 }
 
 func article(name string) string {

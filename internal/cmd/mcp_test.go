@@ -6,8 +6,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,7 +19,26 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/mcpserver"
 )
+
+func listMCPTools(t *testing.T, ctx context.Context, srv *mcpserver.Server) map[string]*mcp.Tool {
+	t.Helper()
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	_, err := srv.Connect(ctx, serverTransport)
+	require.NoError(t, err)
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil).Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	res, err := session.ListTools(ctx, nil)
+	require.NoError(t, err)
+	tools := make(map[string]*mcp.Tool, len(res.Tools))
+	for _, tool := range res.Tools {
+		tools[tool.Name] = tool
+	}
+	return tools
+}
 
 func TestMCPServerTools(t *testing.T) {
 	ctx := config.WithConfig(t.Context(), &config.Config{})
@@ -37,22 +59,8 @@ func TestMCPServerTools(t *testing.T) {
 		t.Run(fmt.Sprintf("read-only=%t", readOnly), func(t *testing.T) {
 			srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{ReadOnly: readOnly})
 			require.NoError(t, err)
-
-			clientTransport, serverTransport := mcp.NewInMemoryTransports()
-			_, err = srv.Connect(ctx, serverTransport)
-			require.NoError(t, err)
-			session, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil).Connect(ctx, clientTransport, nil)
-			require.NoError(t, err)
-			t.Cleanup(func() { _ = session.Close() })
-
-			res, err := session.ListTools(ctx, nil)
-			require.NoError(t, err)
-			tools := make(map[string]*mcp.Tool, len(res.Tools))
-			names := make([]string, 0, len(res.Tools))
-			for _, tool := range res.Tools {
-				tools[tool.Name] = tool
-				names = append(names, tool.Name)
-			}
+			tools := listMCPTools(t, ctx, srv)
+			names := slices.Collect(maps.Keys(tools))
 
 			assert.Subset(t, names, readOnlyTools)
 			assert.NotContains(t, names, "instance_get")
@@ -77,4 +85,17 @@ func TestMCPServerTools(t *testing.T) {
 			assert.Equal(t, []any{"start", "stop", "restart", "suspend"}, action["enum"])
 		})
 	}
+}
+
+func TestMCPServerResources(t *testing.T) {
+	ctx := config.WithConfig(t.Context(), &config.Config{})
+
+	srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "metro"}})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{
+		"instance_list", "instance_create", "instance_edit", "instance_delete", "instance_control", "instance_logs", "metro_list",
+	}, slices.Collect(maps.Keys(listMCPTools(t, ctx, srv))))
+
+	_, err = newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "nope"}})
+	assert.EqualError(t, err, "--resources: unknown resource types: nope; known: certificate, image, instance, instance_checkpoint, instance_template, metro, profile, service, volume, volume_template")
 }
