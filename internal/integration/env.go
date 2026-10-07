@@ -8,6 +8,8 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -15,12 +17,17 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/mitchellh/copystructure"
 	"github.com/stretchr/testify/require"
 
+	"unikraft.com/x/log"
+
+	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 )
 
@@ -42,6 +49,54 @@ func NewTestEnv(t *testing.T, unikraftPath string) *TestEnv {
 		configPath:    filepath.Join(dir, "config.yaml"),
 		partitionPath: filepath.Join(dir, "partition.json"),
 	}
+}
+
+// NewEnv builds the CLI and gives an environment with its own copy of the
+// test config, when one is available, and a partition whose resources are
+// torn down when the test ends. With online set, the test is skipped when
+// there is no config.
+func NewEnv(t *testing.T, online bool, teardown ...model.Model) *TestEnv {
+	t.Helper()
+	env := NewTestEnv(t, BuildUnikraft(t))
+	remote, err := LoadRemote(t)
+	require.NoError(t, err)
+	if online && remote == nil {
+		t.Skip("online test requires config, but no config found")
+	}
+	if remote != nil {
+		cloned, err := copystructure.Copy(remote)
+		require.NoError(t, err)
+		env.Remote = cloned.(*Remote)
+		env.Config.Path = env.configPath
+		require.NoError(t, env.Config.Save())
+	}
+
+	logger, err := log.New(t.Context(), log.Config{Sink: t.Output(), Type: log.TextType, Level: log.TraceLevel})
+	require.NoError(t, err)
+	ctx := log.WithLogger(t.Context(), logger)
+	t.Cleanup(func() {
+		if env.Remote != nil {
+			ctx = config.WithConfig(ctx, env.Config)
+		}
+		if _, err := os.Stat(env.partitionPath); os.IsNotExist(err) {
+			return
+		}
+		partition, err := model.LoadPartition(env.partitionPath, teardown...)
+		require.NoError(t, err)
+		require.NotNil(t, partition)
+		require.NoError(t, partition.Teardown(context.WithoutCancel(ctx)))
+	})
+	return env
+}
+
+var (
+	uniqSeed    = strings.ToLower(rand.Text()[:6])
+	uniqCounter atomic.Uint64
+)
+
+// Uniq gives a name suffix that is unique across the test binary.
+func Uniq() string {
+	return fmt.Sprintf("%s%06x", uniqSeed, uniqCounter.Add(1))
 }
 
 func (env *TestEnv) WithRemote(remote *Remote, configPath string) *TestEnv {
