@@ -40,31 +40,31 @@ type ServicesCmd struct {
 }
 
 type ServiceGroup struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
-	Name  string          `mirror:"service_group.name" field:",short" create:"set" flag:"name" help:"Service group name." placeholder:"name"`
-	UUID  string          `mirror:"service_group.uuid" field:",long"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"service_group.name" field:",short" create:"set" flag:"name" help:"Service group name. Generated when omitted." placeholder:"name"`
+	UUID  string          `mirror:"service_group.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	Persistent bool `mirror:"service_group.persistent" field:",long"`
-	Autoscale  bool `mirror:"service_group.autoscale" field:",short"`
+	Persistent bool `mirror:"service_group.persistent" field:",long" help:"False when an instance created the group inline, in which case it is deleted with that instance."`
+	Autoscale  bool `mirror:"service_group.autoscale" field:",short" help:"Whether autoscale is configured for the group."`
 
 	Limits struct {
-		Soft uint64 `mirror:"service_group.soft_limit" field:",long" create:"set" edit:"set" flag:"soft-limit" help:"Soft limit." placeholder:"n" example:"1,5"`
-		Hard uint64 `mirror:"service_group.hard_limit" field:",long" create:"set" edit:"set" flag:"hard-limit" help:"Hard limit." placeholder:"n" example:"10,100"`
+		Soft uint64 `mirror:"service_group.soft_limit" field:",long" create:"set" edit:"set" flag:"soft-limit" help:"Concurrent requests per instance before the load balancer wakes a standby instance of the group. Between 1 and 65535, defaults to 1." placeholder:"n" example:"1,5"`
+		Hard uint64 `mirror:"service_group.hard_limit" field:",long" create:"set" edit:"set" flag:"hard-limit" help:"Maximum concurrent requests per instance. Between 1 and 65535, defaults to 65535, and at least the soft limit. Excess requests go to another instance or fail." placeholder:"n" example:"10,100"`
 	}
 
-	Autokill Autokill `field:",embed" mirror:"service_group.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time the group must stay empty before it is deleted" placeholder:"<key>=<value>" example:"time=5m"`
+	Autokill Autokill `field:",embed" mirror:"service_group.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time the group must stay without instances before it is deleted, such as 5m, 0 disables" placeholder:"<key>=<value>" example:"time=5m"`
 
 	Timestamps struct {
-		Created types.RelativeTime `mirror:"service_group.created_at" field:",short"`
+		Created types.RelativeTime `mirror:"service_group.created_at" field:",short" help:"Creation time."`
 	}
 
-	Domains []Domain `mirror:"service_group.domains" field:",embed" create:"set" edit:"set,add,del" flag:"domain" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
+	Domains []Domain `mirror:"service_group.domains" field:",embed" create:"set" edit:"set,add,del" flag:"domain" sep:"none" help:"Domain for the group. Up to 8 per group.\n  myapp: a bare label becomes a subdomain of the metro\n  example.com: a dotted name is a custom domain, with a certificate issued automatically unless given as name=example.com,certificate=my-cert" placeholder:"fqdn" example:"example.com,myapp"`
 
 	Instances []struct {
 		Link[Instance]
 	} `mirror:"service_group.instances"`
 
-	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del" flag:"service" sep:"none" help:"Service port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
+	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del" flag:"service" sep:"none" help:"Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.\n  http: load balance per HTTP request instead of per TCP connection\n  tls: terminate TLS at the platform\n  redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect" placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls,80:443/http+redirect"`
 
 	ServiceGroup platform.ServiceGroup `field:"-" json:"service_group"`
 
@@ -72,9 +72,9 @@ type ServiceGroup struct {
 }
 
 type Service struct {
-	Source      uint32                       `mirror:"port" json:"source" field:",short"`
-	Destination uint32                       `mirror:"destination_port" json:"destination" field:",short"`
-	Handlers    []platform.ConnectionHandler `mirror:"handlers" json:"handlers" field:",short"`
+	Source      uint32                       `mirror:"port" json:"source" field:",short" help:"Public port."`
+	Destination uint32                       `mirror:"destination_port" json:"destination" field:",short" help:"Port the instance listens on."`
+	Handlers    []platform.ConnectionHandler `mirror:"handlers" json:"handlers" field:",short" help:"Connection handlers: http, tls, redirect."`
 }
 
 func (s *Service) MarshalText() ([]byte, error) {

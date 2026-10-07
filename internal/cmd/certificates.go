@@ -35,25 +35,25 @@ type CertificatesCmd struct {
 }
 
 type Certificate struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
-	Name  string          `mirror:"certificate.name" field:",short" create:"set" flag:"name" help:"Certificate name." placeholder:"name"`
-	UUID  string          `mirror:"certificate.uuid" field:",long"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"certificate.name" field:",short" create:"set" flag:"name" help:"Certificate name. Generated when omitted." placeholder:"name"`
+	UUID  string          `mirror:"certificate.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	CommonName   string `mirror:"certificate.common_name" field:",short"`
-	Subject      string `mirror:"certificate.subject" field:",long"`
-	Issuer       string `mirror:"certificate.issuer" field:",long"`
-	SerialNumber string `mirror:"certificate.serial_number" field:",long"`
+	CommonName   string `mirror:"certificate.common_name" field:",short" help:"Common name: the fully qualified domain name the certificate is for."`
+	Subject      string `mirror:"certificate.subject" field:",long" help:"Subject distinguished name, present once issued."`
+	Issuer       string `mirror:"certificate.issuer" field:",long" help:"Issuing certificate authority."`
+	SerialNumber string `mirror:"certificate.serial_number" field:",long" help:"Serial number assigned by the issuer."`
 
-	State types.CertificateState `mirror:"certificate.state" field:",short"`
+	State types.CertificateState `mirror:"certificate.state" field:",short" help:"Lifecycle state: pending (being issued or validated), valid or error (issuing failed after several attempts)."`
 
-	CN    string `field:"cn,invisible,valueless" create:"set,required" flag:"common-name" aliases:"cn" help:"Certificate common name." placeholder:"fqdn" example:"demo.unikraft.dev."`
-	Chain string `field:"chain,invisible,valueless" create:"set,required" flag-file:"chain" help:"Certificate chain file." placeholder:"file"`
-	Pkey  string `field:"pkey,invisible,valueless" create:"set,required" flag-file:"private-key" aliases:"pkey" help:"Certificate private key file." placeholder:"file"`
+	CN    string `field:"cn,invisible,valueless" create:"set,required" flag:"common-name" aliases:"cn" help:"Common name: the fully qualified domain name the certificate is for, with a trailing dot." placeholder:"fqdn" example:"demo.unikraft.dev."`
+	Chain string `field:"chain,invisible,valueless" create:"set,required" flag-file:"chain" help:"PEM certificate chain: the certificate followed by any intermediates." placeholder:"file"`
+	Pkey  string `field:"pkey,invisible,valueless" create:"set,required" flag-file:"private-key" aliases:"pkey" help:"PEM private key matching the certificate chain." placeholder:"file"`
 
 	Timestamps struct {
-		Created   types.RelativeTime `mirror:"certificate.created_at" field:",short"`
-		NotBefore types.RelativeTime `mirror:"certificate.not_before" field:",long"`
-		NotAfter  types.RelativeTime `mirror:"certificate.not_after" field:",short"`
+		Created   types.RelativeTime `mirror:"certificate.created_at" field:",short" help:"Creation time."`
+		NotBefore types.RelativeTime `mirror:"certificate.not_before" field:",long" help:"Start of the validity period."`
+		NotAfter  types.RelativeTime `mirror:"certificate.not_after" field:",short" help:"Expiry. Renew before this time."`
 	}
 
 	Certificate platform.Certificate `field:"-" json:"certificate"`

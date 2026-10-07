@@ -36,23 +36,23 @@ type VolumeTemplatesCmd struct {
 }
 
 type VolumeTemplate struct {
-	Metro LinkName[Metro] `field:"metro,short"`
-	Name  string          `mirror:"volume.name" field:",short"`
-	UUID  string          `mirror:"volume.uuid" field:",long"`
+	Metro LinkName[Metro] `field:"metro,short" help:"Metro the template is in."`
+	Name  string          `mirror:"volume.name" field:",short" help:"Template name, unique per metro."`
+	UUID  string          `mirror:"volume.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	Tags       []string `mirror:"volume.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
-	DeleteLock bool     `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the template."`
+	Tags       []string `mirror:"volume.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-dev"`
+	DeleteLock bool     `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed."`
 
-	State      types.VolumeState   `mirror:"volume.state" field:",short"`
-	Size       types.SizeMebibytes `mirror:"volume.size_mb" field:",short"`
-	Filesystem string              `mirror:"volume.filesystem" field:",long"`
-	Persistent bool                `mirror:"volume.persistent" field:",long"`
+	State      types.VolumeState   `mirror:"volume.state" field:",short" help:"Lifecycle state: available (not attached), idle (attached to a stopped instance), mounted (in use by a running instance), busy (clone or resize in progress), uninitialized, initializing, error or template."`
+	Size       types.SizeMebibytes `mirror:"volume.size_mb" field:",short" help:"Volume size."`
+	Filesystem string              `mirror:"volume.filesystem" field:",long" help:"Filesystem of the volume: ext4 or virtiofs."`
+	Persistent bool                `mirror:"volume.persistent" field:",long" help:"False when an instance created the volume inline, in which case it is deleted with that instance."`
 
 	Timestamps struct {
-		Created types.RelativeTime `mirror:"volume.created_at" field:",short"`
+		Created types.RelativeTime `mirror:"volume.created_at" field:",short" help:"Creation time."`
 	}
 
-	VolumeRef string `field:"volume,invisible,valueless" create:"set,required" flag-arg:"volume" completion-predictor:"resource-key-volume" help:"Volume to convert into a template."`
+	VolumeRef string `field:"volume,invisible,valueless" create:"set,required" flag-arg:"volume" completion-predictor:"resource-key-volume" help:"Volume to turn into a template, by name or UUID."`
 
 	Volume  platform.Volume `field:"-" json:"volume"`
 	Profile *config.Profile `field:"-" json:"profile"`

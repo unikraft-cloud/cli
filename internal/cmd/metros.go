@@ -31,10 +31,10 @@ type MetrosCmd struct {
 }
 
 type Metro struct {
-	Name     string `field:",short" json:"name"`
-	Location string `field:",short" json:"location"`
-	Endpoint string `field:",short" json:"endpoint"`
-	Insecure *bool  `field:",long" json:"insecure"`
+	Name     string `field:",short" json:"name" help:"Metro name, such as fra."`
+	Location string `field:",short" json:"location" help:"Location of the metro from the profile configuration."`
+	Endpoint string `field:",short" json:"endpoint" help:"API endpoint URL of the metro."`
+	Insecure *bool  `field:",long" json:"insecure" help:"Skip TLS verification when connecting to the endpoint."`
 }
 
 func (Metro) Type() resource.Type {

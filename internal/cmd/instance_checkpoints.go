@@ -40,47 +40,47 @@ type InstanceCheckpointsCmd struct {
 }
 
 type InstanceCheckpoint struct {
-	MetroName LinkName[Metro] `mirror:"metro.name" field:"metro,short"`
-	Name      string          `mirror:"instance.name" field:",short"`
-	UUID      string          `mirror:"instance.uuid" field:",long"`
+	MetroName LinkName[Metro] `mirror:"metro.name" field:"metro,short" help:"Metro the checkpoint is in."`
+	Name      string          `mirror:"instance.name" field:",short" help:"Checkpoint name: a lowercase DNS label of up to 118 characters, unique per metro."`
+	UUID      string          `mirror:"instance.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Checkpoint tag." placeholder:"tag" example:"env-dev"`
-	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
-	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the checkpoint."`
+	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-dev"`
+	Annotations map[string]string `mirror:"instance.annotations" field:",long" help:"Key-value metadata: up to 256 entries with Kubernetes-style [prefix/]name keys. Unlike tags, annotations reach the guest in its start data."`
+	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed."`
 
-	Autokill Autokill `field:",embed" mirror:"instance.checkpoint_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time without a restore before the checkpoint is deleted" placeholder:"<key>=<value>" example:"time=24h"`
+	Autokill Autokill `field:",embed" mirror:"instance.checkpoint_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time since the checkpoint was last restored before it is deleted, such as 24h, 0 disables" placeholder:"<key>=<value>" example:"time=24h"`
 
-	State types.InstanceState    `mirror:"instance.state" field:",short"`
-	Image types.ImageRef         `mirror:"instance.image" field:",short"`
-	Type_ *platform.InstanceType `mirror:"instance.type" field:"type,long"`
+	State types.InstanceState    `mirror:"instance.state" field:",short" help:"Lifecycle state: stopped, starting, running, draining (finishing requests before a stop), stopping, standby (scaled to zero, woken by traffic), template, checkpoint or deleted."`
+	Image types.ImageRef         `mirror:"instance.image" field:",short" help:"Image of the checkpoint, as an OCI reference or a full registry URL."`
+	Type_ *platform.InstanceType `mirror:"instance.type" field:"type,long" help:"Virtual machine type.\n  micro: Firecracker microVM (default)\n  full: QEMU virtual machine with GPU support, needs a plan with full VM support and has no scale-to-zero, templates, branching or checkpoints"`
 
 	Runtime struct {
-		Args InstanceArgs      `mirror:"instance.args" field:",short"`
-		Env  map[string]string `mirror:"instance.env" field:",long"`
+		Args InstanceArgs      `mirror:"instance.args" field:",short" help:"Command-line arguments passed to the instance at start. Up to 128."`
+		Env  map[string]string `mirror:"instance.env" field:",long" help:"Environment variable as KEY=value. Up to 256."`
 	}
 
 	Resources struct {
-		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short"`
-		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short"`
+		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short" help:"Memory for the instance."`
+		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short" help:"Number of vCPUs."`
 	}
 
-	Volumes []InstanceTemplateVolume `mirror:"instance.volumes" field:",embed"`
+	Volumes []InstanceTemplateVolume `mirror:"instance.volumes" field:",embed" help:"Volumes attached to the instance."`
 
 	Snapshot struct {
-		UUID string `mirror:"instance.snapshot.uuid" field:",long"`
+		UUID string `mirror:"instance.snapshot.uuid" field:",long" help:"Snapshot holding the memory state."`
 	}
 
 	Timestamps struct {
-		Created types.RelativeTime `mirror:"instance.created_at" field:",short"`
+		Created types.RelativeTime `mirror:"instance.created_at" field:",short" help:"Creation time."`
 	}
 
-	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero"`
+	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" help:"Scale-to-zero options. Requires a service group.\n  policy: on | idle (also while open TCP connections are idle, needs stateful=true) | off\n  cooldown-time: ms of inactivity before scaling to zero (default 1000, minimum 100)\n  notify-time: ms the instance is warned beforehand, 0 disables and the value must be below cooldown-time\n  stateful: true keeps RAM in a snapshot and resumes from it, false restarts from scratch"`
 
 	Restart struct {
-		Policy string `mirror:"instance.restart_policy"`
+		Policy string `mirror:"instance.restart_policy" help:"Restart policy. Restarts back off from immediate up to 5m. Cannot be combined with the delete-on-stop feature.\n  never: never restart (default)\n  always: restart whenever the instance exits or crashes\n  on-failure: restart only after a crash"`
 	}
 
-	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to create a checkpoint from."`
+	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Running or stopped instance to checkpoint, by name or UUID. The source keeps running and the checkpoint waits for its snapshot."`
 
 	Instance platform.Instance `field:"-" json:"instance"`
 	Metro    *config.Metro     `field:"-" json:"metro"`
