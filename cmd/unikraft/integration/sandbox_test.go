@@ -90,7 +90,7 @@ func TestSandbox(t *testing.T) {
 		assert.Contains(t, out, "two words *")
 
 		// Naming the plugin explicitly addresses the same one the default does.
-		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--plugin", sandboxPlugin, "--", "echo", "named-plugin"})
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--plugin-name", sandboxPlugin, "--", "echo", "named-plugin"})
 		assert.Contains(t, out, "named-plugin")
 
 		// --dir runs the command from that directory, and --env is the whole

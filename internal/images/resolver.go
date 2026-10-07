@@ -8,8 +8,11 @@ package images
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"slices"
 	"strings"
 
@@ -93,21 +96,49 @@ func resolverOptions(profile *config.Profile, insecureRegistries []string, allIn
 		docker.WithPlainHTTP(httpHost),
 	}
 
-	return docker.ResolverOptions{
-		Headers: headers,
-		Hosts: fallbackHost(
-			insecureHosts(docker.ConfigureDefaultRegistries(opts...), insecureHost),
-			docker.ConfigureDefaultRegistries(append(opts, docker.WithHostTranslator(func(s string) (string, error) {
-				if profile != nil {
-					for _, metro := range profile.Metros {
-						if s == metro.Index().Host {
-							return DefaultRegistry, nil
-						}
+	hosts := fallbackHost(
+		insecureHosts(docker.ConfigureDefaultRegistries(opts...), insecureHost),
+		docker.ConfigureDefaultRegistries(append(opts, docker.WithHostTranslator(func(s string) (string, error) {
+			if profile != nil {
+				for _, metro := range profile.Metros {
+					if s == metro.Index().Host {
+						return DefaultRegistry, nil
 					}
 				}
-				return s, nil
-			}))...),
-		),
+			}
+			return s, nil
+		}))...),
+	)
+	if profile != nil && profile.RegistryMirror != "" {
+		hosts = mirrorHosts(hosts, profile.RegistryMirror)
+	}
+
+	return docker.ResolverOptions{
+		Headers: headers,
+		Hosts:   hosts,
+	}
+}
+
+// mirrorHosts sends the requests for the Unikraft registry to mirror.
+func mirrorHosts(hosts docker.RegistryHosts, mirror string) docker.RegistryHosts {
+	return func(host string) ([]docker.RegistryHost, error) {
+		u, err := url.Parse(mirror)
+		if err != nil {
+			return nil, fmt.Errorf("parsing registry mirror %q: %w", mirror, err)
+		}
+		hosts, err := hosts(host)
+		if err != nil {
+			return nil, err
+		}
+		for i, host := range hosts {
+			if slices.Contains(defaultRegistries, host.Host) {
+				host.Scheme = u.Scheme
+				host.Host = u.Host
+				host.Path = path.Join("/", u.Path, "v2")
+				hosts[i] = host
+			}
+		}
+		return hosts, nil
 	}
 }
 

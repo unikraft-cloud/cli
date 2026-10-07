@@ -19,10 +19,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/MakeNowJust/heredoc"
-	"github.com/distribution/reference"
 	"github.com/go-json-experiment/json/jsontext"
 	"mvdan.cc/sh/v3/shell"
 
@@ -42,7 +40,6 @@ import (
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/timeouts"
-	"unikraft.com/cli/internal/tunnel"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -108,9 +105,9 @@ type Instance struct {
 
 	State types.InstanceState `mirror:"instance.state" field:",short" edit:"set"`
 
-	Image      types.ImageRef[reference.Named] `mirror:"instance.image" field:",short" create:"set" edit:"set" flag:"image" help:"Image to deploy." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
-	PullPolicy *platform.PullPolicy            `field:"pull-policy,invisible,valueless" create:"set" flag:"pull-policy" help:"Image pull policy." placeholder:"policy" example:"always,never,if_not_present"`
-	Type_      *platform.InstanceType          `mirror:"instance.type" field:"type,long" create:"set" flag:"type" help:"Type of virtual machine to run. \"full\" requires a plan with full VM support." placeholder:"type" example:"micro,full"`
+	Image      types.ImageRef         `mirror:"instance.image" field:",short" create:"set" edit:"set" flag:"image" help:"Image to deploy." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
+	PullPolicy *platform.PullPolicy   `field:"pull-policy,invisible,valueless" create:"set" flag:"pull-policy" help:"Image pull policy." placeholder:"policy" example:"always,never,if_not_present"`
+	Type_      *platform.InstanceType `mirror:"instance.type" field:"type,long" create:"set" flag:"type" help:"Type of virtual machine to run. \"full\" requires a plan with full VM support." placeholder:"type" example:"micro,full"`
 
 	Runtime struct {
 		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set" flag:"args" help:"Arguments to pass to the instance." placeholder:"arg"`
@@ -734,29 +731,8 @@ func (i Instance) Fields(ctx context.Context) ([]resource.Field, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	for key, field := range resource.IterFields(result) {
-		if key.String() == "name" {
-			field.Hyperlink = i.hyperlink()
-		}
-	}
-
+	linkToConsole(ctx, result, i.Profile, "instances", i.Metro, i.Name)
 	return result, nil
-}
-
-func (i Instance) hyperlink() string {
-	if i.Profile == nil || i.Profile.ControlPlane == "" {
-		return ""
-	}
-	if i.Name == "" || i.Profile.Organization == "" {
-		return ""
-	}
-	return fmt.Sprintf(
-		"https://console.unikraft.cloud/org/%s/instances/%s/%s",
-		i.Profile.Organization,
-		i.Metro,
-		i.Name,
-	)
 }
 
 func (Instance) List(ctx context.Context) ([]resource.Resource, error) {
@@ -1093,8 +1069,8 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 		}
 		return platform.MutableInstancePropertyAnnotations, value.(map[string]string), nil
 	case "image":
-		ref := value.(types.ImageRef[reference.Named]).Reference
-		if ref == nil {
+		ref := value.(types.ImageRef)
+		if ref.Reference().IsZero() {
 			return zero, nil, fmt.Errorf("image cannot be empty")
 		}
 		return platform.MutableInstancePropertyImage, ref.String(), nil
@@ -1218,7 +1194,7 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 		case "metro":
 			metro = string(field.Create.Set.(LinkName[Metro]))
 		case "image":
-			if ref := field.Create.Set.(types.ImageRef[reference.Named]).Reference; ref != nil {
+			if ref := field.Create.Set.(types.ImageRef); !ref.Reference().IsZero() {
 				imageURL = ref.String()
 			}
 		case "pull-policy":
@@ -2283,34 +2259,4 @@ func (cmd InstancesTunnelCmd) Examples() []kingkong.Example {
 			Commands:    []string{"unikraft instance tunnel -p 5500 my-instance:8080"},
 		},
 	}
-}
-
-func (cmd *InstancesTunnelCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	targets, err := tunnel.ParseTargets(cmd.Targets, cmd.TunnelProxyPorts)
-	if err != nil {
-		return fmt.Errorf("could not parse targets: %w", err)
-	}
-
-	tun, err := tunnel.New(ctx, targets)
-	if err != nil {
-		return fmt.Errorf("could not create tunnel: %w", err)
-	}
-
-	g, err := multimetro.NewClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		// Detach from ctx so cleanup survives the same Ctrl-C that triggered
-		// it, but bound it so a stuck API call can't leave a still-billed
-		// proxy instance orphaned.
-		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-		defer cancel()
-		if err := tun.Close(closeCtx, g); err != nil {
-			log.G(ctx).Error().Err(err).Msg("could not terminate tunnel proxy")
-		}
-	}()
-
-	return tun.Run(ctx, g, cmd.ProxyControlPort, cmd.TunnelServiceImage)
 }

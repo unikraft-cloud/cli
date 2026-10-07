@@ -12,7 +12,7 @@ kernel:
   digest:     sha256:b3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
   media-type: application/vnd.unikraft.kernel.v1
   size:       4MiB
-kernel.dbg:
+kernel-dbg:
   digest:     sha256:d3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
   media-type: application/vnd.unikraft.kernel.v1
   size:       8MiB
@@ -41,7 +41,7 @@ kernel:
   media-type:  application/vnd.unikraft.kernel.v1
   annotations:
   size:        4MiB
-kernel.dbg:
+kernel-dbg:
   digest:      sha256:d3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
   media-type:  application/vnd.unikraft.kernel.v1
   annotations:
@@ -149,7 +149,7 @@ nginx  linux/amd64
     "verbosity": "long"
   },
   {
-    "name": "kernel.dbg",
+    "name": "kernel-dbg",
     "subfields": [
       {
         "name": "digest",

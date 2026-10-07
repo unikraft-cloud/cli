@@ -12,7 +12,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	xkong "unikraft.com/cli/internal/x/kong"
+	wkong "unikraft.com/cli/internal/w/kong"
 )
 
 func TestOptional(t *testing.T) {
@@ -88,7 +88,7 @@ func TestOptional(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var cli CLI
-			parser, err := kong.New(&cli, kong.NamedMapper("optional", xkong.Optional()))
+			parser, err := kong.New(&cli, kong.NamedMapper("optional", wkong.Optional()))
 			require.NoError(t, err)
 
 			_, err = parser.Parse(tt.args)

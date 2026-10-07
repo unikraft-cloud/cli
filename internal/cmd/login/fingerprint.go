@@ -12,7 +12,10 @@ import (
 )
 
 func getFingerprint() (controlplane.RequestSigninRequest, error) {
-	fp, err := fingerprint.New()
+	fp, err := fingerprint.New(
+		fingerprint.WithCpu(false),
+		fingerprint.WithMemory(false),
+	)
 	if err != nil {
 		return controlplane.RequestSigninRequest{}, err
 	}

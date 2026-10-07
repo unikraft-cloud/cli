@@ -15,7 +15,7 @@ import (
 
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/value"
-	xtime "unikraft.com/cli/internal/x/time"
+	wtime "unikraft.com/cli/internal/w/time"
 	"unikraft.com/x/filters"
 )
 
@@ -107,10 +107,10 @@ func (a *fieldAdaptor) compareValue(other string) (int, bool) {
 		return 0, false
 	}
 	if t, ok := asTime(a.field.Value); ok {
-		if parsed, err := xtime.ParseTime(other); err == nil {
+		if parsed, err := wtime.ParseTime(other); err == nil {
 			return value.Compare(t, parsed), true
 		}
-		if d, err := xtime.ParseDuration(other); err == nil {
+		if d, err := wtime.ParseDuration(other); err == nil {
 			return value.Compare(time.Since(t), d), true
 		}
 		return 0, false

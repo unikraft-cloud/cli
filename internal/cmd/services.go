@@ -207,7 +207,13 @@ func (s ServiceGroup) Raw() any {
 
 func (s ServiceGroup) Fields(ctx context.Context) ([]resource.Field, error) {
 	s.Metro = LinkName[Metro](defaultMetro(ctx, string(s.Metro)))
-	return resource.FieldsFromStruct(s)
+	result, err := resource.FieldsFromStruct(s)
+	if err != nil {
+		return nil, err
+	}
+	profile, _ := config.G(ctx).CurrentProfile()
+	linkToConsole(ctx, result, profile, "services", s.Metro, s.Name)
+	return result, nil
 }
 
 func (ServiceGroup) List(ctx context.Context) ([]resource.Resource, error) {

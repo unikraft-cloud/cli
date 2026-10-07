@@ -133,8 +133,8 @@ Fields:
   config, config.platform, config.cmd, config.env
   metadata, metadata.author, metadata.created
   kernel, kernel.digest, kernel.media-type, kernel.annotations, kernel.size
-  kernel.dbg, kernel.dbg.digest, kernel.dbg.media-type, kernel.dbg.annotations,
-  kernel.dbg.size
+  kernel-dbg, kernel-dbg.digest, kernel-dbg.media-type, kernel-dbg.annotations,
+  kernel-dbg.size
   initrd, initrd.digest, initrd.media-type, initrd.annotations, initrd.size
   roms, roms.*, roms.*.digest, roms.*.media-type, roms.*.annotations,
   roms.*.size

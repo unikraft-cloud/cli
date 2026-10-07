@@ -11,8 +11,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/distribution/reference"
-
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/kingkong"
@@ -49,9 +47,9 @@ type InstanceTemplate struct {
 
 	Autokill Autokill `field:",embed" mirror:"instance.template_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time without a clone before the template is deleted" placeholder:"<key>=<value>" example:"time=24h"`
 
-	State types.InstanceState             `mirror:"instance.state" field:",short"`
-	Image types.ImageRef[reference.Named] `mirror:"instance.image" field:",short"`
-	Type_ *platform.InstanceType          `mirror:"instance.type" field:"type,long"`
+	State types.InstanceState    `mirror:"instance.state" field:",short"`
+	Image types.ImageRef         `mirror:"instance.image" field:",short"`
+	Type_ *platform.InstanceType `mirror:"instance.type" field:"type,long"`
 
 	Runtime struct {
 		Args InstanceArgs      `mirror:"instance.args" field:",short"`
@@ -108,7 +106,12 @@ func (i InstanceTemplate) Raw() any {
 }
 
 func (i InstanceTemplate) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(i)
+	result, err := resource.FieldsFromStruct(i)
+	if err != nil {
+		return nil, err
+	}
+	linkToConsole(ctx, result, i.Profile, "instances/templates", i.Metro, i.Name)
+	return result, nil
 }
 
 func (InstanceTemplate) List(ctx context.Context) ([]resource.Resource, error) {

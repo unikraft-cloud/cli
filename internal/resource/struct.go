@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/ettle/strcase"
-	"unikraft.com/cli/internal/xsync"
+	wsync "unikraft.com/cli/internal/w/sync"
 )
 
 // FieldsFromStruct is a helper that converts a struct into a slice of Fields
@@ -450,7 +450,7 @@ func parsePatchEmpty(tp reflect.Type, tag string) (any, error) {
 
 // wireLazyCallbacks sets up ValueCallbacks on all fields for a LazyLoader.
 func wireLazyCallbacks(loader LazyLoader, fields []Field) {
-	loadFields := xsync.OnceCtxValues(func(ctx context.Context) ([]Field, error) {
+	loadFields := wsync.OnceCtxValues(func(ctx context.Context) ([]Field, error) {
 		populated, err := loader.Lazy(ctx)
 		if err != nil {
 			return nil, err

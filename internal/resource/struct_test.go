@@ -663,3 +663,23 @@ func TestFieldsFromStruct_EmbeddedLinkDetection(t *testing.T) {
 	assert.Equal(t, "service", linkType)
 	assert.Equal(t, "svc-123", linkKey.String())
 }
+
+func TestGetFieldRefByPathString(t *testing.T) {
+	type Item struct {
+		Name string `field:",short"`
+	}
+	type Sample struct {
+		Name  string `field:",short"`
+		Items []Item `field:",short"`
+	}
+
+	fields, err := FieldsFromStruct(Sample{Name: "a", Items: []Item{{Name: "x"}, {Name: "y"}}})
+	require.NoError(t, err)
+
+	t.Run("modifies in place", func(t *testing.T) {
+		result := GetFieldRefByPathString(fields, "name")
+		require.Len(t, result, 1)
+		result[0].Hyperlink = "link"
+		assert.Equal(t, "link", GetFieldByPathString(fields, "name")[0].Hyperlink)
+	})
+}

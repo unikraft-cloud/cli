@@ -27,7 +27,7 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/tabwriter"
-	xslices "unikraft.com/cli/internal/x/slices"
+	wslices "unikraft.com/cli/internal/w/slices"
 )
 
 type PrinterType string
@@ -275,7 +275,7 @@ func printTable(ctx context.Context, out io.Writer, fieldSpecs []string, base re
 		headers[i] = resource.PruneFields(headers[i])
 	}
 
-	headerPaths, headerFields := xslices.Collect2(resource.IterFields(headers))
+	headerPaths, headerFields := wslices.Collect2(resource.IterFields(headers))
 
 	profile := lipgloss.Writer.Profile
 	color := profile != colorprofile.NoTTY && profile != colorprofile.Ascii

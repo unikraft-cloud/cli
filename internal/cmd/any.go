@@ -14,7 +14,7 @@ import (
 
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
-	xslices "unikraft.com/cli/internal/x/slices"
+	wslices "unikraft.com/cli/internal/w/slices"
 	"unikraft.com/x/joinerrgroup"
 )
 
@@ -217,7 +217,7 @@ func (a AnyResource) Get(ctx context.Context, keys []string) ([]resource.Resourc
 		})
 	}
 	err := eg.Wait()
-	return xslices.Flatten(perBackend), err
+	return wslices.Flatten(perBackend), err
 }
 
 func (a AnyResource) List(ctx context.Context) ([]resource.Resource, error) {
@@ -243,7 +243,7 @@ func (a AnyResource) List(ctx context.Context) ([]resource.Resource, error) {
 		})
 	}
 	err := eg.Wait()
-	return xslices.Flatten(perBackend), err
+	return wslices.Flatten(perBackend), err
 }
 
 func (a AnyResource) Edit(ctx context.Context, key string, fields []resource.Field) error {

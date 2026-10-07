@@ -75,37 +75,48 @@ func TestParseCopyPath(t *testing.T) {
 }
 
 // TestSandboxPluginDefault pins that the plugin every sandbox command
-// addresses defaults to the plugin's own name, filled in by the parser.
+// addresses defaults to the plugin's own name, and the image it attaches when
+// missing to the plugin's default image, both filled in by the parser.
 func TestSandboxPluginDefault(t *testing.T) {
 	for _, tt := range []struct {
-		name   string
-		args   []string
-		plugin func(*UnikraftCLI) string
+		name  string
+		args  []string
+		flags func(*UnikraftCLI) (plugin, image string)
 	}{
 		{
-			name:   "shell",
-			args:   []string{"instance", "shell", "my-inst"},
-			plugin: func(cli *UnikraftCLI) string { return cli.Instances.Shell.Plugin },
+			name: "shell",
+			args: []string{"instance", "shell", "my-inst"},
+			flags: func(cli *UnikraftCLI) (string, string) {
+				return cli.Instances.Shell.PluginName, cli.Instances.Shell.PluginImage
+			},
 		},
 		{
-			name:   "exec",
-			args:   []string{"instance", "exec", "my-inst", "--", "echo", "hi"},
-			plugin: func(cli *UnikraftCLI) string { return cli.Instances.Exec.Plugin },
+			name: "exec",
+			args: []string{"instance", "exec", "my-inst", "--", "echo", "hi"},
+			flags: func(cli *UnikraftCLI) (string, string) {
+				return cli.Instances.Exec.PluginName, cli.Instances.Exec.PluginImage
+			},
 		},
 		{
-			name:   "copy",
-			args:   []string{"instance", "copy", "./a.txt", "my-inst:/tmp/a.txt"},
-			plugin: func(cli *UnikraftCLI) string { return cli.Instances.Copy.Plugin },
+			name: "copy",
+			args: []string{"instance", "copy", "./a.txt", "my-inst:/tmp/a.txt"},
+			flags: func(cli *UnikraftCLI) (string, string) {
+				return cli.Instances.Copy.PluginName, cli.Instances.Copy.PluginImage
+			},
 		},
 		{
-			name:   "write",
-			args:   []string{"instance", "write", "my-inst", "./a.txt", "/tmp/a.txt"},
-			plugin: func(cli *UnikraftCLI) string { return cli.Instances.Write.Plugin },
+			name: "write",
+			args: []string{"instance", "write", "my-inst", "./a.txt", "/tmp/a.txt"},
+			flags: func(cli *UnikraftCLI) (string, string) {
+				return cli.Instances.Write.PluginName, cli.Instances.Write.PluginImage
+			},
 		},
 		{
-			name:   "read",
-			args:   []string{"instance", "read", "my-inst", "/tmp/a.txt"},
-			plugin: func(cli *UnikraftCLI) string { return cli.Instances.Read.Plugin },
+			name: "read",
+			args: []string{"instance", "read", "my-inst", "/tmp/a.txt"},
+			flags: func(cli *UnikraftCLI) (string, string) {
+				return cli.Instances.Read.PluginName, cli.Instances.Read.PluginImage
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -115,7 +126,9 @@ func TestSandboxPluginDefault(t *testing.T) {
 
 			_, err = parser.Parse(tt.args)
 			require.NoError(t, err)
-			assert.Equal(t, plugin.PluginName, tt.plugin(&cli))
+			name, image := tt.flags(&cli)
+			assert.Equal(t, plugin.PluginName, name)
+			assert.Equal(t, defaultPluginImage, image)
 		})
 	}
 }

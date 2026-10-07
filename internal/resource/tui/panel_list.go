@@ -15,8 +15,9 @@ import (
 	"unikraft.com/cli/internal/resource"
 	resourcecmd "unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/tui/styles"
 	"unikraft.com/cli/internal/tui/uitui"
-	xslices "unikraft.com/cli/internal/x/slices"
+	wslices "unikraft.com/cli/internal/w/slices"
 )
 
 type listPanel struct {
@@ -135,13 +136,13 @@ func (p *listPanel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (p *listPanel) View() tea.View {
 	if p.err != nil {
-		return tea.NewView(uitui.ErrorStyle.Render(p.err.Error()))
+		return tea.NewView(styles.Error.Render(p.err.Error()))
 	}
 	if p.loading && len(p.rowKeys) == 0 {
-		return tea.NewView(uitui.HintStyle.Render("Loading..."))
+		return tea.NewView(styles.Hint.Render("Loading..."))
 	}
 	if len(p.rowKeys) == 0 {
-		return tea.NewView(uitui.HintStyle.Render("No results"))
+		return tea.NewView(styles.Hint.Render("No results"))
 	}
 
 	return tea.NewView(p.table.View())
@@ -170,7 +171,7 @@ func (p *listPanel) applyResources(resources []resource.Resource) {
 		fields[i] = resource.PruneFields(fields[i])
 	}
 
-	paths, headers := xslices.Collect2(resource.IterFields(fields))
+	paths, headers := wslices.Collect2(resource.IterFields(fields))
 	colPaths := make([]resource.FieldPath, 0, len(headers))
 	colHeaders := make([]string, 0, len(headers))
 	for i, header := range headers {

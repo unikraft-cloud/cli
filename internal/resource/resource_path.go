@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	xslices "unikraft.com/cli/internal/x/slices"
+	wslices "unikraft.com/cli/internal/w/slices"
 )
 
 // FieldPath represents a dot-separated path to a field in a resource.
@@ -107,6 +107,41 @@ func GetFieldByPathString(fields []Field, path string) []Field {
 	return GetFieldByPath(fields, ParseFieldPath(path))
 }
 
+// GetFieldRefByPath is like GetFieldByPath, but returns pointers to the
+// matching fields within fields, so callers can modify them in place.
+func GetFieldRefByPath(fields []Field, spec FieldPath) []*Field {
+	return getFieldRefByPath(nil, fields, spec)
+}
+
+// GetFieldRefByPathString is a convenience wrapper around GetFieldRefByPath
+// that parses the path string first.
+func GetFieldRefByPathString(fields []Field, path string) []*Field {
+	return GetFieldRefByPath(fields, ParseFieldPath(path))
+}
+
+func getFieldRefByPath(parent *Field, fields []Field, spec FieldPath) []*Field {
+	if len(spec) == 0 {
+		result := make([]*Field, 0, len(fields))
+		for i := range fields {
+			result = append(result, &fields[i])
+		}
+		return result
+	}
+
+	result := make([]*Field, 0)
+	for i := range fields {
+		field := &fields[i]
+		if spec[0] == field.Name || spec[0] == "*" && parent != nil && parent.Elem != nil {
+			if len(spec) == 1 {
+				result = append(result, field)
+			} else {
+				result = append(result, getFieldRefByPath(field, field.Subfields, spec[1:])...)
+			}
+		}
+	}
+	return result
+}
+
 func getFieldByPath(parent *Field, fields []Field, spec FieldPath) []Field {
 	if len(spec) == 0 {
 		return fields
@@ -136,7 +171,7 @@ func FilterFieldsByPath(fields []Field, specs []FieldPath, strict bool) ([]Field
 	field, missing := filterFieldsByPath(Field{
 		Subfields: fields,
 	}, specs, strict)
-	return field.Subfields, xslices.DedupeStringer(missing)
+	return field.Subfields, wslices.DedupeStringer(missing)
 }
 
 func filterFieldsByPath(field Field, specs []FieldPath, strict bool) (result Field, missing []FieldPath) {

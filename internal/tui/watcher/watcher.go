@@ -12,43 +12,14 @@ import (
 	"io"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
-
 	xio "unikraft.com/x/io"
 )
 
 func WatchOutput(ctx context.Context, interval time.Duration, out io.Writer, render func(io.Writer) error) error {
 	if xio.IsTTY(out) {
-		return watchOutputPretty(ctx, interval, xio.Unwrap(out), render)
+		return watchOutputPretty(ctx, interval, out, render)
 	}
 	return watchOutputPlain(ctx, interval, out, render)
-}
-
-func watchOutputPretty(ctx context.Context, interval time.Duration, out io.Writer, render func(io.Writer) error) error {
-	program := tea.NewProgram(
-		watchModel{underlying: out, render: render, interval: interval},
-		tea.WithOutput(out),
-		tea.WithContext(ctx),
-	)
-
-	finalModel, err := program.Run()
-	if errors.Is(err, tea.ErrInterrupted) || errors.Is(err, tea.ErrProgramKilled) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		if errors.Is(err, context.Canceled) {
-			return nil
-		}
-		return err
-	}
-
-	if model, ok := finalModel.(watchModel); ok && model.err != nil {
-		return model.err
-	}
-	return nil
 }
 
 func watchOutputPlain(ctx context.Context, interval time.Duration, out io.Writer, render func(io.Writer) error) error {

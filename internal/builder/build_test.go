@@ -563,3 +563,25 @@ func walkErofsInodes(t *testing.T, erofsImg *goerofs.Image) map[string]goerofs.I
 	walk("", erofsImg.RootNid())
 	return result
 }
+
+func TestFilterArchWithRuntimeSetsMatcher(t *testing.T) {
+	opts := BuildOpts{Runtime: "unikraft.io/official/base-compat"}
+	require.NoError(t, opts.FilterArch("arm64"))
+	require.Empty(t, opts.Platform)
+	require.NotNil(t, opts.PlatformMatcher)
+	require.True(t, opts.PlatformMatcher.Match(ocispec.Platform{OS: "fc", Architecture: "arm64"}))
+	require.False(t, opts.PlatformMatcher.Match(ocispec.Platform{OS: "fc", Architecture: "x86_64"}))
+}
+
+func TestFilterArchDeclaredTargets(t *testing.T) {
+	opts := BuildOpts{
+		Runtime: "unikraft.io/official/base-compat",
+		Platform: []ocispec.Platform{
+			{OS: "fc", Architecture: "x86_64"},
+			{OS: "fc", Architecture: "arm64"},
+		},
+	}
+	require.NoError(t, opts.FilterArch("arm64"))
+	require.Nil(t, opts.PlatformMatcher)
+	require.Equal(t, []ocispec.Platform{{OS: "fc", Architecture: "arm64"}}, opts.Platform)
+}

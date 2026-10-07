@@ -33,8 +33,8 @@ import (
 	"unikraft.com/cli/internal/logfmt"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
-	xkong "unikraft.com/cli/internal/x/kong"
-	xmaps "unikraft.com/cli/internal/x/maps"
+	wkong "unikraft.com/cli/internal/w/kong"
+	wmaps "unikraft.com/cli/internal/w/maps"
 )
 
 type UnikraftCLI struct {
@@ -60,9 +60,9 @@ type UnikraftCLI struct {
 	Profile ProfileCmd      `cmd:"" group:"cmd-config" help:"Manage Unikraft Cloud profiles." aliases:"profile,profiles" set:"name=profile" set:"names=profiles"`
 	Config  ConfigCmd       `cmd:"" group:"cmd-config" help:"Manage CLI configuration." aliases:"config,conf,cfg" set:"name=path" set:"names=paths"`
 
-	Completion kongcompletion.Completion `cmd:"" group:"cmd-utilities" completion-shell-default:"false" help:"Outputs shell code for initialising tab completions."`
-	Version    version.VersionCmd        `cmd:"" group:"cmd-utilities" help:"Show version information." aliases:"version,ver,v"`
-	Upgrade    UpgradeCmd                `cmd:"" group:"cmd-utilities" help:"Upgrade the Unikraft CLI to the latest version."`
+	Completion CompletionCmd      `cmd:"" group:"cmd-utilities" completion-shell-default:"false" help:"Outputs shell code for initialising tab completions."`
+	Version    version.VersionCmd `cmd:"" group:"cmd-utilities" help:"Show version information." aliases:"version,ver,v"`
+	Upgrade    UpgradeCmd         `cmd:"" group:"cmd-utilities" help:"Upgrade the Unikraft CLI to the latest version."`
 
 	SendAnalytics SendAnalyticsCmd `cmd:"" group:"cmd-utilities" help:"Send analytics payload (used internally for detached analytics)." name:"_send_analytics" hidden:""`
 }
@@ -227,7 +227,7 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 		return ctx, nil, nil, nil, jujuerrors.Annotate(err, "loading partition from environment")
 	}
 	if partition != nil {
-		partitioned := xmaps.OrderedKeys(partition.Keys)
+		partitioned := wmaps.OrderedKeys(partition.Keys)
 		slices.Sort(partitioned)
 		log.G(ctx).Debug().
 			Str("path", partition.Path).
@@ -366,7 +366,7 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 				Title: kingkong.Underline("Utilities") + ":",
 			},
 		}),
-		kong.NamedMapper("optional", xkong.Optional()),
+		kong.NamedMapper("optional", wkong.Optional()),
 		sandboxKongVars,
 	}
 

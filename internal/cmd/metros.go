@@ -17,7 +17,7 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
-	"unikraft.com/cli/internal/xsync"
+	wsync "unikraft.com/cli/internal/w/sync"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
@@ -97,7 +97,7 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 
 	const timeout = 5 * time.Second
 
-	resolveIPs := xsync.OnceCtxValues(func(ctx context.Context) ([]string, error) {
+	resolveIPs := wsync.OnceCtxValues(func(ctx context.Context) ([]string, error) {
 		if host == "" {
 			return nil, nil
 		}
@@ -126,7 +126,7 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 		return ips, nil
 	})
 
-	ip := xsync.OnceCtxValues(func(ctx context.Context) (any, error) {
+	ip := wsync.OnceCtxValues(func(ctx context.Context) (any, error) {
 		ips, err := resolveIPs(ctx)
 		if err != nil || len(ips) == 0 {
 			return "", nil
@@ -134,7 +134,7 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 		return ips, nil
 	})
 
-	ping := xsync.OnceCtxValues(func(ctx context.Context) (any, error) {
+	ping := wsync.OnceCtxValues(func(ctx context.Context) (any, error) {
 		if port == "" {
 			return "", nil
 		}
@@ -157,7 +157,7 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 		return types.PingLatency(elapsed), nil
 	})
 
-	online := xsync.OnceCtxValues(func(ctx context.Context) (any, error) {
+	online := wsync.OnceCtxValues(func(ctx context.Context) (any, error) {
 		log.G(ctx).Trace().Str("metro", i.Name).Msg("checking metro online status")
 		client := &http.Client{
 			Timeout:   timeout,

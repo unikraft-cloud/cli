@@ -29,7 +29,7 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/patch"
 	"unikraft.com/cli/internal/tui/watcher"
-	xkong "unikraft.com/cli/internal/x/kong"
+	wkong "unikraft.com/cli/internal/w/kong"
 	"unikraft.com/cloud/sdk/platform/group"
 )
 
@@ -126,7 +126,7 @@ func (cmd ResourceCmd[R]) Examples() []kingkong.Example {
 }
 
 type FormatOpts struct {
-	Field xkong.GreedyStrings `short:"f" help:"Specify which fields to include in the output."`
+	Field wkong.GreedyStrings `short:"f" help:"Specify which fields to include in the output."`
 
 	Output Printer `short:"o" help:"Output format. One of: kv, table, json, yaml, raw, quiet, template."`
 }
@@ -135,7 +135,7 @@ type ResourceListCmd[R resource.GettableListableResource] struct {
 	Targets []string            `arg:"" name:"target" optional:"" completion-predictor:"resource-key-${name}" help:"Target ${names} to list."`
 	Filter  []string            `help:"Filter output based on a field value." example:"name==my-instance,metro==fra" sep:"none"`
 	Watch   *time.Duration      `short:"w" help:"Watch for changes and refresh output. Defaults to 2s." type:"optional" placeholder:"duration"`
-	Sort    xkong.GreedyStrings `help:"Sort output by field values. Use - prefix for descending, + for ascending." example:"name,-timestamps.created-at"`
+	Sort    wkong.GreedyStrings `help:"Sort output by field values. Use - prefix for descending, + for ascending." example:"name,-timestamps.created-at"`
 
 	FormatOpts
 

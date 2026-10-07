@@ -15,7 +15,7 @@ import (
 
 	"github.com/ettle/strcase"
 
-	xmaps "unikraft.com/cli/internal/x/maps"
+	wmaps "unikraft.com/cli/internal/w/maps"
 )
 
 // HACK: splitTopLevel splits s on commas, skipping those inside a JSON value. Only a
@@ -299,7 +299,7 @@ func parseReflect(input []string, value reflect.Value) error {
 		}
 
 		if len(notFound) > 0 {
-			return fmt.Errorf("unknown fields: %v", xmaps.OrderedKeys(notFound))
+			return fmt.Errorf("unknown fields: %v", wmaps.OrderedKeys(notFound))
 		}
 		output.Set(s)
 		return nil

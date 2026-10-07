@@ -110,7 +110,10 @@ func Init(profile *config.Profile) error {
 // generateMachineID creates an anonymous ID from the machine fingerprint.
 // The ID is a SHA-256 hash to ensure privacy while maintaining consistency.
 func generateMachineID() string {
-	fp, err := fingerprint.New()
+	fp, err := fingerprint.New(
+		fingerprint.WithCpu(false),
+		fingerprint.WithMemory(false),
+	)
 	if err != nil {
 		// Fallback to hostname-based ID
 		hostname, _ := os.Hostname()

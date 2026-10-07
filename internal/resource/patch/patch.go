@@ -17,7 +17,7 @@ import (
 
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/value"
-	xmaps "unikraft.com/cli/internal/x/maps"
+	wmaps "unikraft.com/cli/internal/w/maps"
 )
 
 type PatchSpec struct {
@@ -178,13 +178,13 @@ func PatchedFields(ctx context.Context, fields []resource.Field, spec PatchSpec)
 		err = errors.Join(err, fmt.Errorf("unknown fields: %v", unknownFields))
 	}
 	if len(setForbiddenFields) > 0 {
-		err = errors.Join(err, fmt.Errorf("fields not settable: %v", xmaps.OrderedKeys(setForbiddenFields)))
+		err = errors.Join(err, fmt.Errorf("fields not settable: %v", wmaps.OrderedKeys(setForbiddenFields)))
 	}
 	if len(addForbiddenFields) > 0 {
-		err = errors.Join(err, fmt.Errorf("fields not addable: %v", xmaps.OrderedKeys(addForbiddenFields)))
+		err = errors.Join(err, fmt.Errorf("fields not addable: %v", wmaps.OrderedKeys(addForbiddenFields)))
 	}
 	if len(delForbiddenFields) > 0 {
-		err = errors.Join(err, fmt.Errorf("fields not deletable: %v", xmaps.OrderedKeys(delForbiddenFields)))
+		err = errors.Join(err, fmt.Errorf("fields not deletable: %v", wmaps.OrderedKeys(delForbiddenFields)))
 	}
 	if err != nil {
 		return nil, err
@@ -259,7 +259,7 @@ func ValidateRequired(originalFields, patchedFields []resource.Field, create boo
 	}
 
 	if len(unsetFields) > 0 {
-		return fmt.Errorf("required values: %v", xmaps.OrderedKeys(unsetFields))
+		return fmt.Errorf("required values: %v", wmaps.OrderedKeys(unsetFields))
 	}
 	return nil
 }

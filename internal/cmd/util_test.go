@@ -16,6 +16,7 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/internal/resource"
 )
 
 func TestRecoverCreatedFallsBackToCreateResponse(t *testing.T) {
@@ -73,4 +74,56 @@ func TestRecoverCreatedWithoutProfileReportsAllMissing(t *testing.T) {
 	assert.Empty(t, recovered)
 	require.Len(t, missing, 1)
 	assert.Equal(t, "linuxssh", missing[0].Name)
+}
+
+// nameLink returns the hyperlink of the name field.
+func nameLink(fields []resource.Field) string {
+	for key, field := range resource.IterFields(fields) {
+		if key.String() == "name" {
+			return field.Hyperlink
+		}
+	}
+	return ""
+}
+
+func TestResourcesLinkToTheConsole(t *testing.T) {
+	profile := config.Profile{
+		Type:         config.ProfileTypeCloud,
+		Name:         "default",
+		Token:        "token",
+		Organization: "acme",
+		ControlPlane: "https://api.unikraft.cloud",
+		Metros:       []config.Metro{{Name: "fra", Endpoint: "https://api.fra.unikraft.cloud"}},
+	}
+	ctx := config.WithConfig(t.Context(), &config.Config{
+		DefaultProfile: "default",
+		Profiles:       map[string]config.Profile{"default": profile},
+	})
+
+	for _, tc := range []struct {
+		resource resource.Resource
+		link     string
+	}{
+		{Instance{Metro: "fra", Name: "web", Profile: &profile}, "https://console.unikraft.cloud/org/acme/instances/fra/web"},
+		{InstanceTemplate{Metro: "fra", Name: "base", Profile: &profile}, "https://console.unikraft.cloud/org/acme/instances/templates/fra/base"},
+		{Volume{Metro: "fra", Name: "data"}, "https://console.unikraft.cloud/org/acme/volumes/fra/data"},
+		{ServiceGroup{Metro: "fra", Name: "api"}, "https://console.unikraft.cloud/org/acme/services/fra/api"},
+	} {
+		fields, err := tc.resource.Fields(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, tc.link, nameLink(fields), "%T", tc.resource)
+	}
+}
+
+func TestResourcesWithoutAnOrganizationHaveNoLink(t *testing.T) {
+	ctx := config.WithConfig(t.Context(), &config.Config{
+		DefaultProfile: "default",
+		Profiles: map[string]config.Profile{
+			"default": {Type: config.ProfileTypeCloud, Name: "default", Token: "token", ControlPlane: "https://api.unikraft.cloud"},
+		},
+	})
+
+	fields, err := Volume{Metro: "fra", Name: "data"}.Fields(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, nameLink(fields))
 }

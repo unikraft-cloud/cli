@@ -29,7 +29,7 @@ import (
 	"unikraft.com/cli/internal/resource"
 	resourcet "unikraft.com/cli/internal/resource/testing"
 	"unikraft.com/cli/internal/types"
-	xkong "unikraft.com/cli/internal/x/kong"
+	wkong "unikraft.com/cli/internal/w/kong"
 	"unikraft.com/cloud/sdk/platform/group"
 )
 
@@ -106,7 +106,7 @@ func TestList(t *testing.T) {
 	t.Run("field", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Field: xkong.GreedyStrings{"name", "id"},
+			Field: wkong.GreedyStrings{"name", "id"},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
@@ -130,7 +130,7 @@ func TestList(t *testing.T) {
 	t.Run("field exclude", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Field:  xkong.GreedyStrings{"-url"},
+			Field:  wkong.GreedyStrings{"-url"},
 			Output: Printer{Type: PrinterTypeKeyValue},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
@@ -278,7 +278,7 @@ func TestList(t *testing.T) {
 	t.Run("sort-asc", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Sort:   xkong.GreedyStrings{"name"},
+			Sort:   wkong.GreedyStrings{"name"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
@@ -291,7 +291,7 @@ func TestList(t *testing.T) {
 	t.Run("sort-asc-explicit", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Sort:   xkong.GreedyStrings{"+name"},
+			Sort:   wkong.GreedyStrings{"+name"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
@@ -304,7 +304,7 @@ func TestList(t *testing.T) {
 	t.Run("sort-desc", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Sort:   xkong.GreedyStrings{"-name"},
+			Sort:   wkong.GreedyStrings{"-name"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
@@ -317,7 +317,7 @@ func TestList(t *testing.T) {
 	t.Run("sort-asc-nested", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Sort:   xkong.GreedyStrings{"settings.bar"},
+			Sort:   wkong.GreedyStrings{"settings.bar"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
@@ -332,7 +332,7 @@ func TestList(t *testing.T) {
 	t.Run("sort-desc-nested", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Sort:   xkong.GreedyStrings{"-settings.bar"},
+			Sort:   wkong.GreedyStrings{"-settings.bar"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
@@ -349,7 +349,7 @@ func TestList(t *testing.T) {
 		// Both test1 and test2 have state="pending", so sort by state first,
 		// then by name descending to break the tie
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Sort:   xkong.GreedyStrings{"state", "-name"},
+			Sort:   wkong.GreedyStrings{"state", "-name"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
@@ -365,7 +365,7 @@ func TestList(t *testing.T) {
 		// Sort by state ascending, then by settings.foo ascending
 		// test1 has settings.foo=42, test2 has settings.foo=7
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Sort:   xkong.GreedyStrings{"+state", "settings.foo"},
+			Sort:   wkong.GreedyStrings{"+state", "settings.foo"},
 			Output: Printer{Type: PrinterTypeQuiet},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
@@ -553,7 +553,7 @@ func TestListOutput(t *testing.T) {
 	})
 
 	t.Run("json field", func(t *testing.T) {
-		output := runList(t, FormatOpts{Output: Printer{Type: PrinterTypeJSON}, Field: xkong.GreedyStrings{"id"}})
+		output := runList(t, FormatOpts{Output: Printer{Type: PrinterTypeJSON}, Field: wkong.GreedyStrings{"id"}})
 		var resources []map[string]any
 		err := json.Unmarshal([]byte(output), &resources)
 		require.NoError(t, err)
@@ -566,7 +566,7 @@ func TestListOutput(t *testing.T) {
 	})
 
 	t.Run("yaml field", func(t *testing.T) {
-		output := runList(t, FormatOpts{Output: Printer{Type: PrinterTypeYAML}, Field: xkong.GreedyStrings{"id"}})
+		output := runList(t, FormatOpts{Output: Printer{Type: PrinterTypeYAML}, Field: wkong.GreedyStrings{"id"}})
 		var resources []map[string]any
 		err := yaml.Unmarshal([]byte(output), &resources)
 		require.NoError(t, err)
@@ -599,7 +599,7 @@ func TestListOutput(t *testing.T) {
 	})
 
 	t.Run("quiet field", func(t *testing.T) {
-		output := runList(t, FormatOpts{Output: Printer{Type: PrinterTypeQuiet}, Field: xkong.GreedyStrings{"id", "url"}})
+		output := runList(t, FormatOpts{Output: Printer{Type: PrinterTypeQuiet}, Field: wkong.GreedyStrings{"id", "url"}})
 		assert.Equal(t, "id-test1 https://example.com\nid-test2 https://example.org\n", output)
 	})
 
@@ -803,7 +803,7 @@ func TestTableNestedFieldSelection(t *testing.T) {
 	cmd := &ResourceGetCmd[resourcet.TestResource]{
 		Targets: []string{"test1"},
 		Output:  Printer{Type: PrinterTypeTable},
-		Field:   xkong.GreedyStrings{"name", "authors"},
+		Field:   wkong.GreedyStrings{"name", "authors"},
 	}
 	err := cmd.Run(ctx, testStdio(&out), partition)
 	require.NoError(t, err)
@@ -873,7 +873,7 @@ func TestGet(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceGetCmd[resourcet.TestResource]{
 			Targets: []string{"test1"},
-			Field:   xkong.GreedyStrings{"id", "url"},
+			Field:   wkong.GreedyStrings{"id", "url"},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
@@ -1622,7 +1622,7 @@ func TestValueCallback(t *testing.T) {
 
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
-			Field: xkong.GreedyStrings{"+lazy"},
+			Field: wkong.GreedyStrings{"+lazy"},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
@@ -1655,7 +1655,7 @@ func TestValueCallback(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceGetCmd[resourcet.TestResource]{
 			Targets: []string{"res1"},
-			Field:   xkong.GreedyStrings{"+lazy"},
+			Field:   wkong.GreedyStrings{"+lazy"},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
@@ -1685,7 +1685,7 @@ func TestValueCallback(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
 			Output: Printer{Type: PrinterTypeQuiet},
-			Field:  xkong.GreedyStrings{"name", "lazy"},
+			Field:  wkong.GreedyStrings{"name", "lazy"},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
@@ -1748,7 +1748,7 @@ func TestValueCallback(t *testing.T) {
 		cmd := &ResourceListCmd[resourcet.TestResource]{
 			// Filter on lazy field AND select it for output
 			Filter: []string{"lazy==computed-res1"},
-			Field:  xkong.GreedyStrings{"+lazy"},
+			Field:  wkong.GreedyStrings{"+lazy"},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)
@@ -1782,9 +1782,9 @@ func TestValueCallback(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &ResourceListCmd[resourcet.TestResource]{
 			Filter: []string{"lazy==computed-res1"},
-			Sort:   xkong.GreedyStrings{"lazy"},
+			Sort:   wkong.GreedyStrings{"lazy"},
 			Output: Printer{Type: PrinterTypeQuiet},
-			Field:  xkong.GreedyStrings{"name", "lazy"},
+			Field:  wkong.GreedyStrings{"name", "lazy"},
 		}
 		err := cmd.Run(ctx, testStdio(&out), partition)
 		require.NoError(t, err)

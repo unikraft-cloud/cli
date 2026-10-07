@@ -81,6 +81,8 @@ type Profile struct {
 	ControlPlane string `json:"controlplane,omitempty" field:",long"`
 	// Insecure indicates whether to allow insecure connections to the control plane, skipping TLS verification.
 	Insecure bool `json:"controlplane_insecure,omitempty" field:",long"`
+	// RegistryMirror is the endpoint that gets the requests for the Unikraft image registry.
+	RegistryMirror string `json:"registry_mirror,omitempty" field:",long"`
 	// Metros is a static list of metros.
 	Metros []Metro `json:"metros,omitempty" field:",long,embed"`
 	// MetroDefault is the default metro to use when creating resources.

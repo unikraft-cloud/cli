@@ -19,6 +19,7 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/builder/buildflags"
+	wplatforms "unikraft.com/cli/internal/w/platforms"
 )
 
 type BuildOpts struct {
@@ -27,7 +28,10 @@ type BuildOpts struct {
 
 	Runtime string
 
-	Platform []ocispec.Platform
+	// Platform lists the targets to build. When empty, PlatformMatcher
+	// selects them from the runtime's targets.
+	Platform        []ocispec.Platform
+	PlatformMatcher platforms.MatchComparer
 
 	Cmd    []string
 	Env    kraftfile.Map
@@ -59,6 +63,10 @@ func (o *BuildOpts) FilterArch(arches ...string) error {
 		return nil
 	}
 	if len(o.Platform) == 0 {
+		if o.Runtime != "" {
+			o.PlatformMatcher = wplatforms.OnlyArch(arches...)
+			return nil
+		}
 		for _, arch := range arches {
 			if slices.ContainsFunc(o.Platform, func(p ocispec.Platform) bool {
 				return p.Architecture == arch
@@ -218,7 +226,7 @@ func Build(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error) {
 		}
 
 		// Attach rootfs/initrd and use its config if available.
-		cfg := buildImageConfig(opts)
+		cfg := applyConfigOverrides(ocispec.ImageConfig{}, opts)
 		if i < len(roots) {
 			rootfsPlatformID := platforms.Format(roots[i].Image.Platform)
 			if rootfsPlatformID != pID {
@@ -231,21 +239,9 @@ func Build(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error) {
 			imgOpts = append(imgOpts, imagespec.WithInitrd(roots[i].Initrd))
 			roots[i].Initrd = nil
 			// The rootfs build may have produced a richer config (e.g. from
-			// a Dockerfile). Use it as the base and layer our overrides on top.
-			cfg = roots[i].Image.Config
-			if opts.Cmd != nil {
-				cfg.Cmd = opts.Cmd
-			}
-			if opts.Env != nil {
-				env := make([]string, 0, len(opts.Env))
-				for _, kv := range opts.Env {
-					env = append(env, fmt.Sprintf("%s=%s", kv.Key, kv.Value))
-				}
-				cfg.Env = append(env, cfg.Env...)
-			}
-			if opts.Labels != nil {
-				cfg.Labels = opts.Labels
-			}
+			// a Dockerfile or an OCI image). Use it as the base and layer our
+			// overrides on top.
+			cfg = applyConfigOverrides(roots[i].Image.Config, opts)
 		}
 		imgOpts = append(imgOpts, imagespec.WithImageConfig(cfg))
 

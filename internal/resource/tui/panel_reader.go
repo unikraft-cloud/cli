@@ -17,6 +17,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
+	"unikraft.com/cli/internal/tui/styles"
 	"unikraft.com/cli/internal/tui/uitui"
 )
 
@@ -172,12 +173,12 @@ func (p *ReaderPanel) View() tea.View {
 	p.mu.Unlock()
 
 	if err != nil {
-		body := uitui.ErrorStyle.Render("Error: " + err.Error())
+		body := styles.Error.Render("Error: " + err.Error())
 		return tea.NewView(body)
 	}
 
 	if !p.ready {
-		body := uitui.HintStyle.Render("Connecting...")
+		body := styles.Hint.Render("Connecting...")
 		return tea.NewView(body)
 	}
 
@@ -189,7 +190,7 @@ func (p *ReaderPanel) View() tea.View {
 		if p.follow {
 			return tea.NewView(p.trailingEllipsis(""))
 		}
-		body := uitui.HintStyle.Render("Waiting for content...")
+		body := styles.Hint.Render("Waiting for content...")
 		return tea.NewView(body)
 	}
 
@@ -225,7 +226,7 @@ func (p *ReaderPanel) trailingEllipsis(view string) string {
 	if strings.TrimSpace(lines[idx]) != "" {
 		return view
 	}
-	lines[idx] = uitui.HintStyle.Render("...")
+	lines[idx] = styles.Hint.Render("...")
 	return strings.Join(lines, "\n")
 }
 

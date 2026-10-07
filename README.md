@@ -210,7 +210,7 @@ make cli
 ### `unikraft build` dependencies
 
 To use `unikraft build` to build and publish your own images from
-`Dockerfile`s, you need a BuildKit builder. The easiest way to get one is via
+`Dockerfile`s or from regular OCI images, you need a BuildKit builder. The easiest way to get one is via
 Docker, see <https://docs.docker.com/engine/install/> for installation
 instructions.
 

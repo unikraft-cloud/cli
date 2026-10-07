@@ -16,7 +16,7 @@ import (
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/log"
 
-	xmaps "unikraft.com/cli/internal/x/maps"
+	wmaps "unikraft.com/cli/internal/w/maps"
 )
 
 // Partition represents a testing partition for resources. Resources created in the
@@ -91,7 +91,7 @@ func (p *Partition) Save() error {
 
 	keys := make(map[string][]string, len(p.Keys))
 	for rtype, rkeys := range p.Keys {
-		keys[rtype] = xmaps.OrderedKeys(rkeys)
+		keys[rtype] = wmaps.OrderedKeys(rkeys)
 	}
 
 	enc := json.NewEncoder(f)
@@ -123,7 +123,7 @@ func (p *Partition) Teardown(ctx context.Context) (rerr error) {
 			continue
 		}
 
-		targets := xmaps.OrderedKeys(p.Keys[name])
+		targets := wmaps.OrderedKeys(p.Keys[name])
 		log.G(ctx).Debug().
 			Str("resource", name).
 			Strs("targets", targets).

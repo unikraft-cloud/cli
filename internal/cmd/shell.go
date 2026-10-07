@@ -25,7 +25,7 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
-	xkong "unikraft.com/cli/internal/x/kong"
+	wkong "unikraft.com/cli/internal/w/kong"
 	"unikraft.com/cli/pkg/shellbuiltins"
 )
 
@@ -34,7 +34,7 @@ const shellBanner = "⚠︎ this shell is experimental"
 type ShellSandboxInstanceCmd struct {
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instance to open a shell on."`
 
-	Plugin  string   `name:"plugin" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
+	SandboxPluginOpts
 	Dir     string   `name:"dir" short:"w" default:"/" help:"Directory to start the shell in." placeholder:"dir"`
 	Env     []string `name:"env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
 	Command string   `name:"command" short:"c" help:"Run a single command line and exit." placeholder:"line"`
@@ -87,7 +87,7 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 		return err
 	}
 
-	target, err := resolveSandboxTarget(ctx, partition, c.Target, c.Plugin)
+	target, err := resolveSandboxTarget(ctx, stdio, partition, c.Target, c.SandboxPluginOpts)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func formatOpts(f builtins.Format) (cmd.FormatOpts, error) {
 	if err != nil {
 		return cmd.FormatOpts{}, err
 	}
-	return cmd.FormatOpts{Field: xkong.GreedyStrings(f.Field), Output: printer}, nil
+	return cmd.FormatOpts{Field: wkong.GreedyStrings(f.Field), Output: printer}, nil
 }
 
 func stopOpts(o shellbuiltins.StopOpts) StopOpts {

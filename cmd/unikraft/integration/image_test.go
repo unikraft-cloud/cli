@@ -24,7 +24,7 @@ func TestImages(t *testing.T) {
 		assert.Regexp(t, `ref:\s+nginx`, out)
 		assert.Regexp(t, `config:`, out)
 		assert.Regexp(t, `kernel:`, out)
-		assert.Regexp(t, `kernel.dbg:`, out)
+		assert.Regexp(t, `kernel-dbg:`, out)
 	})
 
 	t.Run("copy-inspect-delete", func(t *testing.T) {
@@ -40,7 +40,7 @@ func TestImages(t *testing.T) {
 		assert.Regexp(t, `ref:\s+.*`+imageName, out)
 		assert.Regexp(t, `config:`, out)
 		assert.Regexp(t, `kernel:`, out)
-		assert.Regexp(t, `kernel.dbg:`, out)
+		assert.Regexp(t, `kernel-dbg:`, out)
 		r.Run(t, []string{"unikraft", "image", "delete", imageFull})
 	})
 

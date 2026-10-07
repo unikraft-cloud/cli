@@ -3,6 +3,7 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
-// Package x contains experimental and forked/vendored code from other tools.
-// Each subpackage within x is named after the original source.
-package x
+// Package w holds code we wish was part of another library. Each subpackage
+// is named after the library it extends, and would live there if we could
+// change it.
+package w
