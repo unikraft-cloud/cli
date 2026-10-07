@@ -186,7 +186,7 @@ func (s *Server) AddCreateTool[R model.CreatableModel](ctx context.Context, opts
 		Title:       "Create " + typ.Name,
 		Description: createDescription(typ, fields, schema.Properties["set"], defaults),
 		InputSchema: schema,
-		Annotations: mutatingAnnotations(false),
+		Annotations: mutatingAnnotations(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args createArgs
 		if err := unmarshalArgs(req, schema, &args); err != nil {
@@ -240,7 +240,7 @@ func (s *Server) AddEditTool[R model.EditableModel](ctx context.Context, opts ..
 		Title:       "Edit " + typ.Name,
 		Description: editDescription(typ, o.editNote),
 		InputSchema: schema,
-		Annotations: mutatingAnnotations(false),
+		Annotations: mutatingAnnotations(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args editArgs
 		if err := unmarshalArgs(req, schema, &args); err != nil {
@@ -330,8 +330,8 @@ func readOnlyAnnotations() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: new(false), IdempotentHint: true}
 }
 
-func mutatingAnnotations(idempotent bool) *mcp.ToolAnnotations {
-	return &mcp.ToolAnnotations{DestructiveHint: new(false), IdempotentHint: idempotent}
+func mutatingAnnotations() *mcp.ToolAnnotations {
+	return &mcp.ToolAnnotations{DestructiveHint: new(false), IdempotentHint: false}
 }
 
 func destructiveAnnotations() *mcp.ToolAnnotations {
