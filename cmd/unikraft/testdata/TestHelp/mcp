@@ -7,8 +7,10 @@ Cloud through typed tools instead of shelling out to the CLI.
 Every resource type gets list, create, edit and delete tools, named like
 `instance_list` or `volume_create`; a list tool also fetches specific resources
 when given keys. Instances additionally get `instance_control` for start, stop,
-restart and suspend, and `instance_logs`. The tools use the current profile and
-fan out across its metros exactly like the matching CLI commands do.
+restart and suspend, and `instance_logs`; sandboxes get `sandbox_exec`,
+`sandbox_read` and `sandbox_write` for the commands and files inside them.
+The tools use the current profile and fan out across its metros exactly like
+the matching CLI commands do.
 
 Pass `--resources` with a comma-separated list of resource types to serve
 only their tools, such as `--resources instance,volume,metro`; the names
@@ -62,7 +64,7 @@ Examples:
 
 Flags:
       --read-only
-          Expose only the tools that cannot change anything: list, image_get and instance_logs.
+          Expose only the tools that cannot change anything: list, image_get, instance_logs and sandbox_read.
       --resources=<type,...> ...
           Serve only the tools of these resource types, such as instance, volume or metro; the names are the prefixes of the tool names. Defaults to every type.
       --docs-url=<url> ($UNIKRAFT_DOCS_URL)

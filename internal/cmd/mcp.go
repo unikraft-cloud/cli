@@ -31,7 +31,7 @@ const instanceEditNote = "Edits to tags, delete-lock, autokill, scale-to-zero an
 const imageGetDescription = "Inspect images by reference, resolving each one from its registry, so public images such as nginx:latest work as well as your own. image_list only covers the images already in your account. Returns one JSON object per image."
 
 type MCPCmd struct {
-	ReadOnly    bool     `help:"Expose only the tools that cannot change anything: list, image_get and instance_logs."`
+	ReadOnly    bool     `help:"Expose only the tools that cannot change anything: list, image_get, instance_logs and sandbox_read."`
 	Resources   []string `name:"resources" placeholder:"type,..." help:"Serve only the tools of these resource types, such as instance, volume or metro; the names are the prefixes of the tool names. Defaults to every type."`
 	DocsURL     string   `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"https://unikraft.com/docs/" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
 	Listen      string   `name:"listen" placeholder:"host:port" help:"Serve the protocol over plain HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set."`
@@ -47,8 +47,10 @@ func (MCPCmd) Help() string {
 		Every resource type gets list, create, edit and delete tools, named like
 		%[1]sinstance_list%[1]s or %[1]svolume_create%[1]s; a list tool also fetches specific resources
 		when given keys. Instances additionally get %[1]sinstance_control%[1]s for start, stop,
-		restart and suspend, and %[1]sinstance_logs%[1]s. The tools use the current profile and
-		fan out across its metros exactly like the matching CLI commands do.
+		restart and suspend, and %[1]sinstance_logs%[1]s; sandboxes get %[1]ssandbox_exec%[1]s,
+		%[1]ssandbox_read%[1]s and %[1]ssandbox_write%[1]s for the commands and files inside them.
+		The tools use the current profile and fan out across its metros exactly like
+		the matching CLI commands do.
 
 		Pass %[1]s--resources%[1]s with a comma-separated list of resource types to serve
 		only their tools, such as %[1]s--resources instance,volume,metro%[1]s; the names
@@ -195,6 +197,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *resource.Par
 		srv.AddListTool[Metro](ctx),
 		srv.AddListTool[Profile](ctx),
 		srv.AddInstanceTools(mcpInstanceCommands{}),
+		srv.AddSandboxTools(mcpSandboxCommands{partition: partition}),
 	); err != nil {
 		return nil, err
 	}
