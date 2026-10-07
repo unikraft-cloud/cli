@@ -52,11 +52,14 @@ type listArgs struct {
 
 func (s *Server) AddListTool[R resource.GettableListableResource](ctx context.Context) error {
 	var empty R
+	typ := empty.Type()
+	if !s.enabled(typ.Name) {
+		return nil
+	}
 	fields, err := empty.Fields(ctx)
 	if err != nil {
 		return err
 	}
-	typ := empty.Type()
 	schema := listSchema(typ, fields)
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "list"),
@@ -89,11 +92,14 @@ type getArgs struct {
 // AddGetTool registers a get tool; an empty description selects the generic one.
 func (s *Server) AddGetTool[R resource.GettableResource](ctx context.Context, description string) error {
 	var empty R
+	typ := empty.Type()
+	if !s.enabled(typ.Name) {
+		return nil
+	}
 	fields, err := empty.Fields(ctx)
 	if err != nil {
 		return err
 	}
-	typ := empty.Type()
 	schema := getSchema(typ, fields)
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "get"),
@@ -148,15 +154,15 @@ type createArgs struct {
 }
 
 func (s *Server) AddCreateTool[R resource.CreatableResource](ctx context.Context, opts ...ToolOption) error {
-	if s.opts.ReadOnly {
+	var empty R
+	typ := empty.Type()
+	if !s.enabled(typ.Name) || s.opts.ReadOnly {
 		return nil
 	}
-	var empty R
 	fields, err := empty.Fields(ctx)
 	if err != nil {
 		return err
 	}
-	typ := empty.Type()
 	schema := createSchema(fields)
 	var o toolOptions
 	for _, opt := range opts {
@@ -215,15 +221,15 @@ type editArgs struct {
 }
 
 func (s *Server) AddEditTool[R resource.EditableResource](ctx context.Context, opts ...ToolOption) error {
-	if s.opts.ReadOnly {
+	var empty R
+	typ := empty.Type()
+	if !s.enabled(typ.Name) || s.opts.ReadOnly {
 		return nil
 	}
-	var empty R
 	fields, err := empty.Fields(ctx)
 	if err != nil {
 		return err
 	}
-	typ := empty.Type()
 	schema := editSchema(typ, fields)
 	var o toolOptions
 	for _, opt := range opts {
@@ -259,14 +265,14 @@ type deleteArgs struct {
 }
 
 func (s *Server) AddDeleteTool[R resource.DeletableResource](ctx context.Context) error {
-	if s.opts.ReadOnly {
+	var empty R
+	typ := empty.Type()
+	if !s.enabled(typ.Name) || s.opts.ReadOnly {
 		return nil
 	}
-	var empty R
 	if _, err := empty.Fields(ctx); err != nil {
 		return err
 	}
-	typ := empty.Type()
 	schema := deleteSchema(typ)
 	s.srv.AddTool(&mcp.Tool{
 		Name:        toolName(typ.Name, "delete"),

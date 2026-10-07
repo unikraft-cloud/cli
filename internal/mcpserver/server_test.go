@@ -96,6 +96,24 @@ func properties(t *testing.T, schema any) map[string]any {
 	return props
 }
 
+func TestResourcesAllowlist(t *testing.T) {
+	ctx := resourcet.WithTestEnv(t.Context(), resourcet.NewTestEnv())
+
+	srv, err := mcpserver.New(ctx, mcpserver.Options{Resources: []string{"Test"}})
+	require.NoError(t, err)
+	require.NoError(t, srv.AddTools[resourcet.TestResource](ctx))
+	require.NoError(t, srv.CheckResources())
+	session := connect(t, ctx, srv)
+	assert.Len(t, listTools(t, ctx, session), 4)
+	assert.Contains(t, session.InitializeResult().Instructions, "Only the tools of these resource types are served: test.")
+
+	srv, err = mcpserver.New(ctx, mcpserver.Options{Resources: []string{"other-thing"}})
+	require.NoError(t, err)
+	require.NoError(t, srv.AddTools[resourcet.TestResource](ctx))
+	assert.Empty(t, listTools(t, ctx, connect(t, ctx, srv)))
+	assert.EqualError(t, srv.CheckResources(), "unknown resource types: other_thing; known: test")
+}
+
 func TestListTools(t *testing.T) {
 	ctx, session, _ := newSession(t, false)
 	tools := listTools(t, ctx, session)
