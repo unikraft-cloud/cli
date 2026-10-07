@@ -58,29 +58,27 @@ type instanceLogsArgs struct {
 }
 
 func (s *Server) AddInstanceTools(commands InstanceCommands) error {
-	if !s.enabled("instance") {
+	if !s.enabled("instance", false) {
 		return nil
 	}
-	errs := []error{
-		s.addCommandTool(&mcp.Tool{
-			Name:        "instance_logs",
-			Title:       "Instance logs",
-			Description: "Read the last lines of an instance's console output; the first place to look when an instance fails to start or misbehaves. Returns plain text.",
-			Annotations: readOnlyAnnotations(),
-		}, false, func(ctx context.Context, in instanceLogsArgs, stdio config.Stdio) error {
-			return commands.Logs(ctx, stdio, in.Key, cmp.Or(in.Tail, defaultLogTail))
-		}),
-	}
-	if s.opts.ReadOnly {
-		return errors.Join(errs...)
+	err := s.addCommandTool(&mcp.Tool{
+		Name:        "instance_logs",
+		Title:       "Instance logs",
+		Description: "Read the last lines of an instance's console output; the first place to look when an instance fails to start or misbehaves. Returns plain text.",
+		Annotations: readOnlyAnnotations(),
+	}, false, func(ctx context.Context, in instanceLogsArgs, stdio config.Stdio) error {
+		return commands.Logs(ctx, stdio, in.Key, cmp.Or(in.Tail, defaultLogTail))
+	})
+	if err != nil || s.opts.ReadOnly {
+		return err
 	}
 
 	schema, err := jsonschema.For[instanceControlArgs](nil)
 	if err != nil {
-		return errors.Join(append(errs, err)...)
+		return err
 	}
 	schema.Properties["action"].Enum = []any{instanceActionStart, instanceActionStop, instanceActionRestart, instanceActionSuspend}
-	errs = append(errs, s.addCommandTool(&mcp.Tool{
+	return s.addCommandTool(&mcp.Tool{
 		Name:        "instance_control",
 		Title:       "Control instances",
 		Description: "Start, stop, restart or suspend instances. Stop and restart drain connections first unless force is set; a suspended instance resumes from memory on its next request. Returns the updated instances.",
@@ -104,8 +102,7 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 			return fmt.Errorf("unknown action %q: use %s, %s, %s or %s", in.Action,
 				instanceActionStart, instanceActionStop, instanceActionRestart, instanceActionSuspend)
 		}
-	}))
-	return errors.Join(errs...)
+	})
 }
 
 func drainTimeout(ms *int64) types.DurationMS {

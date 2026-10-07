@@ -93,11 +93,12 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) MCP() *mcp.Server { return s.srv }
-
-func (s *Server) enabled(name string) bool {
+func (s *Server) enabled(name string, mutating bool) bool {
 	name = normalizeName(name)
 	s.seen[name] = true
+	if mutating && s.opts.ReadOnly {
+		return false
+	}
 	return s.resources == nil || s.resources[name]
 }
 
@@ -111,8 +112,9 @@ func (s *Server) CheckResources() error {
 	if len(unknown) == 0 {
 		return nil
 	}
+	slices.Sort(unknown)
 	return fmt.Errorf("unknown resource types: %s; known: %s",
-		strings.Join(slices.Sorted(slices.Values(unknown)), ", "),
+		strings.Join(unknown, ", "),
 		strings.Join(slices.Sorted(maps.Keys(s.seen)), ", "))
 }
 
