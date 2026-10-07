@@ -31,10 +31,10 @@ type MetrosCmd struct {
 }
 
 type Metro struct {
-	Name     string `field:",short" json:"name"`
-	Location string `field:",short" json:"location"`
-	Endpoint string `field:",short" json:"endpoint"`
-	Insecure *bool  `field:",long" json:"insecure"`
+	Name     string `field:",short" json:"name" help:"Metro name, such as fra."`
+	Location string `field:",short" json:"location" help:"IATA code of the metro location."`
+	Endpoint string `field:",short" json:"endpoint" help:"API endpoint URL of the metro."`
+	Insecure *bool  `field:",long" json:"insecure" help:"Skip TLS verification when connecting to the metro's API and image index."`
 
 	url string
 }
@@ -73,6 +73,7 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 	}
 	fields = append(fields, resource.Field{
 		Name:      "quotas",
+		Help:      "Usage and limits of your quota in the metro.",
 		Verbosity: resource.FieldVerbosityLong,
 		Subfields: quotaFields,
 	})
@@ -188,20 +189,24 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 	// Add a grouped "status" field with lazy-computed subfields
 	fields = append(fields, resource.Field{
 		Name:      "status",
+		Help:      "Reachability of the metro endpoint.",
 		Verbosity: resource.FieldVerbosityLong,
 		Subfields: []resource.Field{
 			{
 				Name:          "ip",
+				Help:          "IP addresses the endpoint resolves to.",
 				Verbosity:     resource.FieldVerbosityLong,
 				ValueCallback: ip,
 			},
 			{
 				Name:          "ping",
+				Help:          "TCP connection latency to the endpoint.",
 				Verbosity:     resource.FieldVerbosityLong,
 				ValueCallback: ping,
 			},
 			{
 				Name:          "online",
+				Help:          "Whether the endpoint answers an HTTP request without a server error: online or offline.",
 				Verbosity:     resource.FieldVerbosityLong,
 				ValueCallback: online,
 			},
@@ -262,29 +267,29 @@ func (Metro) Examples() map[cmd.CmdType][]kingkong.Example {
 
 type metroQuotas struct {
 	Instances struct {
-		Active types.Usage[int64] `field:",long,embed"`
-		Total  types.Usage[int64] `field:",long,embed"`
-	} `field:",long"`
+		Active types.Usage[int64] `field:",long,embed" help:"Instances not in the stopped state. The platform reports the vCPU limit as its limit."`
+		Total  types.Usage[int64] `field:",long,embed" help:"All instances."`
+	} `field:",long" help:"Instance counts."`
 	Vcpus struct {
-		Active types.Usage[int64] `field:",long,embed"`
-	} `field:",long"`
+		Active types.Usage[int64] `field:",long,embed" help:"vCPUs of instances not in the stopped state."`
+	} `field:",long" help:"vCPU usage."`
 	Memory struct {
-		Active types.Usage[types.SizeMebibytes] `field:",long,embed"`
-	} `field:",long"`
+		Active types.Usage[types.SizeMebibytes] `field:",long,embed" help:"Memory assigned to instances not in the stopped state."`
+	} `field:",long" help:"Memory usage."`
 	Services struct {
-		Groups  types.Usage[int64] `field:",long,embed"`
-		Exposed types.Usage[int64] `field:",long,embed"`
-	} `field:",long"`
+		Groups  types.Usage[int64] `field:",long,embed" help:"Service groups."`
+		Exposed types.Usage[int64] `field:",long,embed" help:"Published ports across all service groups."`
+	} `field:",long" help:"Service usage."`
 	Volumes struct {
-		Count types.Usage[int64]               `field:",long,embed"`
-		Total types.Usage[types.SizeMebibytes] `field:",long,embed"`
-	} `field:",long"`
+		Count types.Usage[int64]               `field:",long,embed" help:"Number of volumes."`
+		Total types.Usage[types.SizeMebibytes] `field:",long,embed" help:"Volume space counted against your quota: the full size of static volumes plus the used space of dynamic ones."`
+	} `field:",long" help:"Volume usage."`
 	Limits struct {
-		Vcpus     types.Range[int64]               `field:",long,embed"`
-		Memory    types.Range[types.SizeMebibytes] `field:",long,embed"`
-		Volume    types.Range[types.SizeMebibytes] `field:",long,embed"`
-		Autoscale types.Range[int64]               `field:",long,embed"`
-	} `field:",long"`
+		Vcpus     types.Range[int64]               `field:",long,embed" help:"vCPUs per instance."`
+		Memory    types.Range[types.SizeMebibytes] `field:",long,embed" help:"Memory per instance."`
+		Volume    types.Range[types.SizeMebibytes] `field:",long,embed" help:"Size of a volume."`
+		Autoscale types.Range[int64]               `field:",long,embed" help:"Size of an autoscale group."`
+	} `field:",long" help:"Allowed range for a single resource."`
 
 	httpClient *http.Client
 	endpoint   string

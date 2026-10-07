@@ -65,28 +65,28 @@ const (
 // Profile represents a user profile configuration for the Unikraft CLI.
 type Profile struct {
 	// Name of the profile
-	Name string `json:"-" field:",short"`
+	Name string `json:"-" field:",short" help:"Profile name."`
 	// Type of the profile
-	Type ProfileType `json:"type" field:",long"`
+	Type ProfileType `json:"type" field:",long" help:"Profile type: cloud or legacy (token and metro from UKC_TOKEN and UKC_METRO). The local type is not supported yet."`
 	// Token is the authentication token associated with the profile, used for
 	// authenticating with Unikraft Cloud services.
-	Token string `json:"token,omitempty" field:",long"`
+	Token string `json:"token,omitempty" field:",long" help:"Authentication token for Unikraft Cloud."`
 	// Organization is the organization associated with the profile.
-	Organization string `json:"organization,omitempty" field:",short"`
+	Organization string `json:"organization,omitempty" field:",short" help:"Organization of the profile."`
 	// UserUUID is the UUID of the user who approved the login, if known.
-	UserUUID string `json:"user_uuid,omitempty" field:",long"`
+	UserUUID string `json:"user_uuid,omitempty" field:",long" help:"UUID of the user who approved the login, if known."`
 	// OrganizationUUID is the UUID of the organization of the token.
-	OrganizationUUID string `json:"organization_uuid,omitempty" field:",long"`
+	OrganizationUUID string `json:"organization_uuid,omitempty" field:",long" help:"UUID of the organization of the token."`
 	// ControlPlane is the endpoint for the control plane associated with the profile.
-	ControlPlane string `json:"controlplane,omitempty" field:",long"`
+	ControlPlane string `json:"controlplane,omitempty" field:",long" help:"Control plane endpoint."`
 	// Insecure indicates whether to allow insecure connections to the control plane, skipping TLS verification.
-	Insecure bool `json:"controlplane_insecure,omitempty" field:",long"`
+	Insecure bool `json:"controlplane_insecure,omitempty" field:",long" help:"Skip TLS verification when connecting to the control plane."`
 	// RegistryMirror is the endpoint that gets the requests for the Unikraft image registry.
-	RegistryMirror string `json:"registry_mirror,omitempty" field:",long"`
+	RegistryMirror string `json:"registry_mirror,omitempty" field:",long" help:"Endpoint that serves requests for the Unikraft image registry."`
 	// Metros is a static list of metros.
-	Metros []Metro `json:"metros,omitempty" field:",long,embed"`
+	Metros []Metro `json:"metros,omitempty" field:",long,embed" help:"Metros of the profile."`
 	// MetroDefault is the default metro to use when creating resources.
-	MetroDefault string `json:"metro_default,omitempty"`
+	MetroDefault string `json:"metro_default,omitempty" help:"Metro that create commands and unikraft api use when none is given. Without it, a profile with a single metro uses that one."`
 }
 
 func (p Profile) GetDefaultMetro() string {
@@ -175,15 +175,15 @@ func (p Profile) Validate() error {
 // Metro represents a metro configuration for a profile in the Unikraft CLI.
 type Metro struct {
 	// Name of the metro.
-	Name string `json:"name" field:",short"`
+	Name string `json:"name" field:",short" help:"Metro name, such as fra."`
 	// Endpoint for the metro.
-	Endpoint string `json:"endpoint" field:",long"`
+	Endpoint string `json:"endpoint" field:",long" help:"API endpoint URL of the metro."`
 	// Proxy is an optional URL that the CLI connects through instead of Endpoint.
-	Proxy string `json:"proxy,omitempty" field:",long"`
+	Proxy string `json:"proxy,omitempty" field:",long" help:"Proxy URL the CLI connects through instead of the endpoint."`
 	// Location is the IATA code for where the metro is located.
-	Location string `json:"location" field:",short"`
+	Location string `json:"location" field:",short" help:"IATA code of the metro location."`
 	// Allows insecure connections to the metro, skipping TLS verification.
-	Insecure *bool `json:"insecure,omitempty" field:",long"`
+	Insecure *bool `json:"insecure,omitempty" field:",long" help:"Skip TLS verification when connecting to the metro's API and image index."`
 }
 
 type Index struct {
