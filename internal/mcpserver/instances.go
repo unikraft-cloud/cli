@@ -58,6 +58,9 @@ type instanceLogsArgs struct {
 }
 
 func (s *Server) AddInstanceTools(commands InstanceCommands) error {
+	if !s.enabled("instance") {
+		return nil
+	}
 	errs := []error{
 		s.addCommandTool(&mcp.Tool{
 			Name:        "instance_logs",

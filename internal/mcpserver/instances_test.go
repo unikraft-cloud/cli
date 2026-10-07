@@ -103,6 +103,15 @@ func TestInstanceTools(t *testing.T) {
 	}, fake.calls)
 }
 
+func TestInstanceToolsResources(t *testing.T) {
+	ctx := t.Context()
+	srv, err := mcpserver.New(ctx, mcpserver.Options{Resources: []string{"volume"}})
+	require.NoError(t, err)
+	require.NoError(t, srv.AddInstanceTools(&fakeInstances{}))
+	assert.Empty(t, listTools(t, ctx, connect(t, ctx, srv)))
+	assert.EqualError(t, srv.CheckResources(), "unknown resource types: volume; known: instance")
+}
+
 func TestInstanceToolsReadOnly(t *testing.T) {
 	ctx := t.Context()
 	srv, err := mcpserver.New(ctx, mcpserver.Options{ReadOnly: true})

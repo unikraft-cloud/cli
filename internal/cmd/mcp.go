@@ -31,10 +31,11 @@ const instanceEditNote = "Edits to tags, delete-lock, autokill, scale-to-zero an
 const imageGetDescription = "Inspect images by reference, resolving each one from its registry, so public images such as nginx:latest work as well as your own. image_list only covers the images already in your account. Returns one JSON object per image."
 
 type MCPCmd struct {
-	ReadOnly    bool   `help:"Expose only the tools that cannot change anything: list, image_get and instance_logs."`
-	DocsURL     string `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"https://unikraft.com/docs/" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
-	Listen      string `name:"listen" placeholder:"host:port" help:"Serve the protocol over plain HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set."`
-	AllowRemote bool   `name:"allow-remote" help:"Let --listen bind a non-loopback address. Every client then acts with this profile's credentials, so only do this behind an authenticating proxy or on a private network."`
+	ReadOnly    bool     `help:"Expose only the tools that cannot change anything: list, image_get and instance_logs."`
+	Resources   []string `name:"resources" placeholder:"type,..." help:"Serve only the tools of these resource types, such as instance, volume or metro; the names are the prefixes of the tool names. Defaults to every type."`
+	DocsURL     string   `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"https://unikraft.com/docs/" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
+	Listen      string   `name:"listen" placeholder:"host:port" help:"Serve the protocol over plain HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set."`
+	AllowRemote bool     `name:"allow-remote" help:"Let --listen bind a non-loopback address. Every client then acts with this profile's credentials, so only do this behind an authenticating proxy or on a private network."`
 }
 
 func (MCPCmd) Help() string {
@@ -48,6 +49,11 @@ func (MCPCmd) Help() string {
 		when given keys. Instances additionally get %[1]sinstance_control%[1]s for start, stop,
 		restart and suspend, and %[1]sinstance_logs%[1]s. The tools use the current profile and
 		fan out across its metros exactly like the matching CLI commands do.
+
+		Pass %[1]s--resources%[1]s with a comma-separated list of resource types to serve
+		only their tools, such as %[1]s--resources instance,volume,metro%[1]s; the names
+		are the prefixes of the tool names. A shorter tool list costs an assistant
+		less context on every turn.
 
 		The documentation is served as resources: %[1]sunikraft://docs%[1]s is the table of
 		contents and %[1]sunikraft://docs/<path>%[1]s a page, such as %[1]sunikraft://docs/cli/fields%[1]s.
@@ -84,6 +90,12 @@ func (MCPCmd) Examples() []kingkong.Example {
 			Description: "Serve only the tools that cannot change anything",
 			Commands: []string{
 				"unikraft mcp --read-only",
+			},
+		},
+		{
+			Description: "Serve only the instance, volume and metro tools",
+			Commands: []string{
+				"unikraft mcp --resources instance,volume,metro",
 			},
 		},
 		{
@@ -158,6 +170,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 	srv, err := mcpserver.New(ctx, mcpserver.Options{
 		Partition: partition,
 		ReadOnly:  c.ReadOnly,
+		Resources: c.Resources,
 		Version:   version.Version,
 		Stderr:    stderr,
 		Logger:    logger,
@@ -184,6 +197,9 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		srv.AddInstanceTools(mcpInstanceCommands{}),
 	); err != nil {
 		return nil, err
+	}
+	if err := srv.CheckResources(); err != nil {
+		return nil, fmt.Errorf("--resources: %w", err)
 	}
 	return srv, nil
 }
