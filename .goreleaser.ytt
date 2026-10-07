@@ -2,7 +2,10 @@
 
 #@ oses = {
 #@   "darwin": ["amd64", "arm64"],
+#@   "freebsd": ["amd64", "arm64"],
 #@   "linux": ["amd64", "arm64"],
+#@   "netbsd": ["amd64", "arm64"],
+#@   "openbsd": ["amd64", "arm64"],
 #@   "windows": ["amd64", "arm64"],
 #@ }
 
@@ -49,7 +52,7 @@ release:
     > This is a **pre-release** version of the Unikraft CLI.  It may contain features that are still in development and could be unstable.
 
     ## Installation
-    ### 1-liner (macOS & Linux)
+    ### 1-liner (macOS, Linux & BSD)
     ```bash
     curl --proto '=https' --tlsv1.2 -LsSf https://unikraft.com/cli/install.sh | UNIKRAFT_CLI_INSTALL_CHANNEL=staging sh
     ```
@@ -105,7 +108,7 @@ release:
     > This is a **stable** version of the Unikraft CLI.
 
     ## Installation
-    ### 1-liner (macOS & Linux)
+    ### 1-liner (macOS, Linux & BSD)
     ```bash
     curl --proto '=https' --tlsv1.2 -LsSf https://unikraft.com/cli/install.sh | sh
     ```
@@ -228,8 +231,10 @@ builds:
   env:
   - CGO_ENABLED=0
   #@ end
+  #@ if os in ("darwin", "linux", "windows"):
   flags:
   - -buildmode=pie
+  #@ end
   ldflags:
   - -s
   - -w
