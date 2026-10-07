@@ -6,24 +6,11 @@
 package integration
 
 import (
-	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
 	"os"
-	"path/filepath"
-	"sync/atomic"
 	"testing"
 
-	"github.com/mitchellh/copystructure"
-	"github.com/stretchr/testify/require"
-
-	"unikraft.com/x/log"
-
 	"unikraft.com/cli/internal/cmd"
-	"unikraft.com/cli/internal/config"
 	integ "unikraft.com/cli/internal/integration"
-	"unikraft.com/cli/internal/resource"
 )
 
 func TestMain(m *testing.M) {
@@ -32,11 +19,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-var (
-	uniqSeed    string
-	uniqCounter atomic.Uint64
-)
-
 // Servers
 const (
 	staging = "staging"
@@ -44,17 +26,8 @@ const (
 	prod    = "prod"
 )
 
-func init() {
-	var b [3]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	uniqSeed = hex.EncodeToString(b[:])
-}
-
 func uniq() string {
-	n := uniqCounter.Add(1)
-	return fmt.Sprintf("%s%06x", uniqSeed, n)
+	return integ.Uniq()
 }
 
 func runner(t *testing.T, online bool, servers []string) *integ.TestEnv {
@@ -62,48 +35,5 @@ func runner(t *testing.T, online bool, servers []string) *integ.TestEnv {
 	integ.SkipUnlessIntegration(t)
 	integ.SkipUnlessSupportedServer(t, servers)
 	t.Parallel()
-
-	unikraftPath := integ.BuildUnikraft(t)
-
-	baseCfg, err := integ.LoadConfig(t)
-	require.NoError(t, err)
-
-	if online && baseCfg == nil {
-		t.Skip("online test requires config, but no config found")
-	}
-
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	var testCfg *integ.Config
-	if baseCfg != nil {
-		cloned, err := copystructure.Copy(baseCfg)
-		require.NoError(t, err)
-		testCfg = cloned.(*integ.Config)
-		testCfg.Config.Path = configPath
-		require.NoError(t, testCfg.Config.Save())
-	}
-
-	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.TraceLevel))
-
-	partitionPath := filepath.Join(t.TempDir(), "partition.json")
-	t.Cleanup(func() {
-		ctx := ctx
-		if testCfg != nil {
-			ctx = config.WithConfig(ctx, testCfg.Config)
-		}
-
-		if _, statErr := os.Stat(partitionPath); os.IsNotExist(statErr) {
-			return
-		}
-
-		partition, err := resource.LoadPartition(partitionPath, cmd.PartitionedResources...)
-		require.NoError(t, err)
-		require.NotNil(t, partition)
-
-		require.NoError(t, partition.Teardown(context.WithoutCancel(ctx)))
-	})
-
-	return integ.NewTestEnv(t, unikraftPath).
-		WithConfig(testCfg, configPath).
-		WithPartitionPath(partitionPath)
+	return integ.NewEnv(t, online, cmd.PartitionedResources...)
 }

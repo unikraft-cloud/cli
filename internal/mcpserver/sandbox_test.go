@@ -9,8 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +16,7 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcpserver"
+	"unikraft.com/cli/internal/mcpserver/mcptest"
 )
 
 type fakeSandbox struct {
@@ -51,67 +50,67 @@ func (f *fakeSandbox) WriteFile(_ context.Context, instance, path string, data [
 	return nil
 }
 
+func sandboxTools(commands mcpserver.SandboxCommands) func(*mcpserver.Server) error {
+	return func(s *mcpserver.Server) error { return s.AddSandboxTools(commands) }
+}
+
 func TestSandboxTools(t *testing.T) {
 	ctx := t.Context()
 	fake := &fakeSandbox{data: []byte("hello\n")}
-	srv, err := mcpserver.New(ctx, mcpserver.Options{})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddSandboxTools(fake))
-	session := connect(t, ctx, srv)
+	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{}, sandboxTools(fake)))
 
-	tools := listTools(t, ctx, session)
-	assert.ElementsMatch(t, []string{"sandbox_exec", "sandbox_read", "sandbox_write"}, slices.Collect(maps.Keys(tools)))
-	assert.True(t, tools["sandbox_read"].Annotations.ReadOnlyHint)
-	assert.False(t, tools["sandbox_exec"].Annotations.ReadOnlyHint)
-	assert.False(t, tools["sandbox_write"].Annotations.ReadOnlyHint)
-	assert.Equal(t, "Run in sandbox", tools["sandbox_exec"].Title)
-	exec := tools["sandbox_exec"].InputSchema.(map[string]any)
-	assert.ElementsMatch(t, []any{"key", "command"}, exec["required"])
-	assert.Len(t, properties(t, exec)["command"].(map[string]any)["anyOf"], 2)
-	assert.Equal(t, "integer", properties(t, exec)["timeout_ms"].(map[string]any)["type"])
-	assert.ElementsMatch(t, []any{"key", "path", "content"}, tools["sandbox_write"].InputSchema.(map[string]any)["required"])
+	assert.ElementsMatch(t, []string{"sandbox_exec", "sandbox_read", "sandbox_write"}, session.ToolNames())
+	assert.True(t, session.Tool("sandbox_read").Annotations.ReadOnlyHint)
+	assert.False(t, session.Tool("sandbox_write").Annotations.ReadOnlyHint)
+	exec := session.Tool("sandbox_exec")
+	assert.False(t, exec.Annotations.ReadOnlyHint)
+	assert.Equal(t, "Run in sandbox", exec.Title)
+	assert.ElementsMatch(t, []any{"key", "command"}, exec.InputSchema.(map[string]any)["required"])
+	assert.Len(t, property(t, exec.InputSchema, "command")["anyOf"], 2)
+	assert.Equal(t, "integer", property(t, exec.InputSchema, "timeout_ms")["type"])
+	assert.ElementsMatch(t, []any{"key", "path", "content"}, session.Tool("sandbox_write").InputSchema.(map[string]any)["required"])
 
 	res := call(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": []string{"ls", "/data"}, "dir": "/", "env": map[string]string{"A": "1"}, "stdin": "in"})
-	require.False(t, res.IsError, text(res))
-	assert.Equal(t, "out\n", text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
+	assert.Equal(t, "out\n", mcptest.Text(res))
 	assert.Nil(t, res.StructuredContent)
 
 	res = call(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": "false"})
 	assert.True(t, res.IsError)
-	assert.Equal(t, "out\n\nexit status 1", text(res))
+	assert.Equal(t, "out\n\nexit status 1", mcptest.Text(res))
 
 	res = call(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": "boom"})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), "transport broke")
+	assert.Contains(t, mcptest.Text(res), "transport broke")
 
 	res = call(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": "sleep", "timeout_ms": 20})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), "command timed out after 20ms")
+	assert.Contains(t, mcptest.Text(res), "command timed out after 20ms")
 
 	res = call(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": 7})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), "invalid command")
+	assert.Contains(t, mcptest.Text(res), "invalid command")
 
 	res = call(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": []string{}})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), "invalid command: it is empty")
+	assert.Contains(t, mcptest.Text(res), "invalid command: it is empty")
 
 	res = call(t, ctx, session, "sandbox_read", map[string]any{"key": "scratch", "path": "/data/x"})
-	require.False(t, res.IsError, text(res))
-	assert.Equal(t, "hello\n", text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
+	assert.Equal(t, "hello\n", mcptest.Text(res))
 
 	fake.data = []byte{0xff, 0xfe, 0x00}
 	res = call(t, ctx, session, "sandbox_read", map[string]any{"key": "scratch", "path": "/data/bin"})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), "/data/bin is not UTF-8 text")
+	assert.Contains(t, mcptest.Text(res), "/data/bin is not UTF-8 text")
 
 	res = call(t, ctx, session, "sandbox_write", map[string]any{"key": "scratch", "path": "/data/y", "content": "hi\n", "append": true, "parents": true})
-	require.False(t, res.IsError, text(res))
-	assert.Equal(t, "3 bytes appended to /data/y\n", text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
+	assert.Equal(t, "3 bytes appended to /data/y\n", mcptest.Text(res))
 
 	res = call(t, ctx, session, "sandbox_write", map[string]any{"key": "scratch", "path": "/data/z", "content": ""})
-	require.False(t, res.IsError, text(res))
-	assert.Equal(t, "0 bytes written to /data/z\n", text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
+	assert.Equal(t, "0 bytes written to /data/z\n", mcptest.Text(res))
 
 	assert.Equal(t, []string{
 		`exec scratch args=[ls /data] cmdline="" dir="/" env=map[A:1] stdin="in"`,
@@ -125,19 +124,12 @@ func TestSandboxTools(t *testing.T) {
 	}, fake.calls)
 }
 
-func TestSandboxToolsReadOnly(t *testing.T) {
+func TestSandboxToolsGating(t *testing.T) {
 	ctx := t.Context()
-	srv, err := mcpserver.New(ctx, mcpserver.Options{ReadOnly: true})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddSandboxTools(&fakeSandbox{}))
-	assert.Equal(t, []string{"sandbox_read"}, slices.Collect(maps.Keys(listTools(t, ctx, connect(t, ctx, srv)))))
-}
+	srv := newServer(t, ctx, mcpserver.Options{ReadOnly: true}, sandboxTools(&fakeSandbox{}))
+	assert.Equal(t, []string{"sandbox_read"}, mcptest.ConnectServer(t, ctx, srv).ToolNames())
 
-func TestSandboxToolsResources(t *testing.T) {
-	ctx := t.Context()
-	srv, err := mcpserver.New(ctx, mcpserver.Options{Resources: []string{"instance"}})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddSandboxTools(&fakeSandbox{}))
-	assert.Empty(t, listTools(t, ctx, connect(t, ctx, srv)))
+	srv = newServer(t, ctx, mcpserver.Options{Resources: []string{"instance"}}, sandboxTools(&fakeSandbox{}))
+	assert.Empty(t, mcptest.ConnectServer(t, ctx, srv).Tools)
 	assert.EqualError(t, srv.CheckResources(), "unknown resource types: instance; known: sandbox")
 }

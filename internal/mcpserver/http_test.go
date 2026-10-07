@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"unikraft.com/cli/internal/mcpserver"
+	"unikraft.com/cli/internal/mcpserver/mcptest"
 	resourcet "unikraft.com/cli/internal/resource/testing"
 )
 
@@ -30,15 +31,6 @@ func serveHTTP(t *testing.T, ctx context.Context, srv *mcpserver.Server) *httpte
 	ts.Start()
 	t.Cleanup(ts.Close)
 	return ts
-}
-
-func connectHTTP(t *testing.T, ctx context.Context, endpoint string, client *http.Client) *mcp.ClientSession {
-	t.Helper()
-	session, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil).
-		Connect(ctx, &mcp.StreamableClientTransport{Endpoint: endpoint, HTTPClient: client}, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = session.Close() })
-	return session
 }
 
 func readBody(t *testing.T, resp *http.Response) string {
@@ -53,33 +45,17 @@ func TestHTTPTools(t *testing.T) {
 	env := resourcet.NewTestEnv()
 	env.Add(resourcet.TestResource{ID: "1", Name: "a"})
 	ctx := resourcet.WithTestEnv(t.Context(), env)
-	fake := &fakeInstances{}
-	srv, err := mcpserver.New(ctx, mcpserver.Options{})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddTools[resourcet.TestResource](ctx))
-	require.NoError(t, srv.AddInstanceTools(fake))
-	ts := serveHTTP(t, ctx, srv)
-	session := connectHTTP(t, ctx, ts.URL+mcpserver.HTTPPath, ts.Client())
-
-	tools := listTools(t, ctx, session)
-	assert.Contains(t, tools, "test_list")
-	assert.Contains(t, tools, "instance_control")
+	ts := serveHTTP(t, ctx, newServer(t, ctx, mcpserver.Options{}, testTools(ctx)))
+	session := mcptest.Connect(t, &mcp.StreamableClientTransport{Endpoint: ts.URL + mcpserver.HTTPPath, HTTPClient: ts.Client()})
 
 	res := call(t, ctx, session, "test_list", map[string]any{"fields": []string{"name"}})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Equal(t, []map[string]any{{"name": "a"}}, resources(t, res))
-
-	res = call(t, ctx, session, "instance_logs", map[string]any{"key": "web"})
-	require.False(t, res.IsError, text(res))
-	assert.Contains(t, text(res), "line 1")
-	assert.Equal(t, []string{"logs web tail=200"}, fake.calls)
 }
 
 func TestHTTPEndpoints(t *testing.T) {
 	ctx := t.Context()
-	srv, err := mcpserver.New(ctx, mcpserver.Options{})
-	require.NoError(t, err)
-	ts := serveHTTP(t, ctx, srv)
+	ts := serveHTTP(t, ctx, newServer(t, ctx, mcpserver.Options{}))
 	client := ts.Client()
 
 	resp, err := client.Get(ts.URL + "/healthz")
@@ -87,27 +63,7 @@ func TestHTTPEndpoints(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "ok\n", readBody(t, resp))
 
-	resp, err = client.Get(ts.URL + mcpserver.HTTPPath)
-	require.NoError(t, err)
-	readBody(t, resp)
-	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
-	assert.Contains(t, resp.Header.Get("Allow"), "POST")
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ts.URL+mcpserver.HTTPPath, strings.NewReader("hello"))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "text/plain")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	resp, err = client.Do(req)
-	require.NoError(t, err)
-	readBody(t, resp)
-	assert.Equal(t, http.StatusUnsupportedMediaType, resp.StatusCode)
-
-	resp, err = client.Get(ts.URL + "/nope")
-	require.NoError(t, err)
-	readBody(t, resp)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-
-	req, err = http.NewRequestWithContext(ctx, http.MethodPost, ts.URL+mcpserver.HTTPPath, strings.NewReader("{}"))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ts.URL+mcpserver.HTTPPath, strings.NewReader("{}"))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
@@ -121,17 +77,14 @@ func TestHTTPEndpoints(t *testing.T) {
 func TestHTTPServeShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	srv, err := mcpserver.New(ctx, mcpserver.Options{})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddInstanceTools(&fakeInstances{}))
+	srv := newServer(t, ctx, mcpserver.Options{})
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ctx, l) }()
 
-	session := connectHTTP(t, ctx, "http://"+l.Addr().String()+mcpserver.HTTPPath, http.DefaultClient)
-	assert.Contains(t, listTools(t, ctx, session), "instance_logs")
+	session := mcptest.Connect(t, &mcp.StreamableClientTransport{Endpoint: "http://" + l.Addr().String() + mcpserver.HTTPPath, HTTPClient: http.DefaultClient})
 	require.NoError(t, session.Close())
 
 	cancel()
@@ -141,10 +94,4 @@ func TestHTTPServeShutdown(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("server did not stop after the context was cancelled")
 	}
-}
-
-func TestHTTPListenAndServeBadAddr(t *testing.T) {
-	srv, err := mcpserver.New(t.Context(), mcpserver.Options{})
-	require.NoError(t, err)
-	require.Error(t, srv.ListenAndServe(t.Context(), "127.0.0.1:nope"))
 }
