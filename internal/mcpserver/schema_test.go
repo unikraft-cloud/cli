@@ -126,6 +126,7 @@ func TestPatchSchemaRequired(t *testing.T) {
 		{Name: "metro", Create: &resource.Patch{Set: "fra", Required: true}},
 		{Name: "image", Create: &resource.Patch{Set: "", Required: true}},
 		{Name: "tags", Edit: &resource.Patch{Set: []string(nil), Add: []string(nil), Del: []string(nil)}},
+		{Name: "notes", Help: "Notes.", Edit: &resource.Patch{Add: []string(nil)}},
 	}
 
 	set, _, _ := patchSchema(fields, true)
@@ -135,8 +136,11 @@ func TestPatchSchemaRequired(t *testing.T) {
 
 	set, add, del := patchSchema(fields, false)
 	assert.Equal(t, []string{"tags"}, slices.Collect(maps.Keys(set.Properties)))
-	assert.Equal(t, []string{"tags"}, slices.Collect(maps.Keys(add.Properties)))
+	assert.ElementsMatch(t, []string{"tags", "notes"}, slices.Collect(maps.Keys(add.Properties)))
 	assert.Equal(t, []string{"tags"}, slices.Collect(maps.Keys(del.Properties)))
+	assert.Equal(t, "tags (array)", set.Properties["tags"].Description)
+	assert.Equal(t, "Entries to append to tags; described under set.", add.Properties["tags"].Description)
+	assert.Equal(t, "Notes.", add.Properties["notes"].Description)
 }
 
 func TestFieldPaths(t *testing.T) {
