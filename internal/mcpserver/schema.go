@@ -199,6 +199,9 @@ func patchSchema(fields []model.Field, create bool) (set, add, del *jsonschema.S
 		if patch.Add != nil {
 			prop := addProperty(add, key, patch.Add)
 			prop.Description = describe(key, field, prop, nil)
+			if setProp := set.Properties[key]; setProp != nil && setProp.Description == prop.Description {
+				prop.Description = "Entries to append to " + key + "; described under set."
+			}
 		}
 		if patch.Del != nil {
 			prop := addProperty(del, key, patch.Del)
