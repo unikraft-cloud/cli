@@ -207,3 +207,91 @@ func TestKraftfileToBuildOptsRootfsOCIType(t *testing.T) {
 		"OCI rootfs reference must not be joined with the kraftfile directory")
 	require.Equal(t, kraftfile.SourceTypeOCI, opts.Rootfs.Type)
 }
+
+func TestKraftfileToBuildOptsKernel(t *testing.T) {
+	dir := t.TempDir()
+	kf := &kraftfile.Kraftfile{
+		Unikraft: &kraftfile.Unikraft{
+			Type:   kraftfile.UnikraftTypeKernel,
+			Source: "build/helloworld_kraftcloud-x86_64",
+			KConfig: kraftfile.Map{
+				{Key: "CONFIG_LIBUKFS_EROFS", Value: "y"},
+			},
+		},
+		Targets: []kraftfile.Target{
+			{
+				Arch:    "x86_64",
+				Plat:    "kraftcloud",
+				KConfig: kraftfile.Map{{Key: "CONFIG_DEBUG", Value: "y"}},
+			},
+		},
+	}
+
+	opts, err := KraftfileToBuildOpts(dir, kf)
+	require.NoError(t, err)
+	require.Equal(t, dir+"/build/helloworld_kraftcloud-x86_64", opts.Kernel)
+	require.Empty(t, opts.Runtime)
+	require.Len(t, opts.Platform, 1)
+	require.Equal(t, []string{
+		"CONFIG_LIBUKFS_EROFS=y",
+		"CONFIG_DEBUG=y",
+	}, opts.Platform[0].OSFeatures)
+}
+
+func TestKraftfileToBuildOptsKernelWithRuntime(t *testing.T) {
+	runtime := kraftfile.Runtime("unikraft.io/unikraft.org/base")
+	kf := &kraftfile.Kraftfile{
+		Runtime: &runtime,
+		Unikraft: &kraftfile.Unikraft{
+			Type:   kraftfile.UnikraftTypeKernel,
+			Source: "kernel",
+		},
+	}
+
+	_, err := KraftfileToBuildOpts(t.TempDir(), kf)
+	require.ErrorContains(t, err, "mutually exclusive")
+}
+
+func TestKraftfileToBuildOptsKernelWithVersion(t *testing.T) {
+	kf := &kraftfile.Kraftfile{
+		Unikraft: &kraftfile.Unikraft{
+			Type:    kraftfile.UnikraftTypeKernel,
+			Source:  "kernel",
+			Version: "stable",
+		},
+	}
+
+	_, err := KraftfileToBuildOpts(t.TempDir(), kf)
+	require.ErrorContains(t, err, "does not support a version")
+}
+
+func TestKraftfileToBuildOptsKernelWithoutSource(t *testing.T) {
+	kf := &kraftfile.Kraftfile{
+		Unikraft: &kraftfile.Unikraft{Type: kraftfile.UnikraftTypeKernel},
+	}
+
+	_, err := KraftfileToBuildOpts(t.TempDir(), kf)
+	require.ErrorContains(t, err, "missing a source path")
+}
+
+func TestKraftfileToBuildOptsUnikraftSource(t *testing.T) {
+	kf := &kraftfile.Kraftfile{
+		Unikraft: &kraftfile.Unikraft{Version: "stable"},
+	}
+
+	_, err := KraftfileToBuildOpts(t.TempDir(), kf)
+	require.ErrorContains(t, err, "building unikraft from source not currently supported")
+}
+
+func TestKraftfileToBuildOptsNoFullVersion(t *testing.T) {
+	runtime := kraftfile.Runtime("unikraft.io/unikraft.org/base")
+	kf := &kraftfile.Kraftfile{
+		Runtime: &runtime,
+		Targets: []kraftfile.Target{{Arch: "x86_64", Plat: "kraftcloud"}},
+	}
+
+	opts, err := KraftfileToBuildOpts(t.TempDir(), kf)
+	require.NoError(t, err)
+	require.Len(t, opts.Platform, 1)
+	require.Empty(t, opts.Platform[0].OSVersion)
+}

@@ -8,6 +8,7 @@ package builder
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/containerd/platforms"
 	imagespec "unikraft.com/x/image-spec"
@@ -15,6 +16,27 @@ import (
 
 	"unikraft.com/cli/internal/images"
 )
+
+// LoadKernel wraps an already-built kernel binary as an image. A kernel binary
+// carries no platform metadata of its own, so exactly one platform must be
+// requested, and it is taken on trust.
+func LoadKernel(_ context.Context, opts BuildOpts) ([]*imagespec.Image, error) {
+	if len(opts.Platform) != 1 {
+		return nil, fmt.Errorf("a kernel must be built for exactly one target, got %d", len(opts.Platform))
+	}
+
+	f, err := os.Open(opts.Kernel)
+	if err != nil {
+		return nil, fmt.Errorf("opening kernel: %w", err)
+	}
+
+	return []*imagespec.Image{
+		imagespec.NewImage(
+			imagespec.WithPlatform(opts.Platform[0]),
+			imagespec.WithKernel(imagespec.NewOSFile(f)),
+		),
+	}, nil
+}
 
 func BuildKernel(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error) {
 	access, err := images.Accessor(ctx)
