@@ -8,7 +8,10 @@ package mcpserver_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -21,6 +24,7 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/mcpserver"
+	"unikraft.com/cli/internal/resource"
 	resourcet "unikraft.com/cli/internal/resource/testing"
 )
 
@@ -172,6 +176,41 @@ func TestCallList(t *testing.T) {
 	res = call(t, ctx, session, "test_list", map[string]any{"sort": []string{"-name"}, "fields": []string{"name"}})
 	require.False(t, res.IsError, text(res))
 	assert.Equal(t, []map[string]any{{"name": "b"}, {"name": "a"}}, resources(t, res))
+}
+
+func TestCallSyncsPartition(t *testing.T) {
+	env := resourcet.NewTestEnv()
+	ctx := resourcet.WithTestEnv(t.Context(), env)
+	path := filepath.Join(t.TempDir(), "partition.json")
+	partition, err := resource.LoadPartition(path, resourcet.TestResource{})
+	require.NoError(t, err)
+
+	srv, err := mcpserver.New(ctx, mcpserver.Options{Partition: partition})
+	require.NoError(t, err)
+	require.NoError(t, srv.AddTools[resourcet.TestResource](ctx))
+	session := connect(t, ctx, srv)
+
+	res := call(t, ctx, session, "test_create", map[string]any{"set": map[string]any{"name": "fresh"}})
+	require.False(t, res.IsError, text(res))
+	saved, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var keys map[string][]string
+	require.NoError(t, json.Unmarshal(saved, &keys))
+	require.Len(t, keys["test"], 1)
+
+	outside := resourcet.TestResource{ID: "9", Name: "outside"}
+	env.Add(outside)
+	res = call(t, ctx, session, "test_list", map[string]any{"fields": []string{"name"}})
+	require.False(t, res.IsError, text(res))
+	assert.Equal(t, []map[string]any{{"name": "fresh"}}, resources(t, res))
+
+	keys["test"] = append(keys["test"], outside.Key().Canonical())
+	saved, err = json.Marshal(keys)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, saved, 0o644))
+	res = call(t, ctx, session, "test_list", map[string]any{"fields": []string{"name"}, "sort": []string{"name"}})
+	require.False(t, res.IsError, text(res))
+	assert.Equal(t, []map[string]any{{"name": "fresh"}, {"name": "outside"}}, resources(t, res))
 }
 
 func TestCallListKeys(t *testing.T) {
