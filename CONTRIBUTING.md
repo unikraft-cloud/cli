@@ -66,6 +66,18 @@ Run integration tests (requires cloud credentials):
 task integration
 ```
 
+Run the LLM evals of the MCP server (requires `ANTHROPIC_API_KEY`; the live
+cases also require staging credentials). They are slow, cost money and are not
+deterministic, so they never run in CI gating:
+
+```sh
+task eval
+```
+
+Results and transcripts land in `UNIKRAFT_EVAL_OUT` (a temporary directory
+by default); `UNIKRAFT_EVAL_MODEL` and `UNIKRAFT_EVAL_REPS` pick the model
+and the number of repetitions.
+
 Run the linter:
 
 ```sh

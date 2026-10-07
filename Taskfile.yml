@@ -134,6 +134,16 @@ tasks:
         package: ./cmd/unikraft/integration ./internal/builder
         CLI_ARGS: '{{if .TEST}}-run "{{.TEST}}"{{end}}'
 
+  eval:
+    desc: Run LLM evals against the MCP server; needs ANTHROPIC_API_KEY. Use TEST=<pattern> to filter (e.g., TEST=TestToolSelection).
+    silent: true
+    cmds:
+    - task: go:test
+      vars:
+        go_tags: "eval"
+        package: ./cmd/unikraft/eval
+        CLI_ARGS: '-count=1 -timeout 40m {{if .TEST}}-run "{{.TEST}}"{{end}}'
+
   golden:
     desc: Run offline golden tests.
     cmd: >-

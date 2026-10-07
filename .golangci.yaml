@@ -3,6 +3,7 @@ run:
   issues-exit-code: 2
   build-tags:
     - integration
+    - eval
 linters:
   default: none
   enable:
