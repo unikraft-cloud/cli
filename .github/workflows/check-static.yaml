@@ -62,3 +62,10 @@ jobs:
       shell: bash
       run: |
           GOOS=windows go vet ./...
+
+    - name: Vet for the BSDs
+      shell: bash
+      run: |
+          for os in freebsd openbsd netbsd; do
+            GOOS=$os go vet ./...
+          done

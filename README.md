@@ -24,7 +24,7 @@ release process.
 ## Installation
 
 <details open>
-<summary><strong>1-liner (macOS & Linux)</strong></summary>
+<summary><strong>1-liner (macOS, Linux & BSD)</strong></summary>
 
 ```bash
 curl --proto '=https' --tlsv1.2 -fsSL https://unikraft.com/cli/install.sh | sh
@@ -32,6 +32,8 @@ curl --proto '=https' --tlsv1.2 -fsSL https://unikraft.com/cli/install.sh | sh
 
 Installs into the first preferred `bin` directory found in your `PATH` (falling back to `$HOME/.local/bin` if none are available).
 Use environment variable `UNIKRAFT_CLI_INSTALL_BIN_DIR` to customize the installation directory.
+
+On FreeBSD, OpenBSD and NetBSD, `unikraft build` needs a BuildKit that builds Linux images, for example a remote one set in `BUILDKIT_HOST`.
 
 </details>
 
@@ -253,7 +255,7 @@ Or, if you need to directly specify a metro endpoint, you can manually create a
 profile:
 
 ```yaml
-# Linux: ~/.config/unikraft/config.yaml
+# Linux and BSD: ~/.config/unikraft/config.yaml
 # MacOS: ~/Library/Application\ Support/unikraft/config.yaml
 # Windows: %AppData%\unikraft\config.yaml
 profile: default

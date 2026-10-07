@@ -175,6 +175,11 @@ detect_platform() {
   os=$(uname -s)
   arch=$(uname -m)
 
+  # On NetBSD, the machine name is the board (for example evbarm). Use the CPU type.
+  if [ "$os" = "NetBSD" ]; then
+    arch=$(uname -p)
+  fi
+
   case "$arch" in
     x86_64|amd64) arch="amd64" ;;
     aarch64|arm64) arch="arm64" ;;
@@ -184,6 +189,9 @@ detect_platform() {
   case "$os" in
     Linux) PLATFORM="linux" EXT="tar.gz" BIN_NAME="unikraft" ;;
     Darwin) PLATFORM="darwin" EXT="tar.gz" BIN_NAME="unikraft" ;;
+    FreeBSD) PLATFORM="freebsd" EXT="tar.gz" BIN_NAME="unikraft" ;;
+    OpenBSD) PLATFORM="openbsd" EXT="tar.gz" BIN_NAME="unikraft" ;;
+    NetBSD) PLATFORM="netbsd" EXT="tar.gz" BIN_NAME="unikraft" ;;
     *) err "Unsupported OS: $os (use the PowerShell installer on Windows)" ;;
   esac
 
@@ -306,10 +314,13 @@ verify_checksum() {
   if command -v sha256sum >/dev/null 2>&1; then
     actual=$(sha256sum "$archive_path") || err "Failed to calculate sha256"
     actual=${actual%% *}
-  else
-    need_cmd shasum
+  elif command -v shasum >/dev/null 2>&1; then
     actual=$(shasum -a 256 "$archive_path") || err "Failed to calculate sha256"
     actual=${actual%% *}
+  else
+    need_cmd openssl
+    actual=$(openssl dgst -sha256 "$archive_path") || err "Failed to calculate sha256"
+    actual=${actual##* }
   fi
 
   rm -f "$sha_tmp" || true
