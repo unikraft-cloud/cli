@@ -8,6 +8,7 @@ package mcpserver_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"maps"
 	"slices"
 	"strings"
@@ -21,58 +22,36 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/mcpserver"
+	"unikraft.com/cli/internal/mcpserver/mcptest"
 	resourcet "unikraft.com/cli/internal/resource/testing"
 )
 
-func newSession(t *testing.T, readOnly bool) (context.Context, *mcp.ClientSession, *resourcet.TestEnv) {
+func newServer(t *testing.T, ctx context.Context, opts mcpserver.Options, add ...func(*mcpserver.Server) error) *mcpserver.Server {
+	t.Helper()
+	srv, err := mcpserver.New(ctx, opts)
+	require.NoError(t, err)
+	for _, add := range add {
+		require.NoError(t, add(srv))
+	}
+	return srv
+}
+
+func testTools(ctx context.Context) func(*mcpserver.Server) error {
+	return func(s *mcpserver.Server) error { return s.AddTools[resourcet.TestResource](ctx) }
+}
+
+func newSession(t *testing.T, opts mcpserver.Options) (context.Context, *mcptest.Session, *resourcet.TestEnv) {
 	t.Helper()
 	env := resourcet.NewTestEnv()
 	ctx := resourcet.WithTestEnv(t.Context(), env)
-
-	srv, err := mcpserver.New(ctx, mcpserver.Options{ReadOnly: readOnly})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddTools[resourcet.TestResource](ctx))
-	return ctx, connect(t, ctx, srv), env
+	return ctx, mcptest.ConnectServer(t, ctx, newServer(t, ctx, opts, testTools(ctx))), env
 }
 
-func connect(t *testing.T, ctx context.Context, srv *mcpserver.Server) *mcp.ClientSession {
-	t.Helper()
-	clientTransport, serverTransport := mcp.NewInMemoryTransports()
-	_, err := srv.Connect(ctx, serverTransport)
-	require.NoError(t, err)
-
-	session, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil).Connect(ctx, clientTransport, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = session.Close() })
-	return session
-}
-
-func listTools(t *testing.T, ctx context.Context, session *mcp.ClientSession) map[string]*mcp.Tool {
-	t.Helper()
-	res, err := session.ListTools(ctx, nil)
-	require.NoError(t, err)
-	tools := make(map[string]*mcp.Tool, len(res.Tools))
-	for _, tool := range res.Tools {
-		tools[tool.Name] = tool
-	}
-	return tools
-}
-
-func call(t *testing.T, ctx context.Context, session *mcp.ClientSession, name string, args map[string]any) *mcp.CallToolResult {
+func call(t *testing.T, ctx context.Context, session *mcptest.Session, name string, args map[string]any) *mcp.CallToolResult {
 	t.Helper()
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
 	require.NoError(t, err)
 	return res
-}
-
-func text(res *mcp.CallToolResult) string {
-	var parts []string
-	for _, content := range res.Content {
-		if tc, ok := content.(*mcp.TextContent); ok {
-			parts = append(parts, tc.Text)
-		}
-	}
-	return strings.Join(parts, "\n")
 }
 
 func resources(t *testing.T, res *mcp.CallToolResult) []map[string]any {
@@ -96,105 +75,96 @@ func properties(t *testing.T, schema any) map[string]any {
 	return props
 }
 
+func property(t *testing.T, schema any, name string) map[string]any {
+	t.Helper()
+	prop, ok := properties(t, schema)[name].(map[string]any)
+	require.True(t, ok, "property %s is not an object", name)
+	return prop
+}
+
 func TestResourcesAllowlist(t *testing.T) {
 	ctx := resourcet.WithTestEnv(t.Context(), resourcet.NewTestEnv())
 
-	srv, err := mcpserver.New(ctx, mcpserver.Options{Resources: []string{"Test"}})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddTools[resourcet.TestResource](ctx))
+	srv := newServer(t, ctx, mcpserver.Options{Resources: []string{"Test"}}, testTools(ctx))
 	require.NoError(t, srv.CheckResources())
-	session := connect(t, ctx, srv)
-	assert.Len(t, listTools(t, ctx, session), 4)
-	assert.Contains(t, session.InitializeResult().Instructions, "Only the tools of these resource types are served: test.")
+	session := mcptest.ConnectServer(t, ctx, srv)
+	assert.Len(t, session.Tools, 4)
+	assert.Contains(t, session.Instructions, "Only the tools of these resource types are served: test.")
 
-	srv, err = mcpserver.New(ctx, mcpserver.Options{Resources: []string{"other-thing"}})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddTools[resourcet.TestResource](ctx))
-	assert.Empty(t, listTools(t, ctx, connect(t, ctx, srv)))
+	srv = newServer(t, ctx, mcpserver.Options{Resources: []string{"other-thing"}}, testTools(ctx))
+	assert.Empty(t, mcptest.ConnectServer(t, ctx, srv).Tools)
 	assert.EqualError(t, srv.CheckResources(), "unknown resource types: other_thing; known: test")
 }
 
 func TestListTools(t *testing.T) {
-	ctx, session, _ := newSession(t, false)
-	tools := listTools(t, ctx, session)
+	_, session, _ := newSession(t, mcpserver.Options{})
+	assert.ElementsMatch(t, []string{"test_list", "test_create", "test_edit", "test_delete"}, session.ToolNames())
 
-	assert.ElementsMatch(t,
-		[]string{"test_list", "test_create", "test_edit", "test_delete"},
-		slices.Collect(maps.Keys(tools)),
-	)
+	list := session.Tool("test_list")
+	assert.True(t, list.Annotations.ReadOnlyHint)
+	assert.Equal(t, "List tests", list.Title)
+	assert.NotContains(t, list.Description, "settings.foo")
+	filter := property(t, list.InputSchema, "filter")["description"]
+	assert.Contains(t, filter, "settings.foo")
+	assert.Contains(t, filter, "Field meanings: state: Lifecycle state: running or stopped.")
 
-	assert.True(t, tools["test_list"].Annotations.ReadOnlyHint)
-	assert.False(t, tools["test_create"].Annotations.ReadOnlyHint)
-	assert.False(t, *tools["test_edit"].Annotations.DestructiveHint)
-	assert.True(t, *tools["test_delete"].Annotations.DestructiveHint)
-
-	assert.Equal(t, "List tests", tools["test_list"].Title)
-	assert.NotContains(t, tools["test_list"].Description, "settings.foo")
-	assert.Contains(t, properties(t, tools["test_list"].InputSchema)["filter"].(map[string]any)["description"], "settings.foo")
-	assert.Contains(t, properties(t, tools["test_list"].InputSchema)["filter"].(map[string]any)["description"], "Field meanings: state: Lifecycle state: running or stopped.")
-	assert.True(t, strings.HasPrefix(tools["test_create"].Description, "Create a test. "), tools["test_create"].Description)
-	assert.Contains(t, tools["test_create"].Description, "Required: none.")
-	assert.Equal(t, "Create test", tools["test_create"].Title)
-
-	create := properties(t, tools["test_create"].InputSchema)
-	set := properties(t, create["set"])
+	create := session.Tool("test_create")
+	assert.False(t, create.Annotations.ReadOnlyHint)
+	assert.Equal(t, "Create test", create.Title)
+	assert.True(t, strings.HasPrefix(create.Description, "Create a test. "), create.Description)
+	assert.Contains(t, create.Description, "Required: none.")
+	set := properties(t, property(t, create.InputSchema, "set"))
 	assert.ElementsMatch(t, []string{"name", "create_only", "settings.foo", "settings.bar"}, slices.Collect(maps.Keys(set)))
 	foo := set["settings.foo"].(map[string]any)
 	assert.Equal(t, []any{map[string]any{"type": "integer"}, map[string]any{"type": "string"}}, foo["anyOf"])
 	assert.Equal(t, "Foo setting.", foo["description"])
 
-	edit := tools["test_edit"].InputSchema.(map[string]any)
-	assert.Equal(t, []any{"key"}, edit["required"])
-	editSet := properties(t, properties(t, edit)["set"])
+	edit := session.Tool("test_edit")
+	assert.False(t, *edit.Annotations.DestructiveHint)
+	assert.Equal(t, []any{"key"}, edit.InputSchema.(map[string]any)["required"])
+	editSet := properties(t, property(t, edit.InputSchema, "set"))
 	assert.ElementsMatch(t, []string{"edit_only", "settings.foo", "settings.bar"}, slices.Collect(maps.Keys(editSet)))
 
-	assert.Equal(t, []any{"keys"}, tools["test_delete"].InputSchema.(map[string]any)["required"])
+	del := session.Tool("test_delete")
+	assert.True(t, *del.Annotations.DestructiveHint)
+	assert.Equal(t, []any{"keys"}, del.InputSchema.(map[string]any)["required"])
 }
 
 func TestReadOnly(t *testing.T) {
-	ctx, session, _ := newSession(t, true)
-	assert.Equal(t, []string{"test_list"}, slices.Collect(maps.Keys(listTools(t, ctx, session))))
+	_, session, _ := newSession(t, mcpserver.Options{ReadOnly: true})
+	assert.Equal(t, []string{"test_list"}, session.ToolNames())
 }
 
 func TestCallList(t *testing.T) {
-	ctx, session, env := newSession(t, false)
+	ctx, session, env := newSession(t, mcpserver.Options{})
 	env.Add(resourcet.TestResource{ID: "1", Name: "a", State: "running"})
 	env.Add(resourcet.TestResource{ID: "2", Name: "b", State: "stopped"})
 
-	res := call(t, ctx, session, "test_list", map[string]any{
-		"filter": []string{"state==running"},
-		"fields": []string{"name"},
-	})
-	require.False(t, res.IsError, text(res))
+	res := call(t, ctx, session, "test_list", map[string]any{"filter": []string{"state==running"}, "fields": []string{"name"}})
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Equal(t, []map[string]any{{"name": "a"}}, resources(t, res))
-	assert.Contains(t, text(res), `"name": "a"`)
+	assert.Contains(t, mcptest.Text(res), `"name": "a"`)
 
 	res = call(t, ctx, session, "test_list", map[string]any{"sort": []string{"-name"}, "fields": []string{"name"}})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Equal(t, []map[string]any{{"name": "b"}, {"name": "a"}}, resources(t, res))
-}
 
-func TestCallListKeys(t *testing.T) {
-	ctx, session, env := newSession(t, false)
-	env.Add(resourcet.TestResource{ID: "1", Name: "a"})
-	env.Add(resourcet.TestResource{ID: "2", Name: "b"})
-
-	res := call(t, ctx, session, "test_list", map[string]any{"keys": []string{"b"}, "fields": []string{"id", "name"}})
-	require.False(t, res.IsError, text(res))
+	res = call(t, ctx, session, "test_list", map[string]any{"keys": []string{"b"}, "fields": []string{"id", "name"}})
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Equal(t, []map[string]any{{"id": "2", "name": "b"}}, resources(t, res))
 
 	res = call(t, ctx, session, "test_list", map[string]any{"keys": []string{"missing"}})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Empty(t, resources(t, res))
 }
 
 func TestCallCreate(t *testing.T) {
-	ctx, session, env := newSession(t, false)
+	ctx, session, env := newSession(t, mcpserver.Options{})
 
 	res := call(t, ctx, session, "test_create", map[string]any{
 		"set": map[string]any{"name": "fresh", "settings.foo": 7, "settings.bar": "baz"},
 	})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	require.Contains(t, env.Store, "fresh")
 	assert.Equal(t, 7, env.Store["fresh"].Settings.Foo)
 	assert.Equal(t, "baz", env.Store["fresh"].Settings.Bar)
@@ -204,27 +174,27 @@ func TestCallCreate(t *testing.T) {
 
 	res = call(t, ctx, session, "test_create", map[string]any{"set": map[string]any{"nope": "x"}})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), "nope")
+	assert.Contains(t, mcptest.Text(res), "nope")
 
 	res = call(t, ctx, session, "test_create", map[string]any{
 		"set":     map[string]any{"name": "preview"},
 		"dry_run": true,
 	})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Nil(t, res.StructuredContent)
-	assert.Contains(t, text(res), "preview")
+	assert.Contains(t, mcptest.Text(res), "preview")
 	assert.NotContains(t, env.Store, "preview")
 }
 
 func TestCallEdit(t *testing.T) {
-	ctx, session, env := newSession(t, false)
+	ctx, session, env := newSession(t, mcpserver.Options{})
 	env.Add(resourcet.TestResource{ID: "1", Name: "a", Settings: resourcet.TestSettings{Foo: 1, Bar: "old"}})
 
 	res := call(t, ctx, session, "test_edit", map[string]any{
 		"key": "a",
 		"set": map[string]any{"settings.bar": "new", "settings.foo": "5"},
 	})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Equal(t, "new", env.Store["a"].Settings.Bar)
 	assert.Equal(t, 5, env.Store["a"].Settings.Foo)
 	updated := resources(t, res)
@@ -236,22 +206,22 @@ func TestCallEdit(t *testing.T) {
 		"set":     map[string]any{"settings.bar": "later"},
 		"dry_run": true,
 	})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Equal(t, "new", env.Store["a"].Settings.Bar)
-	assert.Contains(t, text(res), "later")
+	assert.Contains(t, mcptest.Text(res), "later")
 
 	res = call(t, ctx, session, "test_edit", map[string]any{"key": "missing", "set": map[string]any{"settings.bar": "x"}})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), "not found")
+	assert.Contains(t, mcptest.Text(res), "not found")
 }
 
 func TestCallDelete(t *testing.T) {
-	ctx, session, env := newSession(t, false)
+	ctx, session, env := newSession(t, mcpserver.Options{})
 	env.Add(resourcet.TestResource{ID: "1", Name: "a"})
 	env.Add(resourcet.TestResource{ID: "2", Name: "b"})
 
 	res := call(t, ctx, session, "test_delete", map[string]any{"keys": []string{"a"}})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.NotContains(t, env.Store, "a")
 	assert.Contains(t, env.Store, "b")
 	deleted := resources(t, res)
@@ -260,7 +230,7 @@ func TestCallDelete(t *testing.T) {
 
 	res = call(t, ctx, session, "test_delete", map[string]any{})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), "keys is required")
+	assert.Contains(t, mcptest.Text(res), "keys is required")
 }
 
 func TestCallLogging(t *testing.T) {
@@ -268,12 +238,10 @@ func TestCallLogging(t *testing.T) {
 	logger := zerolog.New(&logs).Level(zerolog.TraceLevel)
 	env := resourcet.NewTestEnv()
 	ctx := log.WithLogger(resourcet.WithTestEnv(t.Context(), env), &logger)
-	srv, err := mcpserver.New(ctx, mcpserver.Options{})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddTools[resourcet.TestResource](ctx))
-	session := connect(t, ctx, srv)
+	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{}, testTools(ctx)))
 
-	call(t, ctx, session, "test_list", map[string]any{"fields": []string{"name"}})
+	_, _, err := session.Call(ctx, "test_list", json.RawMessage(`{"fields":["name"]}`))
+	require.NoError(t, err)
 	call(t, ctx, session, "test_create", map[string]any{"set": map[string]any{"nope": "x"}})
 	call(t, ctx, session, "test_delete", map[string]any{})
 

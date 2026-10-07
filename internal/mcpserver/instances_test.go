@@ -8,8 +8,6 @@ package mcpserver_test
 import (
 	"context"
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
 	"testing"
 
@@ -18,6 +16,7 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcpserver"
+	"unikraft.com/cli/internal/mcpserver/mcptest"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -52,28 +51,29 @@ func (f *fakeInstances) Logs(_ context.Context, stdio config.Stdio, instance str
 	return nil
 }
 
+func instanceTools(commands mcpserver.InstanceCommands) func(*mcpserver.Server) error {
+	return func(s *mcpserver.Server) error { return s.AddInstanceTools(commands) }
+}
+
 func TestInstanceTools(t *testing.T) {
 	ctx := t.Context()
 	fake := &fakeInstances{}
-	srv, err := mcpserver.New(ctx, mcpserver.Options{})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddInstanceTools(fake))
-	session := connect(t, ctx, srv)
+	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{}, instanceTools(fake)))
 
-	tools := listTools(t, ctx, session)
-	assert.ElementsMatch(t, []string{"instance_control", "instance_logs"}, slices.Collect(maps.Keys(tools)))
-	assert.True(t, tools["instance_logs"].Annotations.ReadOnlyHint)
-	assert.True(t, strings.HasPrefix(tools["instance_logs"].Description, "Read the last lines"), tools["instance_logs"].Description)
-	assert.Equal(t, "Control instances", tools["instance_control"].Title)
-	assert.False(t, tools["instance_control"].Annotations.ReadOnlyHint)
-	control := tools["instance_control"].InputSchema.(map[string]any)
-	assert.ElementsMatch(t, []any{"action", "keys"}, control["required"])
-	assert.Equal(t, []any{"start", "stop", "restart", "suspend"}, properties(t, control)["action"].(map[string]any)["enum"])
-	assert.Equal(t, "array", properties(t, control)["keys"].(map[string]any)["type"])
-	assert.Equal(t, "integer", properties(t, control)["drain_timeout_ms"].(map[string]any)["type"])
+	assert.ElementsMatch(t, []string{"instance_control", "instance_logs"}, session.ToolNames())
+	logs := session.Tool("instance_logs")
+	assert.True(t, logs.Annotations.ReadOnlyHint)
+	assert.True(t, strings.HasPrefix(logs.Description, "Read the last lines"), logs.Description)
+	control := session.Tool("instance_control")
+	assert.Equal(t, "Control instances", control.Title)
+	assert.False(t, control.Annotations.ReadOnlyHint)
+	assert.ElementsMatch(t, []any{"action", "keys"}, control.InputSchema.(map[string]any)["required"])
+	assert.Equal(t, []any{"start", "stop", "restart", "suspend"}, property(t, control.InputSchema, "action")["enum"])
+	assert.Equal(t, "array", property(t, control.InputSchema, "keys")["type"])
+	assert.Equal(t, "integer", property(t, control.InputSchema, "drain_timeout_ms")["type"])
 
 	res := call(t, ctx, session, "instance_control", map[string]any{"action": "start", "keys": []string{"web"}})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Equal(t, []map[string]any{{"name": "web", "state": "running"}}, resources(t, res))
 
 	for _, args := range []map[string]any{
@@ -82,17 +82,17 @@ func TestInstanceTools(t *testing.T) {
 		{"action": "suspend", "keys": []string{"web"}},
 	} {
 		res = call(t, ctx, session, "instance_control", args)
-		require.False(t, res.IsError, text(res))
+		require.False(t, res.IsError, mcptest.Text(res))
 	}
 
 	res = call(t, ctx, session, "instance_control", map[string]any{"action": "explode", "keys": []string{"web"}})
 	assert.True(t, res.IsError)
-	assert.Contains(t, text(res), `unknown action "explode"`)
+	assert.Contains(t, mcptest.Text(res), `unknown action "explode"`)
 
 	res = call(t, ctx, session, "instance_logs", map[string]any{"key": "web"})
-	require.False(t, res.IsError, text(res))
+	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Nil(t, res.StructuredContent)
-	assert.Contains(t, text(res), "line 1")
+	assert.Contains(t, mcptest.Text(res), "line 1")
 
 	assert.Equal(t, []string{
 		"start web",
@@ -103,21 +103,12 @@ func TestInstanceTools(t *testing.T) {
 	}, fake.calls)
 }
 
-func TestInstanceToolsResources(t *testing.T) {
+func TestInstanceToolsGating(t *testing.T) {
 	ctx := t.Context()
-	srv, err := mcpserver.New(ctx, mcpserver.Options{Resources: []string{"volume"}})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddInstanceTools(&fakeInstances{}))
-	assert.Empty(t, listTools(t, ctx, connect(t, ctx, srv)))
+	srv := newServer(t, ctx, mcpserver.Options{ReadOnly: true}, instanceTools(&fakeInstances{}))
+	assert.Equal(t, []string{"instance_logs"}, mcptest.ConnectServer(t, ctx, srv).ToolNames())
+
+	srv = newServer(t, ctx, mcpserver.Options{Resources: []string{"volume"}}, instanceTools(&fakeInstances{}))
+	assert.Empty(t, mcptest.ConnectServer(t, ctx, srv).Tools)
 	assert.EqualError(t, srv.CheckResources(), "unknown resource types: volume; known: instance")
-}
-
-func TestInstanceToolsReadOnly(t *testing.T) {
-	ctx := t.Context()
-	srv, err := mcpserver.New(ctx, mcpserver.Options{ReadOnly: true})
-	require.NoError(t, err)
-	require.NoError(t, srv.AddInstanceTools(&fakeInstances{}))
-
-	tools := listTools(t, ctx, connect(t, ctx, srv))
-	assert.Equal(t, []string{"instance_logs"}, slices.Collect(maps.Keys(tools)))
 }
