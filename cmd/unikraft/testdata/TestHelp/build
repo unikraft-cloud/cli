@@ -23,6 +23,9 @@ Examples:
   # Build with custom build arguments
   unikraft build ./app --build-arg VERSION=1.2.3 --build-arg COMMIT=abc123
 
+  # Build with an additional build context
+  unikraft build . --build-context shared=./shared
+
   # Build with secret and SSH access
   unikraft build . --secret id=npm,src=$HOME/.npmrc --ssh default=$SSH_AUTH_SOCK
 
@@ -32,9 +35,6 @@ Examples:
   # Build and save to a local OCI archive
   unikraft build . --output ./dist/my-app.oci.tar
 
-  # Build with an additional build context
-  unikraft build . --build-context shared=./shared
-
 Flags:
   -o, --output
           Output destination.
@@ -43,14 +43,14 @@ Flags:
           [examples: x86_64, arm64]
       --build-arg
           Set build-time variables.
+      --build-context
+          Additional build contexts (format: "name=value").
       --no-cache
           Do not use cache when building the image.
       --secret
           Secret to expose to the build (format: "id=mysecret[,src=/local/secret]").
       --ssh
           SSH agent socket or keys to expose to the build (format: "default|<id>[=<socket>|<key>[,<key>]]").
-      --build-context
-          Additional build contexts (e.g., name=path).
       --insecure
           Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all.
 
