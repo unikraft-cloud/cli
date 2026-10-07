@@ -72,6 +72,61 @@ jobs:
         if: steps.unit.outcome == 'failure' || steps.golden.outcome == 'failure'
         run: exit 1
 
+  test-windows:
+    runs-on: windows-latest
+    env:
+      TASK_X_REMOTE_TASKFILES: 1
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: go-task/setup-task@v2
+      - name: Authenticate git for remote Taskfiles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Set Go variables
+        id: goenv
+        run: |
+          {
+            echo "cache=$(go env GOCACHE)"
+            echo "modcache=$(go env GOMODCACHE)"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Go caches
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.goenv.outputs.cache }}
+            ${{ steps.goenv.outputs.modcache }}
+          key: ${{ github.job }}-${{ runner.os }}-go-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ github.job }}-${{ runner.os }}-go-
+
+      # The race detector needs cgo, which the Windows runner lacks, and the
+      # integration tests only run on Linux.
+      - name: Run unit tests
+        id: unit
+        continue-on-error: true
+        run: |
+          task --yes go:test package="$(go list ./... | grep -v /cmd/unikraft/integration | tr '\n' ' ')"
+
+      - name: Run golden tests
+        id: golden
+        continue-on-error: true
+        run: |
+          task --yes golden
+
+      - name: Check test results
+        if: steps.unit.outcome == 'failure' || steps.golden.outcome == 'failure'
+        run: exit 1
+
   integration:
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'arc-ubuntu24.04-standard' }}
     needs: test
@@ -214,6 +269,82 @@ jobs:
         run: |
           mkdir -p ~/.config/unikraft
           cat <<EOF > ~/.config/unikraft/config.yaml
+          profile: default
+          profiles:
+            default:
+              type: cloud
+              name: default
+              organization: ${UNIKRAFT_ORG}
+              token: ${UNIKRAFT_TOKEN}
+              metros:
+                - name: ${UNIKRAFT_X_TEST_SERVER}
+                  endpoint: ${UNIKRAFT_ENDPOINT}
+                  location: fra
+                  insecure: true
+          EOF
+          task --yes integration
+        env:
+          UNIKRAFT_ORG: ${{ vars.UNIKRAFT_ORG }}
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
+          UNIKRAFT_ENDPOINT: ${{ secrets.UNIKRAFT_ENDPOINT_PROD }}
+          UNIKRAFT_X_TEST_SERVER: ${{ env.UNIKRAFT_SERVER_PROD }}
+
+  # The hosted Windows runners reach only the public prod endpoint, and run
+  # after the Linux jobs, so that both do not use the same organization at once.
+  integration-windows:
+    runs-on: windows-latest
+    needs: [test-windows, integration-prod]
+    env:
+      TASK_X_REMOTE_TASKFILES: 1
+      UNIKRAFT_SERVER_PROD: prod
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: go-task/setup-task@v2
+      - name: Authenticate git for remote Taskfiles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Set Go variables
+        id: goenv
+        run: |
+          {
+            echo "cache=$(go env GOCACHE)"
+            echo "modcache=$(go env GOMODCACHE)"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Go caches
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.goenv.outputs.cache }}
+            ${{ steps.goenv.outputs.modcache }}
+          key: ${{ github.job }}-${{ runner.os }}-go-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ github.job }}-${{ runner.os }}-go-
+
+      # The Windows runners have no BuildKit for Linux images, so the tests
+      # that build with it skip themselves.
+      - name: Run integration tests (without auth)
+        if: ${{ !(github.event_name == 'push' || !github.event.pull_request.head.repo.fork) }}
+        run: |
+          task --yes integration
+        env:
+          UNIKRAFT_X_TEST_SERVER: ${{ env['UNIKRAFT_CONFIG_PROD'] }}
+
+      # The CLI reads its config from %AppData% on Windows.
+      - name: Run integration tests (with auth)
+        if: ${{ github.event_name == 'push' || !github.event.pull_request.head.repo.fork }}
+        run: |
+          mkdir -p "$APPDATA/unikraft"
+          cat <<EOF > "$APPDATA/unikraft/config.yaml"
           profile: default
           profiles:
             default:

@@ -3,6 +3,7 @@
 #@ oses = {
 #@   "darwin": ["amd64", "arm64"],
 #@   "linux": ["amd64", "arm64"],
+#@   "windows": ["amd64", "arm64"],
 #@ }
 
 version: 2
@@ -51,6 +52,10 @@ release:
     ### 1-liner (macOS & Linux)
     ```bash
     curl --proto '=https' --tlsv1.2 -LsSf https://unikraft.com/cli/install.sh | UNIKRAFT_CLI_INSTALL_CHANNEL=staging sh
+    ```
+    ### 1-liner (Windows PowerShell)
+    ```powershell
+    & ([scriptblock]::Create((irm https://unikraft.com/cli/install.ps1))) -Channel staging
     ```
     ### Debian/Ubuntu
     ```bash
@@ -103,6 +108,10 @@ release:
     ### 1-liner (macOS & Linux)
     ```bash
     curl --proto '=https' --tlsv1.2 -LsSf https://unikraft.com/cli/install.sh | sh
+    ```
+    ### 1-liner (Windows PowerShell)
+    ```powershell
+    irm https://unikraft.com/cli/install.ps1 | iex
     ```
     ### Homebrew (macOS & Linux)
     ```bash
@@ -215,7 +224,7 @@ builds:
   - #@ os
   goarch:
   - #@ arch
-  #@ if os == "linux":
+  #@ if os != "darwin":
   env:
   - CGO_ENABLED=0
   #@ end
@@ -224,7 +233,7 @@ builds:
   ldflags:
   - -s
   - -w
-  #@ if os != "linux":
+  #@ if os == "darwin":
   - -extldflags
   - -static-pie
   #@ end
@@ -244,19 +253,27 @@ archives:
 #@ for arch in archs:
 - id: #@ "archive-unikraft-cli-{}-{}".format(os, arch)
   formats:
-  - tar.gz
+  - #@ "zip" if os == "windows" else "tar.gz"
   name_template: unikraft-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}
   ids:
   - #@ "unikraft-{}-{}".format(os, arch)
   files:
+  #@ if os == "windows":
+  - LICENSE.md
+  #@ else:
   - src: .goreleaser-docs/man/*.1.gz
     dst: docs/man
     strip_parent: true
+  #@ end
 #@ end
 #@ end
 
 nfpms:
 - id: deb
+  ids:
+#@ for arch in oses["linux"]:
+  - #@ "unikraft-linux-{}".format(arch)
+#@ end
   vendor: Unikraft
   package_name: unikraft-cli
   maintainer: Unikraft <support@unikraft.com>
