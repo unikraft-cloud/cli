@@ -85,7 +85,7 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 		Title:       "Control instances",
 		Description: "Start, stop, restart or suspend instances. Stop and restart drain connections first unless force is set; a suspended instance resumes from memory on its next request. Returns the updated instances.",
 		InputSchema: schema,
-		Annotations: mutatingAnnotations(false),
+		Annotations: mutatingAnnotations(),
 	}, true, func(ctx context.Context, in instanceControlArgs, stdio config.Stdio) error {
 		if len(in.Keys) == 0 {
 			return errors.New("no instances specified")

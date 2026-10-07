@@ -46,14 +46,14 @@ func TestMCPServerTools(t *testing.T) {
 	readOnlyTools := []string{
 		"instance_list", "instance_template_list", "instance_checkpoint_list",
 		"volume_list", "volume_template_list", "service_list", "certificate_list",
-		"image_list", "image_get", "metro_list", "profile_list", "instance_logs",
+		"image_list", "image_get", "metro_list", "profile_list", "instance_logs", "sandbox_read",
 	}
 	mutatingTools := []string{
 		"instance_create", "instance_edit", "instance_delete", "instance_template_create",
 		"volume_template_delete", "service_edit", "certificate_create", "certificate_delete", "image_delete",
-		"instance_control",
+		"instance_control", "sandbox_exec", "sandbox_write",
 	}
-	mutatingSuffixes := []string{"_create", "_edit", "_delete", "_control"}
+	mutatingSuffixes := []string{"_create", "_edit", "_delete", "_control", "_exec", "_write"}
 
 	for _, readOnly := range []bool{false, true} {
 		t.Run(fmt.Sprintf("read-only=%t", readOnly), func(t *testing.T) {
@@ -97,5 +97,5 @@ func TestMCPServerResources(t *testing.T) {
 	}, slices.Collect(maps.Keys(listMCPTools(t, ctx, srv))))
 
 	_, err = newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "nope"}})
-	assert.EqualError(t, err, "--resources: unknown resource types: nope; known: certificate, image, instance, instance_checkpoint, instance_template, metro, profile, service, volume, volume_template")
+	assert.EqualError(t, err, "--resources: unknown resource types: nope; known: certificate, image, instance, instance_checkpoint, instance_template, metro, profile, sandbox, service, volume, volume_template")
 }
