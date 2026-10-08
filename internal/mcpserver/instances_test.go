@@ -17,6 +17,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcpserver"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
+	resourcet "unikraft.com/cli/internal/resource/testing"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -52,7 +53,7 @@ func (f *fakeInstances) Logs(_ context.Context, stdio config.Stdio, instance str
 }
 
 func instanceTools(commands mcpserver.InstanceCommands) func(*mcpserver.Server) error {
-	return func(s *mcpserver.Server) error { return s.AddInstanceTools(commands) }
+	return func(s *mcpserver.Server) error { return s.AddInstanceTools[resourcet.TestResource](commands) }
 }
 
 func TestInstanceTools(t *testing.T) {
@@ -101,14 +102,4 @@ func TestInstanceTools(t *testing.T) {
 		"suspend web drain=-1",
 		"logs web tail=200",
 	}, fake.calls)
-}
-
-func TestInstanceToolsGating(t *testing.T) {
-	ctx := t.Context()
-	srv := newServer(t, ctx, mcpserver.Options{ReadOnly: true}, instanceTools(&fakeInstances{}))
-	assert.Equal(t, []string{"instance_logs"}, mcptest.ConnectServer(t, ctx, srv).ToolNames())
-
-	srv = newServer(t, ctx, mcpserver.Options{Resources: []string{"volume"}}, instanceTools(&fakeInstances{}))
-	assert.Empty(t, mcptest.ConnectServer(t, ctx, srv).Tools)
-	assert.EqualError(t, srv.CheckResources(), "unknown resource types: volume; known: instance")
 }

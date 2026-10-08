@@ -7,7 +7,6 @@ package mcpserver
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
@@ -26,6 +25,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/resource/patch"
 )
 
 // AddTools registers every tool a fully capable resource type supports.
@@ -55,7 +55,7 @@ func (s *Server) AddListTool[R resource.GettableListableResource](ctx context.Co
 		return s.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "list"),
 			Title:       "List " + typ.Names,
-			Description: listDescription(typ),
+			Description: fmt.Sprintf("List all %s, or fetch specific ones by passing their keys. Narrow with filter and trim the output with fields; both take the field paths listed on those parameters. Returns one JSON object per %s.", typ.Names, typ.Name),
 			InputSchema: listSchema(typ, fields),
 			Annotations: readOnlyAnnotations(),
 		}, true, func(ctx context.Context, args listArgs, stdio config.Stdio) error {
@@ -74,20 +74,23 @@ type getArgs struct {
 	Fields []string `json:"fields"`
 }
 
-// AddGetTool registers a get tool; an empty description selects the generic one.
-func (s *Server) AddGetTool[R resource.GettableResource](ctx context.Context, description string) error {
+func (s *Server) AddGetTool[R resource.GettableResource](ctx context.Context, description string, opts ...ToolOption) error {
+	partition := s.opts.Partition
+	if newToolOptions(opts).unpartitioned {
+		partition = nil
+	}
 	return s.resourceTool[R](ctx, false, func(typ resource.Type, fields []resource.Field) error {
 		return s.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "get"),
 			Title:       "Inspect " + typ.Names,
-			Description: cmp.Or(description, getDescription(typ)),
+			Description: description,
 			InputSchema: getSchema(typ, fields),
 			Annotations: readOnlyAnnotations(),
 		}, true, func(ctx context.Context, args getArgs, stdio config.Stdio) error {
 			return (&cmd.ResourceGetCmd[R]{
 				Targets:    args.Keys,
 				FormatOpts: JSONFormat(args.Fields...),
-			}).Run(ctx, stdio, s.opts.Partition)
+			}).Run(ctx, stdio, partition)
 		})
 	})
 }
@@ -98,6 +101,8 @@ type ToolOption func(*toolOptions)
 type toolOptions struct {
 	createDefaults map[string]any
 	editNote       string
+	references     map[string]resource.GettableResource
+	unpartitioned  bool
 }
 
 func newToolOptions(opts []ToolOption) toolOptions {
@@ -126,6 +131,26 @@ func WithEditNote(note string) ToolOption {
 	}
 }
 
+// WithReference declares that the create tool's field at path names an
+// existing R by key, so a partitioned server can refuse keys outside it.
+func WithReference[R resource.GettableResource](path string) ToolOption {
+	return func(o *toolOptions) {
+		if o.references == nil {
+			o.references = map[string]resource.GettableResource{}
+		}
+		var empty R
+		o.references[path] = empty
+	}
+}
+
+// WithoutPartition makes the get tool resolve keys outside the partition,
+// like the CLI's image get, which also inspects public images.
+func WithoutPartition() ToolOption {
+	return func(o *toolOptions) {
+		o.unpartitioned = true
+	}
+}
+
 type createArgs struct {
 	Set    map[string]jsontext.Value `json:"set"`
 	DryRun bool                      `json:"dry_run"`
@@ -135,8 +160,14 @@ func (s *Server) AddCreateTool[R resource.CreatableResource](ctx context.Context
 	return s.resourceTool[R](ctx, true, func(typ resource.Type, fields []resource.Field) error {
 		name := toolName(typ.Name, "create")
 		schema := createSchema(fields)
+		o := newToolOptions(opts)
+		for path := range o.references {
+			if _, ok := schema.Properties["set"].Properties[path]; !ok {
+				return fmt.Errorf("%s: cannot reference %q: not a creatable field", name, path)
+			}
+		}
 		defaults := make(map[string]jsontext.Value)
-		for path, value := range newToolOptions(opts).createDefaults {
+		for path, value := range o.createDefaults {
 			prop, ok := schema.Properties["set"].Properties[path]
 			if !ok {
 				return fmt.Errorf("%s: cannot default %q: not a creatable field", name, path)
@@ -162,6 +193,10 @@ func (s *Server) AddCreateTool[R resource.CreatableResource](ctx context.Context
 				if v, ok := args.Set[path]; !ok || v.Kind() == 'n' {
 					args.Set[path] = value
 				}
+			}
+			spec := patch.PatchSpec{Create: true, Set: patchSpec(args.Set)}
+			if err := s.checkCreate(ctx, fields, spec, o.references); err != nil {
+				return err
 			}
 			return (&cmd.ResourceCreateCmd[R]{
 				Set:        patchArgs(args.Set),
@@ -189,6 +224,10 @@ func (s *Server) AddEditTool[R resource.EditableResource](ctx context.Context, o
 			InputSchema: editSchema(typ, fields),
 			Annotations: mutatingAnnotations(),
 		}, true, func(ctx context.Context, args editArgs, stdio config.Stdio) error {
+			spec := patch.PatchSpec{Set: patchSpec(args.Set), Add: patchSpec(args.Add)}
+			if err := s.checkEdit[R](ctx, args.Key, spec); err != nil {
+				return err
+			}
 			return (&cmd.ResourceEditCmd[R]{
 				Target:     args.Key,
 				Set:        patchArgs(args.Set),
@@ -210,15 +249,19 @@ func (s *Server) AddDeleteTool[R resource.DeletableResource](ctx context.Context
 		return s.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "delete"),
 			Title:       "Delete " + typ.Names,
-			Description: deleteDescription(typ),
+			Description: fmt.Sprintf("Delete %[1]s by key. This cannot be undone. Returns the deleted %[1]s.", typ.Names),
 			InputSchema: deleteSchema(typ),
 			Annotations: destructiveAnnotations(),
 		}, true, func(ctx context.Context, args deleteArgs, stdio config.Stdio) error {
 			if len(args.Keys) == 0 {
 				return fmt.Errorf("no %s specified", typ.Names)
 			}
+			keys, err := s.partitionKeys[R](ctx, args.Keys)
+			if err != nil {
+				return err
+			}
 			return (&cmd.ResourceRemoveCmd[R]{
-				Targets:    args.Keys,
+				Targets:    keys,
 				FormatOpts: JSONFormat(),
 			}).Run(ctx, stdio, s.opts.Partition)
 		})
@@ -239,23 +282,31 @@ func (s *Server) resourceTool[R resource.GettableResource](ctx context.Context, 
 }
 
 func (s *Server) addCommandTool[In any](tool *mcp.Tool, structured bool, run func(context.Context, In, config.Stdio) error) error {
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	if tool.InputSchema == nil {
-		var err error
-		if schema, err = jsonschema.For[In](nil); err != nil {
+		schema, err := jsonschema.For[In](nil)
+		if err != nil {
 			return fmt.Errorf("%s: %w", tool.Name, err)
 		}
 		tool.InputSchema = schema
-	} else if !ok {
-		return fmt.Errorf("%s: input schema must be a *jsonschema.Schema", tool.Name)
 	}
+	schema := tool.InputSchema.(*jsonschema.Schema)
 	singleTypes(schema)
 	s.srv.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		var in In
-		if err := unmarshalArgs(req, schema, &in); err != nil {
-			return rejected(ctx, req, err), nil
+		args := req.Params.Arguments
+		if len(args) == 0 {
+			args = []byte("{}")
 		}
-		return s.capture(ctx, req, structured, func(ctx context.Context, stdio config.Stdio) error {
+		ctx = log.WithLogger(ctx, new(log.G(ctx).With().Str("tool", req.Params.Name).Logger()))
+		log.G(ctx).Trace().RawJSON("arguments", args).Msg("calling tool")
+
+		var in In
+		if err := unmarshalArgs(args, schema, &in); err != nil {
+			log.G(ctx).Debug().Err(err).Msg("tool call rejected")
+			var res mcp.CallToolResult
+			res.SetError(err)
+			return &res, nil
+		}
+		return s.capture(ctx, structured, func(ctx context.Context, stdio config.Stdio) error {
 			return run(ctx, in, stdio)
 		}), nil
 	})
@@ -271,17 +322,14 @@ func readOnlyAnnotations() *mcp.ToolAnnotations {
 }
 
 func mutatingAnnotations() *mcp.ToolAnnotations {
-	return &mcp.ToolAnnotations{DestructiveHint: new(false), IdempotentHint: false}
+	return &mcp.ToolAnnotations{DestructiveHint: new(false)}
 }
 
 func destructiveAnnotations() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{DestructiveHint: new(true), IdempotentHint: true}
 }
 
-func (s *Server) capture(ctx context.Context, req *mcp.CallToolRequest, structured bool, run func(context.Context, config.Stdio) error) *mcp.CallToolResult {
-	ctx = log.WithLogger(ctx, new(log.G(ctx).With().Str("tool", req.Params.Name).Logger()))
-	log.G(ctx).Trace().RawJSON("arguments", arguments(req)).Msg("calling tool")
-
+func (s *Server) capture(ctx context.Context, structured bool, run func(context.Context, config.Stdio) error) *mcp.CallToolResult {
 	start := time.Now()
 	var out bytes.Buffer
 	err := s.syncPartition(func() error {
@@ -312,33 +360,7 @@ func (s *Server) capture(ctx context.Context, req *mcp.CallToolRequest, structur
 	return res
 }
 
-func (s *Server) syncPartition(run func() error) error {
-	p := s.opts.Partition
-	if p == nil {
-		return run()
-	}
-	if err := p.Reload(); err != nil {
-		return err
-	}
-	return errors.Join(run(), p.Save())
-}
-
-func rejected(ctx context.Context, req *mcp.CallToolRequest, err error) *mcp.CallToolResult {
-	log.G(ctx).Debug().Str("tool", req.Params.Name).Err(err).Msg("tool call rejected")
-	var res mcp.CallToolResult
-	res.SetError(err)
-	return &res
-}
-
-func arguments(req *mcp.CallToolRequest) []byte {
-	if len(req.Params.Arguments) == 0 {
-		return []byte("{}")
-	}
-	return req.Params.Arguments
-}
-
-func unmarshalArgs(req *mcp.CallToolRequest, schema *jsonschema.Schema, v any) error {
-	args := arguments(req)
+func unmarshalArgs(args []byte, schema *jsonschema.Schema, v any) error {
 	var members map[string]jsontext.Value
 	if err := json.Unmarshal(args, &members); err != nil {
 		return fmt.Errorf("invalid arguments: %w", err)
@@ -357,6 +379,16 @@ func unmarshalArgs(req *mcp.CallToolRequest, schema *jsonschema.Schema, v any) e
 		return fmt.Errorf("invalid arguments: %w", err)
 	}
 	return nil
+}
+
+func patchSpec(values map[string]jsontext.Value) map[string][]string {
+	spec := make(map[string][]string, len(values))
+	for path, v := range values {
+		if vs := patchValues(v); len(vs) > 0 {
+			spec[path] = vs
+		}
+	}
+	return spec
 }
 
 func patchArgs(values map[string]jsontext.Value) []map[string]string {

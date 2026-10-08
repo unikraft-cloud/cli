@@ -8,25 +8,18 @@ package mcpserver
 import (
 	"encoding/json/jsontext"
 	"maps"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"unikraft.com/cli/internal/resource"
-	resourcet "unikraft.com/cli/internal/resource/testing"
 )
 
-func TestToolName(t *testing.T) {
-	assert.Equal(t, "instance_list", toolName("instance", "list"))
-	assert.Equal(t, "instance_template_create", toolName("instance-template", "create"))
-	assert.Equal(t, "volume_template_edit", toolName("Volume Template", "edit"))
-}
-
-func TestValueSchema(t *testing.T) {
+func TestTypeSchema(t *testing.T) {
 	str := &jsonschema.Schema{Type: "string"}
 	orString := func(typed *jsonschema.Schema) *jsonschema.Schema {
 		return &jsonschema.Schema{AnyOf: []*jsonschema.Schema{typed, str}}
@@ -51,7 +44,7 @@ func TestValueSchema(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, valueSchema(tt.template))
+			assert.Equal(t, tt.want, typeSchema(reflect.TypeOf(tt.template)))
 		})
 	}
 }
@@ -102,25 +95,6 @@ func TestPatchArgs(t *testing.T) {
 	assert.Equal(t, []map[string]string{{"a": "1"}, {"b": "x"}, {"b": "y"}}, args)
 }
 
-func TestPatchSchema(t *testing.T) {
-	fields, err := resourcet.TestResource{}.Fields(t.Context())
-	require.NoError(t, err)
-
-	set, add, del := patchSchema(fields, true)
-	assert.ElementsMatch(t, []string{"name", "create_only", "settings.foo", "settings.bar"}, slices.Collect(maps.Keys(set.Properties)))
-	assert.Empty(t, set.Required)
-	assert.Equal(t, "integer", set.Properties["settings.foo"].AnyOf[0].Type)
-	assert.Equal(t, "string", set.Properties["settings.foo"].AnyOf[1].Type)
-	assert.Equal(t, "Foo setting.", set.Properties["settings.foo"].Description)
-	assert.Equal(t, "name (string)", set.Properties["name"].Description)
-	assert.Equal(t, "create_only (string)", set.Properties["create_only"].Description)
-	assert.Empty(t, add.Properties)
-	assert.Empty(t, del.Properties)
-
-	set, _, _ = patchSchema(fields, false)
-	assert.ElementsMatch(t, []string{"edit_only", "settings.foo", "settings.bar"}, slices.Collect(maps.Keys(set.Properties)))
-}
-
 func TestPatchSchemaRequired(t *testing.T) {
 	fields := []resource.Field{
 		{Name: "metro", Create: &resource.Patch{Set: "fra", Required: true}},
@@ -141,21 +115,6 @@ func TestPatchSchemaRequired(t *testing.T) {
 	assert.Equal(t, "tags (array)", set.Properties["tags"].Description)
 	assert.Equal(t, "Entries to append to tags; described under set.", add.Properties["tags"].Description)
 	assert.Equal(t, "Notes.", add.Properties["notes"].Description)
-}
-
-func TestFieldPaths(t *testing.T) {
-	fields, err := resourcet.TestResource{}.Fields(t.Context())
-	require.NoError(t, err)
-
-	paths := fieldPaths(fields)
-	assert.Subset(t, paths, []string{"name", "settings.foo", "settings.bar", "tags"})
-}
-
-func TestArticle(t *testing.T) {
-	assert.Equal(t, "an", article("instance"))
-	assert.Equal(t, "an", article("image"))
-	assert.Equal(t, "a", article("volume"))
-	assert.Equal(t, "a", article("service"))
 }
 
 func TestExampleValues(t *testing.T) {

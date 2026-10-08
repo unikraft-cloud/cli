@@ -10,20 +10,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/types"
 )
 
 const (
-	instanceActionStart   = "start"
-	instanceActionStop    = "stop"
-	instanceActionRestart = "restart"
-	instanceActionSuspend = "suspend"
-
 	defaultLogTail                       = 200
 	defaultDrainTimeout types.DurationMS = -1
 )
@@ -57,7 +54,7 @@ type instanceLogsArgs struct {
 	Tail int    `json:"tail,omitzero" jsonschema:"How many lines from the end of the log to return. Defaults to 200."`
 }
 
-func (s *Server) AddInstanceTools(commands InstanceCommands) error {
+func (s *Server) AddInstanceTools[R resource.GettableResource](commands InstanceCommands) error {
 	if !s.enabled("instance", false) {
 		return nil
 	}
@@ -67,7 +64,14 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 		Description: "Read the last lines of an instance's console output; the first place to look when an instance fails to start or misbehaves. Returns plain text.",
 		Annotations: readOnlyAnnotations(),
 	}, false, func(ctx context.Context, in instanceLogsArgs, stdio config.Stdio) error {
-		return commands.Logs(ctx, stdio, in.Key, cmp.Or(in.Tail, defaultLogTail))
+		keys, err := s.partitionKeys[R](ctx, []string{in.Key})
+		if err != nil {
+			return err
+		}
+		if len(keys) > 1 {
+			return fmt.Errorf("instance %q matches %s; pass one of them as key", in.Key, strings.Join(keys, ", "))
+		}
+		return commands.Logs(ctx, stdio, keys[0], cmp.Or(in.Tail, defaultLogTail))
 	})
 	if err != nil || s.opts.ReadOnly {
 		return err
@@ -77,7 +81,7 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 	if err != nil {
 		return err
 	}
-	schema.Properties["action"].Enum = []any{instanceActionStart, instanceActionStop, instanceActionRestart, instanceActionSuspend}
+	schema.Properties["action"].Enum = []any{"start", "stop", "restart", "suspend"}
 	return s.addCommandTool(&mcp.Tool{
 		Name:        "instance_control",
 		Title:       "Control instances",
@@ -88,26 +92,25 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 		if len(in.Keys) == 0 {
 			return errors.New("no instances specified")
 		}
-		drain := drainTimeout(in.DrainTimeoutMS)
+		keys, err := s.partitionKeys[R](ctx, in.Keys)
+		if err != nil {
+			return err
+		}
+		drain := defaultDrainTimeout
+		if in.DrainTimeoutMS != nil {
+			drain = types.DurationMS(*in.DrainTimeoutMS)
+		}
 		switch in.Action {
-		case instanceActionStart:
-			return commands.Start(ctx, stdio, in.Keys)
-		case instanceActionStop:
-			return commands.Stop(ctx, stdio, in.Keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
-		case instanceActionRestart:
-			return commands.Restart(ctx, stdio, in.Keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
-		case instanceActionSuspend:
-			return commands.Suspend(ctx, stdio, in.Keys, drain)
+		case "start":
+			return commands.Start(ctx, stdio, keys)
+		case "stop":
+			return commands.Stop(ctx, stdio, keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
+		case "restart":
+			return commands.Restart(ctx, stdio, keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
+		case "suspend":
+			return commands.Suspend(ctx, stdio, keys, drain)
 		default:
-			return fmt.Errorf("unknown action %q: use %s, %s, %s or %s", in.Action,
-				instanceActionStart, instanceActionStop, instanceActionRestart, instanceActionSuspend)
+			return fmt.Errorf("unknown action %q: use start, stop, restart or suspend", in.Action)
 		}
 	})
-}
-
-func drainTimeout(ms *int64) types.DurationMS {
-	if ms == nil {
-		return defaultDrainTimeout
-	}
-	return types.DurationMS(*ms)
 }

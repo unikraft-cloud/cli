@@ -54,10 +54,6 @@ type cachedPage struct {
 	fetched time.Time
 }
 
-type docsEntry struct {
-	path, title, description string
-}
-
 func newDocs(baseURL string, client *http.Client) (*docs, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil {
@@ -104,30 +100,23 @@ func (s *Server) addDocsPages(ctx context.Context, d *docs) {
 		log.G(ctx).Warn().Err(err).Msg("documentation index unavailable, pages can still be read by path")
 		return
 	}
-	for _, entry := range d.entries(index) {
-		if !slices.ContainsFunc(docsListed, func(prefix string) bool { return strings.HasPrefix(entry.path, prefix) }) {
+	for line := range strings.SplitSeq(index, "\n") {
+		m := d.entry.FindStringSubmatch(strings.TrimSpace(line))
+		if m == nil {
+			continue
+		}
+		title, path, description := m[1], m[2], m[3]
+		if !validDocsPath(path) || !slices.ContainsFunc(docsListed, func(prefix string) bool { return strings.HasPrefix(path, prefix) }) {
 			continue
 		}
 		s.srv.AddResource(&mcp.Resource{
-			URI:         docsURI + "/" + entry.path,
-			Name:        entry.path,
-			Title:       entry.title,
-			Description: entry.description,
+			URI:         docsURI + "/" + path,
+			Name:        path,
+			Title:       title,
+			Description: description,
 			MIMEType:    docsMIMEType,
 		}, d.read)
 	}
-}
-
-func (d *docs) entries(index string) []docsEntry {
-	var entries []docsEntry
-	for line := range strings.SplitSeq(index, "\n") {
-		m := d.entry.FindStringSubmatch(strings.TrimSpace(line))
-		if m == nil || !validDocsPath(m[2]) {
-			continue
-		}
-		entries = append(entries, docsEntry{path: m[2], title: m[1], description: m[3]})
-	}
-	return entries
 }
 
 func (d *docs) read(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
