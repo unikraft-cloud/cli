@@ -114,10 +114,12 @@ func runtimeHasErofsSupport(p ocispec.Platform) bool {
 	return false
 }
 
-// DefaultRootfsFormat returns the default rootfs format based on the runtime
-// platforms' features. If all platforms advertise EROFS support, erofs is
-// returned.
-func DefaultRootfsFormat(ps []ocispec.Platform) kraftfile.FsType {
+// DefaultRootfsFormat returns the default rootfs format. If there is no
+// runtime or all runtime platforms have EROFS support, it returns erofs.
+func DefaultRootfsFormat(runtime string, ps []ocispec.Platform) kraftfile.FsType {
+	if runtime == "" {
+		return kraftfile.FsTypeErofs
+	}
 	if len(ps) == 0 {
 		return kraftfile.FsTypeCpio
 	}

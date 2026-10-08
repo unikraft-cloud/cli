@@ -28,8 +28,16 @@ import (
 	"unikraft.com/cli/internal/integration"
 )
 
+func TestDefaultRootfsFormatNoRuntime(t *testing.T) {
+	require.Equal(t, kraftfile.FsTypeErofs, DefaultRootfsFormat("", nil))
+	ps := []ocispec.Platform{
+		{Architecture: "x86_64", OS: "kraftcloud"},
+	}
+	require.Equal(t, kraftfile.FsTypeErofs, DefaultRootfsFormat("", ps))
+}
+
 func TestDefaultRootfsFormatNoPlatforms(t *testing.T) {
-	require.Equal(t, kraftfile.FsTypeCpio, DefaultRootfsFormat(nil))
+	require.Equal(t, kraftfile.FsTypeCpio, DefaultRootfsFormat("base-compat", nil))
 }
 
 func TestDefaultRootfsFormatAllErofsLibukfs(t *testing.T) {
@@ -37,14 +45,14 @@ func TestDefaultRootfsFormatAllErofsLibukfs(t *testing.T) {
 		{Architecture: "x86_64", OS: "fc", OSFeatures: []string{"CONFIG_LIBUKFS_EROFS=y"}},
 		{Architecture: "arm64", OS: "fc", OSFeatures: []string{"CONFIG_LIBUKFS_EROFS=y"}},
 	}
-	require.Equal(t, kraftfile.FsTypeErofs, DefaultRootfsFormat(ps))
+	require.Equal(t, kraftfile.FsTypeErofs, DefaultRootfsFormat("base-compat", ps))
 }
 
 func TestDefaultRootfsFormatAllErofsFS(t *testing.T) {
 	ps := []ocispec.Platform{
 		{Architecture: "x86_64", OS: "fc", OSFeatures: []string{"CONFIG_EROFS_FS=y"}},
 	}
-	require.Equal(t, kraftfile.FsTypeErofs, DefaultRootfsFormat(ps))
+	require.Equal(t, kraftfile.FsTypeErofs, DefaultRootfsFormat("base-compat", ps))
 }
 
 func TestDefaultRootfsFormatMixedSupport(t *testing.T) {
@@ -52,21 +60,21 @@ func TestDefaultRootfsFormatMixedSupport(t *testing.T) {
 		{Architecture: "x86_64", OS: "fc", OSFeatures: []string{"CONFIG_LIBUKFS_EROFS=y"}},
 		{Architecture: "arm64", OS: "fc", OSFeatures: []string{"CONFIG_OTHER=y"}},
 	}
-	require.Equal(t, kraftfile.FsTypeCpio, DefaultRootfsFormat(ps))
+	require.Equal(t, kraftfile.FsTypeCpio, DefaultRootfsFormat("base-compat", ps))
 }
 
 func TestDefaultRootfsFormatNoErofsFeatures(t *testing.T) {
 	ps := []ocispec.Platform{
 		{Architecture: "x86_64", OS: "fc", OSFeatures: []string{"CONFIG_OTHER=y"}},
 	}
-	require.Equal(t, kraftfile.FsTypeCpio, DefaultRootfsFormat(ps))
+	require.Equal(t, kraftfile.FsTypeCpio, DefaultRootfsFormat("base-compat", ps))
 }
 
 func TestDefaultRootfsFormatEmptyFeatures(t *testing.T) {
 	ps := []ocispec.Platform{
 		{Architecture: "x86_64", OS: "fc"},
 	}
-	require.Equal(t, kraftfile.FsTypeCpio, DefaultRootfsFormat(ps))
+	require.Equal(t, kraftfile.FsTypeCpio, DefaultRootfsFormat("base-compat", ps))
 }
 
 func TestDefaultRootfsFormatMixedErofsKeys(t *testing.T) {
@@ -74,7 +82,7 @@ func TestDefaultRootfsFormatMixedErofsKeys(t *testing.T) {
 		{Architecture: "x86_64", OS: "fc", OSFeatures: []string{"CONFIG_LIBUKFS_EROFS=y"}},
 		{Architecture: "arm64", OS: "fc", OSFeatures: []string{"CONFIG_EROFS_FS=y"}},
 	}
-	require.Equal(t, kraftfile.FsTypeErofs, DefaultRootfsFormat(ps))
+	require.Equal(t, kraftfile.FsTypeErofs, DefaultRootfsFormat("base-compat", ps))
 }
 
 func TestBuildSinglePlatformIntegration(t *testing.T) {
