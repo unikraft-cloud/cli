@@ -114,14 +114,20 @@ func runtimeHasErofsSupport(p ocispec.Platform) bool {
 	return false
 }
 
-// DefaultRootfsFormat returns the default rootfs format based on the runtime
-// platforms' features. If all platforms advertise EROFS support, erofs is
-// returned.
-func DefaultRootfsFormat(ps []ocispec.Platform) kraftfile.FsType {
-	if len(ps) == 0 {
-		return kraftfile.FsTypeCpio
+// hasKernel reports whether the build produces a kernel. Only runtimes supply
+// one today; building from a Kraftfile's unikraft entry should extend this.
+func (o BuildOpts) hasKernel() bool {
+	return o.Runtime != ""
+}
+
+// DefaultRootfsFormat returns the default rootfs format for opts. Kernel-less
+// builds default to erofs. Builds with a kernel default to erofs only when
+// every kernel platform advertises EROFS support, and to cpio otherwise.
+func DefaultRootfsFormat(opts BuildOpts) kraftfile.FsType {
+	if !opts.hasKernel() {
+		return kraftfile.FsTypeErofs
 	}
-	for _, p := range ps {
+	for _, p := range opts.Platform {
 		if !runtimeHasErofsSupport(p) {
 			return kraftfile.FsTypeCpio
 		}

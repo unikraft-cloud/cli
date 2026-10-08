@@ -206,3 +206,7 @@ require (
 // Concretely every screen resize currently duplicates our table header.
 // See: https://github.com/charmbracelet/ultraviolet/issues/155
 replace github.com/charmbracelet/ultraviolet => github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7
+
+// Use the fork with charmbracelet/lipgloss#746 until a release has it.
+// It stops the Windows hang at startup when stdin is redirected.
+replace charm.land/lipgloss/v2 => github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507

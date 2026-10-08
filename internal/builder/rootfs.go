@@ -224,7 +224,7 @@ func BuildRootfs(ctx context.Context, opts BuildOpts) (_ []*imagespec.Image, rer
 		opts.Rootfs.Type != kraftfile.SourceTypeCpio &&
 		opts.Rootfs.Type != kraftfile.SourceTypeErofs &&
 		opts.Rootfs.Type != kraftfile.SourceTypeOCI {
-		opts.Rootfs.Format = DefaultRootfsFormat(opts.Platform)
+		opts.Rootfs.Format = DefaultRootfsFormat(opts)
 	}
 
 	switch opts.Rootfs.Type {
@@ -486,7 +486,7 @@ func buildRootfsOCI(ctx context.Context, opts BuildOpts) (_ []*imagespec.Image, 
 			continue
 		}
 
-		format := cmp.Or(opts.Rootfs.Format, DefaultRootfsFormat(opts.Platform))
+		format := cmp.Or(opts.Rootfs.Format, DefaultRootfsFormat(opts))
 
 		srcFS, ok := flattened[src]
 		if !ok {

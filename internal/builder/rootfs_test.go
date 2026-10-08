@@ -494,18 +494,17 @@ func TestRootfsDirectoryDefaultFormat(t *testing.T) {
 		Rootfs: FSOpts{
 			Path: dir,
 			Type: kraftfile.SourceTypeDirectory,
-			// Format intentionally omitted; should default to cpio.
+			// Format intentionally omitted; kernel-less builds default to erofs.
 		},
 		Platform: []ocispec.Platform{{OS: "fc", Architecture: "x86_64"}},
 	})
 	require.Len(t, imgs, 1)
 
-	// Default format is CPIO.
-	files := readCpioInitrd(t, imgs[0])
-	require.Contains(t, files, "./hello.txt")
-	require.Equal(t, "hello\n", files["./hello.txt"])
-	require.Contains(t, files, "./subdir/nested.txt")
-	require.Equal(t, "nested\n", files["./subdir/nested.txt"])
+	files := readErofsInitrd(t, imgs[0])
+	require.Contains(t, files, "hello.txt")
+	require.Equal(t, "hello\n", files["hello.txt"])
+	require.Contains(t, files, "subdir/nested.txt")
+	require.Equal(t, "nested\n", files["subdir/nested.txt"])
 }
 
 func TestRomDefaultFormat(t *testing.T) {
