@@ -56,14 +56,18 @@ func (c *APICmd) Run(ctx context.Context, stdio config.Stdio) error {
 		if err != nil {
 			return jujuerrors.Annotate(err, "parsing endpoint URL")
 		}
-		for i := range profile.Metros {
-			mu, err := url.Parse(profile.Metros[i].Endpoint)
+		for _, metro := range profile.Metros {
+			mu, err := url.Parse(metro.Endpoint)
 			if err != nil {
 				continue
 			}
-			if mu.Host == u.Host {
+			pu, err := url.Parse(metro.Proxy)
+			if err != nil {
+				continue
+			}
+			if mu.Host == u.Host || (pu.Host != "" && pu.Host == u.Host) {
 				trusted = true
-				insecure = ptr.ZeroIfNil(profile.Metros[i].Insecure)
+				insecure = ptr.ZeroIfNil(metro.Insecure)
 				break
 			}
 		}
@@ -91,7 +95,7 @@ func (c *APICmd) Run(ctx context.Context, stdio config.Stdio) error {
 		if !strings.HasPrefix(path, "/") {
 			path = "/" + path
 		}
-		reqURL = strings.TrimRight(metro.Endpoint, "/") + path
+		reqURL = strings.TrimRight(metro.URL(), "/") + path
 		insecure = ptr.ZeroIfNil(metro.Insecure)
 		trusted = true
 	}
