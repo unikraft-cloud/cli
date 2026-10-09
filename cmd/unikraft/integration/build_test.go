@@ -17,6 +17,8 @@ import (
 )
 
 func TestBuild(t *testing.T) {
+	integ.SkipUnlessBuildKit(t)
+
 	// NOTE: only erofs is supported for ROM automounting by the Unikraft
 	// kernel currently. CPIO ROMs are not automounted (the kernel hardcodes
 	// erofs as the fs type for ROM mounts), so the CPIO variant omits

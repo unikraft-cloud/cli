@@ -6,6 +6,7 @@
 package integration
 
 import (
+	"runtime"
 	"testing"
 )
 
@@ -14,6 +15,14 @@ func SkipUnlessIntegration(t testing.TB) {
 	t.Helper()
 	if !integrationEnabled {
 		t.Skip("skipping integration test (missing integration build tag)")
+	}
+}
+
+// SkipUnlessBuildKit skips the test on Windows, which has no BuildKit for Linux images yet.
+func SkipUnlessBuildKit(t testing.TB) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping test (no BuildKit on Windows)")
 	}
 }
 

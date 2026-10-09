@@ -224,6 +224,7 @@ func TestInstances(t *testing.T) {
 	})
 
 	t.Run("annotations-guest", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		image := integ.Busybox.Build(t, r)
@@ -391,6 +392,7 @@ func TestInstances(t *testing.T) {
 	})
 
 	t.Run("start-follow", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		volName := uniq()
@@ -441,6 +443,7 @@ func TestInstances(t *testing.T) {
 	})
 
 	t.Run("restart-follow", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		// TODO: Add 'stable' back when it runs platform version 13. Older
 		// versions send a duplicate "status" member that breaks every wait.
 		// See https://github.com/unikraft-cloud/platform/pull/937
@@ -1300,6 +1303,7 @@ func TestInstances(t *testing.T) {
 	})
 
 	t.Run("pull-policy", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		r := runner(t, true, []string{staging, stable})
 		imageTag := "test-" + uniq()
 		warmName := uniq()
@@ -1532,6 +1536,7 @@ cmd: ["cat", "/marker.txt"]
 	})
 
 	t.Run("branch", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		branchName := uniq()
@@ -1584,6 +1589,7 @@ cmd: ["cat", "/marker.txt"]
 	// a counter HTTP server, increments to 5, branches, verifies the branched
 	// instance has counter=5, then mutates each independently.
 	t.Run("branch-state", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		branchName := uniq()
@@ -1654,6 +1660,7 @@ cmd: ["cat", "/marker.txt"]
 
 	// stop-disk-reset verifies a plain stop/start also resets the root disk (by design, not just a --branch gap).
 	t.Run("stop-disk-reset", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		domainName := uniq()
@@ -1699,6 +1706,7 @@ cmd: ["cat", "/marker.txt"]
 	// the root disk never survives a stop (see stop-disk-reset) but branching
 	// copies attached volumes.
 	t.Run("branch-stopped", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
 		branchName := uniq()
@@ -1785,6 +1793,7 @@ cmd: ["cat", "/marker.txt"]
 
 	// branch-template verifies --branch works when the source is a template.
 	t.Run("branch-template", func(t *testing.T) {
+		integ.SkipUnlessBuildKit(t)
 		// branch_from can't resolve template names/UUIDs on the backend yet.
 		t.Skip("branching from a template is not resolvable via branch_from on the backend yet")
 		r := runner(t, true, []string{staging, stable})

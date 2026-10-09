@@ -68,6 +68,8 @@ func shell(t *testing.T, r *integ.TestEnv, instName, line string, opts ...integ.
 }
 
 func TestSandbox(t *testing.T) {
+	integ.SkipUnlessBuildKit(t)
+
 	// One instance covers all of these: they only run commands on it.
 	t.Run("exec", func(t *testing.T) {
 		r := runner(t, true, []string{staging})

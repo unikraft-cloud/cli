@@ -448,9 +448,11 @@ COPY --from=base /arch.txt /arch.txt
 func TestRootfsNoPlatform(t *testing.T) {
 	cpioPath := writeTestCpioFile(t)
 	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 
-	_, err := BuildRootfs(ctx, BuildOpts{
+	_, err = BuildRootfs(ctx, BuildOpts{
 		Rootfs: FSOpts{
 			Path: cpioPath,
 			Type: kraftfile.SourceTypeCpio,
@@ -511,7 +513,9 @@ func TestRomDefaultFormat(t *testing.T) {
 	dir := writeTestDirectory(t)
 
 	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 
 	romFiles, err := BuildRoms(ctx, BuildOpts{
 		Roms: []FSOpts{
@@ -558,7 +562,9 @@ func TestRomPerPlatform(t *testing.T) {
 	dir := writeTestDirectory(t)
 
 	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 
 	plats := []ocispec.Platform{
 		{Architecture: "amd64", OS: "linux"},
@@ -648,7 +654,7 @@ func TestResolveSourceRelativeToRoot(t *testing.T) {
 func TestResolveSourceDockerfileType(t *testing.T) {
 	fsOpts := FSOpts{Path: "context", Dockerfile: "MyDockerfile"}
 	require.NoError(t, resolveSource("/root", &fsOpts))
-	require.Equal(t, "/root/context", fsOpts.Path)
+	require.Equal(t, filepath.Join("/root", "context"), fsOpts.Path)
 	require.Equal(t, kraftfile.SourceTypeDockerfile, fsOpts.Type)
 }
 
@@ -675,9 +681,11 @@ func TestResolveSourceMissingPath(t *testing.T) {
 
 func TestRootfsUnsupportedType(t *testing.T) {
 	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 
-	_, err := BuildRootfs(ctx, BuildOpts{
+	_, err = BuildRootfs(ctx, BuildOpts{
 		Rootfs: FSOpts{
 			Path: "/some/path",
 			Type: kraftfile.SourceType("unsupported"),
@@ -690,9 +698,11 @@ func TestRootfsUnsupportedType(t *testing.T) {
 func TestRootfsCpioSourceErofsFormatMismatch(t *testing.T) {
 	cpioPath := writeTestCpioFile(t)
 	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 
-	_, err := BuildRootfs(ctx, BuildOpts{
+	_, err = BuildRootfs(ctx, BuildOpts{
 		Rootfs: FSOpts{
 			Path:   cpioPath,
 			Type:   kraftfile.SourceTypeCpio,
@@ -706,9 +716,11 @@ func TestRootfsCpioSourceErofsFormatMismatch(t *testing.T) {
 func TestRootfsErofsSourceCpioFormatMismatch(t *testing.T) {
 	erofsPath := writeTestErofsFile(t)
 	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 
-	_, err := BuildRootfs(ctx, BuildOpts{
+	_, err = BuildRootfs(ctx, BuildOpts{
 		Rootfs: FSOpts{
 			Path:   erofsPath,
 			Type:   kraftfile.SourceTypeErofs,
@@ -725,7 +737,9 @@ func TestRootfsErofsSourceCpioFormatMismatch(t *testing.T) {
 func builderTestContext(t *testing.T) context.Context {
 	t.Helper()
 	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 
 	return config.WithConfig(ctx, &config.Config{
 		DefaultProfile: "default",
@@ -738,10 +752,13 @@ func builderTestContext(t *testing.T) context.Context {
 func rootfsIntegrationContext(t *testing.T) context.Context {
 	t.Helper()
 	integration.SkipUnlessIntegration(t)
+	integration.SkipUnlessBuildKit(t)
 	t.Setenv("BUILDKIT_PROGRESS", "quiet")
 
 	ctx := t.Context()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 	cfg, err := integration.LoadConfig(t)
 	if errors.Is(err, os.ErrNotExist) {
 		t.Skip("integration config not found")
@@ -880,7 +897,9 @@ func writeTestCpioFile(t *testing.T) string {
 	defer f.Close()
 
 	ctx := context.Background()
-	ctx = log.WithLogger(ctx, log.New(t.Output(), log.TextType, log.InfoLevel))
+	logger, err := log.New(ctx, log.Config{Sink: t.Output(), Type: log.TextType, Level: log.InfoLevel})
+	require.NoError(t, err)
+	ctx = log.WithLogger(ctx, logger)
 	require.NoError(t, buildfs.CreateCPIO(ctx, f, os.DirFS(srcDir)))
 	return cpioPath
 }

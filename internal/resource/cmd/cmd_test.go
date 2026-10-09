@@ -1555,6 +1555,7 @@ func tempFile(t *testing.T, contents string) string {
 
 	_, err = file.Seek(0, io.SeekStart)
 	require.NoError(t, err)
+	require.NoError(t, file.Close())
 
 	return file.Name()
 }
