@@ -1,20 +1,21 @@
 ====================================== kv ======================================
-metro:       fra
-name:        my-template
-uuid:        d4e5f6a7-b8c9-0123-def0-123456789abc
-tags:        ["env-staging"]
+metro:           fra
+name:            my-template
+uuid:            d4e5f6a7-b8c9-0123-def0-123456789abc
+tags:            ["env-staging"]
 annotations:
-  env:       staging
-state:       template
-image:       nginx
-type:        micro
+  env:           staging
+state:           template
+image:           nginx
+type:            micro
 resources:
-  memory:    128MiB
-  vcpus:     1
+  memory:        128MiB
+  vcpus:         1
 snapshot:
-  uuid:      1b2c3d4e-5f6a-7890-bcde-f1234567890a
+  uuid:          1b2c3d4e-5f6a-7890-bcde-f1234567890a
 timing:
-  boot-time: 12ms
+  boot-time:     12ms
+  template-time: 56ms
 
 ==================================== kv-all ====================================
 metro:           fra
@@ -43,6 +44,7 @@ timestamps:
 timing:
   boot-time:     12ms
   net-time:      34ms
+  template-time: 56ms
 scale-to-zero:
   enabled:       false
   policy:
@@ -242,6 +244,11 @@ fra    my-template  template  nginx        128MiB  1      never
         "name": "net-time",
         "value": "34ms",
         "verbosity": "hidden"
+      },
+      {
+        "name": "template-time",
+        "value": "56ms",
+        "verbosity": "long"
       }
     ],
     "verbosity": "long"

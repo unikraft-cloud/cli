@@ -74,6 +74,12 @@ type InstanceCheckpoint struct {
 		Created types.RelativeTime `mirror:"instance.created_at" field:",short"`
 	}
 
+	Timing struct {
+		BootTime       *types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
+		NetTime        *types.DurationUS `mirror:"instance.net_time_us"`
+		CheckpointTime *types.DurationUS `mirror:"instance.checkpoint_time_us" field:",long"`
+	}
+
 	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero"`
 
 	Restart struct {

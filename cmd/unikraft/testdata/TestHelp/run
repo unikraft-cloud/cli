@@ -69,7 +69,9 @@ Fields:
   scale-to-zero, scale-to-zero.enabled, scale-to-zero.policy, scale-to-
   zero.stateful, scale-to-zero.cooldown-time, scale-to-zero.notify-time
   autokill, autokill.time, autokill.num-requests
-  timing, timing.uptime, timing.boot-time, timing.net-time
+  timing, timing.uptime, timing.start-prereq-time, timing.vmm-prestart-time,
+  timing.vmm-start-time, timing.vmm-load-time, timing.vmm-ready-time,
+  timing.boot-time, timing.net-time
   restart, restart.policy, restart.start-count, restart.restart-count
   sched-priority
   autostart
