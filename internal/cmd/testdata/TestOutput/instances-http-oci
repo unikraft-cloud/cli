@@ -31,6 +31,7 @@ service:
 volumes:
 roms:
 plugins:
+private-fqdn:
 networks:
 gpus:
 timestamps:
@@ -416,6 +417,11 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
       "add": null,
       "del": null
     }
+  },
+  {
+    "name": "private-fqdn",
+    "value": "",
+    "verbosity": "long"
   },
   {
     "name": "networks",

@@ -73,6 +73,7 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  private-fqdn
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -146,6 +147,7 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  private-fqdn
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -227,6 +229,7 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  private-fqdn
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -310,6 +313,7 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  private-fqdn
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -418,6 +422,7 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  private-fqdn
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -616,6 +621,7 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  private-fqdn
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -822,6 +828,7 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  private-fqdn
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -1016,6 +1023,7 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  private-fqdn
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
@@ -1154,6 +1162,7 @@ Fields:
   volumes.*.readonly, volumes.*.size
   roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  private-fqdn
   networks, networks.*, networks.*.uuid, networks.*.private-ip, networks.*.mac
   gpus, gpus.*, gpus.*.uuid, gpus.*.model
   timestamps, timestamps.created, timestamps.started, timestamps.stopped
