@@ -128,7 +128,7 @@ jobs:
         run: |
           task --yes integration
         env:
-          UNIKRAFT_X_TEST_SERVER: ${{ env[format('UNIKRAFT_CONFIG_{0}', matrix.target)] }}
+          UNIKRAFT_X_TEST_SERVER: ${{ env[format('UNIKRAFT_SERVER_{0}', matrix.target)] }}
 
       - name: Run integration tests (with auth)
         if: ${{ github.event_name == 'push' || !github.event.pull_request.head.repo.fork }}
@@ -206,7 +206,7 @@ jobs:
         run: |
           task --yes integration
         env:
-          UNIKRAFT_X_TEST_SERVER: ${{ env['UNIKRAFT_CONFIG_PROD'] }}
+          UNIKRAFT_X_TEST_SERVER: ${{ env.UNIKRAFT_SERVER_PROD }}
 
       - name: Run integration tests (with auth)
         if: ${{ github.event_name == 'push' || !github.event.pull_request.head.repo.fork }}
