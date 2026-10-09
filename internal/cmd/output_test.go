@@ -148,9 +148,9 @@ func instancesOutputTests(t *testing.T) {
 		{UUID: "gpu-uuid-1234", Model: "10de:1eb8"},
 	}
 	sample.Resources.GPUs = len(sample.Gpus)
-	sample.Timing.Uptime = types.DurationMS(1500)
-	sample.Timing.BootTime = types.DurationUS(250000)
-	sample.Timing.NetTime = types.DurationUS(100000)
+	sample.Timing.Uptime = new(types.DurationMS(1500))
+	sample.Timing.BootTime = new(types.DurationUS(250000))
+	sample.Timing.NetTime = new(types.DurationUS(100000))
 	sample.Restart.Policy = "always"
 	sample.Restart.StartCount = 3
 	sample.Restart.RestartCount = 1
@@ -198,8 +198,8 @@ func instanceTemplatesOutputTests(t *testing.T) {
 	sample.Resources.Memory = 128
 	sample.Resources.VCPUs = 1
 	sample.Snapshot.UUID = "1b2c3d4e-5f6a-7890-bcde-f1234567890a"
-	sample.Timing.BootTime = 12000
-	sample.Timing.NetTime = 34000
+	sample.Timing.BootTime = new(types.DurationUS(12000))
+	sample.Timing.NetTime = new(types.DurationUS(34000))
 	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
 
 	integ.Gild[resource.Resource](t, dumpResource, sample)

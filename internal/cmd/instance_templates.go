@@ -72,8 +72,8 @@ type InstanceTemplate struct {
 	}
 
 	Timing struct {
-		BootTime types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
-		NetTime  types.DurationUS `mirror:"instance.net_time_us"`
+		BootTime *types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
+		NetTime  *types.DurationUS `mirror:"instance.net_time_us"`
 	}
 
 	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero"`

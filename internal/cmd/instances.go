@@ -138,9 +138,9 @@ type Instance struct {
 	Autokill    InstanceAutokill    `field:",embed" mirror:"instance.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time after the instance stops before it is deleted\n  num-requests: max requests before the instance is deleted" placeholder:"<key>=<value>" example:"time=5s,num-requests=100,time=5s\\,num-requests=100"`
 
 	Timing struct {
-		Uptime   types.DurationMS `mirror:"instance.uptime_ms"`
-		BootTime types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
-		NetTime  types.DurationUS `mirror:"instance.net_time_us"`
+		Uptime   *types.DurationMS `mirror:"instance.uptime_ms"`
+		BootTime *types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
+		NetTime  *types.DurationUS `mirror:"instance.net_time_us"`
 	}
 
 	Restart struct {
