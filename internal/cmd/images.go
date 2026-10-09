@@ -46,8 +46,8 @@ type ImagesCmd struct {
 }
 
 type Image struct {
-	Ref    types.ImageRef `field:",short"`
-	Digest digest.Digest  `field:",long"`
+	Ref    types.ImageRef `field:",short" help:"Image reference, such as user/app:tag."`
+	Digest digest.Digest  `field:",long" help:"Content digest of the image."`
 
 	Config   ImageConfig   `field:",embed"`
 	Metadata ImageMetadata `field:",long,embed"`
@@ -249,10 +249,10 @@ func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
 }
 
 type ImageEntry struct {
-	Ref    types.ImageRef `field:",short"`
-	Digest digest.Digest  `field:",short"`
+	Ref    types.ImageRef `field:",short" help:"Image reference, such as user/app:tag."`
+	Digest digest.Digest  `field:",short" help:"Content digest of the image."`
 
-	Namespace string
+	Namespace string `help:"First path segment of the reference, usually the organization."`
 
 	Canonical reference.Reference `field:"-"`
 

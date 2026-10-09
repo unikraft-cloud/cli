@@ -96,82 +96,82 @@ func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partiti
 }
 
 type Instance struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to deploy in." placeholder:"metro" example:"fra,sfo"`
-	Name  string          `mirror:"instance.name" field:",short" create:"set" flag:"name" short:"n" help:"Instance name." placeholder:"name"`
-	UUID  string          `mirror:"instance.uuid" field:",long"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to deploy in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"instance.name" field:",short" create:"set" flag:"name" short:"n" help:"Instance name: a lowercase DNS label of up to 118 characters, unique per metro. Generated from the image name when omitted." placeholder:"name"`
+	UUID  string          `mirror:"instance.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	Tags        []string          `mirror:"instance.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Instance tag." placeholder:"tag" example:"env-prod"`
-	Annotations map[string]string `mirror:"instance.annotations" field:",long" create:"set" edit:"set,add,del=keys" flag:"annotation" sep:"none" mapsep:"none" help:"Instance annotation." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
+	Tags        []string          `mirror:"instance.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-prod"`
+	Annotations map[string]string `mirror:"instance.annotations" field:",long" create:"set" edit:"set,add,del=keys" flag:"annotation" sep:"none" mapsep:"none" help:"Key-value metadata: up to 256 entries with Kubernetes-style [prefix/]name keys. Unlike tags, annotations reach the guest in its start data." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
 
-	State types.InstanceState `mirror:"instance.state" field:",short" edit:"set"`
+	State types.InstanceState `mirror:"instance.state" field:",short" edit:"set" help:"Lifecycle state: stopped, starting, running, draining (finishing requests before a stop), stopping, standby (scaled to zero, woken by traffic), template, checkpoint or deleted. Setting stopped on edit stops a running instance." example:"stopped"`
 
-	Image      types.ImageRef         `mirror:"instance.image" field:",short" create:"set" edit:"set" flag:"image" help:"Image to deploy." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
-	PullPolicy *platform.PullPolicy   `field:"pull-policy,invisible,valueless" create:"set" flag:"pull-policy" help:"Image pull policy." placeholder:"policy" example:"always,never,if_not_present"`
-	Type_      *platform.InstanceType `mirror:"instance.type" field:"type,long" create:"set" flag:"type" help:"Type of virtual machine to run. \"full\" requires a plan with full VM support." placeholder:"type" example:"micro,full"`
+	Image      types.ImageRef         `mirror:"instance.image" field:",short" create:"set" edit:"set" flag:"image" help:"Image to deploy, as an OCI reference or a full registry URL. Required unless template, branch or checkpoint is given, and cannot be combined with them." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
+	PullPolicy *platform.PullPolicy   `field:"pull-policy,invisible,valueless" create:"set" flag:"pull-policy" help:"When to pull the image relative to the node's cache: always, if_not_present or never." placeholder:"policy" example:"always,if_not_present,never"`
+	Type_      *platform.InstanceType `mirror:"instance.type" field:"type,long" create:"set" flag:"type" help:"Virtual machine type.\n  micro: Firecracker microVM (default)\n  full: QEMU virtual machine with GPU support, needs a plan with full VM support and has no scale-to-zero, templates, branching or checkpoints" placeholder:"type" example:"micro,full"`
 
 	Runtime struct {
-		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set" flag:"args" help:"Arguments to pass to the instance." placeholder:"arg"`
-		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" short:"e" sep:"none" mapsep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
+		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set" flag:"args" help:"Command-line arguments passed to the instance at start. Up to 128." placeholder:"arg" example:"--port=8080"`
+		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" short:"e" sep:"none" mapsep:"none" help:"Environment variable as KEY=value. Up to 256." placeholder:"<key>=<value>" example:"DEBUG=true"`
 	}
 
 	Resources struct {
-		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short" create:"set" edit:"set" flag:"memory" short:"m" help:"Memory allocation." placeholder:"size" example:"128MiB,1GiB"`
-		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short" create:"set" edit:"set" flag:"vcpus" help:"Number of vCPUs." placeholder:"n" example:"1,2,4"`
-		GPUs   int                 `field:"gpus,long" create:"set" flag:"gpus" help:"Number of GPUs to attach. Requires type \"full\" and a plan with GPU support. Currently limited to 1." placeholder:"n" example:"0,1"`
+		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short" create:"set" edit:"set" flag:"memory" short:"m" help:"Memory for the instance. Defaults to 128MiB, within the range the plan allows (see quotas.limits.memory on the metro)." placeholder:"size" example:"128MiB,1GiB"`
+		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short" create:"set" edit:"set" flag:"vcpus" help:"Number of vCPUs. Defaults to 1, within the range the plan allows (see quotas.limits.vcpus on the metro)." placeholder:"n" example:"1,2,4"`
+		GPUs   int                 `field:"gpus,long" create:"set" flag:"gpus" help:"Number of GPUs to attach, 0 or 1. Requires type full and a plan with GPU support. The GPU stays assigned until the instance is deleted. Cannot be combined with template, branch or checkpoint." placeholder:"n" example:"0,1"`
 	}
 
-	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set" flag:"service" help:"Service group name or key." placeholder:"name"`
-	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings" flag:"volume" short:"v" sep:"none" help:"Attach volume." placeholder:"<name>:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,data:/mnt:size=10GiB"`
-	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Attach ROM." placeholder:"name=<name>,image=<ref>,at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
-	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,image=<ref>[,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
+	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set" flag:"service" help:"Service group to join, by name or UUID. Leave unset and give service.services or service.domains to create a group owned by the instance. Without any service the instance is reachable only privately." placeholder:"name"`
+	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings" flag:"volume" short:"v" sep:"none" help:"Volume to attach as NAME:/MOUNT[:ro], where the mount path must be absolute. On create, add :size=SIZE to make a new volume with the instance, and leave NAME empty to have one generated. Up to 4 per instance." placeholder:"[<name>]:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,:/data:size=1GiB"`
+	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest. Up to 8 per instance." placeholder:"name=<name>,image=<ref>,at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
+	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance." placeholder:"name=<name>,image=<ref>[,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
 
 	Networks []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
 	Gpus     []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
 
 	Timestamps struct {
-		Created types.RelativeTime `mirror:"instance.created_at" field:",short"`
+		Created types.RelativeTime `mirror:"instance.created_at" field:",short" help:"Creation time."`
 		Started types.RelativeTime `mirror:"instance.started_at"`
 		Stopped types.RelativeTime `mirror:"instance.stopped_at"`
 	}
 
-	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" create:"set" edit:"set" flag:"scale-to-zero" help:"Scale-to-zero options.\n  policy: on | idle | off\n  cooldown-time: cooldown in ms before scaling to zero\n  notify-time: notification time in ms before scaling to zero\n  stateful: true | false" placeholder:"<key>=<value>" example:"on,policy=on\\,cooldown-time=300,policy=on\\,stateful=true\\,cooldown-time=500\\,notify-time=100"`
-	Autokill    InstanceAutokill    `field:",embed" mirror:"instance.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time after the instance stops before it is deleted\n  num-requests: max requests before the instance is deleted" placeholder:"<key>=<value>" example:"time=5s,num-requests=100,time=5s\\,num-requests=100"`
+	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" create:"set" edit:"set" flag:"scale-to-zero" help:"Scale-to-zero options. Requires a service group.\n  policy: on | idle (also while open TCP connections are idle, needs stateful=true) | off\n  cooldown-time: ms of inactivity before scaling to zero (default 1000, minimum 100)\n  notify-time: ms the instance is warned beforehand, 0 disables and the value must be below cooldown-time\n  stateful: true keeps RAM in a snapshot and resumes from it, false restarts from scratch" placeholder:"<key>=<value>" example:"on,policy=on\\,cooldown-time=300,policy=on\\,stateful=true\\,cooldown-time=500\\,notify-time=100"`
+	Autokill    InstanceAutokill    `field:",embed" mirror:"instance.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time after the instance stops before it is deleted, such as 5s or 24h, 0 disables\n  num-requests: delete the instance after it has served this many requests or connections" placeholder:"<key>=<value>" example:"time=5s,num-requests=100,time=5s\\,num-requests=100"`
 
 	Timing struct {
 		Uptime   types.DurationMS `mirror:"instance.uptime_ms"`
-		BootTime types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
+		BootTime types.DurationUS `mirror:"instance.boot_time_us" field:",long" help:"Time the guest took to boot on the last start."`
 		NetTime  types.DurationUS `mirror:"instance.net_time_us"`
 	}
 
 	Restart struct {
-		Policy       string `mirror:"instance.restart_policy" create:"set" flag:"restart" help:"Restart policy." placeholder:"policy" example:"always,on-failure,never"`
+		Policy       string `mirror:"instance.restart_policy" create:"set" flag:"restart" help:"Restart policy. Restarts back off from immediate up to 5m. Cannot be combined with the delete-on-stop feature.\n  never: never restart (default)\n  always: restart whenever the instance exits or crashes\n  on-failure: restart only after a crash" placeholder:"policy" example:"always,on-failure,never"`
 		StartCount   int    `mirror:"instance.start_count"`
 		RestartCount int    `mirror:"instance.restart_count"`
 	}
 
-	SchedPriority *platform.SchedPriority `mirror:"instance.sched_priority" field:"sched-priority,long" create:"set" edit:"set" flag:"sched-priority" help:"Scheduling priority for the instance." placeholder:"priority" example:"normal,medium,high,admin"`
-	Autostart     bool                    `field:"autostart,invisible,valueless" create:"set" flag:"autostart" help:"Start instance automatically."`
-	Replicas      int64                   `field:"replicas,invisible,valueless" create:"set" flag:"replicas" help:"Number of replicas." placeholder:"n" example:"1,3"`
-	Features      []string                `field:"features,invisible,valueless" create:"set" flag:"feature" sep:"none" help:"Instance feature." placeholder:"feature"`
-	Vsock         bool                    `field:"vsock,invisible,valueless" create:"set" edit:"set"`
-	Template      string                  `field:"template,invisible,valueless" create:"set" flag:"template" help:"Create from instance template." placeholder:"name"`
-	Branch        multimetro.Key          `field:"branch,invisible,valueless" create:"set" flag:"branch" help:"Branch from an existing instance." placeholder:"instance"`
-	Checkpoint    multimetro.Key          `field:"checkpoint,invisible,valueless" create:"set" flag:"checkpoint" help:"Create from a checkpoint." placeholder:"checkpoint"`
+	SchedPriority *platform.SchedPriority `mirror:"instance.sched_priority" field:"sched-priority,long" create:"set" edit:"set" flag:"sched-priority" help:"Scheduling priority: normal (default), medium, high or admin. Requires the override_vm_priority permission." placeholder:"priority" example:"normal,medium,high,admin"`
+	Autostart     bool                    `field:"autostart,invisible,valueless" create:"set" flag:"autostart" help:"Start the instance right after creation. When false it stays stopped, except that scale-to-zero puts it in standby, where incoming traffic starts it."`
+	Replicas      int64                   `field:"replicas,invisible,valueless" create:"set" flag:"replicas" help:"Additional identical instances to create, so replicas=2 creates three in total." placeholder:"n" example:"1,3"`
+	Features      []string                `field:"features,invisible,valueless" create:"set" flag:"feature" sep:"none" help:"Instance feature to enable.\n  delete-on-stop: delete the instance when it stops, not with a restart policy or delete-lock\n  nested-virt: expose virtualization extensions to the guest, needs the nested_virt permission" placeholder:"feature" example:"delete-on-stop"`
+	Vsock         bool                    `field:"vsock,invisible,valueless" create:"set" edit:"set" help:"Enable the virtio socket (vsock) device for the instance."`
+	Template      string                  `field:"template,invisible,valueless" create:"set" flag:"template" help:"Create from an instance template, by name or UUID. The clone inherits its configuration and, when the template has a snapshot, its memory state. Cannot be combined with image, branch, checkpoint, type or gpus." placeholder:"name"`
+	Branch        multimetro.Key          `field:"branch,invisible,valueless" create:"set" flag:"branch" help:"Clone an existing instance, by name or UUID. A running source is snapshotted asynchronously and keeps running. Cannot be combined with image, args, env, memory, vcpus, type or gpus." placeholder:"instance"`
+	Checkpoint    multimetro.Key          `field:"checkpoint,invisible,valueless" create:"set" flag:"checkpoint" help:"Create from a checkpoint, by name or UUID, restoring its memory and disk. Cannot be combined with image, args, env, memory, vcpus, type or gpus." placeholder:"checkpoint"`
 
 	Stop struct {
-		Reason string     `field:",long"`
-		Origin string     `field:"origin,hidden"`
+		Reason string     `field:",long" help:"Why the instance last stopped."`
+		Origin string     `field:"origin,hidden" help:"Who stopped it: the user, the platform (such as scale-to-zero), the guest exiting, or a crash."`
 		Errno  stop.Errno `field:"errno,hidden"`
 
-		ExitCode *uint32 `mirror:"instance.exit_code" field:"exit-code,long"`
-	} `field:",long"`
+		ExitCode *uint32 `mirror:"instance.exit_code" field:"exit-code,long" help:"Exit code of the guest's last run."`
+	} `field:",long" help:"Details of the last stop."`
 
 	Instance platform.Instance `field:"-" json:"instance"`
 	Profile  *config.Profile   `field:"-" json:"profile"`
 
 	key multimetro.Key
 
-	DeleteLock bool `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent instance deletion until the lock is removed."`
+	DeleteLock bool `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed. Also pauses autokill."`
 }
 
 type InstanceNetwork struct {
@@ -187,10 +187,10 @@ type InstanceGpu struct {
 
 type InstanceService struct {
 	Link[ServiceGroup]
-	Services  []*Service `mirror:"services" json:"services,omitempty" field:",invisible,valueless" create:"set" flag:"publish" short:"p" sep:"none" help:"Publish port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
-	Domains   []Domain   `mirror:"domains" json:"domains,omitempty" field:",short,embed" create:"set" flag:"domain" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
-	SoftLimit uint32     `json:"soft-limit,omitempty" field:"soft-limit,invisible,valueless" create:"set"`
-	HardLimit uint32     `json:"hard-limit,omitempty" field:"hard-limit,invisible,valueless" create:"set"`
+	Services  []*Service `mirror:"services" json:"services,omitempty" field:",invisible,valueless" create:"set" flag:"publish" short:"p" sep:"none" help:"Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.\n  http: load balance per HTTP request instead of per TCP connection\n  tls: terminate TLS at the platform\n  redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect" placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls,80:443/http+redirect"`
+	Domains   []Domain   `mirror:"domains" json:"domains,omitempty" field:",short,embed" create:"set" flag:"domain" sep:"none" help:"Domain for the group. Up to 8 per group.\n  myapp: a bare label becomes a subdomain of the metro\n  example.com: a dotted name is a custom domain, with a certificate issued automatically unless given as name=example.com,certificate=my-cert" placeholder:"fqdn" example:"example.com,myapp"`
+	SoftLimit uint32     `json:"soft-limit,omitempty" field:"soft-limit,invisible,valueless" create:"set" help:"Concurrent requests per instance before the load balancer wakes a standby instance of the group. Between 1 and 65535, defaults to 1."`
+	HardLimit uint32     `json:"hard-limit,omitempty" field:"hard-limit,invisible,valueless" create:"set" help:"Maximum concurrent requests per instance. Between 1 and 65535, defaults to 65535, and at least the soft limit. Excess requests go to another instance or fail."`
 }
 
 // UnmarshalText only links to a service group by name/key - use
@@ -237,16 +237,16 @@ func (i *InstanceService) UnmarshalJSON(data []byte) error {
 // into volume templates, so the link targets that type rather than Volume.
 type InstanceTemplateVolume struct {
 	Link[VolumeTemplate]
-	At       string `name:"at" mirror:"at" json:"at" field:",long"`
-	Readonly bool   `name:"readonly" mirror:"readonly" json:"readonly,omitempty" field:",long"`
+	At       string `name:"at" mirror:"at" json:"at" field:",long" help:"Mount path inside the instance."`
+	Readonly bool   `name:"readonly" mirror:"readonly" json:"readonly,omitempty" field:",long" help:"Mounted read-only."`
 }
 
 type InstanceVolume struct {
 	Link[Volume]
-	At       string `name:"at" mirror:"at" json:"at" field:",long"`
-	Readonly bool   `name:"readonly" mirror:"readonly" json:"readonly,omitempty" field:",long"`
+	At       string `name:"at" mirror:"at" json:"at" field:",long" help:"Mount path inside the instance."`
+	Readonly bool   `name:"readonly" mirror:"readonly" json:"readonly,omitempty" field:",long" help:"Mounted read-only."`
 
-	Size types.SizeMebibytes `name:"size" json:"size,omitempty" field:"size,invisible,valueless" create:"set"`
+	Size types.SizeMebibytes `name:"size" json:"size,omitempty" field:"size,invisible,valueless" create:"set" help:"Size of a new volume created together with the instance."`
 }
 
 func (v *InstanceVolume) MarshalText() ([]byte, error) {

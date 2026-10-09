@@ -186,41 +186,41 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition
 }
 
 type Volume struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
-	Name  string          `mirror:"volume.name" field:",short" create:"set" flag:"name" short:"n" help:"Volume name." placeholder:"name"`
-	UUID  string          `mirror:"volume.uuid" field:",long"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"volume.name" field:",short" create:"set" flag:"name" short:"n" help:"Volume name, unique per metro. Generated as vol-XXXX when omitted." placeholder:"name"`
+	UUID  string          `mirror:"volume.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	Tags []string `mirror:"volume.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Volume tag." placeholder:"tag" example:"env-prod"`
+	Tags []string `mirror:"volume.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-prod"`
 
-	State       types.VolumeState                     `mirror:"volume.state" field:",short"`
-	Usage       types.MeterUsage[types.SizeMebibytes] `field:"usage,short"`
-	Free        *types.SizeMebibytes                  `mirror:"volume.free_mb" field:"free,short"`
-	Size        types.SizeMebibytes                   `mirror:"volume.size_mb" field:",short" create:"set" edit:"set" flag:"size" help:"Volume size." placeholder:"size" example:"10GiB,100MiB"`
-	Filesystem  string                                `mirror:"volume.filesystem" field:",long" create:"set" flag:"filesystem" help:"Volume filesystem." placeholder:"filesystem" example:"ext4"`
-	QuotaPolicy string                                `mirror:"volume.quota_policy" field:"quota-policy,long" create:"set" edit:"set" flag:"quota-policy" help:"Volume quota policy." placeholder:"quota-policy" example:"static,dynamic"`
-	Persistent  bool                                  `mirror:"volume.persistent" field:",long"`
-	AccessMode  *types.AccessMode                     `mirror:"volume.access_mode" field:",long" create:"set" flag:"access-mode" help:"Volume access mode." placeholder:"access-mode" example:"rwo,rox,rwx"`
+	State       types.VolumeState                     `mirror:"volume.state" field:",short" help:"Lifecycle state: available (not attached), idle (attached to a stopped instance), mounted (in use by a running instance), busy (clone or resize in progress), uninitialized, initializing, error or template."`
+	Usage       types.MeterUsage[types.SizeMebibytes] `field:"usage,short" help:"Used space (MiB)."`
+	Free        *types.SizeMebibytes                  `mirror:"volume.free_mb" field:"free,short" help:"Free space (MiB)."`
+	Size        types.SizeMebibytes                   `mirror:"volume.size_mb" field:",short" create:"set" edit:"set" flag:"size" help:"Volume size, within the range the plan allows (see quotas.limits.volume on the metro). On edit the volume grows, never below its current usage." placeholder:"size" example:"10GiB,100MiB"`
+	Filesystem  string                                `mirror:"volume.filesystem" field:",long" create:"set" flag:"filesystem" help:"Filesystem for a new volume: ext4 (default) or virtiofs, depending on what the deployment offers." placeholder:"filesystem" example:"ext4,virtiofs"`
+	QuotaPolicy string                                `mirror:"volume.quota_policy" field:"quota-policy,long" create:"set" edit:"set" flag:"quota-policy" help:"How the volume counts against your quota.\n  static: reserve the full size (default)\n  dynamic: count only used space and allow overcommit, discouraged for file-based volumes" placeholder:"quota-policy" example:"static,dynamic"`
+	Persistent  bool                                  `mirror:"volume.persistent" field:",long" help:"False when an instance created the volume inline, in which case it is deleted with that instance."`
+	AccessMode  *types.AccessMode                     `mirror:"volume.access_mode" field:",long" create:"set" flag:"access-mode" help:"How instances can mount the volume.\n  rwo: one read-write mount or many read-only mounts (default)\n  rox: read-only mounts only\n  rwx: many read-write mounts, with guest caching off" placeholder:"access-mode" example:"rwo,rox,rwx"`
 	HostPath    *string                               `mirror:"volume.host_path" field:"host-path,long"`
-	Template    string                                `field:"template,invisible,valueless" create:"set" flag:"template" help:"Create from volume template." placeholder:"name"`
+	Template    string                                `field:"template,invisible,valueless" create:"set" flag:"template" help:"Clone a volume template, by name or UUID, instead of creating an empty volume." placeholder:"name"`
 
 	Timestamps struct {
-		Created types.RelativeTime `mirror:"volume.created_at" field:",short"`
+		Created types.RelativeTime `mirror:"volume.created_at" field:",short" help:"Creation time."`
 	}
 
 	AttachedTo []struct {
 		Link[Instance]
-	} `mirror:"volume.attached_to"`
+	} `mirror:"volume.attached_to" help:"Instances the volume is configured on."`
 
 	MountedBy []struct {
 		Link[Instance]
 		ReadOnly bool `mirror:"read_only" field:",long"`
-	} `mirror:"volume.mounted_by"`
+	} `mirror:"volume.mounted_by" help:"Instances currently mounting the volume, with their read-only flag."`
 
 	Volume platform.Volume `field:"-" json:"volume"`
 
 	key multimetro.Key
 
-	DeleteLock bool `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent volume deletion until the lock is removed."`
+	DeleteLock bool `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed."`
 }
 
 func (Volume) Type() resource.Type {
