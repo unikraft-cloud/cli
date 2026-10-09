@@ -125,8 +125,9 @@ type Instance struct {
 	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Attach ROM." placeholder:"name=<name>,image=<ref>,at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
 	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,image=<ref>[,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
 
-	Networks []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
-	Gpus     []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
+	PrivateFQDN string            `mirror:"instance.private_fqdn" field:"private-fqdn,long"`
+	Networks    []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
+	Gpus        []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
 
 	Timestamps struct {
 		Created types.RelativeTime `mirror:"instance.created_at" field:",short"`

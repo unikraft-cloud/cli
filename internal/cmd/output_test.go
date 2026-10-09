@@ -138,6 +138,7 @@ func instancesOutputTests(t *testing.T) {
 	sample.Runtime.Env = map[string]string{"KEY1": "val1", "KEY2": "val2"}
 	sample.Resources.Memory = 256
 	sample.Resources.VCPUs = 2
+	sample.PrivateFQDN = "my-instance.internal"
 	sample.Networks = append(sample.Networks, cmd.InstanceNetwork{})
 	sample.Networks[0].UUID = "net-uuid-1234"
 	sample.Networks[0].PrivateIP = "192.168.1.10"
