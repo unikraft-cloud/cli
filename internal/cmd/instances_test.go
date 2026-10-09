@@ -16,6 +16,7 @@ import (
 
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/types"
 )
 
 func TestInstancePluginUnmarshalText(t *testing.T) {
@@ -184,6 +185,69 @@ func TestInstanceRomName(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantName, got.Name)
+		})
+	}
+}
+
+func TestInstanceRolloutUnmarshalText(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    cmd.InstanceRollout
+		wantErr string
+	}{
+		{
+			name: "empty",
+			in:   "",
+			want: cmd.InstanceRollout{},
+		},
+		{
+			name: "type alone",
+			in:   "replace",
+			want: cmd.InstanceRollout{Type: cmd.RolloutReplace},
+		},
+		{
+			name: "every key",
+			in:   "type=replace,by=tags,healthy-after=30s",
+			want: cmd.InstanceRollout{Type: cmd.RolloutReplace, By: cmd.RolloutByTags, HealthyAfter: types.DurationS(30)},
+		},
+		{
+			name: "json",
+			in:   `{"type":"rolling","healthy-after":"1m"}`,
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, HealthyAfter: types.DurationS(60)},
+		},
+		{
+			name:    "unknown type",
+			in:      "type=sideways",
+			wantErr: `unknown rollout type "sideways"`,
+		},
+		{
+			name:    "unknown selector",
+			in:      "by=sideways",
+			wantErr: `unknown rollout by "sideways"`,
+		},
+		{
+			name:    "negative healthy-after",
+			in:      "healthy-after=-30s",
+			wantErr: "healthy-after cannot be negative",
+		},
+		{
+			name:    "unknown key",
+			in:      "sideways=1",
+			wantErr: "unknown fields: [sideways]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got cmd.InstanceRollout
+			err := got.UnmarshalText([]byte(tt.in))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

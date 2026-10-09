@@ -76,7 +76,8 @@ type InstancesCmd struct {
 type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
-	DeleteOnStop bool `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	DeleteOnStop bool             `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | replace\n  by: service (default) | tags\n  healthy-after: time the new instances must keep running before the old ones are deleted" placeholder:"<key>=<value>" example:"replace,type=replace\\,healthy-after=30s,by=tags"`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -92,7 +93,8 @@ func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partiti
 			return fmt.Errorf("--domain cannot be used with --service")
 		}
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
+	_, err := c.RunResources(ctx, stdio, partition)
+	return err
 }
 
 type Instance struct {
@@ -1598,6 +1600,28 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --metro fra \
 	  --image nginx:latest \
 	  --plugin 'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'`,
+				},
+			},
+			{
+				Description: "Replace every instance in a service group with a new image",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-app:v2 \
+	  --service my-service \
+	  --autostart \
+	  --rollout`,
+				},
+			},
+			{
+				Description: "Roll a service group whose instances need sole access to their volume, and hold the new ones up for a minute first",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-db:v2 \
+	  --service my-db \
+	  --autostart \
+	  --rollout=type=replace,healthy-after=1m`,
 				},
 			},
 		},

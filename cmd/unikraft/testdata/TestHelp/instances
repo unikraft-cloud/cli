@@ -398,6 +398,23 @@ Examples:
   	  --plugin
   'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'
 
+  # Replace every instance in a service group with a new image
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-app:v2 \
+  	  --service my-service \
+  	  --autostart \
+  	  --rollout
+
+  # Roll a service group whose instances need sole access to their volume, and
+  # hold the new ones up for a minute first
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-db:v2 \
+  	  --service my-db \
+  	  --autostart \
+  	  --rollout=type=replace,healthy-after=1m
+
 Fields:
   metro
   name
@@ -557,6 +574,12 @@ Create flags:
           Create from a checkpoint.
       --rm
           Automatically delete the instance when it stops.
+      --rollout=<key>=<value>
+          Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
+            type: rolling (default) | replace
+            by: service (default) | tags
+            healthy-after: time the new instances must keep running before the old ones are deleted.
+          [examples: replace, type=replace,healthy-after=30s, by=tags]
 
 $ unikraft instance new --help
 
@@ -596,6 +619,23 @@ Examples:
   	  --plugin
   'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'
 
+  # Replace every instance in a service group with a new image
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-app:v2 \
+  	  --service my-service \
+  	  --autostart \
+  	  --rollout
+
+  # Roll a service group whose instances need sole access to their volume, and
+  # hold the new ones up for a minute first
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-db:v2 \
+  	  --service my-db \
+  	  --autostart \
+  	  --rollout=type=replace,healthy-after=1m
+
 Fields:
   metro
   name
@@ -755,6 +795,12 @@ Create flags:
           Create from a checkpoint.
       --rm
           Automatically delete the instance when it stops.
+      --rollout=<key>=<value>
+          Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
+            type: rolling (default) | replace
+            by: service (default) | tags
+            healthy-after: time the new instances must keep running before the old ones are deleted.
+          [examples: replace, type=replace,healthy-after=30s, by=tags]
 
 $ unikraft instance run --help
 
@@ -801,6 +847,9 @@ Examples:
   # Deploy a new instance with a configured plugin
   unikraft instance run --metro=fra --image=my-app:latest --plugin
   'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'
+
+  # Roll every instance in a service group over to a new image
+  unikraft instance run --image=my-app:v2 --service=api --rollout
 
 Fields:
   metro
@@ -963,6 +1012,12 @@ Create flags:
           Create from a checkpoint.
       --rm
           Automatically delete the instance when it stops.
+      --rollout=<key>=<value>
+          Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
+            type: rolling (default) | replace
+            by: service (default) | tags
+            healthy-after: time the new instances must keep running before the old ones are deleted.
+          [examples: replace, type=replace,healthy-after=30s, by=tags]
 
 $ unikraft instance edit --help
 
