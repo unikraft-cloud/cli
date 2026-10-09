@@ -9,21 +9,21 @@ resources:
   vcpus:   1
 
 ==================================== kv-all ====================================
-metro:           fra
-name:            my-instance
-uuid:            a1b2c3d4-e5f6-7890-abcd-ef1234567890
+metro:               fra
+name:                my-instance
+uuid:                a1b2c3d4-e5f6-7890-abcd-ef1234567890
 tags:
 annotations:
-state:           running
-image:           https+oci://cdn.example.com/me/app/@sha256:43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190
+state:               running
+image:               https+oci://cdn.example.com/me/app/@sha256:43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190
 type:
 runtime:
   args:
   env:
 resources:
-  memory:        256MiB
-  vcpus:         1
-  gpus:          0
+  memory:            256MiB
+  vcpus:             1
+  gpus:              0
 service:
   name:
   uuid:
@@ -34,33 +34,38 @@ plugins:
 networks:
 gpus:
 timestamps:
-  created:       never
-  started:       never
-  stopped:       never
+  created:           never
+  started:           never
+  stopped:           never
 scale-to-zero:
-  enabled:       false
+  enabled:           false
   policy:
-  stateful:      false
-  cooldown-time: 0s
-  notify-time:   0s
+  stateful:          false
+  cooldown-time:     0s
+  notify-time:       0s
 autokill:
-  time:          0s
-  num-requests:  0
+  time:              0s
+  num-requests:      0
 timing:
   uptime:
+  start-prereq-time:
+  vmm-prestart-time:
+  vmm-start-time:
+  vmm-load-time:
+  vmm-ready-time:
   boot-time:
   net-time:
 restart:
   policy:
-  start-count:   0
-  restart-count: 0
+  start-count:       0
+  restart-count:     0
 sched-priority:
 stop:
   reason:
   origin:
   errno:
   exit-code:
-delete-lock:     false
+delete-lock:         false
 
 ==================================== table =====================================
 METRO  NAME         STATE    IMAGE                                                                                                        ARGS  MEMORY  VCPUS  FQDN  CREATED
@@ -549,6 +554,31 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
         "name": "uptime",
         "value": null,
         "verbosity": "hidden"
+      },
+      {
+        "name": "start-prereq-time",
+        "value": null,
+        "verbosity": "long"
+      },
+      {
+        "name": "vmm-prestart-time",
+        "value": null,
+        "verbosity": "long"
+      },
+      {
+        "name": "vmm-start-time",
+        "value": null,
+        "verbosity": "long"
+      },
+      {
+        "name": "vmm-load-time",
+        "value": null,
+        "verbosity": "long"
+      },
+      {
+        "name": "vmm-ready-time",
+        "value": null,
+        "verbosity": "long"
       },
       {
         "name": "boot-time",
