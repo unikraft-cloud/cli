@@ -405,3 +405,42 @@ func TestProfile_GetDefaultMetro(t *testing.T) {
 		})
 	}
 }
+
+func TestCloudProfileMetroProxy(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "config.yaml")
+
+	input := strings.TrimSpace(`
+profile: default
+profiles:
+  default:
+    type: cloud
+    token: test-token
+    metros:
+      - name: fra
+        endpoint: https://api.fra.unikraft.cloud
+        proxy: https://console.example.com/proxy/fra
+      - name: was
+        endpoint: https://api.was.unikraft.cloud
+`) + "\n"
+
+	err := os.WriteFile(path, []byte(input), 0o600)
+	require.NoError(t, err)
+
+	config, err := Load(path)
+	require.NoError(t, err)
+
+	profile := config.Profiles["default"]
+	require.Len(t, profile.Metros, 2)
+
+	proxied := profile.Metros[0]
+	assert.Equal(t, "https://api.fra.unikraft.cloud", proxied.Endpoint)
+	assert.Equal(t, "https://console.example.com/proxy/fra", proxied.Proxy)
+	assert.Equal(t, "https://console.example.com/proxy/fra", proxied.URL())
+	assert.Equal(t, "index.fra.unikraft.cloud", proxied.Index().Host)
+
+	direct := profile.Metros[1]
+	assert.Empty(t, direct.Proxy)
+	assert.Equal(t, "https://api.was.unikraft.cloud", direct.URL())
+	assert.Equal(t, "index.was.unikraft.cloud", direct.Index().Host)
+}

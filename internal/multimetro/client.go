@@ -47,7 +47,7 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 		copts := []platform.ClientOption{
 			platform.WithHTTPClient(httpClient),
 			platform.WithToken(profile.Token),
-			platform.WithDefaultMetro(metro.Endpoint),
+			platform.WithDefaultMetro(metro.URL()),
 		}
 		g = g.WithClient(
 			metro.Name,
