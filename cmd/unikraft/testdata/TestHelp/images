@@ -66,6 +66,9 @@ Examples:
   # Build with custom build arguments
   unikraft image build ./app --build-arg VERSION=1.2.3 --build-arg COMMIT=abc123
 
+  # Build with an additional build context
+  unikraft image build . --build-context shared=./shared
+
   # Build with secret and SSH access
   unikraft image build . --secret id=npm,src=$HOME/.npmrc --ssh
   default=$SSH_AUTH_SOCK
@@ -84,6 +87,8 @@ Flags:
           [examples: x86_64, arm64]
       --build-arg
           Set build-time variables.
+      --build-context
+          Additional build contexts (format: "name=value").
       --no-cache
           Do not use cache when building the image.
       --secret
