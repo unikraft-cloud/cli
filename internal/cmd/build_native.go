@@ -45,6 +45,13 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	if len(c.BuildArg) > 0 {
 		buildOpts.BuildArg = append(buildOpts.BuildArg, c.BuildArg...)
 	}
+	if len(c.BuildContext) > 0 {
+		contexts, err := builder.ParseContextNames(c.BuildContext)
+		if err != nil {
+			return err
+		}
+		buildOpts.BuildContexts = contexts
+	}
 	if len(c.Secret) > 0 {
 		secrets, err := buildflags.ParseSecretSpecs(c.Secret)
 		if err != nil {
