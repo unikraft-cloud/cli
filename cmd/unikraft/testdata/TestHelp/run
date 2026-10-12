@@ -211,5 +211,6 @@ Create flags:
           Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | replace
             by: service (default) | tags
+            target: the new instance's services or tags to select by (default: all of them)
             healthy-after: time the new instances must keep running before the old ones are deleted.
-          [examples: replace, type=replace,healthy-after=30s, by=tags]
+          [examples: replace, type=replace,healthy-after=30s, by=tags,target=env-prod]

@@ -77,7 +77,7 @@ type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
 	DeleteOnStop bool             `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
-	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | replace\n  by: service (default) | tags\n  healthy-after: time the new instances must keep running before the old ones are deleted" placeholder:"<key>=<value>" example:"replace,type=replace\\,healthy-after=30s,by=tags"`
+	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | replace\n  by: service (default) | tags\n  target: the new instance's services or tags to select by (default: all of them)\n  healthy-after: time the new instances must keep running before the old ones are deleted" placeholder:"<key>=<value>" example:"replace,type=replace\\,healthy-after=30s,by=tags\\,target=env-prod"`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -1622,6 +1622,18 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --service my-db \
 	  --autostart \
 	  --rollout=type=replace,healthy-after=1m`,
+				},
+			},
+			{
+				Description: "Replace the app-web instances with ones that also carry a version tag",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-app:v2 \
+	  --tag app-web \
+	  --tag v2 \
+	  --autostart \
+	  --rollout=by=tags,target=app-web`,
 				},
 			},
 		},

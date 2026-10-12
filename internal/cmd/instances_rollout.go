@@ -33,6 +33,7 @@ import (
 type InstanceRollout struct {
 	Type         InstanceRolloutMode     `name:"type" json:"type,omitempty"`
 	By           InstanceRolloutSelector `name:"by" json:"by,omitempty"`
+	Target       []string                `name:"target" json:"target,omitempty"`
 	HealthyAfter types.DurationS         `name:"healthy-after" json:"healthy-after,omitempty"`
 }
 
@@ -56,6 +57,7 @@ func (r *InstanceRollout) UnmarshalText(data []byte) error {
 	if parsed.HealthyAfter < 0 {
 		return fmt.Errorf("rollout healthy-after cannot be negative")
 	}
+	parsed.Target = slices.DeleteFunc(parsed.Target, func(t string) bool { return t == "" })
 	*r = InstanceRollout(parsed)
 	return nil
 }
@@ -153,6 +155,14 @@ func (c *InstanceCreateCmd) RunResources(ctx context.Context, stdio config.Stdio
 		if len(tags) == 0 {
 			return nil, fmt.Errorf("--rollout=by=tags requires --tag")
 		}
+		for _, tag := range opts.Target {
+			if !slices.Contains(tags, tag) {
+				return nil, fmt.Errorf("rollout target %q is not a tag of the new instance", tag)
+			}
+		}
+		if len(opts.Target) > 0 {
+			tags = opts.Target
+		}
 	}
 
 	if c.Save != "" {
@@ -164,11 +174,11 @@ func (c *InstanceCreateCmd) RunResources(ctx context.Context, stdio config.Stdio
 // runRollout replaces every instance the rollout selects with a new one, and
 // deletes the old set once the new one runs.
 func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, partition *resource.Partition, opts InstanceRollout, fields []resource.Field, metro string, svc *InstanceService, tags []string) ([]resource.Resource, error) {
-	target := strings.Join(tags, ",")
+	selected := strings.Join(tags, ",")
 	if opts.By == RolloutByService {
-		target = cmp.Or(svc.Name, svc.UUID)
+		selected = cmp.Or(strings.Join(opts.Target, ","), svc.Name, svc.UUID)
 	}
-	groups, old, err := rolloutTarget(ctx, opts.By, metro, svc, tags)
+	groups, old, err := rolloutTarget(ctx, opts, metro, svc, tags)
 	if err != nil {
 		if !c.DryRun {
 			return nil, err
@@ -184,7 +194,7 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 	}
 	if err == nil && len(old) == 0 {
 		log.G(ctx).Info().
-			Str(string(opts.By), target).
+			Str(string(opts.By), selected).
 			Msg("no instances to replace, creating without a rollout")
 		return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
 	}
@@ -233,7 +243,7 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 		return nil, err
 	}
 	log.G(ctx).Info().
-		Str(string(opts.By), target).
+		Str(string(opts.By), selected).
 		Str("mode", string(opts.Type)).
 		Int64("instances", count).
 		Msg("rolling out")
@@ -269,8 +279,8 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 
 // rolloutTarget reads back the instances a rollout replaces, and the service
 // groups that the old and the new instances are in.
-func rolloutTarget(ctx context.Context, by InstanceRolloutSelector, metro string, svc *InstanceService, tags []string) ([]ServiceGroup, []Instance, error) {
-	if by == RolloutByTags {
+func rolloutTarget(ctx context.Context, opts InstanceRollout, metro string, svc *InstanceService, tags []string) ([]ServiceGroup, []Instance, error) {
+	if opts.By == RolloutByTags {
 		if metro == "" {
 			return nil, nil, fmt.Errorf("--rollout=by=tags requires --metro")
 		}
@@ -344,32 +354,59 @@ func rolloutTarget(ctx context.Context, by InstanceRolloutSelector, metro string
 	if len(results) == 0 {
 		return nil, nil, fmt.Errorf("service group %q not found", key)
 	}
-	svcGroup := results[0].(ServiceGroup)
+	groups := make([]ServiceGroup, len(results))
+	for i, r := range results {
+		groups[i] = r.(ServiceGroup)
+	}
+	selected := groups
+	if len(opts.Target) > 0 {
+		selected = nil
+		for _, target := range opts.Target {
+			link, err := ParseLink[ServiceGroup]([]byte(target))
+			if err != nil {
+				return nil, nil, err
+			}
+			i := slices.IndexFunc(groups, func(svcGroup ServiceGroup) bool {
+				return (link.Metro == "" || link.Metro == string(svcGroup.Metro)) &&
+					((link.UUID != "" && link.UUID == svcGroup.UUID) || (link.Name != "" && link.Name == svcGroup.Name))
+			})
+			if i < 0 {
+				return nil, nil, fmt.Errorf("rollout target %q is not a service of the new instance", target)
+			}
+			selected = append(selected, groups[i])
+		}
+	}
 
-	keys := make(multimetro.Keys, 0, len(svcGroup.Instances))
-	for _, inst := range svcGroup.Instances {
+	listed := make(map[string]int)
+	for _, svcGroup := range selected {
+		for _, inst := range svcGroup.Instances {
+			listed[cmp.Or(inst.UUID, inst.Name)]++
+		}
+	}
+	keys := make(multimetro.Keys, 0, len(selected[0].Instances))
+	for _, inst := range selected[0].Instances {
 		key := multimetro.Key{
-			Metro: cmp.Or(inst.Metro, string(svcGroup.Metro)),
+			Metro: cmp.Or(inst.Metro, string(selected[0].Metro)),
 			Name:  inst.Name,
 			UUID:  inst.UUID,
 		}
-		if key.Name == "" && key.UUID == "" {
+		if (key.Name == "" && key.UUID == "") || listed[cmp.Or(inst.UUID, inst.Name)] < len(selected) {
 			continue
 		}
 		keys = append(keys, key)
 	}
 	if len(keys) == 0 {
-		return []ServiceGroup{svcGroup}, nil, nil
+		return groups, nil, nil
 	}
 	results, err = (Instance{}).Get(ctx, keys.Strings())
 	if err != nil {
-		return nil, nil, fmt.Errorf("reading the instances of service group %q: %w", svcGroup.Name, err)
+		return nil, nil, fmt.Errorf("reading the instances of service group %q: %w", selected[0].Name, err)
 	}
 	old := make([]Instance, len(results))
 	for i, r := range results {
 		old[i] = r.(Instance)
 	}
-	return []ServiceGroup{svcGroup}, old, nil
+	return groups, old, nil
 }
 
 // serviceGroupKey keys the service group a link names, by its UUID when the

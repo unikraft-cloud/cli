@@ -415,6 +415,15 @@ Examples:
   	  --autostart \
   	  --rollout=type=replace,healthy-after=1m
 
+  # Replace the app-web instances with ones that also carry a version tag
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-app:v2 \
+  	  --tag app-web \
+  	  --tag v2 \
+  	  --autostart \
+  	  --rollout=by=tags,target=app-web
+
 Fields:
   metro
   name
@@ -578,8 +587,9 @@ Create flags:
           Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | replace
             by: service (default) | tags
+            target: the new instance's services or tags to select by (default: all of them)
             healthy-after: time the new instances must keep running before the old ones are deleted.
-          [examples: replace, type=replace,healthy-after=30s, by=tags]
+          [examples: replace, type=replace,healthy-after=30s, by=tags,target=env-prod]
 
 $ unikraft instance new --help
 
@@ -636,6 +646,15 @@ Examples:
   	  --autostart \
   	  --rollout=type=replace,healthy-after=1m
 
+  # Replace the app-web instances with ones that also carry a version tag
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-app:v2 \
+  	  --tag app-web \
+  	  --tag v2 \
+  	  --autostart \
+  	  --rollout=by=tags,target=app-web
+
 Fields:
   metro
   name
@@ -799,8 +818,9 @@ Create flags:
           Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | replace
             by: service (default) | tags
+            target: the new instance's services or tags to select by (default: all of them)
             healthy-after: time the new instances must keep running before the old ones are deleted.
-          [examples: replace, type=replace,healthy-after=30s, by=tags]
+          [examples: replace, type=replace,healthy-after=30s, by=tags,target=env-prod]
 
 $ unikraft instance run --help
 
@@ -1016,8 +1036,9 @@ Create flags:
           Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | replace
             by: service (default) | tags
+            target: the new instance's services or tags to select by (default: all of them)
             healthy-after: time the new instances must keep running before the old ones are deleted.
-          [examples: replace, type=replace,healthy-after=30s, by=tags]
+          [examples: replace, type=replace,healthy-after=30s, by=tags,target=env-prod]
 
 $ unikraft instance edit --help
 
