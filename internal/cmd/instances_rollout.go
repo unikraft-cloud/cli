@@ -33,6 +33,7 @@ import (
 type InstanceRollout struct {
 	Type         InstanceRolloutMode     `name:"type" json:"type,omitempty"`
 	By           InstanceRolloutSelector `name:"by" json:"by,omitempty"`
+	Target       []string                `name:"target" json:"target,omitempty"`
 	Batch        int                     `name:"batch" json:"batch,omitempty"`
 	HealthyAfter types.DurationS         `name:"healthy-after" json:"healthy-after,omitempty"`
 }
@@ -53,6 +54,7 @@ func (r *InstanceRollout) UnmarshalText(data []byte) error {
 	if parsed.Batch != 0 && parsed.Type == RolloutRecreate {
 		return fmt.Errorf("rollout batch cannot be used with %q", RolloutRecreate)
 	}
+	parsed.Target = slices.DeleteFunc(parsed.Target, func(t string) bool { return t == "" })
 	*r = InstanceRollout(parsed)
 	return nil
 }
@@ -152,11 +154,20 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 		if svc == nil || (svc.Name == "" && svc.UUID == "") {
 			return nil, fmt.Errorf("--rollout requires an existing service group")
 		}
-		selected = cmp.Or(svc.Name, svc.UUID)
-		groups, old, err = rolloutTargetService(ctx, metro, svc)
+		selected = cmp.Or(strings.Join(opts.Target, ","), svc.Name, svc.UUID)
+		groups, old, err = rolloutTargetService(ctx, metro, svc, opts.Target)
 	case RolloutByTags:
 		if len(tags) == 0 {
 			return nil, fmt.Errorf("--rollout=by=tags requires --tag")
+		}
+		for _, tag := range opts.Target {
+			if !slices.Contains(tags, tag) {
+				return nil, fmt.Errorf("rollout target %q is not a tag of the new instance", tag)
+			}
+		}
+		if len(opts.Target) > 0 {
+			tags = opts.Target
+			selected = strings.Join(tags, ",")
 		}
 		groups, old, err = rolloutTargetTags(ctx, metro, svc, tags)
 	}
@@ -275,8 +286,8 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 }
 
 // rolloutTargetService reads back the service group whose instances a rollout
-// replaces, and those instances.
-func rolloutTargetService(ctx context.Context, metro string, svc *InstanceService) ([]ServiceGroup, []Instance, error) {
+// replaces, and those instances. Each target must name that group.
+func rolloutTargetService(ctx context.Context, metro string, svc *InstanceService, targets []string) ([]ServiceGroup, []Instance, error) {
 	key := serviceGroupKey(svc, metro)
 	results, err := (ServiceGroup{}).Get(ctx, []string{key})
 	if err != nil {
@@ -286,6 +297,16 @@ func rolloutTargetService(ctx context.Context, metro string, svc *InstanceServic
 		return nil, nil, fmt.Errorf("service group %q not found", key)
 	}
 	svcGroup := results[0].(ServiceGroup)
+	for _, target := range targets {
+		link, err := ParseLink[ServiceGroup]([]byte(target))
+		if err != nil {
+			return nil, nil, err
+		}
+		named := (link.UUID != "" && link.UUID == svcGroup.UUID) || (link.Name != "" && link.Name == svcGroup.Name)
+		if !named || (link.Metro != "" && link.Metro != string(svcGroup.Metro)) {
+			return nil, nil, fmt.Errorf("rollout target %q is not a service of the new instance", target)
+		}
+	}
 
 	keys := make(multimetro.Keys, 0, len(svcGroup.Instances))
 	for _, inst := range svcGroup.Instances {

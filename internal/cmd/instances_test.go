@@ -260,8 +260,18 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 		},
 		{
 			name: "every key",
-			in:   "type=rolling,by=tags,batch=3,healthy-after=30s",
-			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, By: cmd.RolloutByTags, Batch: 3, HealthyAfter: types.DurationS(30)},
+			in:   "type=rolling,by=tags,target=env-prod,batch=3,healthy-after=30s",
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, By: cmd.RolloutByTags, Target: []string{"env-prod"}, Batch: 3, HealthyAfter: types.DurationS(30)},
+		},
+		{
+			name: "target list",
+			in:   `by=tags,target=["app=web","env-prod"]`,
+			want: cmd.InstanceRollout{By: cmd.RolloutByTags, Target: []string{"app=web", "env-prod"}},
+		},
+		{
+			name: "empty target",
+			in:   "target=",
+			want: cmd.InstanceRollout{Target: []string{}},
 		},
 		{
 			name: "json",
