@@ -427,6 +427,16 @@ Examples:
   	  --autostart \
   	  --rollout=recreate,healthy-after=1m
 
+  # Replace the app-web instances two at a time with ones that also carry a
+  # version tag
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-app:v2 \
+  	  --tag app-web \
+  	  --tag v2 \
+  	  --autostart \
+  	  --rollout=tags,target=app-web,batch=2
+
 Fields:
   metro
   name
@@ -593,9 +603,10 @@ Create flags:
           Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | recreate
             by: service (default) | tags
+            target: the new instance's services or tags to select by (default: all of them)
             batch: instances that a rolling rollout replaces at a time (default: 1)
             healthy-after: time each new batch must keep running before the rollout goes on.
-          [examples: recreate, batch=2,healthy-after=30s, tags]
+          [examples: recreate, batch=2,healthy-after=30s, tags,target=env-prod]
 
 $ unikraft instance new --help
 
@@ -652,6 +663,16 @@ Examples:
   	  --autostart \
   	  --rollout=recreate,healthy-after=1m
 
+  # Replace the app-web instances two at a time with ones that also carry a
+  # version tag
+  unikraft instance create \
+  	  --metro fra \
+  	  --image my-app:v2 \
+  	  --tag app-web \
+  	  --tag v2 \
+  	  --autostart \
+  	  --rollout=tags,target=app-web,batch=2
+
 Fields:
   metro
   name
@@ -818,9 +839,10 @@ Create flags:
           Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | recreate
             by: service (default) | tags
+            target: the new instance's services or tags to select by (default: all of them)
             batch: instances that a rolling rollout replaces at a time (default: 1)
             healthy-after: time each new batch must keep running before the rollout goes on.
-          [examples: recreate, batch=2,healthy-after=30s, tags]
+          [examples: recreate, batch=2,healthy-after=30s, tags,target=env-prod]
 
 $ unikraft instance run --help
 
@@ -1039,9 +1061,10 @@ Create flags:
           Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.
             type: rolling (default) | recreate
             by: service (default) | tags
+            target: the new instance's services or tags to select by (default: all of them)
             batch: instances that a rolling rollout replaces at a time (default: 1)
             healthy-after: time each new batch must keep running before the rollout goes on.
-          [examples: recreate, batch=2,healthy-after=30s, tags]
+          [examples: recreate, batch=2,healthy-after=30s, tags,target=env-prod]
 
 $ unikraft instance edit --help
 

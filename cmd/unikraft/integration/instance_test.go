@@ -1547,6 +1547,15 @@ cmd: ["cat", "/marker.txt"]
 			assert.Regexp(t, `state:\s+running`, r.Run(t, []string{"unikraft", "instance", "inspect", name}))
 		}
 
+		out = r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--rollout=target=test-" + uniq(),
+		}, common...), integ.ExpectFail())
+		assert.Contains(t, out, "is not a service of the new instance")
+
 		// Recreate stops the old set before the new set starts.
 		recreated := strings.Fields(r.Run(t, append([]string{
 			"unikraft", "--log-level=error", "instance", "create",
@@ -1554,7 +1563,7 @@ cmd: ["cat", "/marker.txt"]
 			"--image", "nginx:latest",
 			"--service", svcName,
 			"--autostart",
-			"--rollout=type=recreate",
+			"--rollout=type=recreate,target=" + svcName,
 		}, common...)))
 		require.Len(t, recreated, 2)
 		list = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
@@ -1618,7 +1627,41 @@ cmd: ["cat", "/marker.txt"]
 			assert.Regexp(t, `tags:.*`+tag, inspected)
 		}
 
-		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName}, rolled...))
+		version := "v-" + uniq()
+		out := r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--image", "nginx:latest",
+			"--tag", tag,
+			"--tag", version,
+			"--autostart",
+			"--rollout=by=tags,target=t-" + uniq(),
+		}, common...), integ.ExpectFail())
+		assert.Contains(t, out, "is not a tag of the new instance")
+
+		versioned := strings.Fields(r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--image", "nginx:latest",
+			"--tag", tag,
+			"--tag", version,
+			"--autostart",
+			"--rollout=by=tags,target=" + tag,
+		}, common...)))
+		require.Len(t, versioned, 2)
+
+		list = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range rolled {
+			assert.NotContains(t, list, name)
+		}
+		assert.Contains(t, list, controlName)
+		for _, name := range versioned {
+			inspected := r.Run(t, []string{"unikraft", "instance", "inspect", name})
+			assert.Regexp(t, `state:\s+running`, inspected)
+			assert.Regexp(t, `tags:.*`+tag, inspected)
+			assert.Regexp(t, `tags:.*`+version, inspected)
+		}
+
+		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName}, versioned...))
 	})
 
 	t.Run("rollout-rollback", func(t *testing.T) {
