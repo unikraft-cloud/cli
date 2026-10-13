@@ -967,6 +967,12 @@ func (Instance) Edit(ctx context.Context, key string, fields []resource.Field) e
 			}
 			log.G(ctx).Trace().Msg("updating instance")
 			_, err := c.UpdateInstances(ctx, reqs)
+			if pluginRomRejected(err) {
+				if withRom, ok := pluginPatchesWithRom(reqs); ok {
+					warnPluginRom(ctx, c.Metro.Name)
+					_, err = c.UpdateInstances(ctx, withRom)
+				}
+			}
 			if err != nil {
 				if platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 					return nil, nil
@@ -1477,6 +1483,12 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 	keys, err := group.CollectMetro(ctx, g, metro, func(ctx context.Context, c multimetro.MetroClient) (multimetro.Keys, error) {
 		log.G(ctx).Trace().Msg("creating instance")
 		resp, err := timeouts.TryWithFallback(ctx, req, c.CreateInstance)
+		if pluginRomRejected(err) {
+			if withRom, ok := createPluginsWithRom(req); ok {
+				warnPluginRom(ctx, c.Metro.Name)
+				resp, err = timeouts.TryWithFallback(ctx, withRom, c.CreateInstance)
+			}
+		}
 		if _, err = timeouts.Tolerate(ctx, resp, err, "instance create did not complete in time"); err != nil {
 			return nil, err
 		}
