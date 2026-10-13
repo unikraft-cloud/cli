@@ -364,7 +364,8 @@ func ParseField(field reflect.StructField, value reflect.Value) (*ParsedField, e
 
 // parseFlagSpec reads the opt-in `flag:"<name>"` tag, `flag-file:"<name>"` for
 // a flag naming a file whose contents are the value, or `flag-arg:"<name>"`
-// for a positional argument. No tag, no flag.
+// for a positional argument. No tag, no flag. `flag-edit:"add"` makes the
+// edit flag add to the field instead of replacing it.
 func parseFlagSpec(field reflect.StructField, create, edit *Patch) (*FlagSpec, error) {
 	name, file, arg := field.Tag.Get("flag"), false, false
 	if name == "" {
@@ -379,7 +380,18 @@ func parseFlagSpec(field reflect.StructField, create, edit *Patch) (*FlagSpec, e
 	if (create == nil || create.Set == nil) && (edit == nil || edit.Set == nil) {
 		return nil, fmt.Errorf("field %s has flag:%q but is not settable", field.Name, name)
 	}
-	return &FlagSpec{Name: name, File: file, Arg: arg, Tag: field.Tag}, nil
+	editAdd := false
+	switch op := field.Tag.Get("flag-edit"); op {
+	case "":
+	case "add":
+		if edit == nil || edit.Add == nil {
+			return nil, fmt.Errorf("field %s has flag-edit:%q but is not addable", field.Name, op)
+		}
+		editAdd = true
+	default:
+		return nil, fmt.Errorf("field %s has unknown flag-edit:%q", field.Name, op)
+	}
+	return &FlagSpec{Name: name, File: file, Arg: arg, EditAdd: editAdd, Tag: field.Tag}, nil
 }
 
 func parsePatch(tp reflect.Type, val reflect.Value, tag string) (*Patch, error) {
