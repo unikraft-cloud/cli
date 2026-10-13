@@ -67,7 +67,9 @@ require (
 	unikraft.com/x/shell v0.0.0-20260924124354-cba1e2dc1921
 	unikraft.com/x/signal v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/stdio v0.0.0-20260917103502-010252eb5050
+	unikraft.com/x/timeouts v0.0.0-00010101000000-000000000000
 	unikraft.com/x/version v0.0.0-20260819081122-82fdef94867a
+	unikraft.com/x/volimport v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -210,3 +212,7 @@ replace github.com/charmbracelet/ultraviolet => github.com/charmbracelet/ultravi
 // Use the fork with charmbracelet/lipgloss#746 until a release has it.
 // It stops the Windows hang at startup when stdin is redirected.
 replace charm.land/lipgloss/v2 => github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507
+
+replace unikraft.com/x/timeouts => ../x/timeouts
+
+replace unikraft.com/x/volimport => ../x/volimport

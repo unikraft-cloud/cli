@@ -25,12 +25,12 @@ import (
 	"unikraft.com/x/kraftfile"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
+	"unikraft.com/x/volimport"
 
 	"unikraft.com/cli/internal/builder"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/volimport"
 )
 
 func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {

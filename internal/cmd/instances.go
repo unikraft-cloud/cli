@@ -31,6 +31,7 @@ import (
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
+	"unikraft.com/x/timeouts"
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
@@ -39,7 +40,6 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
-	"unikraft.com/cli/internal/timeouts"
 	"unikraft.com/cli/internal/types"
 )
 
