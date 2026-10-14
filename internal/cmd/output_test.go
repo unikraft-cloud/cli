@@ -95,6 +95,7 @@ func TestOutput(t *testing.T) {
 	run("certificates", certificatesOutputTests)
 	run("images", imagesOutputTests)
 	run("instances-http-oci", instancesHTTPOCIOutputTests)
+	run("instances-vscaling", instancesVScalingOutputTests)
 }
 
 func instancesOutputTests(t *testing.T) {
@@ -136,8 +137,8 @@ func instancesOutputTests(t *testing.T) {
 	}
 	sample.Runtime.Args = cmd.InstanceArgs{"arg1", "arg2"}
 	sample.Runtime.Env = map[string]string{"KEY1": "val1", "KEY2": "val2"}
-	sample.Resources.Memory = 256
-	sample.Resources.VCPUs = 2
+	sample.Resources.Memory.Current = 256
+	sample.Resources.VCPUs.Current = 2
 	sample.PrivateFQDN = "my-instance.internal"
 	sample.Networks = append(sample.Networks, cmd.InstanceNetwork{})
 	sample.Networks[0].UUID = "net-uuid-1234"
@@ -180,11 +181,26 @@ func instancesHTTPOCIOutputTests(t *testing.T) {
 		UUID:  "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 		State: types.InstanceState(platform.InstanceStateRunning),
 	}
-	sample.Resources.Memory = 256
-	sample.Resources.VCPUs = 1
+	sample.Resources.Memory.Current = 256
+	sample.Resources.VCPUs.Current = 1
 	require.NoError(t, sample.Image.UnmarshalText([]byte(
 		"https+oci://cdn.example.com/me/app/@sha256:"+
 			"43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190")))
+
+	integ.Gild[resource.Resource](t, dumpResource, sample)
+}
+
+func instancesVScalingOutputTests(t *testing.T) {
+	sample := cmd.Instance{
+		Metro: "fra",
+		Name:  "my-instance",
+		UUID:  "c3d4e5f6-a7b8-9012-cdef-0123456789ab",
+		State: types.InstanceState(platform.InstanceStateRunning),
+		Type_: new(platform.InstanceTypeMicro),
+	}
+	sample.Resources.Memory = cmd.InstanceMemory{Current: 768, Min: 256, Max: 1024}
+	sample.Resources.VCPUs = cmd.InstanceVCPUs{Current: 4, Min: 1, Max: 4}
+	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
 
 	integ.Gild[resource.Resource](t, dumpResource, sample)
 }
