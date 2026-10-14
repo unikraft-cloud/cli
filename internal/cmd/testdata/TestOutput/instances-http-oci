@@ -199,23 +199,85 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
       {
         "name": "memory",
         "value": "256MiB",
+        "subfields": [
+          {
+            "name": "current",
+            "value": "256MiB",
+            "verbosity": "long"
+          },
+          {
+            "name": "min",
+            "value": "0B",
+            "verbosity": "long",
+            "create": {
+              "set": "0B"
+            }
+          },
+          {
+            "name": "max",
+            "value": "0B",
+            "verbosity": "long",
+            "create": {
+              "set": "0B"
+            }
+          }
+        ],
         "verbosity": "short",
         "create": {
-          "set": "256MiB"
+          "set": {
+            "Current": "256MiB",
+            "Min": "0B",
+            "Max": "0B"
+          }
         },
         "edit": {
-          "set": "256MiB"
+          "set": {
+            "Current": "256MiB",
+            "Min": "0B",
+            "Max": "0B"
+          }
         }
       },
       {
         "name": "vcpus",
         "value": 1,
+        "subfields": [
+          {
+            "name": "current",
+            "value": 1,
+            "verbosity": "long"
+          },
+          {
+            "name": "min",
+            "value": 0,
+            "verbosity": "long",
+            "create": {
+              "set": 0
+            }
+          },
+          {
+            "name": "max",
+            "value": 0,
+            "verbosity": "long",
+            "create": {
+              "set": 0
+            }
+          }
+        ],
         "verbosity": "short",
         "create": {
-          "set": 1
+          "set": {
+            "Current": 1,
+            "Min": 0,
+            "Max": 0
+          }
         },
         "edit": {
-          "set": 1
+          "set": {
+            "Current": 1,
+            "Min": 0,
+            "Max": 0
+          }
         }
       },
       {
