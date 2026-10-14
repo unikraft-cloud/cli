@@ -9,6 +9,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -1881,6 +1882,70 @@ cmd: ["cat", "/marker.txt"]
 		assert.Regexp(t, `autokill:`, out)
 		assert.Regexp(t, `time:\s+10s`, out)
 		assert.Regexp(t, `num-requests:\s+100`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("vscaling", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+		instName := uniq()
+
+		// The image only needs to support vertical scaling once started.
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--name", "test-" + instName,
+			"--metro", r.Config.MetroName,
+			"--image", "nginx:latest",
+			"--set", "autostart=false",
+			"--min-memory", "256MiB",
+			"--max-memory", "1GiB",
+		})
+		assert.Regexp(t, `memory:\s+256MiB\s+\S+\s+256MiB\.\.\.1GiB`, out)
+
+		r.Run(t, []string{
+			"unikraft", "instance", "edit", "test-" + instName,
+			"--output", "quiet",
+			"--memory", "512MiB",
+		})
+
+		out = r.Run(t, []string{
+			"unikraft", "instance", "inspect", "test-" + instName,
+			"-f", "resources.memory.current,resources.memory.min,resources.memory.max",
+		})
+		assert.Regexp(t, `current:\s+512MiB`, out)
+		assert.Regexp(t, `min:\s+256MiB`, out)
+		assert.Regexp(t, `max:\s+1GiB`, out)
+
+		out = r.Run(t, []string{
+			"unikraft", "instance", "edit", "test-" + instName,
+			"--memory", "2GiB",
+		}, integ.ExpectFail())
+		assert.Contains(t, out, "must be between min and max memory")
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("vscaling-start", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+		// TODO: Hardcode an image once one that supports vertical scaling is
+		// published.
+		image := os.Getenv("UNIKRAFT_X_VSCALING_IMAGE")
+		if image == "" {
+			t.Skip("no image with vertical scaling support")
+		}
+		instName := uniq()
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--name", "test-" + instName,
+			"--metro", r.Config.MetroName,
+			"--image", image,
+			"--set", "autostart=true",
+			"--min-memory", "256MiB",
+			"--max-memory", "1GiB",
+		})
+		assert.Regexp(t, `state:\s+running`, out)
+		assert.Regexp(t, `memory:\s+\d+MiB\s+\S+\s+256MiB\.\.\.1GiB`, out)
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
