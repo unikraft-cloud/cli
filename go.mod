@@ -59,8 +59,8 @@ require (
 	unikraft.com/x/filters v0.0.0-20260929150216-7e946e02e58b
 	unikraft.com/x/fingerprint v0.0.0-20261001064809-1661668e8c87
 	unikraft.com/x/guesstermwidth v0.0.0-20260924124354-cba1e2dc1921
-	unikraft.com/x/image-spec v0.0.0-20261015155405-ab6c229743e5
-	unikraft.com/x/io v0.0.0-20260924124354-cba1e2dc1921
+	unikraft.com/x/image-spec v0.0.0-20261016150259-5075acb43e7c
+	unikraft.com/x/io v0.0.0-20261013095502-1607ff4bc624
 	unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de
 	unikraft.com/x/kingkong v0.0.0-20261007115714-ef931437a206
 	unikraft.com/x/kraftfile v0.0.0-20260922102225-cfab838c8e73
