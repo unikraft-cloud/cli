@@ -12,6 +12,7 @@ This repo contains the Go-based Unikraft CLI. Use this file for contributor-faci
 - Quality gates: `task lint`, `task test`. Run these after making changes to ensure code quality.
 - Offline golden tests: `task golden`. These test deterministic output and use `testdata/` golden files. Update them with `task golden-update` - never edit `testdata/` files by hand. Covers `TestHelp` and `TestOutput`.
 - Integration tests: `task integration`. These cover end-to-end scenarios against the live API (build tag `integration`). Don't run unless the user prompts you. Integration tests do **not** use golden files; their assertions are inline regex patterns that must be updated in the source code.
+- LLM evals: `task eval` (build tag `eval`, needs `ANTHROPIC_API_KEY`; `TestLive` also needs staging credentials). They prompt a model with the tools of `unikraft mcp` and assert on the tool calls it makes, so they are slow, cost money and are not deterministic: never part of `task test` or CI gating, and don't run them unless the user prompts you. Each run writes `results.jsonl` and `traces/` to `UNIKRAFT_EVAL_OUT` (a temp dir by default, logged by the test); `UNIKRAFT_EVAL_MODEL` and `UNIKRAFT_EVAL_REPS` select the model and the repetitions.
 - Run these locally before pushing; CI also runs them.
 
 ## Architecture overview
