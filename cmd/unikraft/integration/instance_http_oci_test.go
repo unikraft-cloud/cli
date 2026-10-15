@@ -26,17 +26,40 @@ import (
 )
 
 // httpOCIServer serves a volume mounted at /data as http+oci layouts: the node
-// only fetches a layout if it is served with the layout media type.
+// only fetches a layout if it is served with the layout media type. A tag is a
+// file holding the digest it redirects to.
 var httpOCIServer = &integ.SharedImage{
 	Name: "http-oci-server-e2e",
 	Files: map[string]string{
 		"main.go": `package main
 
-import "net/http"
+import (
+	"io"
+	"net/http"
+	"path"
+	"strings"
+)
 
 func main() {
-	files := http.FileServer(http.Dir("/data"))
+	data := http.Dir("/data")
+	files := http.FileServer(data)
 	http.ListenAndServe(":8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dir, ref := path.Split(r.URL.Path)
+		if !strings.HasPrefix(ref, "@") {
+			f, err := data.Open(r.URL.Path)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			defer f.Close()
+			dgst, err := io.ReadAll(f)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			http.Redirect(w, r, dir+strings.TrimSpace(string(dgst)), http.StatusFound)
+			return
+		}
 		w.Header().Set("Content-Type", "application/vnd.oci.layout.v1+tar")
 		files.ServeHTTP(w, r)
 	}))
@@ -60,13 +83,12 @@ cmd: ["/server"]
 	},
 }
 
-func TestInstancesHTTPOCI(t *testing.T) {
+func TestHTTPOCI(t *testing.T) {
 	r := runner(t, true, []string{staging, stable})
 	payload := integ.Busybox.Build(t, r)
 	server := httpOCIServer.Build(t, r)
 	volName := "test-" + uniq()
 	serverName := "test-" + uniq()
-	instName := "test-" + uniq()
 
 	layout := filepath.Join(t.TempDir(), "layout")
 	r.Run(t, []string{"unikraft", "image", "copy", payload, "oci-layout://" + layout})
@@ -74,6 +96,7 @@ func TestInstancesHTTPOCI(t *testing.T) {
 	repository := r.Config.Profile.Organization + "/http-oci-e2e"
 	content := t.TempDir()
 	dgst := tarLayout(t, layout, filepath.Join(content, repository))
+	require.NoError(t, os.WriteFile(filepath.Join(content, repository, "latest"), []byte("@"+dgst), 0o644))
 
 	r.Run(t, []string{
 		"unikraft", "volume", "create", "--output", "quiet",
@@ -86,6 +109,9 @@ func TestInstancesHTTPOCI(t *testing.T) {
 		"unikraft", "run", "--name", serverName, "--metro", r.Config.MetroName, "--output", "quiet",
 		"--image", server, "-p", "80:8080/http", "-v", volName + ":/data",
 	})
+	t.Cleanup(func() {
+		r.Run(t, []string{"unikraft", "instance", "delete", serverName}, integ.WithoutCancel())
+	})
 	r.Run(t, []string{"unikraft", "--timeout", "30s", "instance", "wait", "--until", "state==running", serverName})
 	fqdn := strings.TrimSpace(r.Run(t, []string{
 		"unikraft", "instance", "inspect", serverName,
@@ -93,20 +119,41 @@ func TestInstancesHTTPOCI(t *testing.T) {
 	}))
 	require.NotEmpty(t, fqdn)
 
-	image := "http+oci://" + fqdn + "/" + repository + "/@" + dgst
-	r.Run(t, []string{
-		"unikraft", "run", "--name", instName, "--metro", r.Config.MetroName, "--output", "quiet",
-		"--image", image, "--args", "echo UNIKRAFT_HTTP_OCI_OK",
-	})
-	r.Run(t, []string{"unikraft", "--timeout", "60s", "instance", "wait", "--until", "state==stopped", instName})
+	for name, image := range map[string]string{
+		"tag":    "http+oci://" + fqdn + "/" + repository + "/latest",
+		"digest": "http+oci://" + fqdn + "/" + repository + "/@" + dgst,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Run("inspect", func(t *testing.T) {
+				out := r.Run(t, []string{"unikraft", "image", "inspect", image})
+				assert.Contains(t, out, image)
+				assert.Regexp(t, `platform:\s+kraftcloud/x86_64`, out)
+			})
 
-	out := r.Run(t, []string{"unikraft", "instance", "inspect", instName})
-	assert.Contains(t, out, image)
-	out = r.Run(t, []string{"unikraft", "instance", "logs", instName})
-	assert.Contains(t, out, "UNIKRAFT_HTTP_OCI_OK")
+			t.Run("copy", func(t *testing.T) {
+				archive := filepath.Join(t.TempDir(), "image.oci.tar")
+				r.Run(t, []string{"unikraft", "image", "copy", image, archive})
+				out := r.Run(t, []string{"unikraft", "image", "inspect", archive})
+				assert.Regexp(t, `platform:\s+kraftcloud/x86_64`, out)
+			})
 
-	r.Run(t, []string{"unikraft", "instance", "delete", instName})
-	r.Run(t, []string{"unikraft", "instance", "delete", serverName})
+			t.Run("run", func(t *testing.T) {
+				instName := "test-" + uniq()
+				r.Run(t, []string{
+					"unikraft", "run", "--name", instName, "--metro", r.Config.MetroName, "--output", "quiet",
+					"--image", image, "--args", "echo UNIKRAFT_HTTP_OCI_OK",
+				})
+				r.Run(t, []string{"unikraft", "--timeout", "60s", "instance", "wait", "--until", "state==stopped", instName})
+
+				out := r.Run(t, []string{"unikraft", "instance", "inspect", instName})
+				assert.Contains(t, out, fqdn+"/"+repository)
+				out = r.Run(t, []string{"unikraft", "instance", "logs", instName})
+				assert.Contains(t, out, "UNIKRAFT_HTTP_OCI_OK")
+
+				r.Run(t, []string{"unikraft", "instance", "delete", instName})
+			})
+		})
+	}
 }
 
 // tarLayout packs the layout at src into dir, named by its digest as http+oci
