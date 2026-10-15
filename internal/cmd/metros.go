@@ -32,8 +32,8 @@ type MetrosCmd struct {
 
 type Metro struct {
 	Name     string `field:",short" json:"name"`
-	Location string `field:",short" json:"location"`
-	Endpoint string `field:",short" json:"endpoint"`
+	Location string `field:",short" json:"location" help:"Location of the metro from the profile configuration."`
+	Endpoint string `field:",short" json:"endpoint" help:"API endpoint URL of the metro."`
 	Insecure *bool  `field:",long" json:"insecure"`
 
 	url string

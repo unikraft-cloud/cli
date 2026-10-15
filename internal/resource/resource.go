@@ -103,6 +103,11 @@ type Field struct {
 	// unset value normally is.
 	KeepZero bool `json:"keep_zero,omitempty"`
 
+	// Help and Example describe the field for people and tools, taken from
+	// the help and example struct tags.
+	Help    string `json:"-"`
+	Example string `json:"-"`
+
 	// settings for creating or patching resources
 	Create *Patch `json:"create,omitempty"`
 	Edit   *Patch `json:"edit,omitempty"`

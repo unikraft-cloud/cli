@@ -683,3 +683,23 @@ func TestGetFieldRefByPathString(t *testing.T) {
 		assert.Equal(t, "link", GetFieldByPathString(fields, "name")[0].Hyperlink)
 	})
 }
+
+func TestFieldsFromStruct_HelpAndExample(t *testing.T) {
+	type helped struct {
+		Alpha string   `field:"alpha" help:"Alpha." example:"x,y"`
+		Bees  []string `field:"bees" help:"Bees."`
+		Plain string   `field:"plain"`
+	}
+	fields, err := FieldsFromStruct(helped{Bees: []string{"b"}})
+	require.NoError(t, err)
+
+	byName := make(map[string]Field, len(fields))
+	for _, field := range fields {
+		byName[field.Name] = field
+	}
+	assert.Equal(t, "Alpha.", byName["alpha"].Help)
+	assert.Equal(t, "x,y", byName["alpha"].Example)
+	assert.Equal(t, "Bees.", byName["bees"].Help)
+	assert.Empty(t, byName["plain"].Help)
+	assert.Empty(t, byName["plain"].Example)
+}

@@ -41,11 +41,11 @@ type InstanceTemplate struct {
 	Name  string          `mirror:"instance.name" field:",short"`
 	UUID  string          `mirror:"instance.uuid" field:",long"`
 
-	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
+	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-dev"`
 	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
-	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the template."`
+	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed."`
 
-	Autokill Autokill `field:",embed" mirror:"instance.template_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time without a clone before the template is deleted" placeholder:"<key>=<value>" example:"time=24h"`
+	Autokill Autokill `field:",embed" mirror:"instance.template_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time since the template was last cloned before it is deleted, such as 24h; 0 disables" placeholder:"<key>=<value>" example:"time=24h"`
 
 	State types.InstanceState    `mirror:"instance.state" field:",short"`
 	Image types.ImageRef         `mirror:"instance.image" field:",short"`
@@ -82,7 +82,7 @@ type InstanceTemplate struct {
 		Policy string `mirror:"instance.restart_policy"`
 	}
 
-	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to convert into a template."`
+	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to turn into a template, by name or UUID; a running instance is suspended into a snapshot first and the instance itself becomes the template."`
 
 	Instance platform.Instance `field:"-" json:"instance"`
 	Profile  *config.Profile   `field:"-" json:"profile"`

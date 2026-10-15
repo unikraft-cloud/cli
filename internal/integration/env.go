@@ -8,6 +8,8 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -15,12 +17,16 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
+	"unikraft.com/x/log"
+
+	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/resource"
 )
 
@@ -42,6 +48,50 @@ func NewTestEnv(t *testing.T, unikraftPath string) *TestEnv {
 		configPath:    filepath.Join(dir, "config.yaml"),
 		partitionPath: filepath.Join(dir, "partition.json"),
 	}
+}
+
+// NewEnv builds the CLI and gives an environment with its own copy of the
+// test config, when one is available, and a partition whose resources are
+// torn down when the test ends. With online set, the test is skipped when
+// there is no config.
+func NewEnv(t *testing.T, online bool, teardown ...resource.Resource) *TestEnv {
+	t.Helper()
+	env := NewTestEnv(t, BuildUnikraft(t))
+	cfg, err := LoadConfig(t)
+	require.NoError(t, err)
+	if cfg == nil && online {
+		t.Skip("online test requires config, but no config found")
+	}
+	if cfg != nil {
+		cfg.Config.Path = env.configPath
+		require.NoError(t, cfg.Config.Save())
+		env.Config = cfg
+	}
+
+	ctx := log.WithLogger(t.Context(), log.New(t.Output(), log.TextType, log.TraceLevel))
+	t.Cleanup(func() {
+		if cfg != nil {
+			ctx = config.WithConfig(ctx, cfg.Config)
+		}
+		if _, err := os.Stat(env.partitionPath); os.IsNotExist(err) {
+			return
+		}
+		partition, err := resource.LoadPartition(env.partitionPath, teardown...)
+		require.NoError(t, err)
+		require.NotNil(t, partition)
+		require.NoError(t, partition.Teardown(context.WithoutCancel(ctx)))
+	})
+	return env
+}
+
+var (
+	uniqSeed    = strings.ToLower(rand.Text()[:6])
+	uniqCounter atomic.Uint64
+)
+
+// Uniq gives a name suffix that is unique across the test binary.
+func Uniq() string {
+	return fmt.Sprintf("%s%06x", uniqSeed, uniqCounter.Add(1))
 }
 
 func (env *TestEnv) WithConfig(cfg *Config, configPath string) *TestEnv {
@@ -107,6 +157,38 @@ func WithNoPartition() CmdOption {
 	return func(c *cmdConfig) { c.noPartition = true }
 }
 
+// Command gives an unstarted command for args with the environment that Run
+// and StartBackground give their children, and no stdout or stderr. The
+// caller owns the process.
+func (env *TestEnv) Command(ctx context.Context, args []string, opts ...CmdOption) *exec.Cmd {
+	var cfg cmdConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return env.command(ctx, args, cfg)
+}
+
+func (env *TestEnv) command(ctx context.Context, args []string, cfg cmdConfig) *exec.Cmd {
+	var c *exec.Cmd
+	if args[0] == "unikraft" {
+		c = exec.CommandContext(ctx, env.unikraftPath, args[1:]...)
+	} else {
+		c = exec.CommandContext(ctx, args[0], args[1:]...)
+	}
+	c.Dir = cfg.workDir
+	if cfg.stdin != "" {
+		c.Stdin = strings.NewReader(cfg.stdin)
+	}
+	c.Env = slices.DeleteFunc(os.Environ(), func(s string) bool {
+		return strings.HasPrefix(s, "UNIKRAFT_")
+	})
+	c.Env = append(c.Env, "NO_COLOR=1", "UNIKRAFT_CONFIG="+env.configPath, "BUILDKIT_PROGRESS=quiet")
+	if !cfg.noPartition {
+		c.Env = append(c.Env, resource.UnikraftPartitionEnv+"="+env.partitionPath)
+	}
+	return c
+}
+
 func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (string, error) {
 	t.Helper()
 	var cfg cmdConfig
@@ -126,30 +208,10 @@ func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (stri
 		defer cancel()
 	}
 
-	var c *exec.Cmd
-	if args[0] == "unikraft" {
-		c = exec.CommandContext(cmdCtx, env.unikraftPath, args[1:]...)
-	} else {
-		c = exec.CommandContext(cmdCtx, args[0], args[1:]...)
-	}
-
+	c := env.command(cmdCtx, args, cfg)
 	var output bytes.Buffer
 	c.Stdout = &output
 	c.Stderr = &output
-	c.Dir = cfg.workDir
-	if cfg.stdin != "" {
-		c.Stdin = strings.NewReader(cfg.stdin)
-	}
-	c.Env = os.Environ()
-	c.Env = slices.DeleteFunc(c.Env, func(s string) bool {
-		return strings.HasPrefix(s, "UNIKRAFT_")
-	})
-	c.Env = append(c.Env, "NO_COLOR=1")
-	c.Env = append(c.Env, "UNIKRAFT_CONFIG="+env.configPath)
-	c.Env = append(c.Env, "BUILDKIT_PROGRESS=quiet")
-	if !cfg.noPartition {
-		c.Env = append(c.Env, resource.UnikraftPartitionEnv+"="+env.partitionPath)
-	}
 
 	err := c.Run()
 	return ansi.Strip(output.String()), err
@@ -224,21 +286,7 @@ func (env *TestEnv) StartBackground(t *testing.T, args []string, waitAddr string
 	t.Helper()
 	t.Logf("starting background: %s", strings.Join(args, " "))
 
-	var c *exec.Cmd
-	if args[0] == "unikraft" {
-		c = exec.CommandContext(t.Context(), env.unikraftPath, args[1:]...)
-	} else {
-		c = exec.CommandContext(t.Context(), args[0], args[1:]...)
-	}
-
-	c.Env = os.Environ()
-	c.Env = slices.DeleteFunc(c.Env, func(s string) bool {
-		return strings.HasPrefix(s, "UNIKRAFT_")
-	})
-	c.Env = append(c.Env, "NO_COLOR=1")
-	c.Env = append(c.Env, "UNIKRAFT_CONFIG="+env.configPath)
-	c.Env = append(c.Env, "BUILDKIT_PROGRESS=quiet")
-	c.Env = append(c.Env, resource.UnikraftPartitionEnv+"="+env.partitionPath)
+	c := env.command(t.Context(), args, cmdConfig{})
 	c.Cancel = func() error {
 		return c.Process.Signal(os.Interrupt)
 	}

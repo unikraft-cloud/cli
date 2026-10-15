@@ -44,11 +44,11 @@ type InstanceCheckpoint struct {
 	Name      string          `mirror:"instance.name" field:",short"`
 	UUID      string          `mirror:"instance.uuid" field:",long"`
 
-	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Checkpoint tag." placeholder:"tag" example:"env-dev"`
+	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-dev"`
 	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
-	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the checkpoint."`
+	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed."`
 
-	Autokill Autokill `field:",embed" mirror:"instance.checkpoint_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time without a restore before the checkpoint is deleted" placeholder:"<key>=<value>" example:"time=24h"`
+	Autokill Autokill `field:",embed" mirror:"instance.checkpoint_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time since the checkpoint was last restored before it is deleted, such as 24h; 0 disables" placeholder:"<key>=<value>" example:"time=24h"`
 
 	State types.InstanceState    `mirror:"instance.state" field:",short"`
 	Image types.ImageRef         `mirror:"instance.image" field:",short"`
@@ -80,7 +80,7 @@ type InstanceCheckpoint struct {
 		Policy string `mirror:"instance.restart_policy"`
 	}
 
-	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to create a checkpoint from."`
+	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Running or stopped instance to checkpoint, by name or UUID; the source keeps running and the checkpoint waits for its snapshot."`
 
 	Instance platform.Instance `field:"-" json:"instance"`
 	Metro    *config.Metro     `field:"-" json:"metro"`

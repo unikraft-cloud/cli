@@ -297,26 +297,26 @@ Global flags:
 
 Create flags:
       --metro=<metro>
-          Metro to create in.
+          Metro to create in. Defaults to the profile's default metro.
           [examples: fra, sfo]
       --name=<name>
-          Service group name.
+          Service group name; generated when omitted.
       --soft-limit=<n>
-          Soft limit.
+          Concurrent requests per instance before the load balancer wakes a standby instance of the group, 1 to 65535, default 1.
           [examples: 1, 5]
       --hard-limit=<n>
-          Hard limit.
+          Maximum concurrent requests per instance, 1 to 65535, default 65535; excess requests go to another instance or fail. At least the soft limit.
           [examples: 10, 100]
       --autokill=<key>=<value>
           Autokill options.
-            time: time the group must stay empty before it is deleted.
+            time: time the group must stay without instances before it is deleted, such as 5m; 0 disables.
           [example: time=5m]
       --domain=<fqdn> ...
-          Service domain.
-          [example: example.com]
+          Domain for the group: a bare label such as myapp becomes a subdomain of the metro, a dotted name such as example.com is a custom domain whose certificate is issued automatically unless given as name=example.com,certificate=my-cert. Up to 8.
+          [examples: example.com, myapp]
       --service=<src>:<dest>[/<handlers>] ...
-          Service port.
-          [example: 443:8080/http+tls]
+          Published port as PORT:DESTINATION/HANDLERS. Handlers: http (per-request load balancing), tls (TLS terminated by the platform), redirect. Port 80 must be http, 443 must be http+tls, other TCP ports tls only; 80:443/http+redirect redirects to HTTPS.
+          [examples: 443:8080/http+tls, 80:443/http+redirect]
 
 $ unikraft service edit --help
 
@@ -389,21 +389,21 @@ Global flags:
 
 Edit flags:
       --soft-limit=<n>
-          Soft limit.
+          Concurrent requests per instance before the load balancer wakes a standby instance of the group, 1 to 65535, default 1.
           [examples: 1, 5]
       --hard-limit=<n>
-          Hard limit.
+          Maximum concurrent requests per instance, 1 to 65535, default 65535; excess requests go to another instance or fail. At least the soft limit.
           [examples: 10, 100]
       --autokill=<key>=<value>
           Autokill options.
-            time: time the group must stay empty before it is deleted.
+            time: time the group must stay without instances before it is deleted, such as 5m; 0 disables.
           [example: time=5m]
       --domain=<fqdn> ...
-          Service domain.
-          [example: example.com]
+          Domain for the group: a bare label such as myapp becomes a subdomain of the metro, a dotted name such as example.com is a custom domain whose certificate is issued automatically unless given as name=example.com,certificate=my-cert. Up to 8.
+          [examples: example.com, myapp]
       --service=<src>:<dest>[/<handlers>] ...
-          Service port.
-          [example: 443:8080/http+tls]
+          Published port as PORT:DESTINATION/HANDLERS. Handlers: http (per-request load balancing), tls (TLS terminated by the platform), redirect. Port 80 must be http, 443 must be http+tls, other TCP ports tls only; 80:443/http+redirect redirects to HTTPS.
+          [examples: 443:8080/http+tls, 80:443/http+redirect]
 
 $ unikraft service delete --help
 
