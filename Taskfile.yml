@@ -187,6 +187,23 @@ tasks:
       DIRTY=$(git update-index -q --refresh && git diff-index --quiet HEAD -- {{.WORKDIR}} || echo "-dirty")
       echo "${HASH}${DIRTY}"
 
+  deb:
+    desc: Build the unikraft-cli .deb packages into dist/ with a GoReleaser snapshot.
+    silent: true
+    deps:
+    - goreleaser.yaml
+    env:
+      UNIKRAFT_POSTHOG_API_KEY: '{{ env "UNIKRAFT_POSTHOG_API_KEY" }}'
+      UNIKRAFT_POSTHOG_HOST: '{{ env "UNIKRAFT_POSTHOG_HOST" }}'
+      GITHUB_TOKEN_UNIKRAFT: '{{ env "GITHUB_TOKEN_UNIKRAFT" }}'
+    cmds:
+    - |
+      {{.goreleaser_bin}} release \
+        --snapshot \
+        --skip=publish,announce,validate \
+        --clean
+    - ls {{.distdir}}/*.deb
+
   last-version:
     desc: Show the last version of the CLI.
     silent: true
