@@ -49,7 +49,11 @@ func BuildKernel(ctx context.Context, opts BuildOpts) ([]*imagespec.Image, error
 		matcher = wplatforms.OnlyArch(imagespec.ArchitectureIntel)
 	}
 
-	imgs, err := access.LoadAll(ctx, runtime, matcher)
+	res, err := access.Resolve(ctx, runtime)
+	if err != nil {
+		return nil, fmt.Errorf("resolving runtime image: %w", err)
+	}
+	imgs, err := access.LoadAll(ctx, res, matcher)
 	if err != nil {
 		if len(opts.Platform) == 0 && errors.Is(err, errdefs.ErrNotFound) {
 			return nil, fmt.Errorf("runtime has no %s target, use --arch to select another: %w", matcher, err)

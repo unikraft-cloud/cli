@@ -401,7 +401,11 @@ func buildRootfsOCI(ctx context.Context, opts BuildOpts) (_ []*imagespec.Image, 
 	}
 
 	matcher := platforms.Any(wanted...)
-	loaded, err := access.LoadAll(ctx, uri, matcher)
+	res, err := access.Resolve(ctx, uri)
+	if err != nil {
+		return nil, fmt.Errorf("resolving rootfs image %q: %w", opts.Rootfs.Path, err)
+	}
+	loaded, err := access.LoadAll(ctx, res, matcher)
 	if err != nil {
 		return nil, fmt.Errorf("pulling rootfs image %q: %w", opts.Rootfs.Path, err)
 	}
