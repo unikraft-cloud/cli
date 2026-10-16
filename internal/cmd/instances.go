@@ -111,7 +111,7 @@ type Instance struct {
 
 	Runtime struct {
 		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set" flag:"args" help:"Arguments to pass to the instance." placeholder:"arg"`
-		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" short:"e" sep:"none" mapsep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
+		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" flag-edit:"add" short:"e" sep:"none" mapsep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
 	}
 
 	Resources struct {
