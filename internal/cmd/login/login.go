@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 
@@ -271,17 +272,18 @@ func (cmd *LoginCmd) getAuth(ctx context.Context, profile *config.Profile) (*con
 	} else if signinResp.Data == nil {
 		return nil, jujuerrors.New("no data received from control plane, please try again")
 	}
+	authURL := withOrganization(signinResp.Data.AuthorizationUrl, cmd.Organization)
 
 	if logfmt.LogType(ctx) == log.TextType {
 		log.G(ctx).Info().Msg(" ")
 		log.G(ctx).Info().Msg("to authenticate, please visit:")
 		log.G(ctx).Info().Msg(" ")
-		log.G(ctx).Info().Msgf("  %s", signinResp.Data.AuthorizationUrl)
+		log.G(ctx).Info().Msgf("  %s", authURL)
 		log.G(ctx).Info().Msg(" ")
 	} else {
 		log.G(ctx).
 			Info().
-			Str("url", signinResp.Data.AuthorizationUrl).
+			Str("url", authURL).
 			Msg("login")
 	}
 
@@ -293,7 +295,7 @@ func (cmd *LoginCmd) getAuth(ctx context.Context, profile *config.Profile) (*con
 	}
 
 	if !cmd.NoBrowser {
-		if err := browser.OpenURL(signinResp.Data.AuthorizationUrl); err != nil {
+		if err := browser.OpenURL(authURL); err != nil {
 			log.G(ctx).
 				Debug().
 				Err(err).
@@ -316,6 +318,22 @@ func (cmd *LoginCmd) getAuth(ctx context.Context, profile *config.Profile) (*con
 			return nil, ctx.Err()
 		}
 	}
+}
+
+// withOrganization asks the control plane's sign-in page to preselect the
+// given organization.
+func withOrganization(authURL, organization string) string {
+	if organization == "" {
+		return authURL
+	}
+	u, err := url.Parse(authURL)
+	if err != nil {
+		return authURL
+	}
+	q := u.Query()
+	q.Set("org", organization)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func (cmd *LoginCmd) getAuthorization(ctx context.Context, profile *config.Profile) (*controlplane.GetAuthorizationResponseData, error) {
