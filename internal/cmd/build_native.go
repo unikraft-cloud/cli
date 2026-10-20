@@ -20,6 +20,7 @@ import (
 	"github.com/moby/buildkit/util/progress/progresswriter"
 	"unikraft.com/x/build"
 	"unikraft.com/x/build/buildflags"
+	buildprogress "unikraft.com/x/build/progress"
 	"unikraft.com/x/buildkit"
 	imagespec "unikraft.com/x/image-spec"
 	"unikraft.com/x/image-spec/schemes"
@@ -34,9 +35,36 @@ import (
 // localBuildkit is the buildkitd that builds run on.
 var localBuildkit = buildkit.Fallback{buildkit.Host{}, buildkit.Docker{}}
 
+// cliProgressWriter adapts BuildKit's status channel to x/build's Writer API.
+type cliProgressWriter struct {
+	writer progresswriter.Writer
+}
+
+func newCLIProgressWriter(ctx context.Context) (*cliProgressWriter, error) {
+	pw, err := progresswriter.NewPrinter(context.WithoutCancel(ctx), os.Stderr, "auto")
+	if err != nil {
+		return nil, err
+	}
+	return &cliProgressWriter{writer: pw}, nil
+}
+
+func (w *cliProgressWriter) Write(status *client.SolveStatus) {
+	w.writer.Status() <- status
+}
+
+func (w *cliProgressWriter) Close() error {
+	close(w.writer.Status())
+	<-w.writer.Done()
+	return w.writer.Err()
+}
+
 // newBuilder gives a builder that uses the current profile, the local BuildKit
 // and stderr. It gets each of them only when the build needs it.
-func newBuilder() build.Builder {
+func newBuilder(progressWriters ...buildprogress.Writer) build.Builder {
+	var progress buildprogress.Writer
+	if len(progressWriters) > 0 {
+		progress = progressWriters[0]
+	}
 	return build.Builder{
 		Images: func(ctx context.Context) (*imagespec.Accessor, error) {
 			return images.Accessor(ctx)
@@ -65,13 +93,7 @@ func newBuilder() build.Builder {
 				}),
 			}, nil
 		},
-		Progress: func(ctx context.Context, prefix string) (progresswriter.Writer, error) {
-			pw, err := progresswriter.NewPrinter(context.WithoutCancel(ctx), os.Stderr, "auto")
-			if err != nil {
-				return nil, err
-			}
-			return progresswriter.NewMultiWriter(pw).WithPrefix(prefix, true), nil
-		},
+		Progress: progress,
 	}
 }
 
@@ -122,11 +144,20 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 		buildOpts.SSH = ssh
 	}
 
-	imgs, err := newBuilder().Build(ctx, buildOpts)
+	progressWriter, err := newCLIProgressWriter(ctx)
+	if err != nil {
+		return err
+	}
+
+	imgs, err := newBuilder(progressWriter).Build(ctx, buildOpts)
+	progressErr := progressWriter.Close()
 	if errors.Is(err, build.ErrNoRuntimeTarget) {
 		return fmt.Errorf("use --arch to select another target: %w", err)
 	} else if err != nil {
 		return err
+	}
+	if progressErr != nil {
+		return fmt.Errorf("displaying build progress: %w", progressErr)
 	}
 	defer func() {
 		for _, img := range imgs {

@@ -145,12 +145,19 @@ func (Image) Get(ctx context.Context, keys []string) ([]resource.Resource, error
 			if err != nil {
 				return fmt.Errorf("parsing image reference %q: %w", key, err)
 			}
-			imgs, err := access.LoadAll(ctx, src, platforms.All)
+			resolved, err := access.Resolve(ctx, src)
 			if err != nil {
 				if errdefs.IsNotFound(err) {
 					return group.ErrRefNotFound{Refs: group.Refs{{Name: key}}}
 				}
 				return fmt.Errorf("failed to resolve image %q: %w", key, err)
+			}
+			imgs, err := access.LoadAll(ctx, resolved, platforms.All)
+			if err != nil {
+				if errdefs.IsNotFound(err) {
+					return group.ErrRefNotFound{Refs: group.Refs{{Name: key}}}
+				}
+				return fmt.Errorf("failed to load image %q: %w", key, err)
 			}
 			defer func() {
 				for _, img := range imgs {
@@ -169,7 +176,7 @@ func (Image) Get(ctx context.Context, keys []string) ([]resource.Resource, error
 
 				meta := img.Metadata()
 				resource := Image{
-					Ref:    types.NewImageRef(img.Name),
+					Ref:    types.NewImageRef(img.Reference),
 					Digest: img.Descriptor.Digest,
 					Config: ImageConfig{
 						Cmd:      config.Config.Cmd,
@@ -789,7 +796,11 @@ func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *resource.Partition)
 		return fmt.Errorf("parsing destination image reference: %w", err)
 	}
 
-	imgs, err := access.LoadAll(ctx, src, platforms.All)
+	resolved, err := access.Resolve(ctx, src)
+	if err != nil {
+		return fmt.Errorf("resolving image from source: %w", err)
+	}
+	imgs, err := access.LoadAll(ctx, resolved, platforms.All)
 	if err != nil {
 		return fmt.Errorf("loading image from source: %w", err)
 	}
