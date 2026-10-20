@@ -21,23 +21,15 @@ func TestParseContextNames(t *testing.T) {
 		{
 			name:   "single context",
 			values: []string{"foo=./foo"},
-			want: map[string]string{
-				"foo": "./foo",
-			},
+			want:   map[string]string{"foo": "./foo"},
 		},
 		{
-			name: "multiple contexts",
-			values: []string{
-				"foo=./foo",
-				"bar=../bar",
-			},
-			want: map[string]string{
-				"foo": "./foo",
-				"bar": "../bar",
-			},
+			name:   "multiple contexts",
+			values: []string{"foo=./foo", "bar=../bar"},
+			want:   map[string]string{"foo": "./foo", "bar": "../bar"},
 		},
 		{
-			name:    "missing value",
+			name:    "missing separator",
 			values:  []string{"foo"},
 			wantErr: true,
 		},
@@ -47,32 +39,52 @@ func TestParseContextNames(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:   "empty",
-			values: []string{""},
-			want:   map[string]string{},
+			name:    "empty value",
+			values:  []string{"foo="},
+			wantErr: true,
 		},
 		{
-			name:   "git context",
+			name:    "whitespace-only name",
+			values:  []string{"   =./foo"},
+			wantErr: true,
+		},
+		{
+			name:    "whitespace-only value",
+			values:  []string{"foo=   "},
+			wantErr: true,
+		},
+		{
+			name:    "duplicate name",
+			values:  []string{"foo=./foo", "foo=./other"},
+			wantErr: true,
+		},
+		{
+			name:   "git URL",
 			values: []string{"scripts=https://github.com/user/repo.git"},
-			want: map[string]string{
-				"scripts": "https://github.com/user/repo.git",
-			},
+			want:   map[string]string{"scripts": "https://github.com/user/repo.git"},
 		},
 		{
-			name:   "image override context",
+			name:   "image context",
 			values: []string{"alpine:3.23=docker-image://alpine:edge"},
-			want: map[string]string{
-				"alpine:3.23": "docker-image://alpine:edge",
-			},
+			want:   map[string]string{"alpine:3.23": "docker-image://alpine:edge"},
 		},
 		{
 			name:   "target context",
 			values: []string{"base=target:base"},
-			want: map[string]string{
-				"base": "target:base",
-			},
+			want:   map[string]string{"base": "target:base"},
+		},
+		{
+			name:    "empty argument",
+			values:  []string{""},
+			wantErr: true,
+		},
+		{
+			name:   "no contexts",
+			values: nil,
+			want:   nil,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseContextNames(tt.values)
@@ -80,62 +92,9 @@ func TestParseContextNames(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestIsLocalBuildContext(t *testing.T) {
-	tests := []struct {
-		name  string
-		value string
-		want  bool
-	}{
-		{
-			name:  "relative path",
-			value: "./foo",
-			want:  true,
-		},
-		{
-			name:  "parent relative path",
-			value: "../foo",
-			want:  true,
-		},
-		{
-			name:  "absolute path",
-			value: "/tmp/foo",
-			want:  true,
-		},
-		{
-			name:  "existing directory",
-			value: t.TempDir(),
-			want:  true,
-		},
-		{
-			name:  "git url",
-			value: "https://github.com/user/repo.git",
-			want:  false,
-		},
-		{
-			name:  "docker image reference",
-			value: "docker-image://alpine:edge",
-			want:  false,
-		},
-		{
-			name:  "bake target reference",
-			value: "target:base",
-			want:  false,
-		},
-		{
-			name:  "tarball url",
-			value: "https://example.com/context.tar.gz",
-			want:  false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, isLocalBuildContext(tt.value))
 		})
 	}
 }

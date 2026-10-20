@@ -6,10 +6,8 @@
 package builder
 
 import (
-	"os"
+	"fmt"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // ParseContextNames parses --build-context values in the form name=value.
@@ -20,34 +18,20 @@ func ParseContextNames(values []string) (map[string]string, error) {
 
 	result := make(map[string]string, len(values))
 	for _, value := range values {
-		if value == "" {
-			continue
+		name, contextValue, ok := strings.Cut(value, "=")
+		if !ok ||
+			strings.TrimSpace(name) == "" ||
+			name != strings.TrimSpace(name) ||
+			strings.TrimSpace(contextValue) == "" {
+			return nil, fmt.Errorf("invalid build context %q: expected name=value with non-empty name and value", value)
 		}
 
-		kv := strings.SplitN(value, "=", 2)
-		if len(kv) != 2 || kv[0] == "" {
-			return nil, errors.Errorf(
-				"invalid context value: %s, expected key=value",
-				value,
-			)
+		if _, exists := result[name]; exists {
+			return nil, fmt.Errorf("duplicate build context name %q", name)
 		}
-		result[kv[0]] = kv[1]
+
+		result[name] = contextValue
 	}
 
 	return result, nil
-}
-
-func isLocalBuildContext(value string) bool {
-	switch {
-	case strings.HasPrefix(value, "docker-image://"),
-		strings.HasPrefix(value, "target:"),
-		strings.Contains(value, "://"):
-		return false
-	}
-	if _, err := os.Stat(value); err == nil {
-		return true
-	}
-	return strings.HasPrefix(value, "./") ||
-		strings.HasPrefix(value, "../") ||
-		strings.HasPrefix(value, "/")
 }

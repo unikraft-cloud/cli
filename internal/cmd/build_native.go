@@ -25,6 +25,7 @@ import (
 	"unikraft.com/x/image-spec/schemes"
 	"unikraft.com/x/log"
 
+	"unikraft.com/cli/internal/builder"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/images"
 	"unikraft.com/cli/internal/resource"
