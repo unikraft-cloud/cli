@@ -19,7 +19,7 @@ func TestResources(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		volName := uniq()
 
-		out := r.Run(t, []string{"unikraft", "resource", "create", "--set", "type=volume", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.MetroName})
+		out := r.Run(t, []string{"unikraft", "resource", "create", "--set", "kind=volume", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.MetroName})
 		assert.Regexp(t, `state:\s+(available|initializing)`, out)
 
 		out = r.Run(t, []string{"unikraft", "resource", "get", "volume:" + r.MetroName + "/test-" + volName})
@@ -51,14 +51,14 @@ func TestResources(t *testing.T) {
 
 		r.Run(t, []string{
 			"unikraft", "resource", "create",
-			"--set", "type=service",
+			"--set", "kind=service",
 			"--set", "name=test-" + svcName,
 			"--set", "metro=" + r.MetroName,
 			"--set", "services=443:8080/tls+http",
 		})
 		r.Run(t, []string{
 			"unikraft", "resource", "create",
-			"--set", "type=instance",
+			"--set", "kind=instance",
 			"--set", "name=test-" + instName,
 			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
