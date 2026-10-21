@@ -55,7 +55,7 @@ func backendByType(typ string) (resource.Resource, bool) {
 func wrapAnyResource(res resource.Resource) AnyResource {
 	typ := res.Type().Name
 	return AnyResource{
-		Type_:      typ,
+		Kind:       typ,
 		Key_:       typ + ":" + res.Key().String(),
 		underlying: res,
 	}
@@ -64,10 +64,10 @@ func wrapAnyResource(res resource.Resource) AnyResource {
 // AnyResource is a special resource that multiplexes to different backend
 // resources based on the key prefix (e.g., "instance:", "volume:", etc.).
 // When populated, resources have their full fields. When empty (header field),
-// it only has "type" and "key" fields.
+// it only has "kind" and "key" fields.
 type AnyResource struct {
-	Type_ string `field:"type,short" create:"set,required" flag:"type" help:"Resource type." placeholder:"type" example:"instance,volume,service,certificate"`
-	Key_  string `field:"key,short"`
+	Kind string `field:"kind,short" create:"set,required" flag:"kind" help:"Resource kind." placeholder:"kind" example:"instance,volume,service,certificate"`
+	Key_ string `field:"key,short"`
 
 	// The actual underlying resource, if populated
 	underlying resource.Resource
@@ -127,7 +127,7 @@ func (a AnyResource) Key() resource.Key {
 		}
 	}
 	return anyResourceKey{
-		typ: a.Type_,
+		typ: a.Kind,
 		key: a.Key_,
 	}
 }
@@ -138,8 +138,8 @@ func (a AnyResource) Fields(ctx context.Context) ([]resource.Field, error) {
 		return nil, err
 	}
 	underlying := a.underlying
-	if underlying == nil && a.Type_ != "" {
-		if backend, ok := backendByType(a.Type_); ok {
+	if underlying == nil && a.Kind != "" {
+		if backend, ok := backendByType(a.Kind); ok {
 			underlying = backend
 		}
 	}
@@ -153,8 +153,8 @@ func (a AnyResource) Fields(ctx context.Context) ([]resource.Field, error) {
 	return fields, nil
 }
 
-func (a AnyResource) WithType(typ string) resource.Resource {
-	a.Type_ = typ
+func (a AnyResource) WithKind(kind string) resource.Resource {
+	a.Kind = kind
 	return a
 }
 
@@ -269,11 +269,11 @@ func (a AnyResource) Edit(ctx context.Context, key string, fields []resource.Fie
 }
 
 func (a AnyResource) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
-	typeFields := resource.GetFieldByPath(fields, []string{"type"})
-	if len(typeFields) == 0 {
-		return nil, fmt.Errorf("type field is required")
+	kindFields := resource.GetFieldByPath(fields, []string{"kind"})
+	if len(kindFields) == 0 {
+		return nil, fmt.Errorf("kind field is required")
 	}
-	typ := typeFields[0].Value.(string)
+	typ := kindFields[0].Value.(string)
 
 	backend, ok := backendByType(typ)
 	if !ok {
@@ -301,7 +301,7 @@ func (a AnyResource) Create(ctx context.Context, fields []resource.Field) ([]res
 func (a AnyResource) underlyingFields(fields []resource.Field) []resource.Field {
 	filtered := slices.Clone(fields)
 	filtered = slices.DeleteFunc(filtered, func(field resource.Field) bool {
-		return field.Name == "type" || field.Name == "key"
+		return field.Name == "kind" || field.Name == "key"
 	})
 	return filtered
 }
