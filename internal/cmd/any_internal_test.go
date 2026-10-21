@@ -7,18 +7,23 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cloud/sdk/platform/group"
+
 	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/multimetro"
 )
 
 type fakeBackend struct {
 	kind  string
 	items []fakeItem
+	calls *[]string
 }
 
 type fakeItem struct {
@@ -69,6 +74,42 @@ func (b fakeBackend) List(ctx context.Context) ([]model.Model, error) {
 	return results, nil
 }
 
+func (b fakeBackend) Get(ctx context.Context, keys []string) ([]model.Model, error) {
+	var results []model.Model
+	var notFound group.Refs
+	for _, key := range keys {
+		k := multimetro.ParseKey(key)
+		found := false
+		for _, item := range b.items {
+			if (k.Metro == "" || k.Metro == item.Metro) && k.Name == item.Name {
+				results = append(results, item)
+				found = true
+			}
+		}
+		if !found {
+			ref := k.Ref()
+			ref.Display = ""
+			notFound = append(notFound, ref)
+		}
+	}
+	if len(notFound) > 0 {
+		return results, group.ErrRefNotFound{Refs: notFound}
+	}
+	return results, nil
+}
+
+func (b fakeBackend) Edit(ctx context.Context, key string, fields []model.Field) error {
+	*b.calls = append(*b.calls, "edit "+b.kind+" "+key)
+	return nil
+}
+
+func (b fakeBackend) Delete(ctx context.Context, keys []string) error {
+	for _, key := range keys {
+		*b.calls = append(*b.calls, "delete "+b.kind+" "+key)
+	}
+	return nil
+}
+
 func withFakeBackends(t *testing.T, backends ...model.Model) {
 	t.Helper()
 	original := resourceBackends
@@ -109,8 +150,84 @@ func TestAnyResourceKeyField(t *testing.T) {
 	fields, err := resources[0].Fields(t.Context())
 	require.NoError(t, err)
 
-	keys := resource.GetFieldByPath(fields, resource.FieldPath{"key"})
+	keys := model.GetFieldByPath(fields, model.FieldPath{"key"})
 	require.Len(t, keys, 1)
 	assert.Equal(t, "fra/foo", keys[0].Value)
 	assert.Equal(t, "instance:fra/foo", resources[0].Key().String())
+}
+
+func withAmbiguousBackends(t *testing.T) *[]string {
+	t.Helper()
+	calls := &[]string{}
+	withFakeBackends(t,
+		fakeBackend{kind: "instance", calls: calls, items: []fakeItem{
+			{kind: "instance", Metro: "fra", Name: "foo"},
+		}},
+		fakeBackend{kind: "volume", calls: calls, items: []fakeItem{
+			{kind: "volume", Metro: "fra", Name: "foo"},
+			{kind: "volume", Metro: "dal", Name: "bar"},
+		}},
+	)
+	return calls
+}
+
+func resourceKeys(resources []model.Model) []string {
+	keys := make([]string, len(resources))
+	for i, res := range resources {
+		keys[i] = res.Key().String()
+	}
+	return keys
+}
+
+func TestAnyResourceGet(t *testing.T) {
+	tests := []struct {
+		keys    []string
+		want    []string
+		missing []string
+	}{
+		{keys: []string{"foo"}, want: []string{"instance:fra/foo", "volume:fra/foo"}},
+		{keys: []string{"bar"}, want: []string{"volume:dal/bar"}},
+		{keys: []string{"dal/bar"}, want: []string{"volume:dal/bar"}},
+		{keys: []string{"name:bar"}, want: []string{"volume:dal/bar"}},
+		{keys: []string{"volume:foo"}, want: []string{"volume:fra/foo"}},
+		{keys: []string{"instance:foo", "bar"}, want: []string{"instance:fra/foo", "volume:dal/bar"}},
+		{keys: []string{"baz", "bar"}, want: []string{"volume:dal/bar"}, missing: []string{"baz"}},
+	}
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.keys, ","), func(t *testing.T) {
+			withAmbiguousBackends(t)
+
+			resources, err := AnyResource{}.Get(t.Context(), tt.keys)
+			assert.Equal(t, tt.want, resourceKeys(resources))
+			if tt.missing == nil {
+				require.NoError(t, err)
+				return
+			}
+			notFound, ok := errors.AsType[group.ErrRefNotFound](err)
+			require.True(t, ok, "expected ErrRefNotFound, got %v", err)
+			assert.Equal(t, tt.missing, notFound.Refs.Strings())
+		})
+	}
+}
+
+func TestAnyResourceEdit(t *testing.T) {
+	calls := withAmbiguousBackends(t)
+
+	require.NoError(t, AnyResource{}.Edit(t.Context(), "bar", nil))
+	require.NoError(t, AnyResource{}.Edit(t.Context(), "instance:foo", nil))
+	assert.Equal(t, []string{"edit volume dal/bar", "edit instance foo"}, *calls)
+
+	err := AnyResource{}.Edit(t.Context(), "foo", nil)
+	require.ErrorContains(t, err, "ambiguous")
+}
+
+func TestAnyResourceDelete(t *testing.T) {
+	calls := withAmbiguousBackends(t)
+
+	require.NoError(t, AnyResource{}.Delete(t.Context(), []string{"foo", "bar"}))
+	assert.Equal(t, []string{
+		"delete instance fra/foo",
+		"delete volume fra/foo",
+		"delete volume dal/bar",
+	}, *calls)
 }
