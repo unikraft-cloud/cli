@@ -153,7 +153,7 @@ func TestAnyResourceKeyField(t *testing.T) {
 	keys := resource.GetFieldByPath(fields, resource.FieldPath{"key"})
 	require.Len(t, keys, 1)
 	assert.Equal(t, "fra/foo", keys[0].Value)
-	assert.Equal(t, "instance:fra/foo", resources[0].Key().String())
+	assert.Equal(t, "instance/fra/foo", resources[0].Key().String())
 }
 
 func withAmbiguousBackends(t *testing.T) *[]string {
@@ -185,13 +185,17 @@ func TestAnyResourceGet(t *testing.T) {
 		want    []string
 		missing []string
 	}{
-		{keys: []string{"foo"}, want: []string{"instance:fra/foo", "volume:fra/foo"}},
-		{keys: []string{"bar"}, want: []string{"volume:dal/bar"}},
-		{keys: []string{"dal/bar"}, want: []string{"volume:dal/bar"}},
-		{keys: []string{"name:bar"}, want: []string{"volume:dal/bar"}},
-		{keys: []string{"volume:foo"}, want: []string{"volume:fra/foo"}},
-		{keys: []string{"instance:foo", "bar"}, want: []string{"instance:fra/foo", "volume:dal/bar"}},
-		{keys: []string{"baz", "bar"}, want: []string{"volume:dal/bar"}, missing: []string{"baz"}},
+		{keys: []string{"foo"}, want: []string{"instance/fra/foo", "volume/fra/foo"}},
+		{keys: []string{"bar"}, want: []string{"volume/dal/bar"}},
+		{keys: []string{"dal/bar"}, want: []string{"volume/dal/bar"}},
+		{keys: []string{"name:bar"}, want: []string{"volume/dal/bar"}},
+		{keys: []string{"volume/foo"}, want: []string{"volume/fra/foo"}},
+		{keys: []string{"instance/foo", "bar"}, want: []string{"instance/fra/foo", "volume/dal/bar"}},
+		{keys: []string{"fra/foo"}, want: []string{"instance/fra/foo", "volume/fra/foo"}},
+		{keys: []string{"instance/fra/foo"}, want: []string{"instance/fra/foo"}},
+		{keys: []string{"volumes/foo"}, want: []string{"volume/fra/foo"}},
+		{keys: []string{"volume/dal/name:bar"}, want: []string{"volume/dal/bar"}},
+		{keys: []string{"baz", "bar"}, want: []string{"volume/dal/bar"}, missing: []string{"baz"}},
 	}
 	for _, tt := range tests {
 		t.Run(strings.Join(tt.keys, ","), func(t *testing.T) {
@@ -214,7 +218,7 @@ func TestAnyResourceEdit(t *testing.T) {
 	calls := withAmbiguousBackends(t)
 
 	require.NoError(t, AnyResource{}.Edit(t.Context(), "bar", nil))
-	require.NoError(t, AnyResource{}.Edit(t.Context(), "instance:foo", nil))
+	require.NoError(t, AnyResource{}.Edit(t.Context(), "instance/foo", nil))
 	assert.Equal(t, []string{"edit volume dal/bar", "edit instance foo"}, *calls)
 
 	err := AnyResource{}.Edit(t.Context(), "foo", nil)

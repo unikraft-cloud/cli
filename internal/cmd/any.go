@@ -43,7 +43,7 @@ var resourceBackends = []resource.Resource{
 
 func backendIndexByType(typ string) int {
 	return slices.IndexFunc(resourceBackends, func(backend resource.Resource) bool {
-		return backend.Type().Name == typ
+		return backend.Type().Name == typ || backend.Type().Names == typ
 	})
 }
 
@@ -73,7 +73,7 @@ func wrapAnyResource(res resource.Resource) AnyResource {
 }
 
 // AnyResource is a special resource that multiplexes to different backend
-// resources based on the key prefix (e.g., "instance:", "volume:", etc.).
+// resources based on the key prefix (e.g., "instance/", "volume/", etc.).
 // When populated, resources have their full fields. When empty (header field),
 // it only has "kind" and "key" fields.
 type AnyResource struct {
@@ -103,7 +103,7 @@ func (k anyResourceKey) String() string {
 	if k.typ == "" {
 		return k.key
 	}
-	return k.typ + ":" + k.key
+	return k.typ + "/" + k.key
 }
 
 func (k anyResourceKey) Canonical() string {
@@ -113,7 +113,7 @@ func (k anyResourceKey) Canonical() string {
 // parseAnyResourceKey splits a key into its kind and underlying key. The kind
 // is empty if the key isn't prefixed with a known kind.
 func parseAnyResourceKey(key string) (typ, underlyingKey string) {
-	if typ, rest, ok := strings.Cut(key, ":"); ok && backendIndexByType(typ) >= 0 {
+	if typ, rest, ok := strings.Cut(key, "/"); ok && backendIndexByType(typ) >= 0 {
 		return typ, rest
 	}
 	return "", key
