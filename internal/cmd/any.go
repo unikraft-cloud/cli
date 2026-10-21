@@ -12,10 +12,13 @@ import (
 	"slices"
 	"strings"
 
+	"unikraft.com/cloud/sdk/platform/group"
+	"unikraft.com/x/joinerrgroup"
+
+	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	wslices "unikraft.com/cli/internal/w/slices"
-	"unikraft.com/x/joinerrgroup"
 )
 
 type AnyResourceCmd struct {
@@ -50,6 +53,14 @@ func backendByType(typ string) (resource.Resource, bool) {
 		return nil, false
 	}
 	return resourceBackends[idx], true
+}
+
+func wrapAnyResources(resources []resource.Resource) []resource.Resource {
+	wrapped := make([]resource.Resource, 0, len(resources))
+	for _, res := range resources {
+		wrapped = append(wrapped, wrapAnyResource(res))
+	}
+	return wrapped
 }
 
 func wrapAnyResource(res resource.Resource) AnyResource {
@@ -99,24 +110,13 @@ func (k anyResourceKey) Canonical() string {
 	return k.key
 }
 
-func (k *anyResourceKey) UnmarshalText(text []byte) error {
-	typ, key, found := strings.Cut(string(text), ":")
-	if found {
-		k.typ = typ
-		k.key = key
-	} else {
-		k.key = string(text)
+// parseAnyResourceKey splits a key into its kind and underlying key. The kind
+// is empty if the key isn't prefixed with a known kind.
+func parseAnyResourceKey(key string) (typ, underlyingKey string) {
+	if typ, rest, ok := strings.Cut(key, ":"); ok && backendIndexByType(typ) >= 0 {
+		return typ, rest
 	}
-	return nil
-}
-
-// parseAnyResourceKey parses a key string into its type and underlying key
-// components. Returns the type prefix, underlying key, and whether the type
-// was present.
-func parseAnyResourceKey(key string) (typ, underlyingKey string, hasType bool) {
-	var k anyResourceKey
-	_ = k.UnmarshalText([]byte(key))
-	return k.typ, k.key, k.typ != ""
+	return "", key
 }
 
 func (a AnyResource) Key() resource.Key {
@@ -173,51 +173,125 @@ func (a AnyResource) Get(ctx context.Context, keys []string) ([]resource.Resourc
 	// Group keys by backend index so we can run per-backend Get calls in
 	// parallel while keeping output ordering stable according to resourceBackends.
 	keysByBackend := make([][]string, len(resourceBackends))
+	var bareKeys []string
 	for _, key := range keys {
-		var k anyResourceKey
-		if err := k.UnmarshalText([]byte(key)); err != nil {
-			return nil, fmt.Errorf("invalid resource key %q: %w", key, err)
-		}
-		if k.typ == "" {
-			return nil, fmt.Errorf("resource key %q must include resource type prefix", key)
+		typ, underlyingKey := parseAnyResourceKey(key)
+		if typ == "" {
+			bareKeys = append(bareKeys, key)
+			continue
 		}
 
-		idx := backendIndexByType(k.typ)
-		if idx < 0 {
-			return nil, fmt.Errorf("unknown resource type: %s", k.typ)
+		idx := backendIndexByType(typ)
+		if _, ok := resourceBackends[idx].(resource.GettableResource); !ok {
+			return nil, fmt.Errorf("resource type %s does not support Get", typ)
 		}
-		backend := resourceBackends[idx]
-		if _, ok := backend.(resource.GettableResource); !ok {
-			return nil, fmt.Errorf("resource type %s does not support Get", k.typ)
-		}
-
-		keysByBackend[idx] = append(keysByBackend[idx], k.key)
+		keysByBackend[idx] = append(keysByBackend[idx], underlyingKey)
 	}
 
 	perBackend := make([][]resource.Resource, len(resourceBackends))
+	perBackendBare := make([][]resource.Resource, len(resourceBackends))
+	bareNotFound := make([]group.Refs, len(resourceBackends))
+	searched := 0
 
 	eg := joinerrgroup.Group{}
-	for i, keyList := range keysByBackend {
-		if len(keyList) == 0 {
+	for i, backend := range resourceBackends {
+		gettable, ok := backend.(resource.GettableResource)
+		if !ok {
 			continue
 		}
-		backend := resourceBackends[i].(resource.GettableResource)
 		typ := backend.Type().Name
-		eg.Go(func() error {
-			resources, err := backend.Get(ctx, keyList)
-			wrapped := make([]resource.Resource, 0, len(resources))
-			for _, res := range resources {
-				wrapped = append(wrapped, wrapAnyResource(res))
-			}
-			perBackend[i] = wrapped
-			if err != nil {
-				return fmt.Errorf("failed to get %s resources: %w", typ, err)
-			}
-			return nil
-		})
+		if keyList := keysByBackend[i]; len(keyList) > 0 {
+			eg.Go(func() error {
+				resources, err := gettable.Get(ctx, keyList)
+				perBackend[i] = wrapAnyResources(resources)
+				if err != nil {
+					return fmt.Errorf("failed to get %s resources: %w", typ, err)
+				}
+				return nil
+			})
+		}
+		if len(bareKeys) > 0 {
+			searched++
+			eg.Go(func() error {
+				resources, err := gettable.Get(ctx, bareKeys)
+				perBackendBare[i] = wrapAnyResources(resources)
+				bareNotFound[i], err = splitRefNotFound(err)
+				if err != nil {
+					return fmt.Errorf("failed to get %s resources: %w", typ, err)
+				}
+				return nil
+			})
+		}
 	}
 	err := eg.Wait()
-	return wslices.Flatten(perBackend), err
+
+	notFoundCount := map[group.Ref]int{}
+	for _, refs := range bareNotFound {
+		for _, ref := range refs {
+			notFoundCount[ref]++
+		}
+	}
+	var missing group.Refs
+	for _, key := range bareKeys {
+		ref := multimetro.ParseKey(key).Ref()
+		ref.Display = ""
+		if notFoundCount[ref] == searched {
+			missing = append(missing, ref)
+		}
+	}
+	if len(missing) > 0 {
+		err = errors.Join(err, group.ErrRefNotFound{Refs: missing})
+	}
+
+	var results []resource.Resource
+	for i := range resourceBackends {
+		results = append(results, perBackend[i]...)
+		results = append(results, perBackendBare[i]...)
+	}
+	return results, err
+}
+
+func splitRefNotFound(err error) (group.Refs, error) {
+	if err == nil {
+		return nil, nil
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var refs group.Refs
+		var errs []error
+		for _, err := range joined.Unwrap() {
+			r, err := splitRefNotFound(err)
+			refs = append(refs, r...)
+			errs = append(errs, err)
+		}
+		return refs, errors.Join(errs...)
+	}
+	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
+		return notFound.Refs, nil
+	}
+	return nil, err
+}
+
+// qualifyKeys replaces each key without a kind with the kind-prefixed keys
+// of every resource it matches.
+func (a AnyResource) qualifyKeys(ctx context.Context, keys []string) ([]string, error) {
+	qualified := make([]string, 0, len(keys))
+	var bareKeys []string
+	for _, key := range keys {
+		if typ, _ := parseAnyResourceKey(key); typ == "" {
+			bareKeys = append(bareKeys, key)
+		} else {
+			qualified = append(qualified, key)
+		}
+	}
+	if len(bareKeys) == 0 {
+		return qualified, nil
+	}
+
+	resources, err := a.Get(ctx, bareKeys)
+	for _, res := range resources {
+		qualified = append(qualified, res.Key().String())
+	}
+	return qualified, err
 }
 
 func (a AnyResource) List(ctx context.Context) ([]resource.Resource, error) {
@@ -231,11 +305,7 @@ func (a AnyResource) List(ctx context.Context) ([]resource.Resource, error) {
 		typ := backend.Type().Name
 		eg.Go(func() error {
 			resources, err := listable.List(ctx)
-			wrapped := make([]resource.Resource, 0, len(resources))
-			for _, res := range resources {
-				wrapped = append(wrapped, wrapAnyResource(res))
-			}
-			perBackend[i] = wrapped
+			perBackend[i] = wrapAnyResources(resources)
 			if err != nil {
 				return fmt.Errorf("failed to list %s resources: %w", typ, err)
 			}
@@ -247,15 +317,19 @@ func (a AnyResource) List(ctx context.Context) ([]resource.Resource, error) {
 }
 
 func (a AnyResource) Edit(ctx context.Context, key string, fields []resource.Field) error {
-	typ, underlyingKey, hasType := parseAnyResourceKey(key)
-	if !hasType {
-		return fmt.Errorf("resource key %q must include resource type prefix", key)
+	keys, err := a.qualifyKeys(ctx, []string{key})
+	if err != nil {
+		return err
+	}
+	switch {
+	case len(keys) == 0:
+		return fmt.Errorf("resource not found: %s", key)
+	case len(keys) > 1:
+		return fmt.Errorf("ambiguous resource key: %s (found %v)", key, keys)
 	}
 
-	backend, ok := backendByType(typ)
-	if !ok {
-		return fmt.Errorf("unknown resource type: %s", typ)
-	}
+	typ, underlyingKey := parseAnyResourceKey(keys[0])
+	backend, _ := backendByType(typ)
 
 	editable, ok := backend.(resource.EditableResource)
 	if !ok {
@@ -290,12 +364,7 @@ func (a AnyResource) Create(ctx context.Context, fields []resource.Field) ([]res
 		return nil, fmt.Errorf("failed to create %s resource: %w", typ, err)
 	}
 
-	wrapped := make([]resource.Resource, 0, len(results))
-	for _, res := range results {
-		wrapped = append(wrapped, wrapAnyResource(res))
-	}
-
-	return wrapped, nil
+	return wrapAnyResources(results), nil
 }
 
 func (a AnyResource) underlyingFields(fields []resource.Field) []resource.Field {
@@ -307,17 +376,12 @@ func (a AnyResource) underlyingFields(fields []resource.Field) []resource.Field 
 }
 
 func (a AnyResource) Delete(ctx context.Context, keys []string) error {
+	keys, qualifyErr := a.qualifyKeys(ctx, keys)
+
 	keysByBackend := make([][]string, len(resourceBackends))
 	for _, key := range keys {
-		typ, underlyingKey, hasType := parseAnyResourceKey(key)
-		if !hasType {
-			return fmt.Errorf("resource key %q must include resource type prefix", key)
-		}
-
+		typ, underlyingKey := parseAnyResourceKey(key)
 		idx := backendIndexByType(typ)
-		if idx < 0 {
-			return fmt.Errorf("unknown resource type: %s", typ)
-		}
 		backend := resourceBackends[idx]
 		if _, ok := backend.(resource.DeletableResource); !ok {
 			return fmt.Errorf("resource type %s does not support Delete", typ)
@@ -328,7 +392,7 @@ func (a AnyResource) Delete(ctx context.Context, keys []string) error {
 	// Delete in backend order.
 	// HACK: This is intentionally NOT parallelized because backend order matters
 	// (e.g. dependencies between resource types).
-	var errs []error
+	errs := []error{qualifyErr}
 	for i, typeKeys := range keysByBackend {
 		if len(typeKeys) == 0 {
 			continue
