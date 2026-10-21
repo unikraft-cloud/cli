@@ -96,3 +96,21 @@ func TestAnyResourceKindDoesNotCollide(t *testing.T) {
 	require.Len(t, types, 1)
 	assert.Equal(t, "micro", types[0].Value)
 }
+
+func TestAnyResourceKeyField(t *testing.T) {
+	withFakeBackends(t, fakeBackend{kind: "instance", items: []fakeItem{
+		{kind: "instance", Metro: "fra", Name: "foo"},
+	}})
+
+	resources, err := AnyResource{}.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+
+	fields, err := resources[0].Fields(t.Context())
+	require.NoError(t, err)
+
+	keys := resource.GetFieldByPath(fields, resource.FieldPath{"key"})
+	require.Len(t, keys, 1)
+	assert.Equal(t, "fra/foo", keys[0].Value)
+	assert.Equal(t, "instance:fra/foo", resources[0].Key().String())
+}
