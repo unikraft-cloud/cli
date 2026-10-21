@@ -56,7 +56,7 @@ func wrapAnyResource(res resource.Resource) AnyResource {
 	typ := res.Type().Name
 	return AnyResource{
 		Kind:       typ,
-		Key_:       typ + ":" + res.Key().String(),
+		Key_:       res.Key().String(),
 		underlying: res,
 	}
 }
