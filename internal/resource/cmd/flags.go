@@ -63,7 +63,7 @@ func GenerateFlags(fields []resource.Field, create bool, group string, opts ...k
 		if field.Flag == nil {
 			continue
 		}
-		template := patchTemplate(*field, create)
+		template, add := patchTemplate(*field, create)
 		if template == nil {
 			continue
 		}
@@ -91,6 +91,7 @@ func GenerateFlags(fields []resource.Field, create bool, group string, opts ...k
 			arg:  field.Flag.Arg,
 			addr: addr,
 			file: field.Flag.File,
+			add:  add,
 		})
 	}
 	if len(structFields) == 0 {
@@ -148,9 +149,12 @@ type flagSlot struct {
 	addr bool
 	// file marks a flag holding a path whose contents are the value.
 	file bool
+	// add marks a flag that adds to a collection instead of replacing it.
+	add bool
 }
 
 // Apply copies every explicitly-set flag's value into spec, typed.
+// A flag with `flag-edit:"add"` goes to AddTyped, all others to SetTyped.
 func (fs *FlagSet) Apply(spec *patch.PatchSpec) error {
 	if fs == nil {
 		return nil
@@ -162,6 +166,13 @@ func (fs *FlagSet) Apply(spec *patch.PatchSpec) error {
 		v, err := slot.read()
 		if err != nil {
 			return fmt.Errorf("%s: %w", slot.value.Summary(), err)
+		}
+		if slot.add {
+			if spec.AddTyped == nil {
+				spec.AddTyped = make(map[string]any)
+			}
+			spec.AddTyped[slot.path] = v
+			continue
 		}
 		if spec.SetTyped == nil {
 			spec.SetTyped = make(map[string]any)
@@ -204,17 +215,23 @@ func (s flagSlot) read() (any, error) {
 	return out.Interface(), nil
 }
 
-func patchTemplate(field resource.Field, create bool) any {
+// patchTemplate returns the value template a flag decodes into, and whether
+// the flag adds to the field. On edit, a field with `flag-edit:"add"` takes the
+// add template, so the flag merges into the field and does not replace it.
+func patchTemplate(field resource.Field, create bool) (any, bool) {
 	if create {
 		if field.Create == nil {
-			return nil
+			return nil, false
 		}
-		return field.Create.Set
+		return field.Create.Set, false
 	}
 	if field.Edit == nil {
-		return nil
+		return nil, false
 	}
-	return field.Edit.Set
+	if field.Flag.EditAdd && field.Edit.Add != nil {
+		return field.Edit.Add, true
+	}
+	return field.Edit.Set, false
 }
 
 // flagType maps a field's type onto one kong can decode into.
