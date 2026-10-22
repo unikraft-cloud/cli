@@ -20,10 +20,7 @@ import (
 func TestAuth(t *testing.T) {
 	r := runner(t, true, []string{staging, stable})
 
-	out := r.Run(t, []string{"unikraft", "login", "--check"})
-	assert.Regexp(t, `authentication token found`, out)
-
-	out = r.Run(t, []string{"unikraft", "profile", "list"})
+	out := r.Run(t, []string{"unikraft", "profile", "list"})
 	assert.Regexp(t, `true`, out)
 
 	out = r.Run(t, []string{"unikraft", "metro", "list"})
@@ -41,12 +38,12 @@ func TestAuth(t *testing.T) {
 // hardcoded (empty) configuration file.
 func TestLoginProd(t *testing.T) {
 	integ.SkipUnlessIntegration(t)
-	integ.SkipUnlessSupportedServer(t, []string{prod})
+	integ.RequireSupportedServer(t, []string{prod})
 	t.Parallel()
 
 	unikraftPath := integ.BuildUnikraft(t)
 
-	baseCfg, err := integ.LoadConfig(t)
+	baseCfg, err := integ.LoadRemote(t)
 	require.NoError(t, err)
 	if baseCfg == nil || baseCfg.Profile.Token == "" {
 		t.Skip("test requires a configured profile with a token")
@@ -59,7 +56,7 @@ func TestLoginProd(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	partitionPath := filepath.Join(t.TempDir(), "partition.json")
 	r := integ.NewTestEnv(t, unikraftPath).
-		WithConfig(nil, configPath).
+		WithRemote(nil, configPath).
 		WithPartitionPath(partitionPath)
 
 	out := r.Run(t, []string{

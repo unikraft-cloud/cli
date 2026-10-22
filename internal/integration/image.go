@@ -52,7 +52,7 @@ type Image struct {
 
 // Ref gives the full reference of the image for tag.
 func (i *Image) Ref(env *TestEnv, tag string) string {
-	return env.Config.Profile.Organization + "/" + i.Name + ":" + tag
+	return env.Profile.Organization + "/" + i.Name + ":" + tag
 }
 
 // Build writes the files to a temporary context and builds the image at ref.
@@ -188,7 +188,7 @@ func randomImageTag() string {
 // give the reference of the first build.
 func (s *SharedImage) Build(t *testing.T, env *TestEnv) string {
 	t.Helper()
-	require.NotNil(t, env.Config, "shared image build requires a config")
+	require.NotNil(t, env.Remote, "shared image build requires a config")
 	s.once.Do(func() {
 		s.ref, s.err = s.build(t, env)
 	})
@@ -204,7 +204,7 @@ func (s *SharedImage) build(t *testing.T, env *TestEnv) (string, error) {
 	if err := s.Image.Build(t, env, ref, WithNoPartition(), WithoutCancel()); err != nil {
 		return "", err
 	}
-	registerImageConfig(env.Config.Config, ref)
+	registerImageConfig(env.Config, ref)
 	return ref, nil
 }
 

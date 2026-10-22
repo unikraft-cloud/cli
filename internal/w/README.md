@@ -8,7 +8,7 @@ it there.
 | ---------------------- | --------------------------------- |
 | `internal/w/kong`      | `github.com/alecthomas/kong`      |
 | `internal/w/maps`      | `maps`                            |
-| `internal/w/platforms` | `github.com/containerd/platforms` |
+| `internal/w/shell`     | `mvdan.cc/sh/v3/shell`            |
 | `internal/w/slices`    | `slices`                          |
 | `internal/w/sync`      | `sync`                            |
 | `internal/w/time`      | `time`                            |

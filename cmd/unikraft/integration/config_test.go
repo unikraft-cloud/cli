@@ -36,7 +36,7 @@ func TestConfig(t *testing.T) {
 	t.Run("get-explicit-file", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		profileName := "test-" + uniq()
-		profile := *r.Config.Profile
+		profile := *r.Profile
 		profile.Name = profileName
 		configPath := filepath.Join(t.TempDir(), "alternate.yaml")
 		cfg := &config.Config{

@@ -19,18 +19,18 @@ func TestResources(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		volName := uniq()
 
-		out := r.Run(t, []string{"unikraft", "resource", "create", "--set", "type=volume", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.Config.MetroName})
+		out := r.Run(t, []string{"unikraft", "resource", "create", "--set", "type=volume", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.MetroName})
 		assert.Regexp(t, `state:\s+(available|initializing)`, out)
 
-		out = r.Run(t, []string{"unikraft", "resource", "get", "volume:" + r.Config.MetroName + "/test-" + volName})
+		out = r.Run(t, []string{"unikraft", "resource", "get", "volume:" + r.MetroName + "/test-" + volName})
 		assert.Regexp(t, `size:\s+10`, out)
 
 		out = r.Run(t, []string{"unikraft", "resource", "list"})
 		assert.Regexp(t, `volume`, out)
 
-		r.Run(t, []string{"unikraft", "resource", "edit", "volume:" + r.Config.MetroName + "/test-" + volName, "--set", "size=20"})
+		r.Run(t, []string{"unikraft", "resource", "edit", "volume:" + r.MetroName + "/test-" + volName, "--set", "size=20"})
 
-		out = r.Run(t, []string{"unikraft", "resource", "get", "volume:" + r.Config.MetroName + "/test-" + volName})
+		out = r.Run(t, []string{"unikraft", "resource", "get", "volume:" + r.MetroName + "/test-" + volName})
 		assert.Regexp(t, `size:\s+20`, out)
 
 		out = r.Run(t, []string{"unikraft", "volume", "get", "test-" + volName})
@@ -46,21 +46,21 @@ func TestResources(t *testing.T) {
 		svcName := uniq()
 		instName := uniq()
 		domainName := uniq()
-		svcKey := "service:" + r.Config.MetroName + "/test-" + svcName
-		instKey := "instance:" + r.Config.MetroName + "/test-" + instName
+		svcKey := "service:" + r.MetroName + "/test-" + svcName
+		instKey := "instance:" + r.MetroName + "/test-" + instName
 
 		r.Run(t, []string{
 			"unikraft", "resource", "create",
 			"--set", "type=service",
 			"--set", "name=test-" + svcName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "services=443:8080/tls+http",
 		})
 		r.Run(t, []string{
 			"unikraft", "resource", "create",
 			"--set", "type=instance",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",

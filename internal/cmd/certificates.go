@@ -126,8 +126,10 @@ func (Certificate) Get(ctx context.Context, keys []string) ([]resource.Resource,
 			return nil, nil, nil
 		}
 		for _, certificate := range resp.Data.Certificates {
-			// Deliberately do not filter by status: pending certificates should
-			// be returned by GET as well.
+			if certificate.Status == nil || *certificate.Status != platform.ResponseStatusSuccess {
+				continue
+			}
+
 			matchedRef := matchRef(refs, certificate.Name, certificate.Uuid)
 			result, err := Certificate{}.load(matchedRef, certificate, &c.Metro)
 			if err != nil {

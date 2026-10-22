@@ -21,7 +21,7 @@ func TestVolumeTemplates(t *testing.T) {
 			"unikraft", "volume", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "size=10",
 		})
 
@@ -54,7 +54,7 @@ func TestVolumeTemplates(t *testing.T) {
 			"unikraft", "volume", "create",
 			"--output", "quiet",
 			"--set", "name=test-base-" + volName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "size=10",
 		})
 
@@ -67,7 +67,7 @@ func TestVolumeTemplates(t *testing.T) {
 		out = r.Run(t, []string{
 			"unikraft", "volume", "create",
 			"--set", "name=test-from-template-" + volName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--template", templateName,
 		})
 		assert.Regexp(t, `state:\s+(available|initializing)`, out)
@@ -89,7 +89,7 @@ func TestVolumeTemplates(t *testing.T) {
 			"unikraft", "volume", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "size=10",
 		})
 

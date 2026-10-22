@@ -3,7 +3,7 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
-//go:build unix
+//go:build unix || windows
 
 package telemetry
 
@@ -12,14 +12,12 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
-	"syscall"
 
 	"github.com/posthog/posthog-go"
 )
 
 // spawnDetachedAnalytics spawns a detached subprocess to send analytics.
-// On Unix, this uses process group detachment so the subprocess continues
-// after the parent exits.
+// The subprocess continues after the parent exits.
 func spawnDetachedAnalytics(event posthog.Capture) {
 	executable, err := os.Executable()
 	if err != nil {
@@ -45,13 +43,7 @@ func spawnDetachedAnalytics(event posthog.Capture) {
 
 	cmd := exec.CommandContext(context.Background(), executable, "_send_analytics", string(payload))
 
-	// Detach from parent process group so subprocess survives parent exit
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
-
-	// Don't hold the working directory
-	cmd.Dir = "/"
+	detach(cmd)
 
 	// Inherit environment (may be needed for network config)
 	cmd.Env = os.Environ()

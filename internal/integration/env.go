@@ -26,8 +26,8 @@ import (
 
 // TestEnv holds per-test environment for running CLI commands deterministically.
 type TestEnv struct {
-	// Config is the integration test config, or nil if not loaded (offline tests).
-	Config *Config
+	// Remote is nil if no config was loaded (offline tests).
+	*Remote
 
 	unikraftPath  string
 	configPath    string
@@ -44,8 +44,8 @@ func NewTestEnv(t *testing.T, unikraftPath string) *TestEnv {
 	}
 }
 
-func (env *TestEnv) WithConfig(cfg *Config, configPath string) *TestEnv {
-	env.Config = cfg
+func (env *TestEnv) WithRemote(remote *Remote, configPath string) *TestEnv {
+	env.Remote = remote
 	env.configPath = configPath
 	return env
 }

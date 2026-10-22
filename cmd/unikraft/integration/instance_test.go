@@ -85,6 +85,14 @@ func tunnelProxyUUIDs(t *testing.T, cfg *config.Config, metro string) map[string
 }
 
 func TestInstances(t *testing.T) {
+	t.Run("inspect-missing", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		missing := "test-" + uniq()
+
+		out := r.Run(t, []string{"unikraft", "instance", "inspect", missing}, integ.ExpectFail())
+		assert.Contains(t, out, "references not found: ["+missing+"]")
+	})
+
 	t.Run("create", func(t *testing.T) {
 		// TODO: Add 'prod' back when it runs platform version 13. Older
 		// versions send a duplicate "status" member that breaks every wait.
@@ -98,7 +106,7 @@ func TestInstances(t *testing.T) {
 		out = r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "runtime.env=A=1",
 			"--set", "runtime.env=B=2",
@@ -137,7 +145,7 @@ func TestInstances(t *testing.T) {
 		out := r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--name", "test-" + instName,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--image", "nginx:latest",
 			"--memory", "128",
 			"--vcpus", "1",
@@ -169,7 +177,7 @@ func TestInstances(t *testing.T) {
 		out := r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--name", "test-" + instName,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--image", "nginx:latest",
 			"--memory", "128",
 			"--vcpus", "1",
@@ -223,7 +231,7 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "run",
 			"--name", "test-" + instName,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--output", "quiet",
 			"--image", image,
 			"--args", "cat /sys/class/uio/uio0/device/startdata",
@@ -257,7 +265,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=24Mib",
@@ -282,7 +290,7 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "runtime.env=A=1",
 			"--set", "runtime.env=B=2",
@@ -318,7 +326,7 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "run",
 			"--name", "test-" + instName,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--publish", "443:8080/http+tls",
 			"--scale-to-zero", "policy=on,cooldown-time=1000",
 			"--image", "nginx:latest",
@@ -351,7 +359,7 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "runtime.env=A=1",
 			"--set", "runtime.env=B=2",
@@ -394,7 +402,7 @@ func TestInstances(t *testing.T) {
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=20",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		// On each boot, increment /data/n and echo "starting N".
@@ -402,7 +410,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + baseImage,
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -447,7 +455,7 @@ func TestInstances(t *testing.T) {
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=20",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		// On each boot, increment /data/n and echo "starting N".
@@ -455,7 +463,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + baseImage,
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -489,7 +497,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "runtime.args=before,first",
 			"--set", "runtime.env=A=1",
@@ -530,13 +538,13 @@ func TestInstances(t *testing.T) {
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=20",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -559,7 +567,7 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -583,7 +591,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "service", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + svcName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "services=443:8080/tls+http",
 		})
 
@@ -592,13 +600,13 @@ func TestInstances(t *testing.T) {
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=20",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -630,7 +638,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -664,7 +672,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -698,7 +706,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -726,7 +734,7 @@ func TestInstances(t *testing.T) {
 		out := r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -752,7 +760,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -786,7 +794,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -868,14 +876,14 @@ func TestInstances(t *testing.T) {
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=10",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -906,14 +914,14 @@ func TestInstances(t *testing.T) {
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=10",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -946,7 +954,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -967,7 +975,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -986,7 +994,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -1023,7 +1031,7 @@ func TestInstances(t *testing.T) {
 			"--output", "quiet",
 			"--rm",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -1049,7 +1057,7 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -1083,7 +1091,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -1115,7 +1123,7 @@ func TestInstances(t *testing.T) {
 		out := r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -1143,7 +1151,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -1209,14 +1217,14 @@ func TestInstances(t *testing.T) {
 			"unikraft", "volume", "create",
 			"--output", "quiet",
 			"--name", "test-" + volName,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--size", "10",
 		})
 
 		out := r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--name", "test-" + instName,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--image", "nginx:latest",
 			"--memory", "128",
 			"--vcpus", "1",
@@ -1257,7 +1265,7 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -1298,7 +1306,7 @@ func TestInstances(t *testing.T) {
 		ifNotPresentName := uniq()
 		alwaysName := uniq()
 
-		image := r.Config.Profile.Organization + "/pull-policy-e2e:" + imageTag
+		image := r.Profile.Organization + "/pull-policy-e2e:" + imageTag
 
 		dir := t.TempDir()
 
@@ -1326,7 +1334,7 @@ cmd: ["cat", "/marker.txt"]
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + warmName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + image,
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -1364,7 +1372,7 @@ cmd: ["cat", "/marker.txt"]
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + ifNotPresentName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + image,
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -1385,7 +1393,7 @@ cmd: ["cat", "/marker.txt"]
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + alwaysName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + image,
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -1412,7 +1420,7 @@ cmd: ["cat", "/marker.txt"]
 			"unikraft", "instance", "create",
 			"--output", "template={{ .name }}",
 			"--name", "test-" + instName,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--image", "nginx:latest",
 			"--memory", "128",
 			"--vcpus", "1",
@@ -1467,7 +1475,7 @@ cmd: ["cat", "/marker.txt"]
 				"unikraft", "instance", "create",
 				"--output", "quiet",
 				"--set", "name=test-" + name,
-				"--set", "metro=" + r.Config.MetroName,
+				"--set", "metro=" + r.MetroName,
 				"--set", "image=nginx:latest",
 				"--set", "autostart=true",
 				"--set", "resources.memory=128",
@@ -1479,14 +1487,14 @@ cmd: ["cat", "/marker.txt"]
 			"test-" + instName, "test-" + instName2,
 		})
 
-		before := tunnelProxyUUIDs(t, r.Config.Config, r.Config.MetroName)
+		before := tunnelProxyUUIDs(t, r.Config, r.MetroName)
 
 		// Use metro/instance:port/tcp syntax for the tunnel targets.
 		tunnel := r.StartBackground(t,
 			[]string{
 				"unikraft", "instance", "tunnel",
-				"18081:" + r.Config.MetroName + "/test-" + instName + ":8080/tcp",
-				"18082:" + r.Config.MetroName + "/test-" + instName2 + ":8080/tcp",
+				"18081:" + r.MetroName + "/test-" + instName + ":8080/tcp",
+				"18082:" + r.MetroName + "/test-" + instName2 + ":8080/tcp",
 			},
 			"127.0.0.1:18081",
 			0,
@@ -1503,7 +1511,7 @@ cmd: ["cat", "/marker.txt"]
 		// (a regression in Close() would otherwise go unnoticed, since the
 		// CLI's own partitioned "instance list"/"inspect" never see this
 		// instance either way).
-		during := tunnelProxyUUIDs(t, r.Config.Config, r.Config.MetroName)
+		during := tunnelProxyUUIDs(t, r.Config, r.MetroName)
 		var proxyUUID string
 		for u := range during {
 			if _, ok := before[u]; ok {
@@ -1516,7 +1524,7 @@ cmd: ["cat", "/marker.txt"]
 
 		tunnel.Stop()
 
-		after := tunnelProxyUUIDs(t, r.Config.Config, r.Config.MetroName)
+		after := tunnelProxyUUIDs(t, r.Config, r.MetroName)
 		_, stillThere := after[proxyUUID]
 		assert.False(t, stillThere, "tunnel proxy instance %s was not deleted after the tunnel was torn down", proxyUUID)
 
@@ -1534,7 +1542,7 @@ cmd: ["cat", "/marker.txt"]
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + image,
 			"--set", "autostart=true",
 			"--set", "resources.memory=256",
@@ -1555,7 +1563,7 @@ cmd: ["cat", "/marker.txt"]
 			"unikraft", "instance", "create",
 			"--branch", "test-" + instName,
 			"--set", "name=test-branch-" + branchName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "autostart=true",
 			"--set", "service.services=443:8080/tls+http",
 			"--set", "service.domains=name=" + domainBranch,
@@ -1586,7 +1594,7 @@ cmd: ["cat", "/marker.txt"]
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + image,
 			"--set", "autostart=true",
 			"--set", "resources.memory=256",
@@ -1612,7 +1620,7 @@ cmd: ["cat", "/marker.txt"]
 			"unikraft", "instance", "create",
 			"--branch", "test-" + instName,
 			"--set", "name=test-branch-" + branchName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "autostart=true",
 			"--set", "service.services=443:8080/tls+http",
 			"--set", "service.domains=name=" + domainBranch,
@@ -1654,7 +1662,7 @@ cmd: ["cat", "/marker.txt"]
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + image,
 			"--set", "autostart=true",
 			"--set", "resources.memory=256",
@@ -1704,13 +1712,13 @@ cmd: ["cat", "/marker.txt"]
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=20",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + image,
 			"--set", "autostart=true",
 			"--set", "resources.memory=256",
@@ -1741,7 +1749,7 @@ cmd: ["cat", "/marker.txt"]
 			"unikraft", "instance", "create",
 			"--branch", "test-" + instName,
 			"--set", "name=test-branch-" + branchName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "autostart=true",
 			"--set", "service.services=443:8080/tls+http",
 			"--set", "service.domains=name=" + domainBranch,
@@ -1789,7 +1797,7 @@ cmd: ["cat", "/marker.txt"]
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + image,
 			"--set", "autostart=true",
 			"--set", "resources.memory=256",
@@ -1824,7 +1832,7 @@ cmd: ["cat", "/marker.txt"]
 			"unikraft", "instance", "create",
 			"--branch", templateName,
 			"--set", "name=test-branch-" + branchName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "autostart=true",
 			"--set", "service.services=443:8080/tls+http",
 			"--set", "service.domains=name=" + domainBranch,
@@ -1851,7 +1859,7 @@ cmd: ["cat", "/marker.txt"]
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",

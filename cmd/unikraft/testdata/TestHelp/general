@@ -9,7 +9,7 @@ Usage:
   unikraft <command> [flags]
 
 Version:
-  v0.0.0 (linux/amd64)
+  v0.0.0 (os/arch)
 
 Commands:
   run
@@ -111,7 +111,7 @@ Usage:
   unikraft <command> [flags]
 
 Version:
-  v0.0.0 (linux/amd64)
+  v0.0.0 (os/arch)
 
 Commands:
   run
@@ -215,7 +215,7 @@ Usage:
   unikraft <command> [flags]
 
 Version:
-  v0.0.0 (linux/amd64)
+  v0.0.0 (os/arch)
 
 Commands:
   run
@@ -316,7 +316,7 @@ Usage:
   unikraft <command> [flags]
 
 Version:
-  v0.0.0 (linux/amd64)
+  v0.0.0 (os/arch)
 
 Commands:
   run

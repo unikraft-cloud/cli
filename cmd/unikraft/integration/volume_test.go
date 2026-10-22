@@ -24,7 +24,7 @@ func TestVolumes(t *testing.T) {
 		out := r.Run(t, []string{"unikraft", "volume", "list", "--output", "quiet"})
 		assert.Empty(t, strings.TrimSpace(out))
 
-		out = r.Run(t, []string{"unikraft", "volume", "create", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.Config.MetroName})
+		out = r.Run(t, []string{"unikraft", "volume", "create", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.MetroName})
 		assert.Regexp(t, `state:\s+(available|initializing)`, out)
 		assert.Regexp(t, `size:\s+10`, out)
 		assert.Regexp(t, `filesystem:`, out)
@@ -45,7 +45,7 @@ func TestVolumes(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		volName := uniq()
 
-		r.Run(t, []string{"unikraft", "volume", "create", "--output", "quiet", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.Config.MetroName})
+		r.Run(t, []string{"unikraft", "volume", "create", "--output", "quiet", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.MetroName})
 		r.Run(t, []string{"unikraft", "volume", "edit", "test-" + volName, "--output", "quiet", "--set", "size=20"})
 
 		out := r.Run(t, []string{"unikraft", "volume", "inspect", "test-" + volName})
@@ -60,7 +60,7 @@ func TestVolumes(t *testing.T) {
 		volName := uniq()
 		cloneName := uniq()
 
-		r.Run(t, []string{"unikraft", "volume", "create", "--output", "quiet", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.Config.MetroName})
+		r.Run(t, []string{"unikraft", "volume", "create", "--output", "quiet", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.MetroName})
 		r.Run(t, []string{"unikraft", "volume", "clone", "test-" + volName, "--output", "quiet", "--set", "name=test-" + cloneName})
 
 		out := r.Run(t, []string{"unikraft", "volume", "inspect", "test-" + volName, "test-" + cloneName})
@@ -81,7 +81,7 @@ func TestVolumes(t *testing.T) {
 			"unikraft", "volume", "create",
 			"--set", "name=test-" + volName,
 			"--set", "size=10",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--access-mode", "rwo",
 		})
 		assert.Regexp(t, `state:\s+(available|initializing)`, out)
@@ -105,7 +105,7 @@ func TestVolumes(t *testing.T) {
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=10",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--access-mode", "rox",
 		})
 
@@ -113,7 +113,7 @@ func TestVolumes(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName1,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -125,7 +125,7 @@ func TestVolumes(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName2,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",
@@ -152,14 +152,14 @@ func TestVolumes(t *testing.T) {
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=10",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "resources.memory=128",
 			"--set", "resources.vcpus=1",
@@ -204,13 +204,13 @@ func TestVolumes(t *testing.T) {
 			"--output", "quiet",
 			"--name", "test-" + volName,
 			"--size", "10",
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 		})
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--name", "test-" + instName,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--image", "nginx:latest",
 			"--memory", "128",
 			"--vcpus", "1",
@@ -266,7 +266,7 @@ func TestVolumes(t *testing.T) {
 				fstest.CreateFile("hello.txt", []byte("hello from volume import\n"), 0o644),
 			).Apply(dir))
 
-			r.Run(t, []string{"unikraft", "volume", "create", "--output", "quiet", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.Config.MetroName})
+			r.Run(t, []string{"unikraft", "volume", "create", "--output", "quiet", "--set", "name=test-" + volName, "--set", "size=10", "--set", "metro=" + r.MetroName})
 
 			out := r.Run(t, []string{"unikraft", "volume", "import", "test-" + volName, "--source", "."}, integ.WithWorkDir(dir))
 			assert.Regexp(t, `import complete`, out)
@@ -297,7 +297,7 @@ func TestVolumes(t *testing.T) {
 				"--output", "quiet",
 				"--set", "name=test-" + volName,
 				"--set", "size=50",
-				"--set", "metro=" + r.Config.MetroName,
+				"--set", "metro=" + r.MetroName,
 			})
 
 			out := r.Run(t, []string{"unikraft", "volume", "import", "test-" + volName, "--source", "."}, integ.WithWorkDir(dir))
@@ -306,7 +306,7 @@ func TestVolumes(t *testing.T) {
 			r.Run(t, []string{
 				"unikraft", "instance", "create",
 				"--set", "name=test-" + instName,
-				"--set", "metro=" + r.Config.MetroName,
+				"--set", "metro=" + r.MetroName,
 				"--set", "image=nginx:latest",
 				"--set", "autostart=true",
 				"--set", "resources.memory=256",
@@ -343,7 +343,7 @@ func TestVolumes(t *testing.T) {
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
 			"--set", "size=10",
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--tag", "env-prod",
 			"--tag", "team-core",
 		})
@@ -404,7 +404,7 @@ func TestVolumes(t *testing.T) {
 			"--output", "quiet",
 			"--name", "test-" + volName,
 			"--size", "10",
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 		})
 		r.Run(t, []string{
 			"unikraft", "volume", "edit", "test-" + volName,

@@ -16,11 +16,11 @@ import (
 	"unikraft.com/x/ptr"
 )
 
-func LoadConfig(t *testing.T) (*Config, error) {
+func LoadRemote(t *testing.T) (*Remote, error) {
 	return populate()
 }
 
-type Config struct {
+type Remote struct {
 	Config  *config.Config
 	Profile *config.Profile
 
@@ -29,12 +29,12 @@ type Config struct {
 }
 
 var (
-	cfg     *Config
+	cfg     *Remote
 	once    sync.Once
 	onceErr error
 )
 
-func populate() (*Config, error) {
+func populate() (*Remote, error) {
 	once.Do(func() {
 		path, err := config.ConfigFilePath()
 		if err != nil {
@@ -72,7 +72,7 @@ func populate() (*Config, error) {
 			Profiles:       map[string]config.Profile{profile.Name: *profile},
 		}
 
-		cfg = &Config{
+		cfg = &Remote{
 			Config:    config,
 			Profile:   profile,
 			Metro:     &profile.Metros[0],
@@ -87,7 +87,7 @@ func populate() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cloned.(*Config), nil
+	return cloned.(*Remote), nil
 }
 
 // GetTestServer returns nil only when UNIKRAFT_X_TEST_SERVER is set and not

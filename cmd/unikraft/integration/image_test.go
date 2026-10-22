@@ -31,8 +31,8 @@ func TestImages(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 
 		imageTag := uniq()
-		imageName := r.Config.Profile.Organization + "/nginx-copy:" + imageTag
-		imageFull := fmt.Sprintf("%s/%s", r.Config.Metro.Index().Host, imageName)
+		imageName := r.Profile.Organization + "/nginx-copy:" + imageTag
+		imageFull := fmt.Sprintf("%s/%s", r.Metro.Index().Host, imageName)
 
 		r.Run(t, []string{"unikraft", "image", "copy", "nginx:latest", imageFull})
 
@@ -46,9 +46,9 @@ func TestImages(t *testing.T) {
 
 	t.Run("list-namespace", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
-		namespace := r.Config.Profile.Organization
+		namespace := r.Profile.Organization
 		imageName := namespace + "/nginx-ns:" + uniq()
-		imageFull := fmt.Sprintf("%s/%s", r.Config.Metro.Index().Host, imageName)
+		imageFull := fmt.Sprintf("%s/%s", r.Metro.Index().Host, imageName)
 		r.Run(t, []string{"unikraft", "image", "copy", "nginx:latest", imageFull})
 
 		out := r.Run(t, []string{"unikraft", "image", "list"})
@@ -75,12 +75,22 @@ func TestImages(t *testing.T) {
 		assert.Contains(t, out, imageName)
 	})
 
+	t.Run("list-without-metro", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		profile := r.Config.Profiles[r.Profile.Name]
+		profile.Metros = nil
+		r.Config.Profiles[r.Profile.Name] = profile
+		require.NoError(t, r.Config.Save())
+
+		r.Run(t, []string{"unikraft", "image", "list"})
+	})
+
 	t.Run("copy-local-archive", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		archive := filepath.Join(t.TempDir(), "nginx.oci.tar")
 		imageTag := uniq()
-		imageName := r.Config.Profile.Organization + "/nginx-archive:" + imageTag
-		imageFull := fmt.Sprintf("%s/%s", r.Config.Metro.Index().Host, imageName)
+		imageName := r.Profile.Organization + "/nginx-archive:" + imageTag
+		imageFull := fmt.Sprintf("%s/%s", r.Metro.Index().Host, imageName)
 
 		r.Run(t, []string{"unikraft", "image", "copy", "nginx:latest", archive})
 		assert.FileExists(t, archive)
@@ -98,7 +108,7 @@ func TestImages(t *testing.T) {
 
 	t.Run("build-architecture", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
-		imageName := r.Config.Profile.Organization + "/rom-arch-e2e:" + uniq()
+		imageName := r.Profile.Organization + "/rom-arch-e2e:" + uniq()
 
 		dir := writeRomProject(t)
 

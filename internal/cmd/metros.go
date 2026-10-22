@@ -35,6 +35,8 @@ type Metro struct {
 	Location string `field:",short" json:"location"`
 	Endpoint string `field:",short" json:"endpoint"`
 	Insecure *bool  `field:",long" json:"insecure"`
+
+	url string
 }
 
 func (Metro) Type() resource.Type {
@@ -62,7 +64,7 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 
 	quotas := &metroQuotas{
 		httpClient: baseClient,
-		endpoint:   i.Endpoint,
+		endpoint:   i.url,
 		name:       i.Name,
 	}
 	quotaFields, err := resource.FieldsFromStruct(quotas)
@@ -75,7 +77,7 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 		Subfields: quotaFields,
 	})
 
-	u, _ := url.Parse(i.Endpoint)
+	u, _ := url.Parse(i.url)
 	host := ""
 	scheme := ""
 	port := ""
@@ -166,7 +168,7 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 				return http.ErrUseLastResponse
 			},
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, i.Endpoint, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, i.url, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -222,6 +224,7 @@ func (Metro) List(ctx context.Context) ([]resource.Resource, error) {
 			Location: metro.Location,
 			Endpoint: metro.Endpoint,
 			Insecure: metro.Insecure,
+			url:      metro.URL(),
 		}
 		results = append(results, result)
 	}

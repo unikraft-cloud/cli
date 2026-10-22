@@ -24,6 +24,9 @@ volumes:
   readonly:         true
 snapshot:
   uuid:             2c3d4e5f-6a7b-8901-cdef-1234567890ab
+timing:
+  boot-time:        12ms
+  checkpoint-time:  78ms
 
 ==================================== kv-all ====================================
 metro:              fra
@@ -56,6 +59,10 @@ snapshot:
   uuid:             2c3d4e5f-6a7b-8901-cdef-1234567890ab
 timestamps:
   created:          never
+timing:
+  boot-time:        12ms
+  net-time:         34ms
+  checkpoint-time:  78ms
 scale-to-zero:
   enabled:          false
   policy:
@@ -285,6 +292,27 @@ fra    my-checkpoint  checkpoint  nginx  ["arg1", "arg2"]  256MiB  2      never
       }
     ],
     "verbosity": "short"
+  },
+  {
+    "name": "timing",
+    "subfields": [
+      {
+        "name": "boot-time",
+        "value": "12ms",
+        "verbosity": "long"
+      },
+      {
+        "name": "net-time",
+        "value": "34ms",
+        "verbosity": "hidden"
+      },
+      {
+        "name": "checkpoint-time",
+        "value": "78ms",
+        "verbosity": "long"
+      }
+    ],
+    "verbosity": "long"
   },
   {
     "name": "scale-to-zero",

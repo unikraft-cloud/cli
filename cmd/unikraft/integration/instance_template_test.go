@@ -23,7 +23,7 @@ func TestInstanceTemplates(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -60,7 +60,7 @@ func TestInstanceTemplates(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -86,7 +86,7 @@ func TestInstanceTemplates(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-base-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -102,7 +102,7 @@ func TestInstanceTemplates(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-from-template-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "template=" + templateName,
 		})
 
@@ -125,7 +125,7 @@ func TestInstanceTemplates(t *testing.T) {
 			"unikraft", "volume", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "size=10",
 		})
 
@@ -133,7 +133,7 @@ func TestInstanceTemplates(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -176,7 +176,7 @@ func TestInstanceTemplates(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",

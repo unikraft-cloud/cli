@@ -57,3 +57,8 @@ jobs:
       shell: bash
       run: |
           task go:ci/check
+
+    - name: Vet for windows
+      shell: bash
+      run: |
+          GOOS=windows go vet ./...

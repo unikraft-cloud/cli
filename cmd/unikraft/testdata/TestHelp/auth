@@ -6,8 +6,6 @@ Usage:
   unikraft login [flags]
 
 Flags:
-      --check
-          Check if the user is already logged in.
       --controlplane
           Control plane URL to use for login.
           [default: https://controlplane.unikraft.cloud]

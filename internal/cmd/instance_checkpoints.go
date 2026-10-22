@@ -14,6 +14,7 @@ import (
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
+	"unikraft.com/cloud/sdk/platform/timeouts"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
@@ -23,7 +24,6 @@ import (
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
-	"unikraft.com/cli/internal/timeouts"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -72,6 +72,12 @@ type InstanceCheckpoint struct {
 
 	Timestamps struct {
 		Created types.RelativeTime `mirror:"instance.created_at" field:",short"`
+	}
+
+	Timing struct {
+		BootTime       *types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
+		NetTime        *types.DurationUS `mirror:"instance.net_time_us"`
+		CheckpointTime *types.DurationUS `mirror:"instance.checkpoint_time_us" field:",long"`
 	}
 
 	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero"`

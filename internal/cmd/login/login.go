@@ -9,11 +9,14 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	jujuerrors "github.com/juju/errors"
 	"github.com/pkg/browser"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 	"unikraft.com/cloud/sdk/controlplane"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
@@ -24,8 +27,6 @@ import (
 )
 
 type LoginCmd struct {
-	Check bool `name:"check" help:"Check if the user is already logged in."`
-
 	ControlPlane  string `name:"controlplane" default:"https://controlplane.unikraft.cloud" help:"Control plane URL to use for login."`
 	AllowInsecure bool   `name:"allow-insecure" short:"k" help:"Allow insecure server connections when using SSL."`
 
@@ -47,27 +48,15 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 		Insecure:     cmd.AllowInsecure,
 	}
 
-	if cmd.Check {
-		profile, err := cfg.CurrentProfile()
-		if err != nil {
-			return jujuerrors.Errorf("no existing authentication token found")
-		}
-		if profile.Token != "" {
-			log.G(ctx).Info().
-				Str("organization", profile.Organization).
-				Msg("existing authentication token found")
-			return nil
-		}
-		return jujuerrors.Errorf("no existing authentication token found")
-	}
-
 	// Get the token either from file or via browser authentication
 	var token, organization, userUUID, orgUUID string
 	if cmd.Token != nil {
 		log.G(ctx).Info().
 			Msg("reading authentication token from file")
 
-		dt, err := os.ReadFile(cmd.Token.Name())
+		// Windows PowerShell 5.1 can write the file in UTF-16 or in UTF-8 with a BOM.
+		dec := unicode.BOMOverride(unicode.UTF8.NewDecoder())
+		dt, err := io.ReadAll(transform.NewReader(cmd.Token, dec))
 		if err != nil {
 			return jujuerrors.Annotate(err, "reading token file")
 		}

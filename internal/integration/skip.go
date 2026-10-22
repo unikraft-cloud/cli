@@ -6,6 +6,7 @@
 package integration
 
 import (
+	"runtime"
 	"testing"
 )
 
@@ -17,9 +18,17 @@ func SkipUnlessIntegration(t testing.TB) {
 	}
 }
 
-// SkipUnlessSupportedServer skips the test when the server is
+// RequireBuildkit skips the test on Windows, which has no BuildKit for Linux images yet.
+func RequireBuildkit(t testing.TB) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping test (no BuildKit on Windows)")
+	}
+}
+
+// RequireSupportedServer skips the test when the server is
 // not supported.
-func SkipUnlessSupportedServer(t testing.TB, servers []string) {
+func RequireSupportedServer(t testing.TB, servers []string) {
 	t.Helper()
 
 	if GetTestServer(servers) == nil {

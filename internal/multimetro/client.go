@@ -19,6 +19,15 @@ import (
 	"unikraft.com/cli/internal/httpclient"
 )
 
+// ErrNoMetros is returned when the profile has no metros to connect to.
+type ErrNoMetros struct {
+	Profile string
+}
+
+func (e ErrNoMetros) Error() string {
+	return fmt.Sprintf("profile %q has no metros configured", e.Profile)
+}
+
 type MetroClient struct {
 	platform.Client
 	Metro   config.Metro
@@ -34,7 +43,7 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 	metros := profile.Metros
 	if len(profile.Metros) == 0 {
 		if profile.ControlPlane == "" {
-			return nil, fmt.Errorf("profile %q has no metros configured", profile.Name)
+			return nil, ErrNoMetros{Profile: profile.Name}
 		}
 		metros, err = GetMetros(ctx, profile)
 		if err != nil {
@@ -47,7 +56,7 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 		copts := []platform.ClientOption{
 			platform.WithHTTPClient(httpClient),
 			platform.WithToken(profile.Token),
-			platform.WithDefaultMetro(metro.Endpoint),
+			platform.WithDefaultMetro(metro.URL()),
 		}
 		g = g.WithClient(
 			metro.Name,

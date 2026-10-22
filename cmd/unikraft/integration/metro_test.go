@@ -15,16 +15,16 @@ func TestMetros(t *testing.T) {
 	t.Run("get", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 
-		out := r.Run(t, []string{"unikraft", "metro", "get", r.Config.MetroName})
+		out := r.Run(t, []string{"unikraft", "metro", "get", r.MetroName})
 		assert.Contains(t, out, "name:")
-		assert.Contains(t, out, r.Config.MetroName)
+		assert.Contains(t, out, r.MetroName)
 		assert.Contains(t, out, "endpoint:")
 	})
 
 	t.Run("get-quotas", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 
-		out := r.Run(t, []string{"unikraft", "metro", "get", r.Config.MetroName, "-f", "+quotas"})
+		out := r.Run(t, []string{"unikraft", "metro", "get", r.MetroName, "-f", "+quotas"})
 		assert.Contains(t, out, "quotas:")
 		assert.Contains(t, out, "instances:")
 		assert.Contains(t, out, "vcpus:")

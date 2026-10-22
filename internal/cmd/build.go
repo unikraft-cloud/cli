@@ -14,7 +14,7 @@ import (
 type ImageBuildCmd struct {
 	Input  string   `arg:"" default:"." help:"Path to the project directory, Kraftfile, or Dockerfile. A directory without a Kraftfile is built from its Dockerfile."`
 	Output string   `short:"o" help:"Output destination"`
-	Arch   []string `help:"Only build the Kraftfile targets of these architectures. Defaults to every declared target. Required when the project declares no targets and no runtime, such as a bare Dockerfile." example:"x86_64,arm64"`
+	Arch   []string `help:"Only build the Kraftfile targets of these architectures. Defaults to every declared target, or x86_64 when only a runtime is declared. Required when the project declares no targets and no runtime, such as a bare Dockerfile." example:"x86_64,arm64"`
 
 	// similar to docker compose build
 	BuildArg []string `sep:"none" help:"Set build-time variables."`

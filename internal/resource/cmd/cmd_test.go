@@ -607,6 +607,11 @@ func TestListOutput(t *testing.T) {
 		output := runList(t, FormatOpts{Output: Printer{Type: PrinterTypeTemplate, Value: "{{.name}}-{{.id}}"}})
 		assert.Equal(t, "test1-id-test1\ntest2-id-test2\n", output)
 	})
+
+	t.Run("template unescaped", func(t *testing.T) {
+		output := runList(t, FormatOpts{Output: Printer{Type: PrinterTypeTemplate, Value: `{{printf "%s+<%s>&" .name .id}}`}})
+		assert.Equal(t, "test1+<id-test1>&\ntest2+<id-test2>&\n", output)
+	})
 }
 
 func TestPartialResultsPrintedBeforeError(t *testing.T) {
@@ -1555,6 +1560,7 @@ func tempFile(t *testing.T, contents string) string {
 
 	_, err = file.Seek(0, io.SeekStart)
 	require.NoError(t, err)
+	require.NoError(t, file.Close())
 
 	return file.Name()
 }

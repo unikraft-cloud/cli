@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -158,7 +159,12 @@ func fakeSandboxTarget(t *testing.T, fake http.Handler) sandbox.Target {
 // deafWriter is the far end of a pipeline whose reader has gone.
 type deafWriter struct{}
 
-func (deafWriter) Write([]byte) (int, error) { return 0, syscall.EPIPE }
+func (deafWriter) Write([]byte) (int, error) {
+	if runtime.GOOS == "windows" {
+		return 0, syscall.Errno(232) // ERROR_NO_DATA
+	}
+	return 0, syscall.EPIPE
+}
 
 func TestAFailedCommandLineIsTheCLIsStatus(t *testing.T) {
 	target := fakeSandboxTarget(t, &onePlugin{code: 3})

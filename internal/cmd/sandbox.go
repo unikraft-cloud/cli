@@ -8,7 +8,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -296,6 +299,10 @@ func (cmd ReadSandboxInstanceCmd) Examples() []kingkong.Example {
 }
 
 func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+	if err := checkLocalName(c.Remote, c.Local); err != nil {
+		return err
+	}
+
 	target, err := resolveSandboxTarget(ctx, stdio, partition, c.Target, c.SandboxPluginOpts)
 	if err != nil {
 		return err
@@ -321,7 +328,27 @@ func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 	return nil
 }
 
+// checkLocalName fails on Windows when Download names the local file after a
+// remote name with ':' or '\', which Windows reads as a stream or a directory.
+func checkLocalName(remote, local string) error {
+	name := path.Base(remote)
+	if runtime.GOOS != "windows" || !strings.ContainsAny(name, `:\`) {
+		return nil
+	}
+	if local != "" && !os.IsPathSeparator(local[len(local)-1]) {
+		if info, err := os.Stat(local); err != nil || !info.IsDir() {
+			return nil
+		}
+	}
+	return fmt.Errorf("remote name %q is not a valid file name on Windows, give a local file name", name)
+}
+
 func parseCopyPath(spec string) (target, filePath string) {
+	// A drive letter, as in C:\a.txt, starts a local path on Windows.
+	if filepath.VolumeName(spec) != "" {
+		return "", spec
+	}
+
 	i := strings.Index(spec, copyPathSeparator)
 	if i < 0 {
 		return "", spec
@@ -341,7 +368,7 @@ func parseCopyPath(spec string) (target, filePath string) {
 
 	target, filePath = spec[:i], spec[i+len(copyPathSeparator):]
 
-	if target == "" || filepath.IsAbs(target) || strings.HasPrefix(target, ".") || strings.HasPrefix(target, "~") {
+	if target == "" || os.IsPathSeparator(target[0]) || strings.HasPrefix(target, ".") || strings.HasPrefix(target, "~") {
 		return "", spec
 	}
 
@@ -436,6 +463,10 @@ func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, pa
 		return nil
 
 	default:
+		if err := checkLocalName(srcPath, dstPath); err != nil {
+			return err
+		}
+
 		target, err := resolveSandboxTarget(ctx, stdio, partition, srcTarget, c.SandboxPluginOpts)
 		if err != nil {
 			return err

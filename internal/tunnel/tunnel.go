@@ -16,9 +16,9 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/volimport"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
+	"unikraft.com/cloud/sdk/platform/volimport"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
 )

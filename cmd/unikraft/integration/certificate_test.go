@@ -19,6 +19,15 @@ import (
 )
 
 func TestCertificates(t *testing.T) {
+	t.Run("inspect-missing", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		missing := "test-" + uniq()
+
+		out := r.Run(t, []string{"unikraft", "certificate", "inspect", missing}, integ.ExpectFail())
+		assert.Contains(t, out, "references not found: ["+missing+"]")
+		assert.NotContains(t, out, "could not mirror certificate data")
+	})
+
 	t.Run("create", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		certNameA := uniq()
@@ -29,11 +38,11 @@ func TestCertificates(t *testing.T) {
 		out := r.Run(t, []string{"unikraft", "certificate", "list", "--output", "quiet"})
 		assert.Empty(t, strings.TrimSpace(out))
 
-		out = r.Run(t, []string{"unikraft", "certificate", "create", "--set", "name=test-" + certNameA, "--set", "cn=" + certA.CN, "--set", "chain=" + certA.Chain, "--set", "pkey=" + certA.Key, "--set", "metro=" + r.Config.MetroName})
+		out = r.Run(t, []string{"unikraft", "certificate", "create", "--set", "name=test-" + certNameA, "--set", "cn=" + certA.CN, "--set", "chain=" + certA.Chain, "--set", "pkey=" + certA.Key, "--set", "metro=" + r.MetroName})
 		assert.Regexp(t, `name:\s+test-`, out)
 		assert.Regexp(t, `state:\s+valid`, out)
 
-		out = r.Run(t, []string{"unikraft", "certificate", "create", "--set", "name=test-" + certNameB, "--set", "cn=" + certB.CN, "--set", "chain=" + certB.Chain, "--set", "pkey=" + certB.Key, "--set", "metro=" + r.Config.MetroName})
+		out = r.Run(t, []string{"unikraft", "certificate", "create", "--set", "name=test-" + certNameB, "--set", "cn=" + certB.CN, "--set", "chain=" + certB.Chain, "--set", "pkey=" + certB.Key, "--set", "metro=" + r.MetroName})
 		assert.Regexp(t, `name:\s+test-`, out)
 		assert.Regexp(t, `state:\s+valid`, out)
 
@@ -61,7 +70,7 @@ func TestCertificates(t *testing.T) {
 		out := r.Run(t, []string{
 			"unikraft", "certificate", "create",
 			"--set", "name=test-" + certName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--cn", cert.CN,
 			"--chain", chainPath,
 			"--pkey", keyPath,
@@ -94,7 +103,7 @@ func TestCertificates(t *testing.T) {
 			"--set", "cn=" + cert.CN,
 			"--set", "chain=" + cert.Chain,
 			"--set", "pkey=" + cert.Key,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		// Create an nginx instance with both the external FQDN (for the cert)
@@ -102,7 +111,7 @@ func TestCertificates(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=true",
 			"--set", "resources.memory=128",

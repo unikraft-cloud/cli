@@ -71,19 +71,19 @@ func TestInstancesHTTPOCI(t *testing.T) {
 	layout := filepath.Join(t.TempDir(), "layout")
 	r.Run(t, []string{"unikraft", "image", "copy", payload, "oci-layout://" + layout})
 
-	repository := r.Config.Profile.Organization + "/http-oci-e2e"
+	repository := r.Profile.Organization + "/http-oci-e2e"
 	content := t.TempDir()
 	dgst := tarLayout(t, layout, filepath.Join(content, repository))
 
 	r.Run(t, []string{
 		"unikraft", "volume", "create", "--output", "quiet",
-		"--set", "name=" + volName, "--set", "size=64", "--set", "metro=" + r.Config.MetroName,
+		"--set", "name=" + volName, "--set", "size=64", "--set", "metro=" + r.MetroName,
 	})
 	r.Run(t, []string{"unikraft", "--timeout", "30s", "volume", "wait", "--until", "state==available", volName})
 	r.Run(t, []string{"unikraft", "volume", "import", volName, "--source", content})
 
 	r.Run(t, []string{
-		"unikraft", "run", "--name", serverName, "--metro", r.Config.MetroName, "--output", "quiet",
+		"unikraft", "run", "--name", serverName, "--metro", r.MetroName, "--output", "quiet",
 		"--image", server, "-p", "80:8080/http", "-v", volName + ":/data",
 	})
 	r.Run(t, []string{"unikraft", "--timeout", "30s", "instance", "wait", "--until", "state==running", serverName})
@@ -95,7 +95,7 @@ func TestInstancesHTTPOCI(t *testing.T) {
 
 	image := "http+oci://" + fqdn + "/" + repository + "/@" + dgst
 	r.Run(t, []string{
-		"unikraft", "run", "--name", instName, "--metro", r.Config.MetroName, "--output", "quiet",
+		"unikraft", "run", "--name", instName, "--metro", r.MetroName, "--output", "quiet",
 		"--image", image, "--args", "echo UNIKRAFT_HTTP_OCI_OK",
 	})
 	r.Run(t, []string{"unikraft", "--timeout", "60s", "instance", "wait", "--until", "state==stopped", instName})

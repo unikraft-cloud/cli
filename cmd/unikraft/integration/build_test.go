@@ -25,7 +25,7 @@ func TestBuild(t *testing.T) {
 		t.Run("rom-"+romFormat, func(t *testing.T) {
 			r := runner(t, true, []string{staging, stable})
 			image := integ.Busybox.Build(t, r)
-			romImagePrefix := r.Config.Profile.Organization + "/rom-" + romFormat + "-e2e"
+			romImagePrefix := r.Profile.Organization + "/rom-" + romFormat + "-e2e"
 
 			imageTag := uniq()
 			instName := uniq()
@@ -58,7 +58,7 @@ roms:
 			).Apply(dir))
 
 			r.Run(t, []string{"unikraft", "build", "rom", "--arch", "x86_64", "--output", romImage}, integ.WithWorkDir(dir))
-			r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image, "--rom", romFlag, "--args", args})
+			r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.MetroName, "--output", "quiet", "--image", image, "--rom", romFlag, "--args", args})
 			r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 			out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
@@ -80,7 +80,7 @@ roms:
 			fstest.CreateFile("romdata/hello.txt", []byte("Hello from ROM!\n"), 0o644),
 		).Apply(dir))
 
-		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image, "--rom", "dir=romdata,at=/rom", "--args", "cat /rom/hello.txt"}, integ.WithWorkDir(dir))
+		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.MetroName, "--output", "quiet", "--image", image, "--rom", "dir=romdata,at=/rom", "--args", "cat /rom/hello.txt"}, integ.WithWorkDir(dir))
 		r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 		out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
@@ -99,9 +99,9 @@ roms:
 						var imagePrefix string
 						switch name {
 						case "registry":
-							imagePrefix = r.Config.Profile.Organization + "/busybox-e2e"
+							imagePrefix = r.Profile.Organization + "/busybox-e2e"
 						case "direct-push":
-							imagePrefix = r.Config.Metro.Index().Host + "/" + r.Config.Profile.Organization + "/busybox-e2e"
+							imagePrefix = r.Metro.Index().Host + "/" + r.Profile.Organization + "/busybox-e2e"
 						}
 						imageTag := uniq()
 						instName := uniq()
@@ -143,7 +143,7 @@ cmd: ["sh", "/entrypoint.sh"]
 						assert.Regexp(t, `busybox-e2e`, out)
 
 						r.Run(t, []string{"unikraft", "image", "ls", image, "-okv"})
-						r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image})
+						r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.MetroName, "--output", "quiet", "--image", image})
 						r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 						out = r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
@@ -175,7 +175,7 @@ cmd: ["sh", "/entrypoint.sh"]
 				r := runner(t, true, []string{staging, stable})
 				imageTag := uniq()
 				instName := uniq()
-				image := r.Config.Profile.Organization + "/dockerfile-e2e:" + imageTag
+				image := r.Profile.Organization + "/dockerfile-e2e:" + imageTag
 
 				dir := t.TempDir()
 				require.NoError(t, fstest.Apply(
@@ -194,7 +194,7 @@ CMD ["sh", "-c", "cat /etc/unikraft-e2e && echo UNIKRAFT_E2E_OK"]
 				out := r.Run(t, []string{"unikraft", "image", "inspect", image})
 				assert.Regexp(t, `dockerfile-e2e`, out)
 
-				r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image})
+				r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.MetroName, "--output", "quiet", "--image", image})
 				r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 				out = r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
@@ -213,7 +213,7 @@ CMD ["sh", "-c", "cat /etc/unikraft-e2e && echo UNIKRAFT_E2E_OK"]
 		r := runner(t, true, []string{staging, stable})
 		imageTag := uniq()
 		instName := uniq()
-		image := r.Config.Profile.Organization + "/kraftfile-path-e2e:" + imageTag
+		image := r.Profile.Organization + "/kraftfile-path-e2e:" + imageTag
 
 		dir := t.TempDir()
 		require.NoError(t, fstest.Apply(
@@ -245,7 +245,7 @@ cmd: ["sh", "-c", "cat /etc/unikraft-e2e && echo UNIKRAFT_E2E_OK"]
 		out := r.Run(t, []string{"unikraft", "image", "inspect", image})
 		assert.Regexp(t, `kraftfile-path-e2e`, out)
 
-		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image})
+		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.MetroName, "--output", "quiet", "--image", image})
 		r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 		out = r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
@@ -265,7 +265,7 @@ cmd: ["sh", "-c", "cat /etc/unikraft-e2e && echo UNIKRAFT_E2E_OK"]
 		r := runner(t, true, []string{staging, stable})
 		imageTag := uniq()
 		instName := uniq()
-		image := r.Config.Profile.Organization + "/kraftfile-precedence-e2e:" + imageTag
+		image := r.Profile.Organization + "/kraftfile-precedence-e2e:" + imageTag
 
 		dir := t.TempDir()
 		require.NoError(t, fstest.Apply(
@@ -292,7 +292,7 @@ cmd: ["sh", "-c", "cat /etc/unikraft-e2e && echo KRAFTFILE_CMD_USED"]
 		out := r.Run(t, []string{"unikraft", "image", "inspect", image})
 		assert.Regexp(t, `kraftfile-precedence-e2e`, out)
 
-		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image})
+		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.MetroName, "--output", "quiet", "--image", image})
 		r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 		out = r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
@@ -310,7 +310,7 @@ cmd: ["sh", "-c", "cat /etc/unikraft-e2e && echo KRAFTFILE_CMD_USED"]
 
 		instName := uniq()
 
-		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.Config.MetroName, "--output", "quiet", "--image", image, "--args", "echo UNIKRAFT_E2E_OK"})
+		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.MetroName, "--output", "quiet", "--image", image, "--args", "echo UNIKRAFT_E2E_OK"})
 		r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
 
 		out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})

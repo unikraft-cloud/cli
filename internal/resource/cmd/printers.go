@@ -11,10 +11,10 @@ import (
 	"encoding"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
 	"slices"
 	"strings"
+	"text/template"
 
 	"charm.land/lipgloss/v2"
 	"github.com/Masterminds/sprig/v3"

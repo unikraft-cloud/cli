@@ -142,7 +142,7 @@ func (m quotasModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		switch msg.Keystroke() {
-		case "ctrl+c", "q", "escape":
+		case "ctrl+c", "q", "esc":
 			return m, tea.Quit
 		case "tab", "right", "l":
 			if len(m.tabs) > 1 {

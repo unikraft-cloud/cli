@@ -25,7 +25,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -76,7 +76,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -111,7 +111,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 				"unikraft", "instance", "create",
 				"--output", "quiet",
 				"--set", "name=" + name,
-				"--set", "metro=" + r.Config.MetroName,
+				"--set", "metro=" + r.MetroName,
 				"--set", "image=nginx:latest",
 				"--set", "autostart=false",
 				"--set", "resources.memory=128",
@@ -158,7 +158,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -213,7 +213,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "volume", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + volName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "size=10",
 		})
 
@@ -228,7 +228,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -279,7 +279,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-base-" + baseName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -297,7 +297,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--checkpoint", checkpointName,
 			"--set", "name=test-restored-" + restoredName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-restored-" + restoredName})
@@ -322,7 +322,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--output", "quiet",
 			"--set", "name=test-base-" + baseName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=nginx:latest",
 			"--set", "autostart=false",
 			"--set", "resources.memory=128",
@@ -351,7 +351,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--checkpoint", checkpointName,
 			"--set", "name=test-restored-" + restoredName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 		})
 
 		out = r.Run(t, []string{"unikraft", "instance", "inspect", "test-restored-" + restoredName})
@@ -377,7 +377,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 		r.Run(t, []string{
 			"unikraft", "instance", "create",
 			"--set", "name=test-" + instName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "image=" + image,
 			"--set", "autostart=true",
 			"--set", "resources.memory=256",
@@ -416,7 +416,7 @@ func TestInstanceCheckpoints(t *testing.T) {
 			"unikraft", "instance", "create",
 			"--checkpoint", checkpointName,
 			"--set", "name=test-restored-" + restoredName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "autostart=true",
 			"--set", "service.services=443:8080/tls+http",
 			"--set", "service.domains=name=" + domainRestored,

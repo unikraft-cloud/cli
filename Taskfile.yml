@@ -131,7 +131,7 @@ tasks:
     - task: go:test
       vars:
         go_tags: "integration"
-        package: ./cmd/unikraft/integration ./internal/builder
+        package: ./cmd/unikraft/integration ./internal/cmd
         CLI_ARGS: '{{if .TEST}}-run "{{.TEST}}"{{end}}'
 
   golden:

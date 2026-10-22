@@ -6,6 +6,8 @@
 package cmd
 
 import (
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,12 +20,13 @@ import (
 // target and a path. An empty target means the whole specification is a local
 // path.
 func TestParseCopyPath(t *testing.T) {
-	for _, tt := range []struct {
+	type copyPathCase struct {
 		name   string
 		spec   string
 		target string
 		path   string
-	}{
+	}
+	cases := []copyPathCase{
 		// Nothing to split: no separator at all.
 		{"empty", "", "", ""},
 		{"bare-name", "file.txt", "", "file.txt"},
@@ -33,7 +36,6 @@ func TestParseCopyPath(t *testing.T) {
 		// A plain target and the path after its separator.
 		{"plain-target", "my-inst:/tmp/x", "my-inst", "/tmp/x"},
 		{"relative-remote-path", "my-inst:relative/path", "my-inst", "relative/path"},
-		{"single-character-target", "a:/tmp/x", "a", "/tmp/x"},
 		{"metro-qualified-target", "fra0/my-inst:/tmp/x", "fra0/my-inst", "/tmp/x"},
 
 		// The separator is the first colon that is not a prefix's own, so
@@ -65,7 +67,19 @@ func TestParseCopyPath(t *testing.T) {
 		{"colon-in-home-path", "~/back:up.tar", "", "~/back:up.tar"},
 		{"colon-in-absolute-path", "/tmp/a:b", "", "/tmp/a:b"},
 		{"leading-separator", ":/tmp/x", "", ":/tmp/x"},
-	} {
+	}
+	if runtime.GOOS == "windows" {
+		// A drive letter starts a local path, so a one-letter instance
+		// takes its "name:" prefix.
+		cases = append(cases, []copyPathCase{
+			{"drive-letter-path", `C:\x\a.txt`, "", `C:\x\a.txt`},
+			{"single-character-drive", "a:/tmp/x", "", "a:/tmp/x"},
+		}...)
+	} else {
+		cases = append(cases, copyPathCase{"single-character-target", "a:/tmp/x", "a", "/tmp/x"})
+	}
+
+	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			target, path := parseCopyPath(tt.spec)
 			assert.Equal(t, tt.target, target, "target")
@@ -131,4 +145,17 @@ func TestSandboxPluginDefault(t *testing.T) {
 			assert.Equal(t, defaultPluginImage, image)
 		})
 	}
+}
+
+func TestCheckLocalName(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows reads a colon in a file name as a stream")
+	}
+
+	dir := t.TempDir()
+	require.Error(t, checkLocalName("/var/log/app:1.log", ""), "the remote name becomes the local name")
+	require.Error(t, checkLocalName("/var/log/app:1.log", dir), "the remote name goes in the directory")
+	require.Error(t, checkLocalName(`/var/log/a\b.log`, ""), "a backslash makes a directory")
+	require.NoError(t, checkLocalName("/var/log/app:1.log", filepath.Join(dir, "app.log")), "a local name replaces it")
+	require.NoError(t, checkLocalName("/var/log/app.log", ""))
 }

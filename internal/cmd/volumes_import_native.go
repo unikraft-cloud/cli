@@ -21,16 +21,16 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"unikraft.com/cloud/sdk/platform/group"
+	"unikraft.com/cloud/sdk/platform/volimport"
+	"unikraft.com/x/build"
 	imagespec "unikraft.com/x/image-spec"
 	"unikraft.com/x/kraftfile"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
 
-	"unikraft.com/cli/internal/builder"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/volimport"
 )
 
 func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -70,14 +70,14 @@ func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition
 		return fmt.Errorf("unexpected resource type %T", resources[0])
 	}
 
-	sourceType, err := builder.DetectSourceType(c.Source)
+	sourceType, err := build.DetectSourceType(c.Source)
 	if err != nil {
 		return fmt.Errorf("detecting source type for %q: %w", c.Source, err)
 	}
 	plat := platforms.DefaultSpec()
 	plat.OS = imagespec.PlatformKraftcloud
-	importOpts := &builder.BuildOpts{
-		Rootfs: builder.FSOpts{
+	importOpts := &build.BuildOpts{
+		Rootfs: build.FSOpts{
 			Path: c.Source,
 			Type: sourceType,
 			// Set format to CPIO as volimport expects a CPIO archive
@@ -88,7 +88,11 @@ func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition
 
 	// Build an import archive from the data source.
 	log.G(ctx).Trace().Str("source", c.Source).Msg("packaging source as import archive")
-	images, err := builder.BuildRootfs(ctx, *importOpts)
+	var images []*imagespec.Image
+	err = buildWithProgress(ctx, func(b build.Builder) (err error) {
+		images, err = b.BuildRootfs(ctx, *importOpts)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("packaging source as import archive: %w", err)
 	}

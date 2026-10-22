@@ -35,7 +35,7 @@ func newSandboxInstance(t *testing.T, r *integ.TestEnv) string {
 		"unikraft", "instance", "create",
 		"--output", "quiet",
 		"--name", name,
-		"--metro", r.Config.MetroName,
+		"--metro", r.MetroName,
 		"--image", image,
 		"--args", "tail -f /dev/null",
 		"--plugin", "name=" + sandboxPlugin + ",rom=" + sandboxPluginRom,
@@ -313,7 +313,7 @@ func TestSandbox(t *testing.T) {
 			metroRemote := "/sb-metro-" + uniq() + ".txt"
 			r.Run(t, []string{
 				"unikraft", "instance", "copy",
-				"./payload.txt", r.Config.MetroName + "/" + instName + ":" + metroRemote,
+				"./payload.txt", r.MetroName + "/" + instName + ":" + metroRemote,
 			}, integ.WithWorkDir(dir))
 			assert.Equal(t, "qualified\n", remoteContents(t, r, instName, metroRemote))
 

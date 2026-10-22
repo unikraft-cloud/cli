@@ -8,6 +8,7 @@ package main
 import (
 	"errors"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -272,6 +273,8 @@ func quoteArg(arg string) string {
 }
 
 func normalizeOutput(s string) string {
+	// The version line names the platform the test runs on.
+	s = strings.ReplaceAll(s, "("+runtime.GOOS+"/"+runtime.GOARCH+")", "(os/arch)")
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	s = ansi.Strip(s)

@@ -18,10 +18,11 @@ import (
 
 	"unikraft.com/cloud/sdk/plugins/sandbox"
 
-	"unikraft.com/x/shell/builtins"
 	"unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/resource/cmd"
+	wkong "unikraft.com/cli/internal/w/kong"
 	"unikraft.com/cli/pkg/types"
 )
 
@@ -30,7 +31,7 @@ type fakeInstance struct {
 }
 
 type (
-	getCall    builtins.Format
+	getCall    cmd.FormatOpts
 	editCall   map[string]string
 	attachCall struct {
 		volume, at string
@@ -42,13 +43,13 @@ type (
 	suspendCall types.DurationMS
 )
 
-func (f *fakeInstance) Get(_ context.Context, _ stdio.Stdio, format builtins.Format) error {
+func (f *fakeInstance) Get(_ context.Context, _ stdio.Stdio, format cmd.FormatOpts) error {
 	f.calls = append(f.calls, getCall(format))
 	return nil
 }
 
-func (f *fakeInstance) Volumes(context.Context, stdio.Stdio, builtins.Format) error { return nil }
-func (f *fakeInstance) Start(context.Context, stdio.Stdio) error                    { return nil }
+func (f *fakeInstance) Volumes(context.Context, stdio.Stdio, cmd.FormatOpts) error { return nil }
+func (f *fakeInstance) Start(context.Context, stdio.Stdio) error                   { return nil }
 
 func (f *fakeInstance) Edit(_ context.Context, _ stdio.Stdio, set map[string]string) error {
 	f.calls = append(f.calls, editCall(set))
@@ -80,7 +81,7 @@ func (f *fakeInstance) Suspend(_ context.Context, _ stdio.Stdio, drainTimeout ty
 	return nil
 }
 
-func newTestBuiltins(t *testing.T, inst Instance) *builtins.Kong {
+func newTestBuiltins(t *testing.T, inst Instance) *Kong {
 	t.Helper()
 
 	answers, err := newShellBuiltins(shellBuiltins{inst: inst})
@@ -89,7 +90,7 @@ func newTestBuiltins(t *testing.T, inst Instance) *builtins.Kong {
 }
 
 // runBuiltin runs the builtin the line names, as the session would.
-func runBuiltin(t *testing.T, answers *builtins.Kong, streams stdio.Stdio, line ...string) (int, error) {
+func runBuiltin(t *testing.T, answers *Kong, streams stdio.Stdio, line ...string) (int, error) {
 	t.Helper()
 
 	b, ok := answers.Builtins()[line[0]]
@@ -161,7 +162,7 @@ func TestShellBuiltinsCallInstance(t *testing.T) {
 		want any
 	}{
 		{[]string{"get"}, getCall{}},
-		{[]string{"get", "-o", "json", "-f", "name,state"}, getCall{Field: []string{"name", "state"}, Output: "json"}},
+		{[]string{"get", "-o", "json", "-f", "name,state"}, getCall{Field: wkong.GreedyStrings{"name", "state"}, Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}},
 		{[]string{"edit", "memory=256Mi", "env=A=B"}, editCall{"memory": "256Mi", "env": "A=B"}},
 		{[]string{"mount", "--readonly", "vol", "/data"}, attachCall{"vol", "/data", true}},
 		{[]string{"unmount", "vol"}, detachCall("vol")},

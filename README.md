@@ -36,6 +36,19 @@ Use environment variable `UNIKRAFT_CLI_INSTALL_BIN_DIR` to customize the install
 </details>
 
 <details>
+<summary><strong>1-liner (Windows PowerShell)</strong></summary>
+
+```powershell
+irm https://unikraft.com/cli/install.ps1 | iex
+```
+
+Installs `unikraft.exe` into `%LOCALAPPDATA%\Programs\Unikraft\bin` and adds it to your user `PATH`.
+From `cmd.exe`, run `powershell -c "irm https://unikraft.com/cli/install.ps1 | iex"` instead.
+Use environment variable `UNIKRAFT_CLI_INSTALL_BIN_DIR` to customize the installation directory, or download the `windows` zip archive from the [releases page](https://github.com/unikraft-cloud/cli/releases).
+
+</details>
+
+<details>
 <summary><strong>Homebrew (macOS & Linux)</strong></summary>
 
 ```bash
@@ -201,7 +214,7 @@ cd cli
 # Build the CLI
 make cli
 
-# The binary is available at dist/unikraft
+# The binary is available in dist/
 ./dist/unikraft --version
 ```
 
@@ -236,6 +249,7 @@ profile:
 ```yaml
 # Linux: ~/.config/unikraft/config.yaml
 # MacOS: ~/Library/Application\ Support/unikraft/config.yaml
+# Windows: %AppData%\unikraft\config.yaml
 profile: default
 profiles:
   default:
@@ -410,9 +424,6 @@ unikraft completion -c zsh > "${fpath[1]}/_unikraft"
 
 # Fish
 unikraft completion -c fish > ~/.config/fish/completions/unikraft.fish
-
-# PowerShell
-unikraft completion -c powershell > unikraft.ps1
 ```
 
 ## Telemetry

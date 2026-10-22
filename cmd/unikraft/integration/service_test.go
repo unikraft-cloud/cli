@@ -26,7 +26,7 @@ func TestServices(t *testing.T) {
 		out = r.Run(t, []string{
 			"unikraft", "service", "create",
 			"--set", "name=test-" + svcNameA,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "domains=fqdn=" + domainA + ".unikraft.example",
 			"--set", "services=443:8080/tls+http",
 			"--set", "services=80:443/http+redirect",
@@ -42,7 +42,7 @@ func TestServices(t *testing.T) {
 		out = r.Run(t, []string{
 			"unikraft", "service", "create",
 			"--name", "test-" + svcNameB,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--domain", domainB + ".unikraft.example",
 			"--service", "443:8080/tls+http",
 			"--service", "80:443/http+redirect",
@@ -78,7 +78,7 @@ func TestServices(t *testing.T) {
 			"unikraft", "service", "create",
 			"--output", "quiet",
 			"--set", "name=test-" + svcName,
-			"--set", "metro=" + r.Config.MetroName,
+			"--set", "metro=" + r.MetroName,
 			"--set", "domains=fqdn=" + domainName + ".unikraft.example",
 			"--set", "services=443:8080/tls+http",
 		})
@@ -112,7 +112,7 @@ func TestServices(t *testing.T) {
 			"unikraft", "service", "create",
 			"--output", "quiet",
 			"--name", "test-" + svcName,
-			"--metro", r.Config.MetroName,
+			"--metro", r.MetroName,
 			"--domain", domainName + ".unikraft.example",
 			"--service", "443:8080/tls+http",
 		})

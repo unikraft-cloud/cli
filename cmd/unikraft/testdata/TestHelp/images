@@ -80,7 +80,7 @@ Flags:
   -o, --output
           Output destination.
       --arch
-          Only build the Kraftfile targets of these architectures. Defaults to every declared target. Required when the project declares no targets and no runtime, such as a bare Dockerfile.
+          Only build the Kraftfile targets of these architectures. Defaults to every declared target, or x86_64 when only a runtime is declared. Required when the project declares no targets and no runtime, such as a bare Dockerfile.
           [examples: x86_64, arm64]
       --build-arg
           Set build-time variables.

@@ -11,9 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
+
+	"github.com/alecthomas/kong"
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
+	"unikraft.com/cloud/sdk/platform/volimport"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
@@ -213,7 +217,7 @@ type Volume struct {
 
 	MountedBy []struct {
 		Link[Instance]
-		ReadOnly bool `mirror:"read_only" field:",long"`
+		ReadOnly bool `mirror:"readonly" field:",long"`
 	} `mirror:"volume.mounted_by"`
 
 	Volume platform.Volume `field:"-" json:"volume"`
@@ -628,6 +632,11 @@ func (c *VolumeDetachCmd) Run(ctx context.Context, stdio config.Stdio, partition
 	return editCmd.Run(ctx, stdio, partition)
 }
 
+var volumeImportKongVars = kong.Vars{
+	"volimport_image": volimport.DefaultImage,
+	"volimport_port":  strconv.Itoa(volimport.DefaultPort),
+}
+
 // VolumeImportCmd imports data from a local source into a volume by
 // temporarily spinning up a volimport instance, streaming a CPIO archive
 // over TLS, and cleaning up the instance afterwards.
@@ -635,8 +644,8 @@ type VolumeImportCmd struct {
 	Volume string `arg:"" completion-predictor:"resource-key-volume" help:"Name or UUID of the volume to import into." create:"set,required"`
 	Source string `short:"s" help:"Data source: local directory, CPIO archive, or Dockerfile." placeholder:"path" create:"set,required"`
 	Force  bool   `short:"f" help:"Force import even if the data might exceed volume capacity."`
-	Port   int    `short:"p" default:"42069" help:"Port to connect to the volume import service on." placeholder:"port" hidden:"true"`
-	Image  string `default:"official/utils/volimport:1.0" help:"Volume import image to use." placeholder:"image" hidden:"true"`
+	Port   int    `short:"p" default:"${volimport_port}" help:"Port to connect to the volume import service on." placeholder:"port" hidden:"true"`
+	Image  string `default:"${volimport_image}" help:"Volume import image to use." placeholder:"image" hidden:"true"`
 }
 
 func (VolumeImportCmd) Examples() []kingkong.Example {

@@ -178,6 +178,8 @@ type Metro struct {
 	Name string `json:"name" field:",short"`
 	// Endpoint for the metro.
 	Endpoint string `json:"endpoint" field:",long"`
+	// Proxy is an optional URL that the CLI connects through instead of Endpoint.
+	Proxy string `json:"proxy,omitempty" field:",long"`
 	// Location is the IATA code for where the metro is located.
 	Location string `json:"location" field:",short"`
 	// Allows insecure connections to the metro, skipping TLS verification.
@@ -191,6 +193,11 @@ type Index struct {
 	HTTP bool
 	// Insecure skips TLS verification when connecting to the index.
 	Insecure bool
+}
+
+// URL returns the URL to connect to the metro: Proxy if set, else Endpoint.
+func (m Metro) URL() string {
+	return cmp.Or(m.Proxy, m.Endpoint)
 }
 
 func (m Metro) Index() Index {

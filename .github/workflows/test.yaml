@@ -18,9 +18,16 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     env:
       TASK_X_REMOTE_TASKFILES: 1
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
       - uses: go-task/setup-task@v2
@@ -52,19 +59,18 @@ jobs:
           restore-keys: |
             ${{ github.job }}-${{ runner.os }}-go-
 
+      # The race detector needs cgo, which the Windows runner lacks.
       - name: Run unit tests
         id: unit
         continue-on-error: true
-        shell: bash
         run: |
-          task --yes unit-race
+          task --yes ${{ runner.os == 'Windows' && 'unit' || 'unit-race' }}
         env:
-          CGO_ENABLED: 1 # needed for race checker
+          CGO_ENABLED: ${{ runner.os == 'Windows' && '0' || '1' }}
 
       - name: Run golden tests
         id: golden
         continue-on-error: true
-        shell: bash
         run: |
           task --yes golden
 
@@ -156,12 +162,24 @@ jobs:
           UNIKRAFT_ENDPOINT: ${{ secrets[format('UNIKRAFT_ENDPOINT_{0}', matrix.target)] }}
           UNIKRAFT_X_TEST_SERVER: ${{ env[format('UNIKRAFT_SERVER_{0}', matrix.target)] }}
 
+  # The hosted Windows runners reach only the public prod endpoint.  The runners
+  # take turns, so that both do not use the same organization at once.
   integration-prod:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'arc-ubuntu24.04-standard' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        runner:
+        - ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'arc-ubuntu24.04-standard' }}
+        - windows-latest
+    runs-on: ${{ matrix.runner }}
     needs: integration
     env:
       TASK_X_REMOTE_TASKFILES: 1
       UNIKRAFT_SERVER_PROD: prod
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
       - uses: go-task/setup-task@v2
@@ -177,6 +195,7 @@ jobs:
       # Multi-platform rootfs builds run the target architecture's binaries,
       # which needs a binfmt handler registered with the kernel.
       - name: Set up QEMU
+        if: runner.os == 'Linux'
         uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
@@ -200,20 +219,22 @@ jobs:
           restore-keys: |
             ${{ github.job }}-${{ runner.os }}-go-
 
+      # The Windows runners have no BuildKit for Linux images, so the tests
+      # that build with it skip themselves.
       - name: Run integration tests (without auth)
         if: ${{ !(github.event_name == 'push' || !github.event.pull_request.head.repo.fork) }}
-        shell: bash
         run: |
           task --yes integration
         env:
           UNIKRAFT_X_TEST_SERVER: ${{ env['UNIKRAFT_CONFIG_PROD'] }}
 
+      # The CLI reads its config from %AppData% on Windows.
       - name: Run integration tests (with auth)
         if: ${{ github.event_name == 'push' || !github.event.pull_request.head.repo.fork }}
-        shell: bash
         run: |
-          mkdir -p ~/.config/unikraft
-          cat <<EOF > ~/.config/unikraft/config.yaml
+          config="${APPDATA:-$HOME/.config}/unikraft"
+          mkdir -p "$config"
+          cat <<EOF > "$config/config.yaml"
           profile: default
           profiles:
             default:

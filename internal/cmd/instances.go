@@ -22,12 +22,12 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/go-json-experiment/json/jsontext"
-	"mvdan.cc/sh/v3/shell"
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/cloud/sdk/platform/logs"
 	"unikraft.com/cloud/sdk/platform/stop"
+	"unikraft.com/cloud/sdk/platform/timeouts"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
@@ -39,8 +39,8 @@ import (
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/resource/value"
-	"unikraft.com/cli/internal/timeouts"
 	"unikraft.com/cli/internal/types"
+	wshell "unikraft.com/cli/internal/w/shell"
 )
 
 type InstancesCmd struct {
@@ -80,19 +80,24 @@ type InstanceCreateCmd struct {
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+	_, err := c.RunResources(ctx, stdio, partition)
+	return err
+}
+
+func (c *InstanceCreateCmd) RunResources(ctx context.Context, stdio config.Stdio, partition *resource.Partition) ([]resource.Resource, error) {
 	if c.DeleteOnStop {
 		c.Set = append(c.Set, map[string]string{"features": string(platform.InstanceFeatureDeleteOnStop)})
 	}
 	flags := c.GeneratedFlags()
 	if flags.IsSet("service") {
 		if flags.IsSet("service.services") {
-			return fmt.Errorf("--publish cannot be used with --service")
+			return nil, fmt.Errorf("--publish cannot be used with --service")
 		}
 		if flags.IsSet("service.domains") {
-			return fmt.Errorf("--domain cannot be used with --service")
+			return nil, fmt.Errorf("--domain cannot be used with --service")
 		}
 	}
-	return c.ResourceCreateCmd.Run(ctx, stdio, partition)
+	return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
 }
 
 type Instance struct {
@@ -125,8 +130,9 @@ type Instance struct {
 	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Attach ROM." placeholder:"name=<name>,image=<ref>,at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
 	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Load plugin into the instance." placeholder:"name=<name>,image=<ref>[,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
 
-	Networks []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
-	Gpus     []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
+	PrivateFQDN string            `mirror:"instance.private_fqdn" field:"private-fqdn,long"`
+	Networks    []InstanceNetwork `mirror:"instance.network_interfaces" field:",embed"`
+	Gpus        []InstanceGpu     `mirror:"instance.gpus" field:"gpus,embed"`
 
 	Timestamps struct {
 		Created types.RelativeTime `mirror:"instance.created_at" field:",short"`
@@ -138,9 +144,15 @@ type Instance struct {
 	Autokill    InstanceAutokill    `field:",embed" mirror:"instance.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time after the instance stops before it is deleted\n  num-requests: max requests before the instance is deleted" placeholder:"<key>=<value>" example:"time=5s,num-requests=100,time=5s\\,num-requests=100"`
 
 	Timing struct {
-		Uptime   types.DurationMS `mirror:"instance.uptime_ms"`
-		BootTime types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
-		NetTime  types.DurationUS `mirror:"instance.net_time_us"`
+		Uptime *types.DurationMS `mirror:"instance.uptime_ms"`
+
+		StartPrereqTime *types.DurationUS `mirror:"instance.start_prereq_time_us" field:"start-prereq-time,long"`
+		VmmPrestartTime *types.DurationUS `mirror:"instance.vmm_prestart_time_us" field:"vmm-prestart-time,long"`
+		VmmStartTime    *types.DurationUS `mirror:"instance.vmm_start_time_us" field:"vmm-start-time,long"`
+		VmmLoadTime     *types.DurationUS `mirror:"instance.vmm_load_time_us" field:"vmm-load-time,long"`
+		VmmReadyTime    *types.DurationUS `mirror:"instance.vmm_ready_time_us" field:"vmm-ready-time,long"`
+		BootTime        *types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
+		NetTime         *types.DurationUS `mirror:"instance.net_time_us"`
 	}
 
 	Restart struct {
@@ -153,10 +165,13 @@ type Instance struct {
 	Autostart     bool                    `field:"autostart,invisible,valueless" create:"set" flag:"autostart" help:"Start instance automatically."`
 	Replicas      int64                   `field:"replicas,invisible,valueless" create:"set" flag:"replicas" help:"Number of replicas." placeholder:"n" example:"1,3"`
 	Features      []string                `field:"features,invisible,valueless" create:"set" flag:"feature" sep:"none" help:"Instance feature." placeholder:"feature"`
-	Vsock         bool                    `field:"vsock,invisible,valueless" create:"set" edit:"set"`
 	Template      string                  `field:"template,invisible,valueless" create:"set" flag:"template" help:"Create from instance template." placeholder:"name"`
 	Branch        multimetro.Key          `field:"branch,invisible,valueless" create:"set" flag:"branch" help:"Branch from an existing instance." placeholder:"instance"`
 	Checkpoint    multimetro.Key          `field:"checkpoint,invisible,valueless" create:"set" flag:"checkpoint" help:"Create from a checkpoint." placeholder:"checkpoint"`
+
+	// NOTE: not supported on prod-staging/prod-stable
+	// this needs a custom platform build
+	Vsock bool `field:"vsock,invisible,valueless" create:"set" edit:"set"`
 
 	Stop struct {
 		Reason string     `field:",long"`
@@ -687,7 +702,7 @@ func (a *InstanceArgs) UnmarshalText(data []byte) error {
 		*a = s
 		return nil
 	}
-	fields, err := shell.Fields(s, func(string) string { return "" })
+	fields, err := wshell.Split(s)
 	if err != nil {
 		return fmt.Errorf("parsing args: %w", err)
 	}
