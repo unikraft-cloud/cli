@@ -17,6 +17,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcpserver"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
+	resourcet "unikraft.com/cli/internal/resource/testing"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -52,7 +53,7 @@ func (f *fakeInstances) Logs(_ context.Context, stdio config.Stdio, instance str
 }
 
 func instanceTools(commands mcpserver.InstanceCommands) func(*mcpserver.Server) error {
-	return func(s *mcpserver.Server) error { return s.AddInstanceTools(commands) }
+	return func(s *mcpserver.Server) error { return s.AddInstanceTools[resourcet.TestResource](commands) }
 }
 
 func TestInstanceTools(t *testing.T) {

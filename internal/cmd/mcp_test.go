@@ -7,6 +7,7 @@ package cmd
 
 import (
 	"io"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
+	"unikraft.com/cli/internal/resource"
 )
 
 func TestMCPServerTools(t *testing.T) {
@@ -75,4 +77,18 @@ func TestMCPResourceTypes(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmptyf(t, mcptest.ConnectServer(t, ctx, srv).ToolNames(), "type %s serves no tools", typ)
 	}
+}
+
+func TestMCPServerNoPartition(t *testing.T) {
+	ctx := config.WithConfig(t.Context(), &config.Config{})
+	partition, err := resource.LoadPartition(filepath.Join(t.TempDir(), "partition.json"), PartitionedResources...)
+	require.NoError(t, err)
+
+	srv, err := newMCPServer(ctx, io.Discard, partition, MCPCmd{})
+	require.NoError(t, err)
+	assert.Contains(t, mcptest.ConnectServer(t, ctx, srv).Instructions, "confined to a partition")
+
+	srv, err = newMCPServer(ctx, io.Discard, partition, MCPCmd{NoPartition: true})
+	require.NoError(t, err)
+	assert.NotContains(t, mcptest.ConnectServer(t, ctx, srv).Instructions, "partition")
 }

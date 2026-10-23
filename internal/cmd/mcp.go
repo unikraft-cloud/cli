@@ -52,6 +52,7 @@ type MCPCmd struct {
 	DocsURL     string   `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"https://unikraft.com/docs/" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
 	Listen      string   `name:"listen" placeholder:"host:port" help:"Serve the protocol over plain HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set."`
 	AllowRemote bool     `name:"allow-remote" help:"Let --listen bind a non-loopback address. Every client then acts with this profile's credentials, so only do this behind an authenticating proxy or on a private network."`
+	NoPartition bool     `name:"no-partition" hidden:"" help:"Reach every resource even when the CLI runs in a partition. Nothing the server creates is recorded in it."`
 }
 
 func (MCPCmd) Help() string {
@@ -184,6 +185,10 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *resource.Par
 	if err := checkResources(c.Resources); err != nil {
 		return nil, err
 	}
+	if c.NoPartition && partition != nil {
+		log.G(ctx).Debug().Str("path", partition.Path).Msg("ignoring partition")
+		partition = nil
+	}
 	var logger *slog.Logger
 	if log.G(ctx).GetLevel() <= log.DebugLevel {
 		logger = slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -201,21 +206,27 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *resource.Par
 		return nil, err
 	}
 	if err := errors.Join(
-		srv.AddTools[Instance](ctx, mcpserver.WithCreateDefault("autostart", true), mcpserver.WithEditNote(instanceEditNote)),
-		srv.AddTools[InstanceTemplate](ctx),
-		srv.AddTools[InstanceCheckpoint](ctx),
-		srv.AddTools[Volume](ctx),
-		srv.AddTools[VolumeTemplate](ctx),
+		srv.AddTools[Instance](ctx,
+			mcpserver.WithCreateDefault("autostart", true),
+			mcpserver.WithEditNote(instanceEditNote),
+			mcpserver.WithReference[InstanceTemplate]("template"),
+			mcpserver.WithReference[Instance]("branch"),
+			mcpserver.WithReference[InstanceCheckpoint]("checkpoint"),
+		),
+		srv.AddTools[InstanceTemplate](ctx, mcpserver.WithReference[Instance]("instance")),
+		srv.AddTools[InstanceCheckpoint](ctx, mcpserver.WithReference[Instance]("instance")),
+		srv.AddTools[Volume](ctx, mcpserver.WithReference[VolumeTemplate]("template")),
+		srv.AddTools[VolumeTemplate](ctx, mcpserver.WithReference[Volume]("volume")),
 		srv.AddTools[ServiceGroup](ctx),
 		srv.AddListTool[Certificate](ctx),
 		srv.AddCreateTool[Certificate](ctx),
 		srv.AddDeleteTool[Certificate](ctx),
 		srv.AddListTool[ImageEntry](ctx),
-		srv.AddGetTool[Image](ctx, imageGetDescription),
+		srv.AddGetTool[Image](ctx, imageGetDescription, mcpserver.WithoutPartition()),
 		srv.AddDeleteTool[Image](ctx),
 		srv.AddListTool[Metro](ctx),
 		srv.AddListTool[Profile](ctx),
-		srv.AddInstanceTools(mcpInstanceCommands{}),
+		srv.AddInstanceTools[Instance](mcpInstanceCommands{}),
 		srv.AddSandboxTools(mcpSandboxCommands{partition: partition}),
 	); err != nil {
 		return nil, err

@@ -25,6 +25,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/resource"
 	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/resource/patch"
 )
 
 // AddTools registers every tool a fully capable resource type supports.
@@ -73,7 +74,11 @@ type getArgs struct {
 	Fields []string `json:"fields"`
 }
 
-func (s *Server) AddGetTool[R resource.GettableResource](ctx context.Context, description string) error {
+func (s *Server) AddGetTool[R resource.GettableResource](ctx context.Context, description string, opts ...ToolOption) error {
+	partition := s.opts.Partition
+	if newToolOptions(opts).unpartitioned {
+		partition = nil
+	}
 	return s.resourceTool[R](ctx, false, func(typ resource.Type, fields []resource.Field) error {
 		return s.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "get"),
@@ -85,7 +90,7 @@ func (s *Server) AddGetTool[R resource.GettableResource](ctx context.Context, de
 			return (&cmd.ResourceGetCmd[R]{
 				Targets:    args.Keys,
 				FormatOpts: JSONFormat(args.Fields...),
-			}).Run(ctx, stdio, s.opts.Partition)
+			}).Run(ctx, stdio, partition)
 		})
 	})
 }
@@ -96,6 +101,8 @@ type ToolOption func(*toolOptions)
 type toolOptions struct {
 	createDefaults map[string]any
 	editNote       string
+	references     map[string]resource.GettableResource
+	unpartitioned  bool
 }
 
 func newToolOptions(opts []ToolOption) toolOptions {
@@ -124,6 +131,26 @@ func WithEditNote(note string) ToolOption {
 	}
 }
 
+// WithReference declares that the create tool's field at path names an
+// existing R by key, so a partitioned server can refuse keys outside it.
+func WithReference[R resource.GettableResource](path string) ToolOption {
+	return func(o *toolOptions) {
+		if o.references == nil {
+			o.references = map[string]resource.GettableResource{}
+		}
+		var empty R
+		o.references[path] = empty
+	}
+}
+
+// WithoutPartition makes the get tool resolve keys outside the partition,
+// like the CLI's image get, which also inspects public images.
+func WithoutPartition() ToolOption {
+	return func(o *toolOptions) {
+		o.unpartitioned = true
+	}
+}
+
 type createArgs struct {
 	Set    map[string]jsontext.Value `json:"set"`
 	DryRun bool                      `json:"dry_run"`
@@ -133,8 +160,14 @@ func (s *Server) AddCreateTool[R resource.CreatableResource](ctx context.Context
 	return s.resourceTool[R](ctx, true, func(typ resource.Type, fields []resource.Field) error {
 		name := toolName(typ.Name, "create")
 		schema := createSchema(fields)
+		o := newToolOptions(opts)
+		for path := range o.references {
+			if _, ok := schema.Properties["set"].Properties[path]; !ok {
+				return fmt.Errorf("%s: cannot reference %q: not a creatable field", name, path)
+			}
+		}
 		defaults := make(map[string]jsontext.Value)
-		for path, value := range newToolOptions(opts).createDefaults {
+		for path, value := range o.createDefaults {
 			prop, ok := schema.Properties["set"].Properties[path]
 			if !ok {
 				return fmt.Errorf("%s: cannot default %q: not a creatable field", name, path)
@@ -160,6 +193,10 @@ func (s *Server) AddCreateTool[R resource.CreatableResource](ctx context.Context
 				if v, ok := args.Set[path]; !ok || v.Kind() == 'n' {
 					args.Set[path] = value
 				}
+			}
+			spec := patch.PatchSpec{Create: true, Set: patchSpec(args.Set)}
+			if err := s.checkCreate(ctx, fields, spec, o.references); err != nil {
+				return err
 			}
 			return (&cmd.ResourceCreateCmd[R]{
 				Set:        patchArgs(args.Set),
@@ -187,6 +224,10 @@ func (s *Server) AddEditTool[R resource.EditableResource](ctx context.Context, o
 			InputSchema: editSchema(typ, fields),
 			Annotations: mutatingAnnotations(),
 		}, true, func(ctx context.Context, args editArgs, stdio config.Stdio) error {
+			spec := patch.PatchSpec{Set: patchSpec(args.Set), Add: patchSpec(args.Add)}
+			if err := s.checkEdit[R](ctx, args.Key, spec); err != nil {
+				return err
+			}
 			return (&cmd.ResourceEditCmd[R]{
 				Target:     args.Key,
 				Set:        patchArgs(args.Set),
@@ -215,8 +256,12 @@ func (s *Server) AddDeleteTool[R resource.DeletableResource](ctx context.Context
 			if len(args.Keys) == 0 {
 				return fmt.Errorf("no %s specified", typ.Names)
 			}
+			keys, err := s.partitionKeys[R](ctx, args.Keys)
+			if err != nil {
+				return err
+			}
 			return (&cmd.ResourceRemoveCmd[R]{
-				Targets:    args.Keys,
+				Targets:    keys,
 				FormatOpts: JSONFormat(),
 			}).Run(ctx, stdio, s.opts.Partition)
 		})
@@ -315,17 +360,6 @@ func (s *Server) capture(ctx context.Context, structured bool, run func(context.
 	return res
 }
 
-func (s *Server) syncPartition(run func() error) error {
-	p := s.opts.Partition
-	if p == nil {
-		return run()
-	}
-	if err := p.Reload(); err != nil {
-		return err
-	}
-	return errors.Join(run(), p.Save())
-}
-
 func unmarshalArgs(args []byte, schema *jsonschema.Schema, v any) error {
 	var members map[string]jsontext.Value
 	if err := json.Unmarshal(args, &members); err != nil {
@@ -345,6 +379,16 @@ func unmarshalArgs(args []byte, schema *jsonschema.Schema, v any) error {
 		return fmt.Errorf("invalid arguments: %w", err)
 	}
 	return nil
+}
+
+func patchSpec(values map[string]jsontext.Value) map[string][]string {
+	spec := make(map[string][]string, len(values))
+	for path, v := range values {
+		if vs := patchValues(v); len(vs) > 0 {
+			spec[path] = vs
+		}
+	}
+	return spec
 }
 
 func patchArgs(values map[string]jsontext.Value) []map[string]string {

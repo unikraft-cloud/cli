@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -46,6 +47,8 @@ type Server struct {
 	opts Options
 
 	resources map[string]bool
+
+	partitionMu sync.Mutex
 }
 
 func New(ctx context.Context, opts Options) (*Server, error) {
@@ -78,7 +81,7 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 			Version:    opts.Version,
 			WebsiteURL: serverWebsiteURL,
 		}, &mcp.ServerOptions{
-			Instructions: instructions(opts.ReadOnly, slices.Sorted(maps.Keys(resources)), d),
+			Instructions: instructions(opts.ReadOnly, opts.Partition != nil, slices.Sorted(maps.Keys(resources)), d),
 			Logger:       opts.Logger,
 		}),
 		opts:      opts,
@@ -106,7 +109,7 @@ func (s *Server) Connect(ctx context.Context, t mcp.Transport) (*mcp.ServerSessi
 	return s.srv.Connect(ctx, t, nil)
 }
 
-func instructions(readOnly bool, resources []string, d *docs) string {
+func instructions(readOnly, partitioned bool, resources []string, d *docs) string {
 	text := `Tools are named <resource>_<operation>: list, create, edit and delete for each Unikraft Cloud resource type. A list tool returns everything unless keys names specific resources, so it doubles as get. image_get inspects any image reference, including public ones. instance_control starts, stops, restarts or suspends instances and instance_logs reads their console output. instance_create starts the new instance unless autostart is set to false; do that only when the user explicitly asks for a stopped instance.
 
 Resource keys accept a name, a UUID, or metro/name to target one metro. Reads fan out to every metro of the current profile; narrow a list with filter entries such as metro==fra or state==running.
@@ -121,6 +124,9 @@ Results come back as JSON text and as structured content under "resources". Pass
 	}
 	if len(resources) > 0 {
 		text += "\n\nOnly the tools of these resource types are served: " + strings.Join(resources, ", ") + "."
+	}
+	if partitioned {
+		text += "\n\nThis server is confined to a partition: its tools only see and act on the resources recorded in it, which include everything the server creates. List tools leave other resources out, and keys or field values that name them are rejected."
 	}
 	if readOnly {
 		text += "\n\nThis server runs in read-only mode: only the list, image_get, instance_logs and sandbox_read tools are available."
