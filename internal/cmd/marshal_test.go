@@ -16,9 +16,9 @@ import (
 	"unikraft.com/cloud/sdk/platform"
 
 	"unikraft.com/cli/internal/cmd"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/patch"
-	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/patch"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -280,7 +280,7 @@ func TestEditPatches(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		res     resource.Resource
+		res     model.Model
 		spec    patch.PatchSpec
 		want    map[string]string
 		wantErr string
@@ -379,7 +379,7 @@ func TestEditPatches(t *testing.T) {
 			require.NoError(t, err)
 
 			got := map[string]string{}
-			for path, f := range resource.IterFields(patched) {
+			for path, f := range model.IterFields(patched) {
 				if f.Edit == nil {
 					continue
 				}
@@ -411,7 +411,7 @@ func TestLinkCollection(t *testing.T) {
 	}{Name: "attached-inst"})
 	vol.MountedBy = append(vol.MountedBy, struct {
 		cmd.Link[cmd.Instance]
-		ReadOnly bool `mirror:"readonly" field:",long"`
+		ReadOnly bool `mirror:"readonly" field:",long" help:"Whether the instance mounts the volume read-only."`
 	}{Name: "mounted-inst"})
 
 	sg := cmd.ServiceGroup{}
@@ -420,7 +420,7 @@ func TestLinkCollection(t *testing.T) {
 	}{Name: "member-inst"})
 
 	for _, tt := range []struct {
-		res  resource.Resource
+		res  model.Model
 		path string
 		want string
 	}{
@@ -433,7 +433,7 @@ func TestLinkCollection(t *testing.T) {
 			require.NoError(t, err)
 
 			var got []string
-			for path, f := range resource.IterFields(fields) {
+			for path, f := range model.IterFields(fields) {
 				if path.String() != tt.path {
 					continue
 				}
@@ -495,7 +495,7 @@ service:
 `, string(shown))
 
 	got := map[string]string{}
-	for path, f := range resource.IterFields(out) {
+	for path, f := range model.IterFields(out) {
 		if f.Create == nil || f.Create.Set == nil {
 			continue
 		}

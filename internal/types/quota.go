@@ -12,15 +12,15 @@ import (
 	"strconv"
 	"strings"
 
-	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/tui/meter"
 )
 
 // Usage represents a used/limit pair for quota tracking.
 // It marshals to text as "used/limit".
 type Usage[T any] struct {
-	Used  T `field:",long"`
-	Limit T `field:",long"`
+	Used  T `field:",long" help:"Amount in use."`
+	Limit T `field:",long" help:"Maximum allowed."`
 }
 
 func (u Usage[T]) MarshalText() ([]byte, error) {
@@ -38,8 +38,8 @@ func (u Usage[T]) Value() any {
 // Range represents a min/max range for quota limits.
 // It marshals to text as "min...max".
 type Range[T any] struct {
-	Min T `field:",long"`
-	Max T `field:",long"`
+	Min T `field:",long" help:"Smallest allowed value."`
+	Max T `field:",long" help:"Largest allowed value."`
 }
 
 func (r Range[T]) MarshalText() ([]byte, error) {

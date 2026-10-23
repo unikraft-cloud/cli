@@ -20,70 +20,70 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
 )
 
 type InstanceTemplatesCmd struct {
-	cmd.ResourceCmd[InstanceTemplate]
-	cmd.GettableResourceCmd[InstanceTemplate]
-	cmd.ListableResourceCmd[InstanceTemplate]
-	cmd.BulkDeletableResourceCmd[InstanceTemplate]
+	cmd.ModelCmd[InstanceTemplate]
+	cmd.GettableModelCmd[InstanceTemplate]
+	cmd.ListableModelCmd[InstanceTemplate]
+	cmd.BulkDeletableModelCmd[InstanceTemplate]
 
-	Create cmd.ResourceCreateCmd[InstanceTemplate] `cmd:"" help:"Create an instance template."`
-	Edit   cmd.ResourceEditCmd[InstanceTemplate]   `cmd:"" help:"Edit an instance template."`
+	Create cmd.ModelCreateCmd[InstanceTemplate] `cmd:"" help:"Create an instance template."`
+	Edit   cmd.ModelEditCmd[InstanceTemplate]   `cmd:"" help:"Edit an instance template."`
 }
 
 type InstanceTemplate struct {
-	Metro LinkName[Metro] `field:"metro,short"`
-	Name  string          `mirror:"instance.name" field:",short"`
-	UUID  string          `mirror:"instance.uuid" field:",long"`
+	Metro LinkName[Metro] `field:"metro,short" help:"Metro the template is in."`
+	Name  string          `mirror:"instance.name" field:",short" help:"Template name, unique per metro."`
+	UUID  string          `mirror:"instance.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
-	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
-	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the template."`
+	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-dev"`
+	Annotations map[string]string `mirror:"instance.annotations" field:",long" help:"Key-value metadata: up to 256 entries with Kubernetes-style [prefix/]name keys. Unlike tags, annotations reach the guest in its start data."`
+	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed. Also pauses autokill."`
 
-	Autokill Autokill `field:",embed" mirror:"instance.template_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time without a clone before the template is deleted" placeholder:"<key>=<value>" example:"time=24h"`
+	Autokill Autokill `field:",embed" mirror:"instance.template_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time since the template was last cloned before it is deleted, such as 24h, 0 disables" placeholder:"<key>=<value>" example:"time=24h"`
 
-	State types.InstanceState    `mirror:"instance.state" field:",short"`
-	Image types.ImageRef         `mirror:"instance.image" field:",short"`
-	Type_ *platform.InstanceType `mirror:"instance.type" field:"type,long"`
+	State types.InstanceState    `mirror:"instance.state" field:",short" help:"Lifecycle state: stopped, starting, running, draining (finishing requests before a stop), stopping, standby (scaled to zero, woken by traffic), template, checkpoint or deleted."`
+	Image types.ImageRef         `mirror:"instance.image" field:",short" help:"Image of the template, as an OCI reference or a full registry URL."`
+	Type_ *platform.InstanceType `mirror:"instance.type" field:"type,long" help:"Virtual machine type.\n  micro: Firecracker microVM (default)\n  full: QEMU virtual machine with GPU support, needs a plan with full VM support and has no branching, checkpoints, vertical scaling, annotations or virtiofs volumes"`
 
 	Runtime struct {
-		Args InstanceArgs      `mirror:"instance.args" field:",short"`
-		Env  map[string]string `mirror:"instance.env" field:",long"`
-	}
+		Args InstanceArgs      `mirror:"instance.args" field:",short" help:"Command-line arguments passed to the instance at start."`
+		Env  map[string]string `mirror:"instance.env" field:",long" help:"Environment variable as KEY=value."`
+	} `help:"Runtime configuration passed to the instance."`
 
 	Resources struct {
-		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short"`
-		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short"`
-	}
+		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short" help:"Memory for the instance."`
+		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short" help:"Number of vCPUs."`
+	} `help:"Compute resources of the instance."`
 
-	Volumes []InstanceTemplateVolume `mirror:"instance.volumes" field:",embed"`
+	Volumes []InstanceTemplateVolume `mirror:"instance.volumes" field:",embed" help:"Volumes attached to the instance."`
 
 	Snapshot struct {
-		UUID string `mirror:"instance.snapshot.uuid" field:",long"`
-	}
+		UUID string `mirror:"instance.snapshot.uuid" field:",long" help:"Unique identifier of the snapshot."`
+	} `help:"Snapshot holding the memory state."`
 
 	Timestamps struct {
-		Created types.RelativeTime `mirror:"instance.created_at" field:",short"`
-	}
+		Created types.RelativeTime `mirror:"instance.created_at" field:",short" help:"Creation time."`
+	} `help:"Lifecycle timestamps."`
 
 	Timing struct {
-		BootTime     *types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
-		NetTime      *types.DurationUS `mirror:"instance.net_time_us"`
-		TemplateTime *types.DurationUS `mirror:"instance.template_time_us" field:",long"`
-	}
+		BootTime     *types.DurationUS `mirror:"instance.boot_time_us" field:",long" help:"Time the guest took to boot on the last start."`
+		NetTime      *types.DurationUS `mirror:"instance.net_time_us" help:"Time from start until the application listened on a non-localhost port."`
+		TemplateTime *types.DurationUS `mirror:"instance.template_time_us" field:",long" help:"Time the instance took to reach the template state after the template was requested."`
+	} `help:"Start-up and template time measurements."`
 
-	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero"`
+	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" help:"Scale-to-zero options. Traffic through a service or to the private IP wakes the instance.\n  policy: on | idle (also while open TCP connections are idle, needs stateful=true) | off\n  cooldown-time: ms of inactivity before scaling to zero\n  notify-time: ms the instance is warned beforehand, 0 disables and the value must be below cooldown-time\n  stateful: true keeps RAM in a snapshot and resumes from it, false restarts from scratch"`
 
 	Restart struct {
-		Policy string `mirror:"instance.restart_policy"`
-	}
+		Policy string `mirror:"instance.restart_policy" help:"Restart policy. Restarts back off from immediate up to 5m. Cannot be combined with the delete-on-stop feature.\n  never: never restart (default)\n  always: restart whenever the instance exits or crashes\n  on-failure: restart only after a crash or a non-zero exit code"`
+	} `help:"Restart policy."`
 
-	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to convert into a template."`
+	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to turn into a template, by name or UUID. A running instance is suspended into a snapshot first and becomes the template itself."`
 
 	Instance platform.Instance `field:"-" json:"instance"`
 	Profile  *config.Profile   `field:"-" json:"profile"`
@@ -91,14 +91,14 @@ type InstanceTemplate struct {
 	key multimetro.Key
 }
 
-func (InstanceTemplate) Type() resource.Type {
-	return resource.Type{
+func (InstanceTemplate) Type() model.Type {
+	return model.Type{
 		Name:  "instance-template",
 		Names: "instance-templates",
 	}
 }
 
-func (i InstanceTemplate) Key() resource.Key {
+func (i InstanceTemplate) Key() model.Key {
 	return i.key
 }
 
@@ -106,8 +106,8 @@ func (i InstanceTemplate) Raw() any {
 	return i.Instance
 }
 
-func (i InstanceTemplate) Fields(ctx context.Context) ([]resource.Field, error) {
-	result, err := resource.FieldsFromStruct(i)
+func (i InstanceTemplate) Fields(ctx context.Context) ([]model.Field, error) {
+	result, err := model.FieldsFromStruct(i)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (i InstanceTemplate) Fields(ctx context.Context) ([]resource.Field, error) 
 	return result, nil
 }
 
-func (InstanceTemplate) List(ctx context.Context) ([]resource.Resource, error) {
+func (InstanceTemplate) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -124,13 +124,13 @@ func (InstanceTemplate) List(ctx context.Context) ([]resource.Resource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing instance templates")
 		resp, err := c.GetTemplateInstances(ctx, nil, platform.GetTemplateInstancesOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -147,7 +147,7 @@ func (InstanceTemplate) List(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
-func (InstanceTemplate) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (InstanceTemplate) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -156,14 +156,14 @@ func (InstanceTemplate) Get(ctx context.Context, keys []string) ([]resource.Reso
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting instance templates")
 		resp, err := c.GetTemplateInstances(ctx, refs.NameOrUUIDs(), platform.GetTemplateInstancesOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -244,7 +244,7 @@ func (InstanceTemplate) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (InstanceTemplate) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (InstanceTemplate) Edit(ctx context.Context, key string, fields []model.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 	patches, err := patchRequests(fields, instanceTemplatePatchSpec)
 	if err != nil {
@@ -312,10 +312,10 @@ func instanceTemplatePatchSpec(path string, op patchOp, value any) (platform.Mut
 	}
 }
 
-func (InstanceTemplate) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (InstanceTemplate) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var instance string
 	var autokill Autokill
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
 		}

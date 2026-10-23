@@ -21,50 +21,50 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
-	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/types"
 )
 
 type ServicesCmd struct {
-	cmd.ResourceCmd[ServiceGroup]
-	cmd.GettableResourceCmd[ServiceGroup]
-	cmd.WaitableResourceCmd[ServiceGroup]
-	cmd.ListableResourceCmd[ServiceGroup]
-	cmd.BulkDeletableResourceCmd[ServiceGroup]
+	cmd.ModelCmd[ServiceGroup]
+	cmd.GettableModelCmd[ServiceGroup]
+	cmd.WaitableModelCmd[ServiceGroup]
+	cmd.ListableModelCmd[ServiceGroup]
+	cmd.BulkDeletableModelCmd[ServiceGroup]
 
-	Create cmd.ResourceCreateCmd[ServiceGroup] `cmd:"" help:"Create a service group."`
-	Edit   cmd.ResourceEditCmd[ServiceGroup]   `cmd:"" help:"Edit a service group."`
+	Create cmd.ModelCreateCmd[ServiceGroup] `cmd:"" help:"Create a service group."`
+	Edit   cmd.ModelEditCmd[ServiceGroup]   `cmd:"" help:"Edit a service group."`
 }
 
 type ServiceGroup struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
-	Name  string          `mirror:"service_group.name" field:",short" create:"set" flag:"name" help:"Service group name." placeholder:"name"`
-	UUID  string          `mirror:"service_group.uuid" field:",long"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"service_group.name" field:",short" create:"set" flag:"name" help:"Service group name. Generated when omitted." placeholder:"name"`
+	UUID  string          `mirror:"service_group.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	Persistent bool `mirror:"service_group.persistent" field:",long"`
-	Autoscale  bool `mirror:"service_group.autoscale" field:",short"`
+	Persistent bool `mirror:"service_group.persistent" field:",long" help:"False while the group belongs to the instance that created it inline and is deleted with it. Turns true once another instance joins or autoscale is enabled."`
+	Autoscale  bool `mirror:"service_group.autoscale" field:",short" help:"Whether autoscale is enabled for the group."`
 
 	Limits struct {
-		Soft uint64 `mirror:"service_group.soft_limit" field:",long" create:"set" edit:"set" flag:"soft-limit" help:"Soft limit." placeholder:"n" example:"1,5"`
-		Hard uint64 `mirror:"service_group.hard_limit" field:",long" create:"set" edit:"set" flag:"hard-limit" help:"Hard limit." placeholder:"n" example:"10,100"`
-	}
+		Soft uint64 `mirror:"service_group.soft_limit" field:",long" create:"set" edit:"set" flag:"soft-limit" help:"Concurrent requests per instance before the load balancer wakes a standby instance of the group. Between 1 and 65535, defaults to 1 on create." placeholder:"n" example:"1,5"`
+		Hard uint64 `mirror:"service_group.hard_limit" field:",long" create:"set" edit:"set" flag:"hard-limit" help:"Maximum concurrent requests per instance, at least the soft limit. Between 1 and 65535, defaults to 65535 on create. Excess requests go to another instance or fail." placeholder:"n" example:"10,100"`
+	} `help:"Concurrent request limits per instance, used for load balancing."`
 
-	Autokill Autokill `field:",embed" mirror:"service_group.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time the group must stay empty before it is deleted" placeholder:"<key>=<value>" example:"time=5m"`
+	Autokill Autokill `field:",embed" mirror:"service_group.autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time the group must stay without instances before it is deleted, such as 5m, 0 disables" placeholder:"<key>=<value>" example:"time=5m"`
 
 	Timestamps struct {
-		Created types.RelativeTime `mirror:"service_group.created_at" field:",short"`
-	}
+		Created types.RelativeTime `mirror:"service_group.created_at" field:",short" help:"Creation time."`
+	} `help:"Lifecycle timestamps."`
 
-	Domains []Domain `mirror:"service_group.domains" field:",embed" create:"set" edit:"set,add,del" flag:"domain" sep:"none" help:"Service domain." placeholder:"fqdn" example:"example.com"`
+	Domains []Domain `mirror:"service_group.domains" field:",embed" create:"set" edit:"set,add,del" flag:"domain" sep:"none" help:"Domain for the group.\n  myapp: a bare label becomes a subdomain of the metro\n  example.com: a dotted name is a custom domain, with a certificate issued automatically unless given as fqdn=example.com,certificate=my-cert" placeholder:"fqdn" example:"example.com,myapp"`
 
 	Instances []struct {
 		Link[Instance]
-	} `mirror:"service_group.instances"`
+	} `mirror:"service_group.instances" help:"Instances in the group."`
 
-	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del" flag:"service" sep:"none" help:"Service port." placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls"`
+	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del" flag:"service" sep:"none" help:"Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.\n  http: load balance per HTTP request instead of per TCP connection\n  tls: terminate TLS at the platform\n  redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect" placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls,80:443/http+redirect"`
 
 	ServiceGroup platform.ServiceGroup `field:"-" json:"service_group"`
 
@@ -72,9 +72,9 @@ type ServiceGroup struct {
 }
 
 type Service struct {
-	Source      uint32                       `mirror:"port" json:"source" field:",short"`
-	Destination uint32                       `mirror:"destination_port" json:"destination" field:",short"`
-	Handlers    []platform.ConnectionHandler `mirror:"handlers" json:"handlers" field:",short"`
+	Source      uint32                       `mirror:"port" json:"source" field:",short" help:"Public port."`
+	Destination uint32                       `mirror:"destination_port" json:"destination" field:",short" help:"Port the instance listens on."`
+	Handlers    []platform.ConnectionHandler `mirror:"handlers" json:"handlers" field:",short" help:"Connection handlers: http, tls, redirect."`
 }
 
 func (s *Service) MarshalText() ([]byte, error) {
@@ -142,10 +142,10 @@ func (s *Service) UnmarshalText(text []byte) error {
 
 type Domain struct {
 	// TODO: consolidate these and make easier to parse
-	FQDN string `name:"fqdn" json:"fqdn" mirror:"fqdn" field:",short"`
+	FQDN string `name:"fqdn" json:"fqdn" mirror:"fqdn" field:",short" help:"Fully qualified domain name."`
 	Name string `name:"name" json:"name,omitempty" field:"-"` // field:"-" excludes from field system, name:"name" allows --set parsing
 
-	Certificate TextLink[Certificate] `name:"certificate" json:"certificate,omitzero" mirror:"certificate" field:",embed"`
+	Certificate TextLink[Certificate] `name:"certificate" json:"certificate,omitzero" mirror:"certificate" field:",embed" help:"Certificate serving the domain."`
 }
 
 func (d *Domain) UnmarshalText(text []byte) error {
@@ -190,14 +190,14 @@ func (d *Domain) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, (*domainJSON)(d))
 }
 
-func (ServiceGroup) Type() resource.Type {
-	return resource.Type{
+func (ServiceGroup) Type() model.Type {
+	return model.Type{
 		Name:  "service",
 		Names: "services",
 	}
 }
 
-func (s ServiceGroup) Key() resource.Key {
+func (s ServiceGroup) Key() model.Key {
 	return s.key
 }
 
@@ -205,9 +205,9 @@ func (s ServiceGroup) Raw() any {
 	return s.ServiceGroup
 }
 
-func (s ServiceGroup) Fields(ctx context.Context) ([]resource.Field, error) {
+func (s ServiceGroup) Fields(ctx context.Context) ([]model.Field, error) {
 	s.Metro = LinkName[Metro](defaultMetro(ctx, string(s.Metro)))
-	result, err := resource.FieldsFromStruct(s)
+	result, err := model.FieldsFromStruct(s)
 	if err != nil {
 		return nil, err
 	}
@@ -216,18 +216,18 @@ func (s ServiceGroup) Fields(ctx context.Context) ([]resource.Field, error) {
 	return result, nil
 }
 
-func (ServiceGroup) List(ctx context.Context) ([]resource.Resource, error) {
+func (ServiceGroup) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing service groups")
 		resp, err := c.GetServiceGroups(ctx, nil, platform.GetServiceGroupsOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -243,19 +243,19 @@ func (ServiceGroup) List(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
-func (ServiceGroup) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (ServiceGroup) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting service groups")
 		resp, err := c.GetServiceGroups(ctx, refs.NameOrUUIDs(), platform.GetServiceGroupsOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -324,10 +324,10 @@ func (ServiceGroup) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (ServiceGroup) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (ServiceGroup) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var req platform.CreateServiceGroupRequest
 	var metro string
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create != nil && field.Create.Set != nil {
 			switch key.String() {
 			case "metro":
@@ -407,7 +407,7 @@ func (ServiceGroup) Create(ctx context.Context, fields []resource.Field) ([]reso
 	return results, nil
 }
 
-func (ServiceGroup) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (ServiceGroup) Edit(ctx context.Context, key string, fields []model.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 	patches, err := patchRequests(fields, serviceGroupPatchSpec)
 	if err != nil {

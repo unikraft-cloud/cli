@@ -29,14 +29,14 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/images"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
 )
 
 type ImagesCmd struct {
-	cmd.ResourceCmd[ImageEntry]
+	cmd.ModelCmd[ImageEntry]
 
 	Build  ImageBuildCmd   `cmd:"" help:"Build a Unikraft project into a container image."`
 	Get    ImagesGetCmd    `cmd:"" help:"Inspect an image." aliases:"inspect,show"`
@@ -46,49 +46,49 @@ type ImagesCmd struct {
 }
 
 type Image struct {
-	Ref    types.ImageRef `field:",short"`
-	Digest digest.Digest  `field:",long"`
+	Ref    types.ImageRef `field:",short" help:"Image reference, such as user/app:tag."`
+	Digest digest.Digest  `field:",long" help:"Content digest of the image."`
 
-	Config   ImageConfig   `field:",embed"`
-	Metadata ImageMetadata `field:",long,embed"`
+	Config   ImageConfig   `field:",embed" help:"Runtime configuration of the image."`
+	Metadata ImageMetadata `field:",long,embed" help:"Image metadata."`
 
-	Kernel      *ImageFile  `field:",long,embed"`
-	KernelDebug *ImageFile  `field:"kernel-dbg,long,embed"`
-	Initrd      *ImageFile  `field:",long,embed"`
-	Roms        []ImageFile `field:",long,embed"`
+	Kernel      *ImageFile  `field:",long,embed" help:"Kernel of the image."`
+	KernelDebug *ImageFile  `field:"kernel-dbg,long,embed" help:"Kernel of the image with debug symbols."`
+	Initrd      *ImageFile  `field:",long,embed" help:"Initial ramdisk of the image."`
+	Roms        []ImageFile `field:",long,embed" help:"ROMs packaged with the image."`
 
 	Image imagespec.Image `field:"-" json:"image"`
 }
 
 type ImageConfig struct {
-	Platform types.Platform `field:",short"`
+	Platform types.Platform `field:",short" help:"Platform the image is built for."`
 
-	Cmd []string          `field:",long"`
-	Env map[string]string `field:",long"`
+	Cmd []string          `field:",long" help:"Default command-line arguments of the image."`
+	Env map[string]string `field:",long" help:"Environment variables set by the image."`
 }
 
 type imageNamespacesKey struct{}
 
 type ImageMetadata struct {
-	Author  string     `field:",long"`
-	Created *time.Time `field:",long"`
+	Author  string     `field:",long" help:"Author of the image."`
+	Created *time.Time `field:",long" help:"Creation time."`
 }
 
 type ImageFile struct {
-	Digest      digest.Digest     `field:",long"`
-	MediaType   string            `field:",long"`
-	Annotations map[string]string `field:",long"`
-	Size        types.SizeBytes   `field:",long"`
+	Digest      digest.Digest     `field:",long" help:"Digest of the image layer holding the file."`
+	MediaType   string            `field:",long" help:"Media type of the image layer holding the file."`
+	Annotations map[string]string `field:",long" help:"Annotations of the image layer holding the file."`
+	Size        types.SizeBytes   `field:",long" help:"Size of the image layer holding the file."`
 }
 
-func (Image) Type() resource.Type {
-	return resource.Type{
+func (Image) Type() model.Type {
+	return model.Type{
 		Name:  "image",
 		Names: "images",
 	}
 }
 
-func (i Image) Key() resource.Key {
+func (i Image) Key() model.Key {
 	return staticKey(i.Ref.String())
 }
 
@@ -96,8 +96,8 @@ func (i Image) Raw() any {
 	return i.Image.Descriptor
 }
 
-func (i Image) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(i)
+func (i Image) Fields(ctx context.Context) ([]model.Field, error) {
+	return model.FieldsFromStruct(i)
 }
 
 func imageFileFrom(file imagespec.File) *ImageFile {
@@ -131,13 +131,13 @@ func imageRomsFrom(files []imagespec.File) []ImageFile {
 	return roms
 }
 
-func (Image) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (Image) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	access, err := images.Accessor(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	perKey := make([][]resource.Resource, len(keys))
+	perKey := make([][]model.Model, len(keys))
 	eg := joinerrgroup.Group{}
 	for i, key := range keys {
 		eg.Go(func() error {
@@ -253,10 +253,10 @@ func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
 }
 
 type ImageEntry struct {
-	Ref    types.ImageRef `field:",short"`
-	Digest digest.Digest  `field:",short"`
+	Ref    types.ImageRef `field:",short" help:"Image reference, such as user/app:tag."`
+	Digest digest.Digest  `field:",short" help:"Content digest of the image."`
 
-	Namespace string
+	Namespace string `help:"First path segment of the reference, usually the organization."`
 
 	Canonical reference.Reference `field:"-"`
 
@@ -264,14 +264,14 @@ type ImageEntry struct {
 	platformImage     *platform.Image
 }
 
-func (ImageEntry) Type() resource.Type {
-	return resource.Type{
+func (ImageEntry) Type() model.Type {
+	return model.Type{
 		Name:  "image",
 		Names: "images",
 	}
 }
 
-func (i ImageEntry) Key() resource.Key {
+func (i ImageEntry) Key() model.Key {
 	return staticKey(i.Ref.String())
 }
 
@@ -285,21 +285,21 @@ func (i ImageEntry) Raw() any {
 	return nil
 }
 
-func (i ImageEntry) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(i)
+func (i ImageEntry) Fields(ctx context.Context) ([]model.Field, error) {
+	return model.FieldsFromStruct(i)
 }
 
 func (ImageEntry) Examples() map[cmd.CmdType][]kingkong.Example {
 	return Image{}.Examples()
 }
 
-func (ImageEntry) List(ctx context.Context) ([]resource.Resource, error) {
+func (ImageEntry) List(ctx context.Context) ([]model.Model, error) {
 	client, err := multimetro.NewControlClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var controlplaneResults, platformResults []resource.Resource
+	var controlplaneResults, platformResults []model.Model
 
 	eg, ctx := joinerrgroup.WithContext(ctx)
 	eg.Go(func() error {
@@ -364,7 +364,7 @@ func (ImageEntry) List(ctx context.Context) ([]resource.Resource, error) {
 	return results, nil
 }
 
-func listPlatformImages(ctx context.Context) ([]resource.Resource, error) {
+func listPlatformImages(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if _, ok := errors.AsType[multimetro.ErrNoMetros](err); ok {
 		log.G(ctx).Trace().Err(err).Msg("skipping image-store listing")
@@ -375,7 +375,7 @@ func listPlatformImages(ctx context.Context) ([]resource.Resource, error) {
 	}
 	namespaces, _ := ctx.Value(imageNamespacesKey{}).([]string)
 
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing images from image-store")
 
 		resp, err := c.GetImageStore(ctx, nil, platform.GetImageStoreOpts{})
@@ -389,7 +389,7 @@ func listPlatformImages(ctx context.Context) ([]resource.Resource, error) {
 			}
 		}
 
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp.Data != nil {
 			for _, image := range resp.Data.Images {
@@ -431,7 +431,7 @@ func (k imageKey) matches(entry ImageEntry) bool {
 	return subject.Matches(k.ref)
 }
 
-func (ImageEntry) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (ImageEntry) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	client, err := multimetro.NewControlClient(ctx)
 	if err != nil {
 		return nil, err
@@ -453,7 +453,7 @@ func (ImageEntry) Get(ctx context.Context, keys []string) ([]resource.Resource, 
 	}
 
 	found := make(map[string]struct{}, len(normalizedKeys))
-	var results []resource.Resource
+	var results []model.Model
 	var errs []error
 	if resp.Data != nil {
 		for _, image := range resp.Data.Images {
@@ -701,7 +701,7 @@ func (ImageEntry) loadFromPlatform(image platform.Image, metro *config.Metro) ([
 }
 
 type ImagesGetCmd struct {
-	cmd.ResourceGetCmd[Image]
+	cmd.ModelGetCmd[Image]
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 }
 
@@ -715,15 +715,15 @@ func (c *ImagesGetCmd) Run(ctx context.Context, stdio config.Stdio) error {
 		}
 		ctx = images.WithInsecureContext(ctx, opts...)
 	}
-	return c.ResourceGetCmd.Run(ctx, stdio, nil)
+	return c.ModelGetCmd.Run(ctx, stdio, nil)
 }
 
 type ImagesDeleteCmd struct {
-	cmd.ResourceRemoveCmd[Image]
+	cmd.ModelRemoveCmd[Image]
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 }
 
-func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	if c.Insecure != nil {
 		var opts []images.AccessorOpt
 		if len(c.Insecure) > 0 {
@@ -736,7 +736,7 @@ func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio config.Stdio, partition
 	// HACK: don't partition-filter the delete: image references may not match the
 	// canonical form stored in the partition. The partition teardown handles cleanup
 	// of images that weren't manually deleted.
-	return c.ResourceRemoveCmd.Run(ctx, stdio, nil)
+	return c.ModelRemoveCmd.Run(ctx, stdio, nil)
 }
 
 type ImagesCopyCmd struct {
@@ -769,7 +769,7 @@ func (cmd ImagesCopyCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *resource.Partition) error {
+func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *model.Partition) error {
 	var opts []images.AccessorOpt
 	if cmd.Insecure != nil {
 		if len(cmd.Insecure) > 0 {
@@ -822,18 +822,18 @@ func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *resource.Partition)
 }
 
 type ImagesListCmd struct {
-	cmd.ResourceListCmd[ImageEntry]
+	cmd.ModelListCmd[ImageEntry]
 
 	Namespace []string `help:"Only list images in this namespace."`
 }
 
-func (c *ImagesListCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
-	return c.ResourceListCmd.Run(context.WithValue(ctx, imageNamespacesKey{}, c.Namespace), stdio, partition)
+func (c *ImagesListCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+	return c.ModelListCmd.Run(context.WithValue(ctx, imageNamespacesKey{}, c.Namespace), stdio, partition)
 }
 
 // addImageToPartition registers an image reference with the partition so it gets
 // cleaned up during teardown.
-func addImageToPartition(ctx context.Context, partition *resource.Partition, ref string) error {
+func addImageToPartition(ctx context.Context, partition *model.Partition, ref string) error {
 	parsed, err := images.ParseRef(ref)
 	if err != nil {
 		return fmt.Errorf("parsing image reference %q: %w", ref, err)

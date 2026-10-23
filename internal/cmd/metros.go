@@ -14,8 +14,8 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/httpclient"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
 	wsync "unikraft.com/cli/internal/w/sync"
 	"unikraft.com/cloud/sdk/platform"
@@ -25,28 +25,28 @@ import (
 )
 
 type MetrosCmd struct {
-	cmd.ResourceCmd[Metro]
-	cmd.GettableResourceCmd[Metro]
-	cmd.ListableResourceCmd[Metro]
+	cmd.ModelCmd[Metro]
+	cmd.GettableModelCmd[Metro]
+	cmd.ListableModelCmd[Metro]
 }
 
 type Metro struct {
-	Name     string `field:",short" json:"name"`
-	Location string `field:",short" json:"location"`
-	Endpoint string `field:",short" json:"endpoint"`
-	Insecure *bool  `field:",long" json:"insecure"`
+	Name     string `field:",short" json:"name" help:"Metro name, such as fra."`
+	Location string `field:",short" json:"location" help:"IATA code of the metro location."`
+	Endpoint string `field:",short" json:"endpoint" help:"API endpoint URL of the metro."`
+	Insecure *bool  `field:",long" json:"insecure" help:"Skip TLS verification when connecting to the metro's API and image index."`
 
 	url string
 }
 
-func (Metro) Type() resource.Type {
-	return resource.Type{
+func (Metro) Type() model.Type {
+	return model.Type{
 		Name:  "metro",
 		Names: "metros",
 	}
 }
 
-func (i Metro) Key() resource.Key {
+func (i Metro) Key() model.Key {
 	return staticKey(i.Name)
 }
 
@@ -54,8 +54,8 @@ func (i Metro) Raw() any {
 	return i
 }
 
-func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
-	fields, err := resource.FieldsFromStruct(i)
+func (i Metro) Fields(ctx context.Context) ([]model.Field, error) {
+	fields, err := model.FieldsFromStruct(i)
 	if err != nil {
 		return nil, err
 	}
@@ -67,13 +67,14 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 		endpoint:   i.url,
 		name:       i.Name,
 	}
-	quotaFields, err := resource.FieldsFromStruct(quotas)
+	quotaFields, err := model.FieldsFromStruct(quotas)
 	if err != nil {
 		return nil, err
 	}
-	fields = append(fields, resource.Field{
+	fields = append(fields, model.Field{
 		Name:      "quotas",
-		Verbosity: resource.FieldVerbosityLong,
+		Help:      "Usage and limits of your quota in the metro.",
+		Verbosity: model.FieldVerbosityLong,
 		Subfields: quotaFields,
 	})
 
@@ -186,23 +187,27 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 	})
 
 	// Add a grouped "status" field with lazy-computed subfields
-	fields = append(fields, resource.Field{
+	fields = append(fields, model.Field{
 		Name:      "status",
-		Verbosity: resource.FieldVerbosityLong,
-		Subfields: []resource.Field{
+		Help:      "Reachability of the metro endpoint.",
+		Verbosity: model.FieldVerbosityLong,
+		Subfields: []model.Field{
 			{
 				Name:          "ip",
-				Verbosity:     resource.FieldVerbosityLong,
+				Help:          "IP addresses the endpoint resolves to.",
+				Verbosity:     model.FieldVerbosityLong,
 				ValueCallback: ip,
 			},
 			{
 				Name:          "ping",
-				Verbosity:     resource.FieldVerbosityLong,
+				Help:          "TCP connection latency to the endpoint.",
+				Verbosity:     model.FieldVerbosityLong,
 				ValueCallback: ping,
 			},
 			{
 				Name:          "online",
-				Verbosity:     resource.FieldVerbosityLong,
+				Help:          "Whether the endpoint answers an HTTP request without a server error: online or offline.",
+				Verbosity:     model.FieldVerbosityLong,
 				ValueCallback: online,
 			},
 		},
@@ -211,13 +216,13 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 	return fields, nil
 }
 
-func (Metro) List(ctx context.Context) ([]resource.Resource, error) {
+func (Metro) List(ctx context.Context) ([]model.Model, error) {
 	profile, err := config.G(ctx).CurrentProfile()
 	if err != nil {
 		return nil, err
 	}
 
-	var results []resource.Resource
+	var results []model.Model
 	for _, metro := range profile.Metros {
 		result := Metro{
 			Name:     metro.Name,
@@ -231,7 +236,7 @@ func (Metro) List(ctx context.Context) ([]resource.Resource, error) {
 	return results, nil
 }
 
-func (Metro) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (Metro) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	return getFromListable(ctx, Metro{}, keys)
 }
 
@@ -262,29 +267,29 @@ func (Metro) Examples() map[cmd.CmdType][]kingkong.Example {
 
 type metroQuotas struct {
 	Instances struct {
-		Active types.Usage[int64] `field:",long,embed"`
-		Total  types.Usage[int64] `field:",long,embed"`
-	} `field:",long"`
+		Active types.Usage[int64] `field:",long,embed" help:"Instances not in the stopped state. The platform reports the vCPU limit as its limit."`
+		Total  types.Usage[int64] `field:",long,embed" help:"All instances."`
+	} `field:",long" help:"Instance counts."`
 	Vcpus struct {
-		Active types.Usage[int64] `field:",long,embed"`
-	} `field:",long"`
+		Active types.Usage[int64] `field:",long,embed" help:"vCPUs of instances not in the stopped state."`
+	} `field:",long" help:"vCPU usage."`
 	Memory struct {
-		Active types.Usage[types.SizeMebibytes] `field:",long,embed"`
-	} `field:",long"`
+		Active types.Usage[types.SizeMebibytes] `field:",long,embed" help:"Memory assigned to instances not in the stopped state."`
+	} `field:",long" help:"Memory usage."`
 	Services struct {
-		Groups  types.Usage[int64] `field:",long,embed"`
-		Exposed types.Usage[int64] `field:",long,embed"`
-	} `field:",long"`
+		Groups  types.Usage[int64] `field:",long,embed" help:"Service groups."`
+		Exposed types.Usage[int64] `field:",long,embed" help:"Published ports across all service groups."`
+	} `field:",long" help:"Service usage."`
 	Volumes struct {
-		Count types.Usage[int64]               `field:",long,embed"`
-		Total types.Usage[types.SizeMebibytes] `field:",long,embed"`
-	} `field:",long"`
+		Count types.Usage[int64]               `field:",long,embed" help:"Number of volumes."`
+		Total types.Usage[types.SizeMebibytes] `field:",long,embed" help:"Volume space counted against your quota: the full size of static volumes plus the used space of dynamic ones."`
+	} `field:",long" help:"Volume usage."`
 	Limits struct {
-		Vcpus     types.Range[int64]               `field:",long,embed"`
-		Memory    types.Range[types.SizeMebibytes] `field:",long,embed"`
-		Volume    types.Range[types.SizeMebibytes] `field:",long,embed"`
-		Autoscale types.Range[int64]               `field:",long,embed"`
-	} `field:",long"`
+		Vcpus     types.Range[int64]               `field:",long,embed" help:"vCPUs per instance."`
+		Memory    types.Range[types.SizeMebibytes] `field:",long,embed" help:"Memory per instance."`
+		Volume    types.Range[types.SizeMebibytes] `field:",long,embed" help:"Size of a volume."`
+		Autoscale types.Range[int64]               `field:",long,embed" help:"Size of an autoscale group."`
+	} `field:",long" help:"Allowed range for a single resource."`
 
 	httpClient *http.Client
 	endpoint   string

@@ -28,7 +28,7 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/images"
-	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/model"
 )
 
 // localBuildkit is the buildkitd that builds run on.
@@ -84,7 +84,7 @@ func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error 
 	return err
 }
 
-func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
+func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
 	buildOpts, err := build.LoadBuildOpts(ctx, c.Input)
 	if err != nil {
 		return err
@@ -178,6 +178,6 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	return nil
 }
 
-func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
+func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
 	return c.ImageBuildCmd.Run(ctx, cfg, partition)
 }

@@ -31,8 +31,8 @@ import (
 	"unikraft.com/cli/internal/cmd/login"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/logfmt"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	wkong "unikraft.com/cli/internal/w/kong"
 	wmaps "unikraft.com/cli/internal/w/maps"
 )
@@ -54,6 +54,7 @@ type UnikraftCLI struct {
 	Resources    AnyResourceCmd  `cmd:"" group:"cmd-resources" hidden:"" help:"Manage any Unikraft Cloud resource." aliases:"resource,resources" set:"name=resource" set:"names=resources"`
 
 	API APICmd `cmd:"" group:"cmd-utilities" help:"Make an authenticated HTTP request to the Unikraft Cloud API."`
+	MCP MCPCmd `cmd:"" group:"cmd-utilities" help:"Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP."`
 
 	Login   login.LoginCmd  `cmd:"" group:"cmd-config" help:"Login to Unikraft Cloud."`
 	Logout  login.LogoutCmd `cmd:"" group:"cmd-config" help:"Logout from Unikraft Cloud."`
@@ -130,17 +131,17 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 	kongcompletion.Register(
 		parser,
 		kongcompletion.WithPredictor("resource-key-path", complete.PredictFiles("*")),
-		kongcompletion.WithPredictor("resource-key-profile", cmd.PredictResourceKey[Profile](ctx)),
-		kongcompletion.WithPredictor("resource-key-metro", cmd.PredictResourceKey[Metro](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance", cmd.PredictResourceKey[Instance](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance-template", cmd.PredictResourceKey[InstanceTemplate](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance-checkpoint", cmd.PredictResourceKey[InstanceCheckpoint](ctx)),
-		kongcompletion.WithPredictor("resource-key-volume", cmd.PredictResourceKey[Volume](ctx)),
-		kongcompletion.WithPredictor("resource-key-volume-template", cmd.PredictResourceKey[VolumeTemplate](ctx)),
-		kongcompletion.WithPredictor("resource-key-service", cmd.PredictResourceKey[ServiceGroup](ctx)),
-		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictResourceKey[Certificate](ctx)),
-		kongcompletion.WithPredictor("resource-key-image", cmd.PredictResourceKey[ImageEntry](ctx)),
-		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictResourceKey[AnyResource](ctx)),
+		kongcompletion.WithPredictor("resource-key-profile", cmd.PredictModelKey[Profile](ctx)),
+		kongcompletion.WithPredictor("resource-key-metro", cmd.PredictModelKey[Metro](ctx)),
+		kongcompletion.WithPredictor("resource-key-instance", cmd.PredictModelKey[Instance](ctx)),
+		kongcompletion.WithPredictor("resource-key-instance-template", cmd.PredictModelKey[InstanceTemplate](ctx)),
+		kongcompletion.WithPredictor("resource-key-instance-checkpoint", cmd.PredictModelKey[InstanceCheckpoint](ctx)),
+		kongcompletion.WithPredictor("resource-key-volume", cmd.PredictModelKey[Volume](ctx)),
+		kongcompletion.WithPredictor("resource-key-volume-template", cmd.PredictModelKey[VolumeTemplate](ctx)),
+		kongcompletion.WithPredictor("resource-key-service", cmd.PredictModelKey[ServiceGroup](ctx)),
+		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictModelKey[Certificate](ctx)),
+		kongcompletion.WithPredictor("resource-key-image", cmd.PredictModelKey[ImageEntry](ctx)),
+		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictModelKey[AnyResource](ctx)),
 	)
 
 	kctx, err := parser.Parse(args)
@@ -221,7 +222,7 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 
 	kctx.BindTo(ctx, (*context.Context)(nil))
 
-	partition, err := resource.LoadPartitionFromEnv(PartitionedResources...)
+	partition, err := model.LoadPartitionFromEnv(PartitionedResources...)
 	if err != nil {
 		cancelTimeout()
 		return ctx, nil, nil, nil, jujuerrors.Annotate(err, "loading partition from environment")
@@ -376,7 +377,7 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 	}))...)
 }
 
-var PartitionedResources = []resource.Resource{
+var PartitionedResources = []model.Model{
 	Image{},
 	Instance{},
 	InstanceTemplate{},

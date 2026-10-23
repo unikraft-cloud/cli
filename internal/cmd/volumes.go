@@ -24,24 +24,24 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/internal/model/patch"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
-	"unikraft.com/cli/internal/resource/patch"
-	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/types"
 )
 
 type VolumesCmd struct {
-	cmd.ResourceCmd[Volume]
-	cmd.GettableResourceCmd[Volume]
-	cmd.WaitableResourceCmd[Volume]
-	cmd.ListableResourceCmd[Volume]
-	cmd.BulkDeletableResourceCmd[Volume]
+	cmd.ModelCmd[Volume]
+	cmd.GettableModelCmd[Volume]
+	cmd.WaitableModelCmd[Volume]
+	cmd.ListableModelCmd[Volume]
+	cmd.BulkDeletableModelCmd[Volume]
 
-	Create   cmd.ResourceCreateCmd[Volume] `cmd:"" help:"Create a volume."`
-	Edit     cmd.ResourceEditCmd[Volume]   `cmd:"" help:"Edit a volume."`
-	Template VolumeTemplatesCmd            `cmd:"" group:"cmd-templates" help:"Manage volume templates." aliases:"templates" set:"name=volume-template" set:"names=volume-templates"`
+	Create   cmd.ModelCreateCmd[Volume] `cmd:"" help:"Create a volume."`
+	Edit     cmd.ModelEditCmd[Volume]   `cmd:"" help:"Edit a volume."`
+	Template VolumeTemplatesCmd         `cmd:"" group:"cmd-templates" help:"Manage volume templates." aliases:"templates" set:"name=volume-template" set:"names=volume-templates"`
 
 	Clone  VolumesCloneCmd `cmd:"" help:"Clone a volume."`
 	Attach VolumeAttachCmd `cmd:"" help:"Attach a volume to an instance."`
@@ -72,7 +72,7 @@ func (VolumesCloneCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	spec := patch.PatchSpec{
 		Set: make(map[string][]string),
 	}
@@ -190,51 +190,51 @@ func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition
 }
 
 type Volume struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
-	Name  string          `mirror:"volume.name" field:",short" create:"set" flag:"name" short:"n" help:"Volume name." placeholder:"name"`
-	UUID  string          `mirror:"volume.uuid" field:",long"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"volume.name" field:",short" create:"set" flag:"name" short:"n" help:"Volume name, unique per metro among volumes and volume templates. Generated when omitted." placeholder:"name"`
+	UUID  string          `mirror:"volume.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	Tags []string `mirror:"volume.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Volume tag." placeholder:"tag" example:"env-prod"`
+	Tags []string `mirror:"volume.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-prod"`
 
-	State       types.VolumeState                     `mirror:"volume.state" field:",short"`
-	Usage       types.MeterUsage[types.SizeMebibytes] `field:"usage,short"`
-	Free        *types.SizeMebibytes                  `mirror:"volume.free_mb" field:"free,short"`
-	Size        types.SizeMebibytes                   `mirror:"volume.size_mb" field:",short" create:"set" edit:"set" flag:"size" help:"Volume size." placeholder:"size" example:"10GiB,100MiB"`
-	Filesystem  string                                `mirror:"volume.filesystem" field:",long" create:"set" flag:"filesystem" help:"Volume filesystem." placeholder:"filesystem" example:"ext4"`
-	QuotaPolicy string                                `mirror:"volume.quota_policy" field:"quota-policy,long" create:"set" edit:"set" flag:"quota-policy" help:"Volume quota policy." placeholder:"quota-policy" example:"static,dynamic"`
-	Persistent  bool                                  `mirror:"volume.persistent" field:",long"`
-	AccessMode  *types.AccessMode                     `mirror:"volume.access_mode" field:",long" create:"set" flag:"access-mode" help:"Volume access mode." placeholder:"access-mode" example:"rwo,rox,rwx"`
-	HostPath    *string                               `mirror:"volume.host_path" field:"host-path,long"`
-	Template    string                                `field:"template,invisible,valueless" create:"set" flag:"template" help:"Create from volume template." placeholder:"name"`
+	State       types.VolumeState                     `mirror:"volume.state" field:",short" help:"Lifecycle state: uninitialized (not yet formatted), initializing (being formatted or cloned), available (not attached), idle (attached, not mounted), mounted (mounted by a running or standby instance), busy (mount, unmount, check, quota change or delete in progress), error (an operation failed) or template."`
+	Usage       types.MeterUsage[types.SizeMebibytes] `field:"usage,short" help:"Used space out of the volume size."`
+	Free        *types.SizeMebibytes                  `mirror:"volume.free_mb" field:"free,short" help:"Free space."`
+	Size        types.SizeMebibytes                   `mirror:"volume.size_mb" field:",short" create:"set" edit:"set" flag:"size" help:"Volume size, within the range the plan allows (see quotas.limits.volume on the metro). Only virtiofs volumes can be resized, and not below their current usage." placeholder:"size" example:"10GiB,100MiB"`
+	Filesystem  string                                `mirror:"volume.filesystem" field:",long" create:"set" flag:"filesystem" help:"Filesystem for a new volume: ext4 (default) or virtiofs, depending on what the deployment offers." placeholder:"filesystem" example:"ext4,virtiofs"`
+	QuotaPolicy string                                `mirror:"volume.quota_policy" field:"quota-policy,long" create:"set" edit:"set" flag:"quota-policy" help:"How the volume counts against your quota. On edit the volume must not be mounted.\n  static: reserve the full size (default)\n  dynamic: count only used space and allow overcommit, not for ext4 volumes" placeholder:"quota-policy" example:"static,dynamic"`
+	Persistent  bool                                  `mirror:"volume.persistent" field:",long" help:"False when the volume belongs to an instance, created inline or cloned with it, in which case it is deleted with that instance. Setting delete-lock makes it persistent."`
+	AccessMode  *types.AccessMode                     `mirror:"volume.access_mode" field:",long" create:"set" flag:"access-mode" help:"How instances can mount the volume.\n  rwo: one read-write mount or many read-only mounts (default)\n  rox: read-only mounts only\n  rwx: many read-write mounts, virtiofs only, with guest caching off" placeholder:"access-mode" example:"rwo,rox,rwx"`
+	HostPath    *string                               `mirror:"volume.host_path" field:"host-path,long" help:"Host path backing a managed volume, shown only with the right permissions."`
+	Template    string                                `field:"template,invisible,valueless" create:"set" flag:"template" help:"Clone a volume template, by name or UUID, instead of creating an empty volume." placeholder:"name"`
 
 	Timestamps struct {
-		Created types.RelativeTime `mirror:"volume.created_at" field:",short"`
-	}
+		Created types.RelativeTime `mirror:"volume.created_at" field:",short" help:"Creation time."`
+	} `help:"Lifecycle timestamps."`
 
 	AttachedTo []struct {
 		Link[Instance]
-	} `mirror:"volume.attached_to"`
+	} `mirror:"volume.attached_to" help:"Instances the volume is configured on."`
 
 	MountedBy []struct {
 		Link[Instance]
-		ReadOnly bool `mirror:"readonly" field:",long"`
-	} `mirror:"volume.mounted_by"`
+		ReadOnly bool `mirror:"readonly" field:",long" help:"Whether the instance mounts the volume read-only."`
+	} `mirror:"volume.mounted_by" help:"Instances currently mounting the volume, with their read-only flag."`
 
 	Volume platform.Volume `field:"-" json:"volume"`
 
 	key multimetro.Key
 
-	DeleteLock bool `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent volume deletion until the lock is removed."`
+	DeleteLock bool `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed."`
 }
 
-func (Volume) Type() resource.Type {
-	return resource.Type{
+func (Volume) Type() model.Type {
+	return model.Type{
 		Name:  "volume",
 		Names: "volumes",
 	}
 }
 
-func (i Volume) Key() resource.Key {
+func (i Volume) Key() model.Key {
 	return i.key
 }
 
@@ -242,9 +242,9 @@ func (i Volume) Raw() any {
 	return i.Volume
 }
 
-func (i Volume) Fields(ctx context.Context) ([]resource.Field, error) {
+func (i Volume) Fields(ctx context.Context) ([]model.Field, error) {
 	i.Metro = LinkName[Metro](defaultMetro(ctx, string(i.Metro)))
-	result, err := resource.FieldsFromStruct(i)
+	result, err := model.FieldsFromStruct(i)
 	if err != nil {
 		return nil, err
 	}
@@ -253,12 +253,12 @@ func (i Volume) Fields(ctx context.Context) ([]resource.Field, error) {
 	return result, nil
 }
 
-func (Volume) List(ctx context.Context) ([]resource.Resource, error) {
+func (Volume) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing volumes")
 		resp, err := c.GetVolumes(ctx, nil, platform.GetVolumesOpts{Details: new(true)})
 		if err != nil {
@@ -267,7 +267,7 @@ func (Volume) List(ctx context.Context) ([]resource.Resource, error) {
 		if resp == nil || resp.Data == nil {
 			return nil, nil
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		for _, volume := range resp.Data.Volumes {
 			result, err := Volume{}.load(nil, volume, &c.Metro)
@@ -280,20 +280,20 @@ func (Volume) List(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
-func (Volume) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (Volume) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting volumes")
 		resp, err := c.GetVolumes(ctx, refs.NameOrUUIDs(), platform.GetVolumesOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -384,10 +384,10 @@ func (Volume) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (Volume) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (Volume) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var req platform.CreateVolumeRequest
 	var metro string
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create.Set != nil {
 			switch key.String() {
 			case "name":
@@ -461,7 +461,7 @@ func (Volume) Create(ctx context.Context, fields []resource.Field) ([]resource.R
 	return results, nil
 }
 
-func (Volume) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (Volume) Edit(ctx context.Context, key string, fields []model.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 	patches, err := patchRequests(fields, volumePatchSpec)
 	if err != nil {
@@ -587,7 +587,7 @@ func (VolumeAttachCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	vol := &InstanceVolume{At: c.At, Readonly: c.Readonly}
 	link, err := ParseLink[Volume]([]byte(c.Volume))
 	if err != nil {
@@ -598,7 +598,7 @@ func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, partition
 	if err != nil {
 		return err
 	}
-	editCmd := &cmd.ResourceEditCmd[Instance]{
+	editCmd := &cmd.ModelEditCmd[Instance]{
 		Target:     c.To,
 		Add:        []map[string]string{{"volumes": string(volStr)}},
 		FormatOpts: c.FormatOpts,
@@ -623,8 +623,8 @@ func (VolumeDetachCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumeDetachCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
-	editCmd := &cmd.ResourceEditCmd[Instance]{
+func (c *VolumeDetachCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+	editCmd := &cmd.ModelEditCmd[Instance]{
 		Target:     c.From,
 		Del:        []map[string]string{{"volumes": c.Volume}},
 		FormatOpts: c.FormatOpts,

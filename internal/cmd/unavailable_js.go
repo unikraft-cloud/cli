@@ -14,7 +14,7 @@ import (
 	"github.com/alecthomas/kong"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/model"
 )
 
 // notAvailable reports that a command needs the native CLI.
@@ -25,11 +25,11 @@ func notAvailable(what string) error {
 	)
 }
 
-func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
+func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
 	return notAvailable("build")
 }
 
-func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
+func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
 	return notAvailable("image build")
 }
 
@@ -49,6 +49,6 @@ func (cmd *UpgradeCmd) Run(ctx context.Context, stdio config.Stdio) error {
 	return notAvailable("upgrade")
 }
 
-func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	return notAvailable("volume import")
 }

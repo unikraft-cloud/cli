@@ -21,72 +21,72 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
 )
 
 type InstanceCheckpointsCmd struct {
-	cmd.ResourceCmd[InstanceCheckpoint]
-	cmd.GettableResourceCmd[InstanceCheckpoint]
-	cmd.ListableResourceCmd[InstanceCheckpoint]
-	cmd.WaitableResourceCmd[InstanceCheckpoint]
-	cmd.BulkDeletableResourceCmd[InstanceCheckpoint]
+	cmd.ModelCmd[InstanceCheckpoint]
+	cmd.GettableModelCmd[InstanceCheckpoint]
+	cmd.ListableModelCmd[InstanceCheckpoint]
+	cmd.WaitableModelCmd[InstanceCheckpoint]
+	cmd.BulkDeletableModelCmd[InstanceCheckpoint]
 
-	Create  cmd.ResourceCreateCmd[InstanceCheckpoint] `cmd:"" help:"Create a checkpoint from an instance."`
-	Edit    cmd.ResourceEditCmd[InstanceCheckpoint]   `cmd:"" help:"Edit an instance checkpoint."`
-	History InstanceCheckpointHistoryCmd              `cmd:"" help:"Show the history of a checkpoint."`
+	Create  cmd.ModelCreateCmd[InstanceCheckpoint] `cmd:"" help:"Create a checkpoint from an instance."`
+	Edit    cmd.ModelEditCmd[InstanceCheckpoint]   `cmd:"" help:"Edit an instance checkpoint."`
+	History InstanceCheckpointHistoryCmd           `cmd:"" help:"Show the history of a checkpoint."`
 }
 
 type InstanceCheckpoint struct {
-	MetroName LinkName[Metro] `mirror:"metro.name" field:"metro,short"`
-	Name      string          `mirror:"instance.name" field:",short"`
-	UUID      string          `mirror:"instance.uuid" field:",long"`
+	MetroName LinkName[Metro] `mirror:"metro.name" field:"metro,short" help:"Metro the checkpoint is in."`
+	Name      string          `mirror:"instance.name" field:",short" help:"Checkpoint name, unique per metro."`
+	UUID      string          `mirror:"instance.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Checkpoint tag." placeholder:"tag" example:"env-dev"`
-	Annotations map[string]string `mirror:"instance.annotations" field:",long"`
-	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the checkpoint."`
+	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-dev"`
+	Annotations map[string]string `mirror:"instance.annotations" field:",long" help:"Key-value metadata: up to 256 entries with Kubernetes-style [prefix/]name keys. Unlike tags, annotations reach the guest in its start data."`
+	DeleteLock  bool              `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion until the lock is removed. Also pauses autokill."`
 
-	Autokill Autokill `field:",embed" mirror:"instance.checkpoint_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time without a restore before the checkpoint is deleted" placeholder:"<key>=<value>" example:"time=24h"`
+	Autokill Autokill `field:",embed" mirror:"instance.checkpoint_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time since the checkpoint was last restored before it is deleted, such as 24h, 0 disables" placeholder:"<key>=<value>" example:"time=24h"`
 
-	State types.InstanceState    `mirror:"instance.state" field:",short"`
-	Image types.ImageRef         `mirror:"instance.image" field:",short"`
-	Type_ *platform.InstanceType `mirror:"instance.type" field:"type,long"`
+	State types.InstanceState    `mirror:"instance.state" field:",short" help:"Lifecycle state: stopped, starting, running, draining (finishing requests before a stop), stopping, standby (scaled to zero, woken by traffic), template, checkpoint or deleted."`
+	Image types.ImageRef         `mirror:"instance.image" field:",short" help:"Image of the checkpoint, as an OCI reference or a full registry URL."`
+	Type_ *platform.InstanceType `mirror:"instance.type" field:"type,long" help:"Virtual machine type.\n  micro: Firecracker microVM (default)\n  full: QEMU virtual machine with GPU support, needs a plan with full VM support and has no branching, checkpoints, vertical scaling, annotations or virtiofs volumes"`
 
 	Runtime struct {
-		Args InstanceArgs      `mirror:"instance.args" field:",short"`
-		Env  map[string]string `mirror:"instance.env" field:",long"`
-	}
+		Args InstanceArgs      `mirror:"instance.args" field:",short" help:"Command-line arguments passed to the instance at start."`
+		Env  map[string]string `mirror:"instance.env" field:",long" help:"Environment variable as KEY=value."`
+	} `help:"Runtime configuration passed to the instance."`
 
 	Resources struct {
-		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short"`
-		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short"`
-	}
+		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short" help:"Memory for the instance."`
+		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short" help:"Number of vCPUs."`
+	} `help:"Compute resources of the instance."`
 
-	Volumes []InstanceTemplateVolume `mirror:"instance.volumes" field:",embed"`
+	Volumes []InstanceTemplateVolume `mirror:"instance.volumes" field:",embed" help:"Volumes attached to the instance."`
 
 	Snapshot struct {
-		UUID string `mirror:"instance.snapshot.uuid" field:",long"`
-	}
+		UUID string `mirror:"instance.snapshot.uuid" field:",long" help:"Unique identifier of the snapshot."`
+	} `help:"Snapshot holding the memory state."`
 
 	Timestamps struct {
-		Created types.RelativeTime `mirror:"instance.created_at" field:",short"`
-	}
+		Created types.RelativeTime `mirror:"instance.created_at" field:",short" help:"Creation time."`
+	} `help:"Lifecycle timestamps."`
 
 	Timing struct {
-		BootTime       *types.DurationUS `mirror:"instance.boot_time_us" field:",long"`
-		NetTime        *types.DurationUS `mirror:"instance.net_time_us"`
-		CheckpointTime *types.DurationUS `mirror:"instance.checkpoint_time_us" field:",long"`
-	}
+		BootTime       *types.DurationUS `mirror:"instance.boot_time_us" field:",long" help:"Time the guest took to boot on the last start."`
+		NetTime        *types.DurationUS `mirror:"instance.net_time_us" help:"Time from start until the application listened on a non-localhost port."`
+		CheckpointTime *types.DurationUS `mirror:"instance.checkpoint_time_us" field:",long" help:"Time the instance took to reach the checkpoint state after the checkpoint was requested."`
+	} `help:"Start-up and checkpoint time measurements."`
 
-	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero"`
+	ScaleToZero InstanceScaleToZero `field:",embed" mirror:"instance.scale_to_zero" help:"Scale-to-zero options. Traffic through a service or to the private IP wakes the instance.\n  policy: on | idle (also while open TCP connections are idle, needs stateful=true) | off\n  cooldown-time: ms of inactivity before scaling to zero\n  notify-time: ms the instance is warned beforehand, 0 disables and the value must be below cooldown-time\n  stateful: true keeps RAM in a snapshot and resumes from it, false restarts from scratch"`
 
 	Restart struct {
-		Policy string `mirror:"instance.restart_policy"`
-	}
+		Policy string `mirror:"instance.restart_policy" help:"Restart policy. Restarts back off from immediate up to 5m. Cannot be combined with the delete-on-stop feature.\n  never: never restart (default)\n  always: restart whenever the instance exits or crashes\n  on-failure: restart only after a crash or a non-zero exit code"`
+	} `help:"Restart policy."`
 
-	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Instance to create a checkpoint from."`
+	InstanceRef string `field:"instance,invisible,valueless" create:"set,required" flag-arg:"instance" completion-predictor:"resource-key-instance" help:"Running or stopped instance to checkpoint, by name or UUID. The source keeps running and the checkpoint waits for its snapshot."`
 
 	Instance platform.Instance `field:"-" json:"instance"`
 	Metro    *config.Metro     `field:"-" json:"metro"`
@@ -95,14 +95,14 @@ type InstanceCheckpoint struct {
 	key multimetro.Key
 }
 
-func (InstanceCheckpoint) Type() resource.Type {
-	return resource.Type{
+func (InstanceCheckpoint) Type() model.Type {
+	return model.Type{
 		Name:  "instance-checkpoint",
 		Names: "instance-checkpoints",
 	}
 }
 
-func (i InstanceCheckpoint) Key() resource.Key {
+func (i InstanceCheckpoint) Key() model.Key {
 	return i.key
 }
 
@@ -110,11 +110,11 @@ func (i InstanceCheckpoint) Raw() any {
 	return i.Instance
 }
 
-func (i InstanceCheckpoint) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(i)
+func (i InstanceCheckpoint) Fields(ctx context.Context) ([]model.Field, error) {
+	return model.FieldsFromStruct(i)
 }
 
-func (InstanceCheckpoint) List(ctx context.Context) ([]resource.Resource, error) {
+func (InstanceCheckpoint) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -123,13 +123,13 @@ func (InstanceCheckpoint) List(ctx context.Context) ([]resource.Resource, error)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing instance checkpoints")
 		resp, err := c.GetCheckpointInstances(ctx, nil, platform.GetCheckpointInstancesOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -146,7 +146,7 @@ func (InstanceCheckpoint) List(ctx context.Context) ([]resource.Resource, error)
 	})
 }
 
-func (InstanceCheckpoint) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (InstanceCheckpoint) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -155,14 +155,14 @@ func (InstanceCheckpoint) Get(ctx context.Context, keys []string) ([]resource.Re
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting instance checkpoints")
 		resp, err := c.GetCheckpointInstances(ctx, refs.NameOrUUIDs(), platform.GetCheckpointInstancesOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -243,7 +243,7 @@ func (InstanceCheckpoint) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (InstanceCheckpoint) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (InstanceCheckpoint) Edit(ctx context.Context, key string, fields []model.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 	patches, err := patchRequests(fields, instanceCheckpointPatchSpec)
 	if err != nil {
@@ -311,10 +311,10 @@ func instanceCheckpointPatchSpec(path string, op patchOp, value any) (platform.M
 	}
 }
 
-func (InstanceCheckpoint) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (InstanceCheckpoint) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var instance string
 	var autokill Autokill
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
 		}
@@ -480,23 +480,23 @@ func (InstanceCheckpoint) Examples() map[cmd.CmdType][]kingkong.Example {
 // instance or checkpoint. It models one row of history output as a resource so
 // that it can be rendered through the standard printer framework.
 type InstanceHistoryEntry struct {
-	Metro   LinkName[Metro]    `field:"metro,short" json:"metro"`
-	Target  string             `field:",short" json:"target"`
-	Name    string             `field:",short" json:"name"`
-	UUID    string             `field:",long" json:"uuid"`
-	Created types.RelativeTime `field:"created,short" json:"created"`
+	Metro   LinkName[Metro]    `field:"metro,short" json:"metro" help:"Metro the checkpoint is in."`
+	Target  string             `field:",short" json:"target" help:"Instance or checkpoint the history was requested for."`
+	Name    string             `field:",short" json:"name" help:"Checkpoint name."`
+	UUID    string             `field:",long" json:"uuid" help:"Unique identifier assigned at creation."`
+	Created types.RelativeTime `field:"created,short" json:"created" help:"Creation time."`
 
 	key multimetro.Key
 }
 
-func (InstanceHistoryEntry) Type() resource.Type {
-	return resource.Type{
+func (InstanceHistoryEntry) Type() model.Type {
+	return model.Type{
 		Name:  "instance-history-entry",
 		Names: "instance-history-entries",
 	}
 }
 
-func (i InstanceHistoryEntry) Key() resource.Key {
+func (i InstanceHistoryEntry) Key() model.Key {
 	return i.key
 }
 
@@ -504,14 +504,14 @@ func (i InstanceHistoryEntry) Raw() any {
 	return i
 }
 
-func (i InstanceHistoryEntry) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(i)
+func (i InstanceHistoryEntry) Fields(ctx context.Context) ([]model.Field, error) {
+	return model.FieldsFromStruct(i)
 }
 
 // getInstanceHistory fetches checkpoint history entries for the given targets
 // using the provided fetch function (either the instance or checkpoint history
 // endpoint) and flattens them into InstanceHistoryEntry rows.
-func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx context.Context, c multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error)) ([]resource.Resource, error) {
+func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx context.Context, c multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error)) ([]model.Model, error) {
 	keys := multimetro.ParseKeys(targets)
 
 	g, err := multimetro.NewClient(ctx)
@@ -519,14 +519,14 @@ func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx co
 		return nil, err
 	}
 
-	return group.CollectRefsSlices(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting checkpoint history")
 		resp, err := fetch(ctx, c, refs.NameOrUUIDs())
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
 		}
@@ -556,7 +556,7 @@ func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx co
 }
 
 // renderInstanceHistory prints history entries through the printer framework.
-func renderInstanceHistory(ctx context.Context, out io.Writer, opts cmd.FormatOpts, entries []resource.Resource) error {
+func renderInstanceHistory(ctx context.Context, out io.Writer, opts cmd.FormatOpts, entries []model.Model) error {
 	return opts.Output.
 		WithDefault(cmd.PrinterTypeTable).
 		Print(ctx, out, opts.Field, InstanceHistoryEntry{}, entries...)
