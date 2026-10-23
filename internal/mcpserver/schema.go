@@ -37,39 +37,25 @@ var examplePreference = []string{
 }
 
 func toolName(typeName, op string) string {
-	return normalizeName(typeName) + "_" + op
+	return NormalizeName(typeName) + "_" + op
 }
 
-func normalizeName(name string) string {
+func NormalizeName(name string) string {
 	return strings.NewReplacer("-", "_", " ", "_").Replace(strings.ToLower(name))
 }
 
-func article(name string) string {
-	if name != "" && strings.ContainsRune("aeiouAEIOU", rune(name[0])) {
-		return "an"
-	}
-	return "a"
-}
-
-func listDescription(typ model.Type) string {
-	return fmt.Sprintf(
-		"List all %s, or fetch specific ones by passing their keys. Narrow with filter and trim the output with fields; both take the field paths listed on those parameters. Returns one JSON object per %s.",
-		typ.Names, typ.Name,
-	)
-}
-
-func getDescription(typ model.Type) string {
-	return fmt.Sprintf("Fetch %s by key with every field. Returns one JSON object per %s.", typ.Names, typ.Name)
-}
-
 func createDescription(typ model.Type, fields []model.Field, set *jsonschema.Schema, defaults map[string]jsontext.Value) string {
+	article := "a"
+	if strings.ContainsRune("aeiou", rune(typ.Name[0])) {
+		article = "an"
+	}
 	required := "none"
 	if len(set.Required) > 0 {
 		required = strings.Join(set.Required, ", ")
 	}
 	text := fmt.Sprintf(
 		"Create %s %s. Put the values in set, keyed by field path; list fields take arrays and anything else may be given as a string. Required: %s.",
-		article(typ.Name), typ.Name, required,
+		article, typ.Name, required,
 	)
 	if example := exampleSet(fields, set); example != "" {
 		text += " Example set: " + example + "."
@@ -93,10 +79,6 @@ func editDescription(typ model.Type, note string) string {
 		text += " " + note
 	}
 	return text + fmt.Sprintf(" Returns the updated %s.", typ.Name)
-}
-
-func deleteDescription(typ model.Type) string {
-	return fmt.Sprintf("Delete %s by key. This cannot be undone. Returns the deleted %s.", typ.Names, typ.Names)
 }
 
 func stringArray(desc string) *jsonschema.Schema {
@@ -212,7 +194,7 @@ func patchSchema(fields []model.Field, create bool) (set, add, del *jsonschema.S
 }
 
 func addProperty(schema *jsonschema.Schema, key string, template any) *jsonschema.Schema {
-	prop := valueSchema(template)
+	prop := typeSchema(reflect.TypeOf(template))
 	if schema.Properties == nil {
 		schema.Properties = make(map[string]*jsonschema.Schema)
 	}
@@ -369,10 +351,6 @@ var (
 	textUnmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
 	durationType        = reflect.TypeFor[time.Duration]()
 )
-
-func valueSchema(template any) *jsonschema.Schema {
-	return typeSchema(reflect.TypeOf(template))
-}
 
 func typeSchema(t reflect.Type) *jsonschema.Schema {
 	if t == nil {
