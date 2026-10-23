@@ -3,7 +3,7 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
-package mcpserver_test
+package mcp_test
 
 import (
 	"context"
@@ -11,12 +11,14 @@ import (
 	"strings"
 	"testing"
 
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/mcpserver"
+	"unikraft.com/cli/internal/mcp"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
+	modelmcp "unikraft.com/cli/internal/model/mcp"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -30,12 +32,12 @@ func (f *fakeInstances) Start(_ context.Context, stdio config.Stdio, instances [
 	return err
 }
 
-func (f *fakeInstances) Stop(_ context.Context, _ config.Stdio, instances []string, opts mcpserver.InstanceStopOptions) error {
+func (f *fakeInstances) Stop(_ context.Context, _ config.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
 	f.calls = append(f.calls, fmt.Sprintf("stop %s force=%t drain=%d", strings.Join(instances, ","), opts.Force, opts.DrainTimeout))
 	return nil
 }
 
-func (f *fakeInstances) Restart(_ context.Context, _ config.Stdio, instances []string, opts mcpserver.InstanceStopOptions) error {
+func (f *fakeInstances) Restart(_ context.Context, _ config.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
 	f.calls = append(f.calls, fmt.Sprintf("restart %s force=%t drain=%d", strings.Join(instances, ","), opts.Force, opts.DrainTimeout))
 	return nil
 }
@@ -51,14 +53,17 @@ func (f *fakeInstances) Logs(_ context.Context, stdio config.Stdio, instance str
 	return nil
 }
 
-func instanceTools(commands mcpserver.InstanceCommands) func(*mcpserver.Server) error {
-	return func(s *mcpserver.Server) error { return s.AddInstanceTools(commands) }
+func connect(t *testing.T, add func(*modelmcp.Tools) error) *mcptest.Session {
+	t.Helper()
+	srv := sdk.NewServer(&sdk.Implementation{Name: "test"}, nil)
+	require.NoError(t, add(modelmcp.New(srv, modelmcp.Options{})))
+	return mcptest.ConnectServer(t, t.Context(), srv)
 }
 
 func TestInstanceTools(t *testing.T) {
 	ctx := t.Context()
 	fake := &fakeInstances{}
-	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{}, instanceTools(fake)))
+	session := connect(t, func(tools *modelmcp.Tools) error { return mcp.AddInstanceTools(tools, fake) })
 
 	assert.ElementsMatch(t, []string{"instance_control", "instance_logs"}, session.ToolNames())
 	logs := session.Tool("instance_logs")
@@ -68,28 +73,28 @@ func TestInstanceTools(t *testing.T) {
 	assert.Equal(t, "Control instances", control.Title)
 	assert.False(t, control.Annotations.ReadOnlyHint)
 	assert.ElementsMatch(t, []any{"action", "keys"}, control.InputSchema.(map[string]any)["required"])
-	assert.Equal(t, []any{"start", "stop", "restart", "suspend"}, property(t, control.InputSchema, "action")["enum"])
-	assert.Equal(t, "array", property(t, control.InputSchema, "keys")["type"])
-	assert.Equal(t, "integer", property(t, control.InputSchema, "drain_timeout_ms")["type"])
+	assert.Equal(t, []any{"start", "stop", "restart", "suspend"}, mcptest.Property(t, control.InputSchema, "action")["enum"])
+	assert.Equal(t, "array", mcptest.Property(t, control.InputSchema, "keys")["type"])
+	assert.Equal(t, "integer", mcptest.Property(t, control.InputSchema, "drain_timeout_ms")["type"])
 
-	res := call(t, ctx, session, "instance_control", map[string]any{"action": "start", "keys": []string{"web"}})
+	res := mcptest.CallTool(t, ctx, session, "instance_control", map[string]any{"action": "start", "keys": []string{"web"}})
 	require.False(t, res.IsError, mcptest.Text(res))
-	assert.Equal(t, []map[string]any{{"name": "web", "state": "running"}}, resources(t, res))
+	assert.Equal(t, []map[string]any{{"name": "web", "state": "running"}}, mcptest.Resources(t, res))
 
 	for _, args := range []map[string]any{
 		{"action": "stop", "keys": []string{"web", "db"}, "force": true},
 		{"action": "restart", "keys": []string{"web"}, "drain_timeout_ms": 5000},
 		{"action": "suspend", "keys": []string{"web"}},
 	} {
-		res = call(t, ctx, session, "instance_control", args)
+		res = mcptest.CallTool(t, ctx, session, "instance_control", args)
 		require.False(t, res.IsError, mcptest.Text(res))
 	}
 
-	res = call(t, ctx, session, "instance_control", map[string]any{"action": "explode", "keys": []string{"web"}})
+	res = mcptest.CallTool(t, ctx, session, "instance_control", map[string]any{"action": "explode", "keys": []string{"web"}})
 	assert.True(t, res.IsError)
 	assert.Contains(t, mcptest.Text(res), `unknown action "explode"`)
 
-	res = call(t, ctx, session, "instance_logs", map[string]any{"key": "web"})
+	res = mcptest.CallTool(t, ctx, session, "instance_logs", map[string]any{"key": "web"})
 	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Nil(t, res.StructuredContent)
 	assert.Contains(t, mcptest.Text(res), "line 1")

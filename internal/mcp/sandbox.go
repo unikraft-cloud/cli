@@ -3,7 +3,7 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
-package mcpserver
+package mcp
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"unikraft.com/cli/internal/config"
+	modelmcp "unikraft.com/cli/internal/model/mcp"
 )
 
 type SandboxCommands interface {
@@ -63,30 +64,7 @@ type sandboxWriteArgs struct {
 
 var errExecTimeout = errors.New("sandbox command timed out")
 
-func (s *Server) AddSandboxTools(commands SandboxCommands) error {
-	if !s.enabled("sandbox", false) {
-		return nil
-	}
-	err := s.addCommandTool(&mcp.Tool{
-		Name:        "sandbox_read",
-		Title:       "Read sandbox file",
-		Description: "Read a text file from a running sandbox instance. Returns its content.",
-		Annotations: readOnlyAnnotations(),
-	}, false, func(ctx context.Context, in sandboxReadArgs, stdio config.Stdio) error {
-		data, err := commands.ReadFile(ctx, in.Key, in.Path)
-		if err != nil {
-			return err
-		}
-		if !utf8.Valid(data) {
-			return fmt.Errorf("%s is not UTF-8 text; read it with the unikraft instance read CLI command", in.Path)
-		}
-		_, err = stdio.Stdout.Write(data)
-		return err
-	})
-	if err != nil || s.opts.ReadOnly {
-		return err
-	}
-
+func AddSandboxTools(tools *modelmcp.Tools, commands SandboxCommands) error {
 	exec, err := jsonschema.For[sandboxExecArgs](nil)
 	if err != nil {
 		return err
@@ -96,12 +74,28 @@ func (s *Server) AddSandboxTools(commands SandboxCommands) error {
 		Description: "The program and its arguments as an array of strings, or one string for the shell to interpret, so that pipes and redirections work.",
 	}
 	return errors.Join(
-		s.addCommandTool(&mcp.Tool{
+		tools.AddTool("sandbox", &mcp.Tool{
+			Name:        "sandbox_read",
+			Title:       "Read sandbox file",
+			Description: "Read a text file from a running sandbox instance. Returns its content.",
+			Annotations: modelmcp.ReadOnlyAnnotations(),
+		}, false, func(ctx context.Context, in sandboxReadArgs, stdio config.Stdio) error {
+			data, err := commands.ReadFile(ctx, in.Key, in.Path)
+			if err != nil {
+				return err
+			}
+			if !utf8.Valid(data) {
+				return fmt.Errorf("%s is not UTF-8 text; read it with the unikraft instance read CLI command", in.Path)
+			}
+			_, err = stdio.Stdout.Write(data)
+			return err
+		}),
+		tools.AddTool("sandbox", &mcp.Tool{
 			Name:        "sandbox_exec",
 			Title:       "Run in sandbox",
 			Description: "Run a command inside a running sandbox: an instance with the sandbox plugin loaded, which instance_create makes when plugins holds the plugin. Returns the command's combined output; a non-zero exit status is reported as an error after the output.",
 			InputSchema: exec,
-			Annotations: mutatingAnnotations(),
+			Annotations: modelmcp.MutatingAnnotations(),
 		}, false, func(ctx context.Context, in sandboxExecArgs, stdio config.Stdio) error {
 			opts := SandboxExecOptions{Dir: in.Dir, Env: in.Env, Stdin: in.Stdin}
 			var err error
@@ -137,11 +131,11 @@ func (s *Server) AddSandboxTools(commands SandboxCommands) error {
 			}
 			return nil
 		}),
-		s.addCommandTool(&mcp.Tool{
+		tools.AddTool("sandbox", &mcp.Tool{
 			Name:        "sandbox_write",
 			Title:       "Write sandbox file",
 			Description: "Write a text file inside a running sandbox instance, replacing it unless append is set. Returns a confirmation.",
-			Annotations: mutatingAnnotations(),
+			Annotations: modelmcp.MutatingAnnotations(),
 		}, false, func(ctx context.Context, in sandboxWriteArgs, stdio config.Stdio) error {
 			if err := commands.WriteFile(ctx, in.Key, in.Path, []byte(in.Content), SandboxWriteOptions{Append: in.Append, Parents: in.Parents}); err != nil {
 				return err

@@ -77,7 +77,7 @@ func TestDocsResources(t *testing.T) {
 	var logs bytes.Buffer
 	logger := zerolog.New(&logs).Level(zerolog.DebugLevel)
 	ctx := log.WithLogger(t.Context(), &logger)
-	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{DocsURL: site.URL + "/docs", HTTPClient: site.Client()}))
+	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{DocsURL: site.URL + "/docs", HTTPClient: site.Client()}).MCP())
 
 	templates, err := session.ListResourceTemplates(ctx, nil)
 	require.NoError(t, err)
@@ -135,7 +135,7 @@ func TestDocsResources(t *testing.T) {
 func TestDocsIndexUnavailable(t *testing.T) {
 	site, _ := newDocsSite(t, http.StatusInternalServerError)
 	ctx := t.Context()
-	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{DocsURL: site.URL + "/docs/", HTTPClient: site.Client()}))
+	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{DocsURL: site.URL + "/docs/", HTTPClient: site.Client()}).MCP())
 
 	page, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs/introduction"})
 	require.NoError(t, err)
@@ -147,7 +147,7 @@ func TestDocsIndexUnavailable(t *testing.T) {
 
 func TestDocsDisabledAndInvalid(t *testing.T) {
 	ctx := t.Context()
-	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{}))
+	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{}).MCP())
 	res, err := session.ListResources(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, res.Resources)

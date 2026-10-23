@@ -3,7 +3,7 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
-package mcpserver
+package mcp
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"slices"
 	"strings"
@@ -27,18 +28,63 @@ import (
 	"unikraft.com/cli/internal/model/cmd"
 )
 
+// Options configures the tools registered for model types.
+type Options struct {
+	Partition *model.Partition
+	ReadOnly  bool
+	Resources []string
+	Stderr    io.Writer
+}
+
+// Tools registers the tools of model types on an MCP server.
+type Tools struct {
+	srv  *mcp.Server
+	opts Options
+
+	resources map[string]bool
+}
+
+func New(srv *mcp.Server, opts Options) *Tools {
+	if opts.Stderr == nil {
+		opts.Stderr = io.Discard
+	}
+	var resources map[string]bool
+	if len(opts.Resources) > 0 {
+		resources = make(map[string]bool, len(opts.Resources))
+		for _, name := range opts.Resources {
+			resources[NormalizeName(name)] = true
+		}
+	}
+	return &Tools{srv: srv, opts: opts, resources: resources}
+}
+
+func (ts *Tools) enabled(name string, mutating bool) bool {
+	name = NormalizeName(name)
+	if mutating && ts.opts.ReadOnly {
+		return false
+	}
+	return ts.resources == nil || ts.resources[name]
+}
+
+func (ts *Tools) AddTool[In any](typeName string, tool *mcp.Tool, structured bool, run func(context.Context, In, config.Stdio) error) error {
+	if !ts.enabled(typeName, !tool.Annotations.ReadOnlyHint) {
+		return nil
+	}
+	return ts.addCommandTool(tool, structured, run)
+}
+
 // AddTools registers every tool a fully capable resource type supports.
-func (s *Server) AddTools[R interface {
+func (ts *Tools) AddTools[R interface {
 	model.GettableListableModel
 	model.CreatableModel
 	model.EditableModel
 	model.DeletableModel
 }](ctx context.Context, opts ...ToolOption) error {
 	return errors.Join(
-		s.AddListTool[R](ctx),
-		s.AddCreateTool[R](ctx, opts...),
-		s.AddEditTool[R](ctx, opts...),
-		s.AddDeleteTool[R](ctx),
+		ts.AddListTool[R](ctx),
+		ts.AddCreateTool[R](ctx, opts...),
+		ts.AddEditTool[R](ctx, opts...),
+		ts.AddDeleteTool[R](ctx),
 	)
 }
 
@@ -49,21 +95,21 @@ type listArgs struct {
 	Fields []string `json:"fields"`
 }
 
-func (s *Server) AddListTool[R model.GettableListableModel](ctx context.Context) error {
-	return s.resourceTool[R](ctx, false, func(typ model.Type, fields []model.Field) error {
-		return s.addCommandTool(&mcp.Tool{
+func (ts *Tools) AddListTool[R model.GettableListableModel](ctx context.Context) error {
+	return ts.resourceTool[R](ctx, false, func(typ model.Type, fields []model.Field) error {
+		return ts.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "list"),
 			Title:       "List " + typ.Names,
 			Description: fmt.Sprintf("List all %s, or fetch specific ones by passing their keys. Narrow with filter and trim the output with fields; both take the field paths listed on those parameters. Returns one JSON object per %s.", typ.Names, typ.Name),
 			InputSchema: listSchema(typ, fields),
-			Annotations: readOnlyAnnotations(),
+			Annotations: ReadOnlyAnnotations(),
 		}, true, func(ctx context.Context, args listArgs, stdio config.Stdio) error {
 			return (&cmd.ModelListCmd[R]{
 				Targets:    args.Keys,
 				Filter:     args.Filter,
 				Sort:       args.Sort,
 				FormatOpts: JSONFormat(args.Fields...),
-			}).Run(ctx, stdio, s.opts.Partition)
+			}).Run(ctx, stdio, ts.opts.Partition)
 		})
 	})
 }
@@ -73,55 +119,21 @@ type getArgs struct {
 	Fields []string `json:"fields"`
 }
 
-func (s *Server) AddGetTool[R model.GettableModel](ctx context.Context, description string) error {
-	return s.resourceTool[R](ctx, false, func(typ model.Type, fields []model.Field) error {
-		return s.addCommandTool(&mcp.Tool{
+func (ts *Tools) AddGetTool[R model.GettableModel](ctx context.Context, description string) error {
+	return ts.resourceTool[R](ctx, false, func(typ model.Type, fields []model.Field) error {
+		return ts.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "get"),
 			Title:       "Inspect " + typ.Names,
 			Description: description,
 			InputSchema: getSchema(typ, fields),
-			Annotations: readOnlyAnnotations(),
+			Annotations: ReadOnlyAnnotations(),
 		}, true, func(ctx context.Context, args getArgs, stdio config.Stdio) error {
 			return (&cmd.ModelGetCmd[R]{
 				Targets:    args.Keys,
 				FormatOpts: JSONFormat(args.Fields...),
-			}).Run(ctx, stdio, s.opts.Partition)
+			}).Run(ctx, stdio, ts.opts.Partition)
 		})
 	})
-}
-
-// ToolOption adjusts how a resource type's tools are registered.
-type ToolOption func(*toolOptions)
-
-type toolOptions struct {
-	createDefaults map[string]any
-	editNote       string
-}
-
-func newToolOptions(opts []ToolOption) toolOptions {
-	var o toolOptions
-	for _, opt := range opts {
-		opt(&o)
-	}
-	return o
-}
-
-// WithCreateDefault makes the create tool set the field at path to value
-// unless the caller sets it.
-func WithCreateDefault(path string, value any) ToolOption {
-	return func(o *toolOptions) {
-		if o.createDefaults == nil {
-			o.createDefaults = map[string]any{}
-		}
-		o.createDefaults[path] = value
-	}
-}
-
-// WithEditNote appends note to the edit tool's description.
-func WithEditNote(note string) ToolOption {
-	return func(o *toolOptions) {
-		o.editNote = note
-	}
 }
 
 type createArgs struct {
@@ -129,8 +141,8 @@ type createArgs struct {
 	DryRun bool                      `json:"dry_run"`
 }
 
-func (s *Server) AddCreateTool[R model.CreatableModel](ctx context.Context, opts ...ToolOption) error {
-	return s.resourceTool[R](ctx, true, func(typ model.Type, fields []model.Field) error {
+func (ts *Tools) AddCreateTool[R model.CreatableModel](ctx context.Context, opts ...ToolOption) error {
+	return ts.resourceTool[R](ctx, true, func(typ model.Type, fields []model.Field) error {
 		name := toolName(typ.Name, "create")
 		schema := createSchema(fields)
 		defaults := make(map[string]jsontext.Value)
@@ -146,12 +158,12 @@ func (s *Server) AddCreateTool[R model.CreatableModel](ctx context.Context, opts
 			prop.Default = raw
 			defaults[path] = raw
 		}
-		return s.addCommandTool(&mcp.Tool{
+		return ts.addCommandTool(&mcp.Tool{
 			Name:        name,
 			Title:       "Create " + typ.Name,
 			Description: createDescription(typ, fields, schema.Properties["set"], defaults),
 			InputSchema: schema,
-			Annotations: mutatingAnnotations(),
+			Annotations: MutatingAnnotations(),
 		}, true, func(ctx context.Context, args createArgs, stdio config.Stdio) error {
 			if args.Set == nil {
 				args.Set = map[string]jsontext.Value{}
@@ -165,7 +177,7 @@ func (s *Server) AddCreateTool[R model.CreatableModel](ctx context.Context, opts
 				Set:        patchArgs(args.Set),
 				DryRun:     args.DryRun,
 				FormatOpts: JSONFormat(),
-			}).Run(ctx, stdio, s.opts.Partition)
+			}).Run(ctx, stdio, ts.opts.Partition)
 		})
 	})
 }
@@ -178,14 +190,14 @@ type editArgs struct {
 	DryRun bool                      `json:"dry_run"`
 }
 
-func (s *Server) AddEditTool[R model.EditableModel](ctx context.Context, opts ...ToolOption) error {
-	return s.resourceTool[R](ctx, true, func(typ model.Type, fields []model.Field) error {
-		return s.addCommandTool(&mcp.Tool{
+func (ts *Tools) AddEditTool[R model.EditableModel](ctx context.Context, opts ...ToolOption) error {
+	return ts.resourceTool[R](ctx, true, func(typ model.Type, fields []model.Field) error {
+		return ts.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "edit"),
 			Title:       "Edit " + typ.Name,
 			Description: editDescription(typ, newToolOptions(opts).editNote),
 			InputSchema: editSchema(typ, fields),
-			Annotations: mutatingAnnotations(),
+			Annotations: MutatingAnnotations(),
 		}, true, func(ctx context.Context, args editArgs, stdio config.Stdio) error {
 			return (&cmd.ModelEditCmd[R]{
 				Target:     args.Key,
@@ -194,7 +206,7 @@ func (s *Server) AddEditTool[R model.EditableModel](ctx context.Context, opts ..
 				Del:        patchArgs(args.Del),
 				DryRun:     args.DryRun,
 				FormatOpts: JSONFormat(),
-			}).Run(ctx, stdio, s.opts.Partition)
+			}).Run(ctx, stdio, ts.opts.Partition)
 		})
 	})
 }
@@ -203,9 +215,9 @@ type deleteArgs struct {
 	Keys []string `json:"keys"`
 }
 
-func (s *Server) AddDeleteTool[R model.DeletableModel](ctx context.Context) error {
-	return s.resourceTool[R](ctx, true, func(typ model.Type, _ []model.Field) error {
-		return s.addCommandTool(&mcp.Tool{
+func (ts *Tools) AddDeleteTool[R model.DeletableModel](ctx context.Context) error {
+	return ts.resourceTool[R](ctx, true, func(typ model.Type, _ []model.Field) error {
+		return ts.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "delete"),
 			Title:       "Delete " + typ.Names,
 			Description: fmt.Sprintf("Delete %[1]s by key. This cannot be undone. Returns the deleted %[1]s.", typ.Names),
@@ -218,15 +230,15 @@ func (s *Server) AddDeleteTool[R model.DeletableModel](ctx context.Context) erro
 			return (&cmd.ModelRemoveCmd[R]{
 				Targets:    args.Keys,
 				FormatOpts: JSONFormat(),
-			}).Run(ctx, stdio, s.opts.Partition)
+			}).Run(ctx, stdio, ts.opts.Partition)
 		})
 	})
 }
 
-func (s *Server) resourceTool[R model.GettableModel](ctx context.Context, mutating bool, add func(model.Type, []model.Field) error) error {
+func (ts *Tools) resourceTool[R model.GettableModel](ctx context.Context, mutating bool, add func(model.Type, []model.Field) error) error {
 	var empty R
 	typ := empty.Type()
-	if !s.enabled(typ.Name, mutating) {
+	if !ts.enabled(typ.Name, mutating) {
 		return nil
 	}
 	fields, err := empty.Fields(ctx)
@@ -236,7 +248,7 @@ func (s *Server) resourceTool[R model.GettableModel](ctx context.Context, mutati
 	return add(typ, fields)
 }
 
-func (s *Server) addCommandTool[In any](tool *mcp.Tool, structured bool, run func(context.Context, In, config.Stdio) error) error {
+func (ts *Tools) addCommandTool[In any](tool *mcp.Tool, structured bool, run func(context.Context, In, config.Stdio) error) error {
 	if tool.InputSchema == nil {
 		schema, err := jsonschema.For[In](nil)
 		if err != nil {
@@ -246,7 +258,7 @@ func (s *Server) addCommandTool[In any](tool *mcp.Tool, structured bool, run fun
 	}
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	singleTypes(schema)
-	s.srv.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ts.srv.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := req.Params.Arguments
 		if len(args) == 0 {
 			args = []byte("{}")
@@ -261,7 +273,7 @@ func (s *Server) addCommandTool[In any](tool *mcp.Tool, structured bool, run fun
 			res.SetError(err)
 			return &res, nil
 		}
-		return s.capture(ctx, structured, func(ctx context.Context, stdio config.Stdio) error {
+		return ts.capture(ctx, structured, func(ctx context.Context, stdio config.Stdio) error {
 			return run(ctx, in, stdio)
 		}), nil
 	})
@@ -272,11 +284,11 @@ func JSONFormat(fields ...string) cmd.FormatOpts {
 	return cmd.FormatOpts{Field: fields, Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}
 }
 
-func readOnlyAnnotations() *mcp.ToolAnnotations {
+func ReadOnlyAnnotations() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: new(false), IdempotentHint: true}
 }
 
-func mutatingAnnotations() *mcp.ToolAnnotations {
+func MutatingAnnotations() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{DestructiveHint: new(false)}
 }
 
@@ -284,10 +296,10 @@ func destructiveAnnotations() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{DestructiveHint: new(true), IdempotentHint: true}
 }
 
-func (s *Server) capture(ctx context.Context, structured bool, run func(context.Context, config.Stdio) error) *mcp.CallToolResult {
+func (ts *Tools) capture(ctx context.Context, structured bool, run func(context.Context, config.Stdio) error) *mcp.CallToolResult {
 	start := time.Now()
 	var out bytes.Buffer
-	err := run(ctx, config.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: s.opts.Stderr})
+	err := run(ctx, config.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: ts.opts.Stderr})
 	msg := "tool call complete"
 	if err != nil {
 		msg = "tool call failed"

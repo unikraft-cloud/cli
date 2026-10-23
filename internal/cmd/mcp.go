@@ -24,8 +24,10 @@ import (
 	"unikraft.com/x/version"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/mcp"
 	"unikraft.com/cli/internal/mcpserver"
 	"unikraft.com/cli/internal/model"
+	modelmcp "unikraft.com/cli/internal/model/mcp"
 )
 
 const instanceEditNote = "Edits to tags, delete-lock, autokill, scale-to-zero and sched-priority apply at once, even while the instance runs. Other edits to a running instance are queued until it next stops. Adding plugins, roms or volumes takes effect after instance_control suspend followed by start. Changing image, runtime.args, runtime.env, resources.memory, resources.vcpus or annotations, replacing or removing plugins or roms, and removing volumes take effect only after instance_control restart, or stop followed by start. An instance in standby keeps a snapshot of its memory, so those changes stay queued until a stop, which discards the snapshot."
@@ -189,34 +191,40 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		logger = slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	}
 	srv, err := mcpserver.New(ctx, mcpserver.Options{
-		Partition: partition,
-		ReadOnly:  c.ReadOnly,
-		Resources: c.Resources,
-		Version:   version.Version,
-		Stderr:    stderr,
-		Logger:    logger,
-		DocsURL:   c.DocsURL,
+		Name:         "unikraft",
+		Title:        "Unikraft Cloud",
+		WebsiteURL:   "https://unikraft.com",
+		Version:      version.Version,
+		Instructions: mcp.Instructions(c.ReadOnly, c.Resources, c.DocsURL),
+		Logger:       logger,
+		DocsURL:      c.DocsURL,
 	})
 	if err != nil {
 		return nil, err
 	}
+	tools := modelmcp.New(srv.MCP(), modelmcp.Options{
+		Partition: partition,
+		ReadOnly:  c.ReadOnly,
+		Resources: c.Resources,
+		Stderr:    stderr,
+	})
 	if err := errors.Join(
-		srv.AddTools[Instance](ctx, mcpserver.WithCreateDefault("autostart", true), mcpserver.WithEditNote(instanceEditNote)),
-		srv.AddTools[InstanceTemplate](ctx),
-		srv.AddTools[InstanceCheckpoint](ctx),
-		srv.AddTools[Volume](ctx),
-		srv.AddTools[VolumeTemplate](ctx),
-		srv.AddTools[ServiceGroup](ctx),
-		srv.AddListTool[Certificate](ctx),
-		srv.AddCreateTool[Certificate](ctx),
-		srv.AddDeleteTool[Certificate](ctx),
-		srv.AddListTool[ImageEntry](ctx),
-		srv.AddGetTool[Image](ctx, imageGetDescription),
-		srv.AddDeleteTool[Image](ctx),
-		srv.AddListTool[Metro](ctx),
-		srv.AddListTool[Profile](ctx),
-		srv.AddInstanceTools(mcpInstanceCommands{}),
-		srv.AddSandboxTools(mcpSandboxCommands{partition: partition}),
+		tools.AddTools[Instance](ctx, modelmcp.WithCreateDefault("autostart", true), modelmcp.WithEditNote(instanceEditNote)),
+		tools.AddTools[InstanceTemplate](ctx),
+		tools.AddTools[InstanceCheckpoint](ctx),
+		tools.AddTools[Volume](ctx),
+		tools.AddTools[VolumeTemplate](ctx),
+		tools.AddTools[ServiceGroup](ctx),
+		tools.AddListTool[Certificate](ctx),
+		tools.AddCreateTool[Certificate](ctx),
+		tools.AddDeleteTool[Certificate](ctx),
+		tools.AddListTool[ImageEntry](ctx),
+		tools.AddGetTool[Image](ctx, imageGetDescription),
+		tools.AddDeleteTool[Image](ctx),
+		tools.AddListTool[Metro](ctx),
+		tools.AddListTool[Profile](ctx),
+		mcp.AddInstanceTools(tools, mcpInstanceCommands{}),
+		mcp.AddSandboxTools(tools, mcpSandboxCommands{partition: partition}),
 	); err != nil {
 		return nil, err
 	}
@@ -226,7 +234,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 func checkResources(names []string) error {
 	var unknown []string
 	for _, name := range names {
-		if !slices.Contains(mcpResourceTypes, mcpserver.NormalizeName(name)) {
+		if !slices.Contains(mcpResourceTypes, modelmcp.NormalizeName(name)) {
 			unknown = append(unknown, name)
 		}
 	}

@@ -39,11 +39,11 @@ func TestMCPServerTools(t *testing.T) {
 
 	srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{})
 	require.NoError(t, err)
-	assert.ElementsMatch(t, append(readOnlyTools, mutatingTools...), mcptest.ConnectServer(t, ctx, srv).ToolNames())
+	assert.ElementsMatch(t, append(readOnlyTools, mutatingTools...), mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames())
 
 	srv, err = newMCPServer(ctx, io.Discard, nil, MCPCmd{ReadOnly: true})
 	require.NoError(t, err)
-	assert.ElementsMatch(t, readOnlyTools, mcptest.ConnectServer(t, ctx, srv).ToolNames())
+	assert.ElementsMatch(t, readOnlyTools, mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames())
 }
 
 func TestMCPServerResources(t *testing.T) {
@@ -51,9 +51,11 @@ func TestMCPServerResources(t *testing.T) {
 
 	srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "metro"}})
 	require.NoError(t, err)
+	session := mcptest.ConnectServer(t, ctx, srv.MCP())
 	assert.ElementsMatch(t, []string{
 		"instance_list", "instance_create", "instance_edit", "instance_delete", "instance_control", "instance_logs", "metro_list",
-	}, mcptest.ConnectServer(t, ctx, srv).ToolNames())
+	}, session.ToolNames())
+	assert.Contains(t, session.Instructions, "Only the tools of these resource types are served: instance, metro.")
 
 	_, err = newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "nope"}})
 	assert.EqualError(t, err, "--resources: unknown resource types: nope; known: certificate, image, instance, instance_checkpoint, instance_template, metro, profile, sandbox, service, volume, volume_template")
@@ -64,7 +66,7 @@ func TestMCPResourceTypes(t *testing.T) {
 
 	srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{})
 	require.NoError(t, err)
-	for _, tool := range mcptest.ConnectServer(t, ctx, srv).ToolNames() {
+	for _, tool := range mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames() {
 		assert.Truef(t, slices.ContainsFunc(mcpResourceTypes, func(typ string) bool {
 			return strings.HasPrefix(tool, typ+"_")
 		}), "tool %s belongs to no type in mcpResourceTypes", tool)
@@ -73,6 +75,6 @@ func TestMCPResourceTypes(t *testing.T) {
 	for _, typ := range mcpResourceTypes {
 		srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{typ}})
 		require.NoError(t, err)
-		assert.NotEmptyf(t, mcptest.ConnectServer(t, ctx, srv).ToolNames(), "type %s serves no tools", typ)
+		assert.NotEmptyf(t, mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames(), "type %s serves no tools", typ)
 	}
 }

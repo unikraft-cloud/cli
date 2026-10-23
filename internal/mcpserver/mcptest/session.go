@@ -45,14 +45,10 @@ func Connect(t testing.TB, transport mcp.Transport) *Session {
 	}
 }
 
-type connector interface {
-	Connect(context.Context, mcp.Transport) (*mcp.ServerSession, error)
-}
-
-func ConnectServer(t testing.TB, ctx context.Context, srv connector) *Session {
+func ConnectServer(t testing.TB, ctx context.Context, srv *mcp.Server) *Session {
 	t.Helper()
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
-	_, err := srv.Connect(ctx, serverTransport)
+	_, err := srv.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)
 	return Connect(t, clientTransport)
 }
@@ -95,4 +91,39 @@ func Text(res *mcp.CallToolResult) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+func CallTool(t testing.TB, ctx context.Context, session *Session, name string, args map[string]any) *mcp.CallToolResult {
+	t.Helper()
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	require.NoError(t, err)
+	return res
+}
+
+func Resources(t testing.TB, res *mcp.CallToolResult) []map[string]any {
+	t.Helper()
+	structured, ok := res.StructuredContent.(map[string]any)
+	require.True(t, ok, "structured content %T is not an object", res.StructuredContent)
+	items, ok := structured["resources"].([]any)
+	require.True(t, ok, "resources %T is not a list", structured["resources"])
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.(map[string]any))
+	}
+	return out
+}
+
+func Properties(t testing.TB, schema any) map[string]any {
+	t.Helper()
+	object, ok := schema.(map[string]any)
+	require.True(t, ok, "schema %T is not an object", schema)
+	props, _ := object["properties"].(map[string]any)
+	return props
+}
+
+func Property(t testing.TB, schema any, name string) map[string]any {
+	t.Helper()
+	prop, ok := Properties(t, schema)[name].(map[string]any)
+	require.True(t, ok, "property %s is not an object", name)
+	return prop
 }

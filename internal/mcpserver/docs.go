@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	docsURI      = "unikraft://docs"
 	docsMIMEType = "text/markdown"
 	docsIndex    = "llms.txt"
 	docsCacheTTL = 10 * time.Minute
@@ -41,6 +40,8 @@ var (
 
 type docs struct {
 	base   *url.URL
+	uri    string
+	title  string
 	client *http.Client
 	entry  *regexp.Regexp
 	link   *regexp.Regexp
@@ -54,7 +55,7 @@ type cachedPage struct {
 	fetched time.Time
 }
 
-func newDocs(baseURL string, client *http.Client) (*docs, error) {
+func newDocs(baseURL, uri, title string, client *http.Client) (*docs, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid documentation URL %q: %w", baseURL, err)
@@ -68,6 +69,8 @@ func newDocs(baseURL string, client *http.Client) (*docs, error) {
 	prefix := regexp.QuoteMeta(base.Path)
 	return &docs{
 		base:   base,
+		uri:    uri,
+		title:  title,
 		client: client,
 		entry:  regexp.MustCompile(`^- \[([^\]]+)\]\(` + prefix + `([^)\s]+?)\.md\)(?::\s*(.*))?$`),
 		link:   regexp.MustCompile(`\]\(` + prefix + `([^)\s]+?)\.md\)`),
@@ -78,17 +81,17 @@ func newDocs(baseURL string, client *http.Client) (*docs, error) {
 func (s *Server) addDocs(ctx context.Context, d *docs) {
 	site := d.base.String()
 	s.srv.AddResource(&mcp.Resource{
-		URI:         docsURI,
+		URI:         d.uri,
 		Name:        "docs",
-		Title:       "Unikraft Cloud documentation",
-		Description: "Table of contents of " + site + ". Every entry is a readable " + docsURI + "/<path> resource.",
+		Title:       d.title + " documentation",
+		Description: "Table of contents of " + site + ". Every entry is a readable " + d.uri + "/<path> resource.",
 		MIMEType:    docsMIMEType,
 	}, d.read)
 	s.srv.AddResourceTemplate(&mcp.ResourceTemplate{
-		URITemplate: docsURI + "/{+path}",
+		URITemplate: d.uri + "/{+path}",
 		Name:        "docs-page",
-		Title:       "Unikraft Cloud documentation page",
-		Description: "A documentation page by path, such as " + docsURI + "/cli/fields, with the same content as " + site + "<path>.",
+		Title:       d.title + " documentation page",
+		Description: "A documentation page by path, such as " + d.uri + "/cli/fields, with the same content as " + site + "<path>.",
 		MIMEType:    docsMIMEType,
 	}, d.read)
 	go s.addDocsPages(ctx, d)
@@ -110,7 +113,7 @@ func (s *Server) addDocsPages(ctx context.Context, d *docs) {
 			continue
 		}
 		s.srv.AddResource(&mcp.Resource{
-			URI:         docsURI + "/" + path,
+			URI:         d.uri + "/" + path,
 			Name:        path,
 			Title:       title,
 			Description: description,
@@ -141,14 +144,14 @@ func (d *docs) read(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.Rea
 }
 
 func (d *docs) lookup(ctx context.Context, uri string) (string, bool, error) {
-	if uri == docsURI {
+	if uri == d.uri {
 		index, cached, err := d.fetch(ctx, docsIndex)
 		if err != nil {
 			return "", cached, err
 		}
-		return d.link.ReplaceAllString(index, "]("+docsURI+"/$1)"), cached, nil
+		return d.link.ReplaceAllString(index, "]("+d.uri+"/$1)"), cached, nil
 	}
-	path, ok := strings.CutPrefix(uri, docsURI+"/")
+	path, ok := strings.CutPrefix(uri, d.uri+"/")
 	if !ok || !validDocsPath(path) {
 		return "", false, errDocsNotFound
 	}

@@ -21,6 +21,7 @@ import (
 
 	"unikraft.com/cli/internal/mcpserver"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
+	modelmcp "unikraft.com/cli/internal/model/mcp"
 	modelt "unikraft.com/cli/internal/model/testing"
 )
 
@@ -31,6 +32,14 @@ func serveHTTP(t *testing.T, ctx context.Context, srv *mcpserver.Server) *httpte
 	ts.Start()
 	t.Cleanup(ts.Close)
 	return ts
+}
+
+func newServer(t *testing.T, ctx context.Context, opts mcpserver.Options) *mcpserver.Server {
+	t.Helper()
+	opts.Name, opts.Title = "unikraft", "Unikraft Cloud"
+	srv, err := mcpserver.New(ctx, opts)
+	require.NoError(t, err)
+	return srv
 }
 
 func readBody(t *testing.T, resp *http.Response) string {
@@ -45,12 +54,14 @@ func TestHTTPTools(t *testing.T) {
 	env := modelt.NewTestEnv()
 	env.Add(modelt.TestModel{ID: "1", Name: "a"})
 	ctx := modelt.WithTestEnv(t.Context(), env)
-	ts := serveHTTP(t, ctx, newServer(t, ctx, mcpserver.Options{}, testTools(ctx)))
+	srv := newServer(t, ctx, mcpserver.Options{})
+	require.NoError(t, modelmcp.New(srv.MCP(), modelmcp.Options{}).AddTools[modelt.TestModel](ctx))
+	ts := serveHTTP(t, ctx, srv)
 	session := mcptest.Connect(t, &mcp.StreamableClientTransport{Endpoint: ts.URL + mcpserver.HTTPPath, HTTPClient: ts.Client()})
 
-	res := call(t, ctx, session, "test_list", map[string]any{"fields": []string{"name"}})
+	res := mcptest.CallTool(t, ctx, session, "test_list", map[string]any{"fields": []string{"name"}})
 	require.False(t, res.IsError, mcptest.Text(res))
-	assert.Equal(t, []map[string]any{{"name": "a"}}, resources(t, res))
+	assert.Equal(t, []map[string]any{{"name": "a"}}, mcptest.Resources(t, res))
 }
 
 func TestHTTPEndpoints(t *testing.T) {

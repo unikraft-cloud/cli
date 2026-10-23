@@ -15,8 +15,9 @@ import (
 	"unikraft.com/x/shell"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/mcpserver"
+	"unikraft.com/cli/internal/mcp"
 	"unikraft.com/cli/internal/model"
+	modelmcp "unikraft.com/cli/internal/model/mcp"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -24,24 +25,24 @@ import (
 type mcpInstanceCommands struct{}
 
 func (mcpInstanceCommands) Start(ctx context.Context, stdio config.Stdio, instances []string) error {
-	return (&InstancesStartCmd{Targets: instances, FormatOpts: mcpserver.JSONFormat()}).Run(ctx, stdio)
+	return (&InstancesStartCmd{Targets: instances, FormatOpts: modelmcp.JSONFormat()}).Run(ctx, stdio)
 }
 
-func (mcpInstanceCommands) Stop(ctx context.Context, stdio config.Stdio, instances []string, opts mcpserver.InstanceStopOptions) error {
+func (mcpInstanceCommands) Stop(ctx context.Context, stdio config.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
 	return (&InstancesStopCmd{
 		Targets:      instances,
 		Force:        opts.Force,
 		DrainTimeout: opts.DrainTimeout,
-		FormatOpts:   mcpserver.JSONFormat(),
+		FormatOpts:   modelmcp.JSONFormat(),
 	}).Run(ctx, stdio)
 }
 
-func (mcpInstanceCommands) Restart(ctx context.Context, stdio config.Stdio, instances []string, opts mcpserver.InstanceStopOptions) error {
+func (mcpInstanceCommands) Restart(ctx context.Context, stdio config.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
 	return (&InstancesRestartCmd{
 		Targets:      instances,
 		Force:        opts.Force,
 		DrainTimeout: opts.DrainTimeout,
-		FormatOpts:   mcpserver.JSONFormat(),
+		FormatOpts:   modelmcp.JSONFormat(),
 	}).Run(ctx, stdio)
 }
 
@@ -49,7 +50,7 @@ func (mcpInstanceCommands) Suspend(ctx context.Context, stdio config.Stdio, inst
 	return (&InstancesSuspendCmd{
 		Targets:      instances,
 		DrainTimeout: drainTimeout,
-		FormatOpts:   mcpserver.JSONFormat(),
+		FormatOpts:   modelmcp.JSONFormat(),
 	}).Run(ctx, stdio)
 }
 
@@ -61,7 +62,7 @@ type mcpSandboxCommands struct {
 	partition *model.Partition
 }
 
-func (c mcpSandboxCommands) Exec(ctx context.Context, stdio config.Stdio, instance string, opts mcpserver.SandboxExecOptions) (int, error) {
+func (c mcpSandboxCommands) Exec(ctx context.Context, stdio config.Stdio, instance string, opts mcp.SandboxExecOptions) (int, error) {
 	target, err := c.target(ctx, instance)
 	if err != nil {
 		return 0, err
@@ -88,7 +89,7 @@ func (c mcpSandboxCommands) ReadFile(ctx context.Context, instance, remote strin
 	return target.ReadFile(ctx, remote)
 }
 
-func (c mcpSandboxCommands) WriteFile(ctx context.Context, instance, remote string, data []byte, opts mcpserver.SandboxWriteOptions) error {
+func (c mcpSandboxCommands) WriteFile(ctx context.Context, instance, remote string, data []byte, opts mcp.SandboxWriteOptions) error {
 	target, err := c.target(ctx, instance)
 	if err != nil {
 		return err
