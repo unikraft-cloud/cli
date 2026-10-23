@@ -21,8 +21,8 @@ import (
 	xstdio "unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
 	"unikraft.com/cli/pkg/shellbuiltins"
 )
@@ -79,7 +79,7 @@ func (ShellSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition, signals *xsignal.Signals) error {
+func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition, signals *xsignal.Signals) error {
 	env, err := parseEnv(c.Env)
 	if err != nil {
 		return err
@@ -121,19 +121,19 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 // ShellInstance runs the shell's builtins with the CLI's own commands.
 type ShellInstance struct {
 	Key       string
-	Partition *resource.Partition
+	Partition *model.Partition
 }
 
 func (i ShellInstance) Get(ctx context.Context, stdio xstdio.Stdio, format cmd.FormatOpts) error {
-	return (&cmd.ResourceGetCmd[Instance]{Targets: []string{i.Key}, FormatOpts: format}).Run(ctx, cliStdio(stdio), i.Partition)
+	return (&cmd.ModelGetCmd[Instance]{Targets: []string{i.Key}, FormatOpts: format}).Run(ctx, cliStdio(stdio), i.Partition)
 }
 
 func (i ShellInstance) Volumes(ctx context.Context, stdio xstdio.Stdio, format cmd.FormatOpts) error {
-	return (&cmd.ResourceListCmd[Volume]{FormatOpts: format}).Run(ctx, cliStdio(stdio), i.Partition)
+	return (&cmd.ModelListCmd[Volume]{FormatOpts: format}).Run(ctx, cliStdio(stdio), i.Partition)
 }
 
 func (i ShellInstance) Edit(ctx context.Context, stdio xstdio.Stdio, set map[string]string) error {
-	return (&cmd.ResourceEditCmd[Instance]{Target: i.Key, Set: []map[string]string{set}}).Run(ctx, cliStdio(stdio), i.Partition)
+	return (&cmd.ModelEditCmd[Instance]{Target: i.Key, Set: []map[string]string{set}}).Run(ctx, cliStdio(stdio), i.Partition)
 }
 
 func (i ShellInstance) Attach(ctx context.Context, stdio xstdio.Stdio, volume, at string, readonly bool) error {

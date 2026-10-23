@@ -21,7 +21,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
-	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/model"
 )
 
 // TestEnv holds per-test environment for running CLI commands deterministically.
@@ -148,7 +148,7 @@ func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (stri
 	c.Env = append(c.Env, "UNIKRAFT_CONFIG="+env.configPath)
 	c.Env = append(c.Env, "BUILDKIT_PROGRESS=quiet")
 	if !cfg.noPartition {
-		c.Env = append(c.Env, resource.UnikraftPartitionEnv+"="+env.partitionPath)
+		c.Env = append(c.Env, model.UnikraftPartitionEnv+"="+env.partitionPath)
 	}
 
 	err := c.Run()
@@ -238,7 +238,7 @@ func (env *TestEnv) StartBackground(t *testing.T, args []string, waitAddr string
 	c.Env = append(c.Env, "NO_COLOR=1")
 	c.Env = append(c.Env, "UNIKRAFT_CONFIG="+env.configPath)
 	c.Env = append(c.Env, "BUILDKIT_PROGRESS=quiet")
-	c.Env = append(c.Env, resource.UnikraftPartitionEnv+"="+env.partitionPath)
+	c.Env = append(c.Env, model.UnikraftPartitionEnv+"="+env.partitionPath)
 	c.Cancel = func() error {
 		return c.Process.Signal(os.Interrupt)
 	}

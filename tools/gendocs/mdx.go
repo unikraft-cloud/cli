@@ -21,8 +21,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"sigs.k8s.io/yaml"
 
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/tablewriter"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
@@ -101,13 +101,13 @@ func generateMarkdown(ctx context.Context, node *kong.Node, dir string) error {
 
 	printDocsOptions(buf, node)
 
-	if target, ok := node.Target.Interface().(cmd.ResourceCmdInterface); ok {
+	if target, ok := node.Target.Interface().(cmd.ModelCmdInterface); ok {
 		src := target.Underlying()
 		fields, err := src.Fields(ctx)
 		if err != nil {
 			return fmt.Errorf("could not get fields for %s: %w", name, err)
 		}
-		fields, _ = resource.FilterFieldsByPath(fields, nil, true)
+		fields, _ = model.FilterFieldsByPath(fields, nil, true)
 		printDocsFields(buf, fields)
 	}
 
@@ -197,7 +197,7 @@ func printDocsOptions(buf *bytes.Buffer, node *kong.Node) {
 	}
 }
 
-func printDocsFields(buf *bytes.Buffer, fields []resource.Field) {
+func printDocsFields(buf *bytes.Buffer, fields []model.Field) {
 	w := tablewriter.TableWriter(buf)
 	defer w.Flush()
 
@@ -205,7 +205,7 @@ func printDocsFields(buf *bytes.Buffer, fields []resource.Field) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "| Field | Type | Operations |")
 	fmt.Fprintln(w, "|-------|------|------------|")
-	for path, field := range resource.IterFields(fields) {
+	for path, field := range model.IterFields(fields) {
 		var typeStr string
 		if field.Value != nil {
 			typeStr = formatType(reflect.TypeOf(field.Value))

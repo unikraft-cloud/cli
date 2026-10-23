@@ -81,10 +81,10 @@ automatically determines the git tag — no manual tagging is needed.
 
 ## Architecture
 
-The CLI follows a resource-oriented architecture:
+The CLI follows a model-oriented architecture, where each API resource has a model:
 
 - **Commands** (`internal/cmd/`) — Kong-based command definitions with subcommand routing
-- **Resources** (`internal/resource/`) — Unified interface for API objects with field introspection
+- **Models** (`internal/model/`) — Unified interface for API objects with field introspection
 - **Multi-Metro** (`internal/multimetro/`) — Client abstraction for global infrastructure operations
 - **Configuration** (`internal/config/`) — Profile and credential management
 - **Telemetry** (`internal/telemetry/`) — Usage analytics (opt-out via `--no-telemetry`)

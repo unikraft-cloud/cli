@@ -10,11 +10,11 @@ import (
 
 	"unikraft.com/x/filters"
 
-	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/model"
 )
 
 func filterMetrosFromCtx(ctx context.Context, names []string) []string {
-	return filterMetros(names, resource.FilterFromContext(ctx))
+	return filterMetros(names, model.FilterFromContext(ctx))
 }
 
 func filterMetros(names []string, spec filters.Filter) []string {

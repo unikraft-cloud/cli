@@ -21,22 +21,22 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
 )
 
 type InstanceCheckpointsCmd struct {
-	cmd.ResourceCmd[InstanceCheckpoint]
-	cmd.GettableResourceCmd[InstanceCheckpoint]
-	cmd.ListableResourceCmd[InstanceCheckpoint]
-	cmd.WaitableResourceCmd[InstanceCheckpoint]
-	cmd.BulkDeletableResourceCmd[InstanceCheckpoint]
+	cmd.ModelCmd[InstanceCheckpoint]
+	cmd.GettableModelCmd[InstanceCheckpoint]
+	cmd.ListableModelCmd[InstanceCheckpoint]
+	cmd.WaitableModelCmd[InstanceCheckpoint]
+	cmd.BulkDeletableModelCmd[InstanceCheckpoint]
 
-	Create  cmd.ResourceCreateCmd[InstanceCheckpoint] `cmd:"" help:"Create a checkpoint from an instance."`
-	Edit    cmd.ResourceEditCmd[InstanceCheckpoint]   `cmd:"" help:"Edit an instance checkpoint."`
-	History InstanceCheckpointHistoryCmd              `cmd:"" help:"Show the history of a checkpoint."`
+	Create  cmd.ModelCreateCmd[InstanceCheckpoint] `cmd:"" help:"Create a checkpoint from an instance."`
+	Edit    cmd.ModelEditCmd[InstanceCheckpoint]   `cmd:"" help:"Edit an instance checkpoint."`
+	History InstanceCheckpointHistoryCmd           `cmd:"" help:"Show the history of a checkpoint."`
 }
 
 type InstanceCheckpoint struct {
@@ -95,14 +95,14 @@ type InstanceCheckpoint struct {
 	key multimetro.Key
 }
 
-func (InstanceCheckpoint) Type() resource.Type {
-	return resource.Type{
+func (InstanceCheckpoint) Type() model.Type {
+	return model.Type{
 		Name:  "instance-checkpoint",
 		Names: "instance-checkpoints",
 	}
 }
 
-func (i InstanceCheckpoint) Key() resource.Key {
+func (i InstanceCheckpoint) Key() model.Key {
 	return i.key
 }
 
@@ -110,11 +110,11 @@ func (i InstanceCheckpoint) Raw() any {
 	return i.Instance
 }
 
-func (i InstanceCheckpoint) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(i)
+func (i InstanceCheckpoint) Fields(ctx context.Context) ([]model.Field, error) {
+	return model.FieldsFromStruct(i)
 }
 
-func (InstanceCheckpoint) List(ctx context.Context) ([]resource.Resource, error) {
+func (InstanceCheckpoint) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -123,13 +123,13 @@ func (InstanceCheckpoint) List(ctx context.Context) ([]resource.Resource, error)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing instance checkpoints")
 		resp, err := c.GetCheckpointInstances(ctx, nil, platform.GetCheckpointInstancesOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -146,7 +146,7 @@ func (InstanceCheckpoint) List(ctx context.Context) ([]resource.Resource, error)
 	})
 }
 
-func (InstanceCheckpoint) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (InstanceCheckpoint) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -155,14 +155,14 @@ func (InstanceCheckpoint) Get(ctx context.Context, keys []string) ([]resource.Re
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting instance checkpoints")
 		resp, err := c.GetCheckpointInstances(ctx, refs.NameOrUUIDs(), platform.GetCheckpointInstancesOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -243,7 +243,7 @@ func (InstanceCheckpoint) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (InstanceCheckpoint) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (InstanceCheckpoint) Edit(ctx context.Context, key string, fields []model.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 	patches, err := patchRequests(fields, instanceCheckpointPatchSpec)
 	if err != nil {
@@ -311,10 +311,10 @@ func instanceCheckpointPatchSpec(path string, op patchOp, value any) (platform.M
 	}
 }
 
-func (InstanceCheckpoint) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (InstanceCheckpoint) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var instance string
 	var autokill Autokill
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
 		}
@@ -489,14 +489,14 @@ type InstanceHistoryEntry struct {
 	key multimetro.Key
 }
 
-func (InstanceHistoryEntry) Type() resource.Type {
-	return resource.Type{
+func (InstanceHistoryEntry) Type() model.Type {
+	return model.Type{
 		Name:  "instance-history-entry",
 		Names: "instance-history-entries",
 	}
 }
 
-func (i InstanceHistoryEntry) Key() resource.Key {
+func (i InstanceHistoryEntry) Key() model.Key {
 	return i.key
 }
 
@@ -504,14 +504,14 @@ func (i InstanceHistoryEntry) Raw() any {
 	return i
 }
 
-func (i InstanceHistoryEntry) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(i)
+func (i InstanceHistoryEntry) Fields(ctx context.Context) ([]model.Field, error) {
+	return model.FieldsFromStruct(i)
 }
 
 // getInstanceHistory fetches checkpoint history entries for the given targets
 // using the provided fetch function (either the instance or checkpoint history
 // endpoint) and flattens them into InstanceHistoryEntry rows.
-func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx context.Context, c multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error)) ([]resource.Resource, error) {
+func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx context.Context, c multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error)) ([]model.Model, error) {
 	keys := multimetro.ParseKeys(targets)
 
 	g, err := multimetro.NewClient(ctx)
@@ -519,14 +519,14 @@ func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx co
 		return nil, err
 	}
 
-	return group.CollectRefsSlices(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting checkpoint history")
 		resp, err := fetch(ctx, c, refs.NameOrUUIDs())
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
 		}
@@ -556,7 +556,7 @@ func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx co
 }
 
 // renderInstanceHistory prints history entries through the printer framework.
-func renderInstanceHistory(ctx context.Context, out io.Writer, opts cmd.FormatOpts, entries []resource.Resource) error {
+func renderInstanceHistory(ctx context.Context, out io.Writer, opts cmd.FormatOpts, entries []model.Model) error {
 	return opts.Output.
 		WithDefault(cmd.PrinterTypeTable).
 		Print(ctx, out, opts.Field, InstanceHistoryEntry{}, entries...)

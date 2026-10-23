@@ -14,8 +14,8 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/httpclient"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
 	wsync "unikraft.com/cli/internal/w/sync"
 	"unikraft.com/cloud/sdk/platform"
@@ -25,9 +25,9 @@ import (
 )
 
 type MetrosCmd struct {
-	cmd.ResourceCmd[Metro]
-	cmd.GettableResourceCmd[Metro]
-	cmd.ListableResourceCmd[Metro]
+	cmd.ModelCmd[Metro]
+	cmd.GettableModelCmd[Metro]
+	cmd.ListableModelCmd[Metro]
 }
 
 type Metro struct {
@@ -39,14 +39,14 @@ type Metro struct {
 	url string
 }
 
-func (Metro) Type() resource.Type {
-	return resource.Type{
+func (Metro) Type() model.Type {
+	return model.Type{
 		Name:  "metro",
 		Names: "metros",
 	}
 }
 
-func (i Metro) Key() resource.Key {
+func (i Metro) Key() model.Key {
 	return staticKey(i.Name)
 }
 
@@ -54,8 +54,8 @@ func (i Metro) Raw() any {
 	return i
 }
 
-func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
-	fields, err := resource.FieldsFromStruct(i)
+func (i Metro) Fields(ctx context.Context) ([]model.Field, error) {
+	fields, err := model.FieldsFromStruct(i)
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +67,14 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 		endpoint:   i.url,
 		name:       i.Name,
 	}
-	quotaFields, err := resource.FieldsFromStruct(quotas)
+	quotaFields, err := model.FieldsFromStruct(quotas)
 	if err != nil {
 		return nil, err
 	}
-	fields = append(fields, resource.Field{
+	fields = append(fields, model.Field{
 		Name:      "quotas",
 		Help:      "Usage and limits of your quota in the metro.",
-		Verbosity: resource.FieldVerbosityLong,
+		Verbosity: model.FieldVerbosityLong,
 		Subfields: quotaFields,
 	})
 
@@ -187,27 +187,27 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 	})
 
 	// Add a grouped "status" field with lazy-computed subfields
-	fields = append(fields, resource.Field{
+	fields = append(fields, model.Field{
 		Name:      "status",
 		Help:      "Reachability of the metro endpoint.",
-		Verbosity: resource.FieldVerbosityLong,
-		Subfields: []resource.Field{
+		Verbosity: model.FieldVerbosityLong,
+		Subfields: []model.Field{
 			{
 				Name:          "ip",
 				Help:          "IP addresses the endpoint resolves to.",
-				Verbosity:     resource.FieldVerbosityLong,
+				Verbosity:     model.FieldVerbosityLong,
 				ValueCallback: ip,
 			},
 			{
 				Name:          "ping",
 				Help:          "TCP connection latency to the endpoint.",
-				Verbosity:     resource.FieldVerbosityLong,
+				Verbosity:     model.FieldVerbosityLong,
 				ValueCallback: ping,
 			},
 			{
 				Name:          "online",
 				Help:          "Whether the endpoint answers an HTTP request without a server error: online or offline.",
-				Verbosity:     resource.FieldVerbosityLong,
+				Verbosity:     model.FieldVerbosityLong,
 				ValueCallback: online,
 			},
 		},
@@ -216,13 +216,13 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 	return fields, nil
 }
 
-func (Metro) List(ctx context.Context) ([]resource.Resource, error) {
+func (Metro) List(ctx context.Context) ([]model.Model, error) {
 	profile, err := config.G(ctx).CurrentProfile()
 	if err != nil {
 		return nil, err
 	}
 
-	var results []resource.Resource
+	var results []model.Model
 	for _, metro := range profile.Metros {
 		result := Metro{
 			Name:     metro.Name,
@@ -236,7 +236,7 @@ func (Metro) List(ctx context.Context) ([]resource.Resource, error) {
 	return results, nil
 }
 
-func (Metro) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (Metro) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	return getFromListable(ctx, Metro{}, keys)
 }
 

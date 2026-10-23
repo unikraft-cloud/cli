@@ -17,10 +17,10 @@ This repo contains the Go-based Unikraft CLI. Use this file for contributor-faci
 ## Architecture overview
 
 - Single CLI binary with a command tree that routes to internal services.
-- Core `Resource` interface models API objects with `Type`, `Key`, `Fields`, and `Raw`, and is extended by get/list/create/edit/delete behaviors.
-- Resource data is expressed as a tree of `Field` nodes: each node has a name, optional value, nested subfields, and an `Elem` template for homogeneous arrays; patch metadata and verbosity drive editing and output.
-- Resource utilities live alongside the resource layer (inside `internal/`): struct↔field conversion, field cloning/merging/deduping, map/slice encoding, path-based filtering/selection, and patch helpers for edits.
-- Core logic lives under `internal/` and is organized by domain: configuration/profile handling, API client communication, resource abstractions, output/logging utilities, multi-region support, and shared helpers.
+- Core `Model` interface (`internal/model`) models API objects with `Type`, `Key`, `Fields`, and `Raw`, and is extended by get/list/create/edit/delete behaviors.
+- Model data is expressed as a tree of `Field` nodes: each node has a name, optional value, nested subfields, and an `Elem` template for homogeneous arrays; patch metadata and verbosity drive editing and output.
+- Model utilities live alongside the model layer (inside `internal/model`): struct↔field conversion, field cloning/merging/deduping, map/slice encoding, path-based filtering/selection, and patch helpers for edits.
+- Core logic lives under `internal/` and is organized by domain: configuration/profile handling, API client communication, model abstractions, output/logging utilities, multi-region support, and shared helpers.
 - Build artifacts and generated docs go to `dist/`; developer tooling/scripts live at the repo root and under `tools/`.
 
 ## Important dependencies
