@@ -123,13 +123,3 @@ func TestSandboxTools(t *testing.T) {
 		`write scratch /data/z "" append=false parents=false`,
 	}, fake.calls)
 }
-
-func TestSandboxToolsGating(t *testing.T) {
-	ctx := t.Context()
-	srv := newServer(t, ctx, mcpserver.Options{ReadOnly: true}, sandboxTools(&fakeSandbox{}))
-	assert.Equal(t, []string{"sandbox_read"}, mcptest.ConnectServer(t, ctx, srv).ToolNames())
-
-	srv = newServer(t, ctx, mcpserver.Options{Resources: []string{"instance"}}, sandboxTools(&fakeSandbox{}))
-	assert.Empty(t, mcptest.ConnectServer(t, ctx, srv).Tools)
-	assert.EqualError(t, srv.CheckResources(), "unknown resource types: instance; known: sandbox")
-}

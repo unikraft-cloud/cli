@@ -7,7 +7,6 @@ package mcpserver
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
@@ -55,7 +54,7 @@ func (s *Server) AddListTool[R resource.GettableListableResource](ctx context.Co
 		return s.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "list"),
 			Title:       "List " + typ.Names,
-			Description: listDescription(typ),
+			Description: fmt.Sprintf("List all %s, or fetch specific ones by passing their keys. Narrow with filter and trim the output with fields; both take the field paths listed on those parameters. Returns one JSON object per %s.", typ.Names, typ.Name),
 			InputSchema: listSchema(typ, fields),
 			Annotations: readOnlyAnnotations(),
 		}, true, func(ctx context.Context, args listArgs, stdio config.Stdio) error {
@@ -74,13 +73,12 @@ type getArgs struct {
 	Fields []string `json:"fields"`
 }
 
-// AddGetTool registers a get tool; an empty description selects the generic one.
 func (s *Server) AddGetTool[R resource.GettableResource](ctx context.Context, description string) error {
 	return s.resourceTool[R](ctx, false, func(typ resource.Type, fields []resource.Field) error {
 		return s.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "get"),
 			Title:       "Inspect " + typ.Names,
-			Description: cmp.Or(description, getDescription(typ)),
+			Description: description,
 			InputSchema: getSchema(typ, fields),
 			Annotations: readOnlyAnnotations(),
 		}, true, func(ctx context.Context, args getArgs, stdio config.Stdio) error {
@@ -210,7 +208,7 @@ func (s *Server) AddDeleteTool[R resource.DeletableResource](ctx context.Context
 		return s.addCommandTool(&mcp.Tool{
 			Name:        toolName(typ.Name, "delete"),
 			Title:       "Delete " + typ.Names,
-			Description: deleteDescription(typ),
+			Description: fmt.Sprintf("Delete %[1]s by key. This cannot be undone. Returns the deleted %[1]s.", typ.Names),
 			InputSchema: deleteSchema(typ),
 			Annotations: destructiveAnnotations(),
 		}, true, func(ctx context.Context, args deleteArgs, stdio config.Stdio) error {
@@ -239,23 +237,31 @@ func (s *Server) resourceTool[R resource.GettableResource](ctx context.Context, 
 }
 
 func (s *Server) addCommandTool[In any](tool *mcp.Tool, structured bool, run func(context.Context, In, config.Stdio) error) error {
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	if tool.InputSchema == nil {
-		var err error
-		if schema, err = jsonschema.For[In](nil); err != nil {
+		schema, err := jsonschema.For[In](nil)
+		if err != nil {
 			return fmt.Errorf("%s: %w", tool.Name, err)
 		}
 		tool.InputSchema = schema
-	} else if !ok {
-		return fmt.Errorf("%s: input schema must be a *jsonschema.Schema", tool.Name)
 	}
+	schema := tool.InputSchema.(*jsonschema.Schema)
 	singleTypes(schema)
 	s.srv.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		var in In
-		if err := unmarshalArgs(req, schema, &in); err != nil {
-			return rejected(ctx, req, err), nil
+		args := req.Params.Arguments
+		if len(args) == 0 {
+			args = []byte("{}")
 		}
-		return s.capture(ctx, req, structured, func(ctx context.Context, stdio config.Stdio) error {
+		ctx = log.WithLogger(ctx, new(log.G(ctx).With().Str("tool", req.Params.Name).Logger()))
+		log.G(ctx).Trace().RawJSON("arguments", args).Msg("calling tool")
+
+		var in In
+		if err := unmarshalArgs(args, schema, &in); err != nil {
+			log.G(ctx).Debug().Err(err).Msg("tool call rejected")
+			var res mcp.CallToolResult
+			res.SetError(err)
+			return &res, nil
+		}
+		return s.capture(ctx, structured, func(ctx context.Context, stdio config.Stdio) error {
 			return run(ctx, in, stdio)
 		}), nil
 	})
@@ -271,17 +277,14 @@ func readOnlyAnnotations() *mcp.ToolAnnotations {
 }
 
 func mutatingAnnotations() *mcp.ToolAnnotations {
-	return &mcp.ToolAnnotations{DestructiveHint: new(false), IdempotentHint: false}
+	return &mcp.ToolAnnotations{DestructiveHint: new(false)}
 }
 
 func destructiveAnnotations() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{DestructiveHint: new(true), IdempotentHint: true}
 }
 
-func (s *Server) capture(ctx context.Context, req *mcp.CallToolRequest, structured bool, run func(context.Context, config.Stdio) error) *mcp.CallToolResult {
-	ctx = log.WithLogger(ctx, new(log.G(ctx).With().Str("tool", req.Params.Name).Logger()))
-	log.G(ctx).Trace().RawJSON("arguments", arguments(req)).Msg("calling tool")
-
+func (s *Server) capture(ctx context.Context, structured bool, run func(context.Context, config.Stdio) error) *mcp.CallToolResult {
 	start := time.Now()
 	var out bytes.Buffer
 	err := run(ctx, config.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: s.opts.Stderr})
@@ -310,22 +313,7 @@ func (s *Server) capture(ctx context.Context, req *mcp.CallToolRequest, structur
 	return res
 }
 
-func rejected(ctx context.Context, req *mcp.CallToolRequest, err error) *mcp.CallToolResult {
-	log.G(ctx).Debug().Str("tool", req.Params.Name).Err(err).Msg("tool call rejected")
-	var res mcp.CallToolResult
-	res.SetError(err)
-	return &res
-}
-
-func arguments(req *mcp.CallToolRequest) []byte {
-	if len(req.Params.Arguments) == 0 {
-		return []byte("{}")
-	}
-	return req.Params.Arguments
-}
-
-func unmarshalArgs(req *mcp.CallToolRequest, schema *jsonschema.Schema, v any) error {
-	args := arguments(req)
+func unmarshalArgs(args []byte, schema *jsonschema.Schema, v any) error {
 	var members map[string]jsontext.Value
 	if err := json.Unmarshal(args, &members); err != nil {
 		return fmt.Errorf("invalid arguments: %w", err)
