@@ -287,7 +287,9 @@ func destructiveAnnotations() *mcp.ToolAnnotations {
 func (s *Server) capture(ctx context.Context, structured bool, run func(context.Context, config.Stdio) error) *mcp.CallToolResult {
 	start := time.Now()
 	var out bytes.Buffer
-	err := run(ctx, config.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: s.opts.Stderr})
+	err := s.syncPartition(func() error {
+		return run(ctx, config.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: s.opts.Stderr})
+	})
 	msg := "tool call complete"
 	if err != nil {
 		msg = "tool call failed"
@@ -311,6 +313,17 @@ func (s *Server) capture(ctx context.Context, structured bool, run func(context.
 		res.IsError = true
 	}
 	return res
+}
+
+func (s *Server) syncPartition(run func() error) error {
+	p := s.opts.Partition
+	if p == nil {
+		return run()
+	}
+	if err := p.Reload(); err != nil {
+		return err
+	}
+	return errors.Join(run(), p.Save())
 }
 
 func unmarshalArgs(args []byte, schema *jsonschema.Schema, v any) error {
