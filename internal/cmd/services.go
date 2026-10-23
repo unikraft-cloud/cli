@@ -21,22 +21,22 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
-	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/types"
 )
 
 type ServicesCmd struct {
-	cmd.ResourceCmd[ServiceGroup]
-	cmd.GettableResourceCmd[ServiceGroup]
-	cmd.WaitableResourceCmd[ServiceGroup]
-	cmd.ListableResourceCmd[ServiceGroup]
-	cmd.BulkDeletableResourceCmd[ServiceGroup]
+	cmd.ModelCmd[ServiceGroup]
+	cmd.GettableModelCmd[ServiceGroup]
+	cmd.WaitableModelCmd[ServiceGroup]
+	cmd.ListableModelCmd[ServiceGroup]
+	cmd.BulkDeletableModelCmd[ServiceGroup]
 
-	Create cmd.ResourceCreateCmd[ServiceGroup] `cmd:"" help:"Create a service group."`
-	Edit   cmd.ResourceEditCmd[ServiceGroup]   `cmd:"" help:"Edit a service group."`
+	Create cmd.ModelCreateCmd[ServiceGroup] `cmd:"" help:"Create a service group."`
+	Edit   cmd.ModelEditCmd[ServiceGroup]   `cmd:"" help:"Edit a service group."`
 }
 
 type ServiceGroup struct {
@@ -190,14 +190,14 @@ func (d *Domain) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, (*domainJSON)(d))
 }
 
-func (ServiceGroup) Type() resource.Type {
-	return resource.Type{
+func (ServiceGroup) Type() model.Type {
+	return model.Type{
 		Name:  "service",
 		Names: "services",
 	}
 }
 
-func (s ServiceGroup) Key() resource.Key {
+func (s ServiceGroup) Key() model.Key {
 	return s.key
 }
 
@@ -205,9 +205,9 @@ func (s ServiceGroup) Raw() any {
 	return s.ServiceGroup
 }
 
-func (s ServiceGroup) Fields(ctx context.Context) ([]resource.Field, error) {
+func (s ServiceGroup) Fields(ctx context.Context) ([]model.Field, error) {
 	s.Metro = LinkName[Metro](defaultMetro(ctx, string(s.Metro)))
-	result, err := resource.FieldsFromStruct(s)
+	result, err := model.FieldsFromStruct(s)
 	if err != nil {
 		return nil, err
 	}
@@ -216,18 +216,18 @@ func (s ServiceGroup) Fields(ctx context.Context) ([]resource.Field, error) {
 	return result, nil
 }
 
-func (ServiceGroup) List(ctx context.Context) ([]resource.Resource, error) {
+func (ServiceGroup) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing service groups")
 		resp, err := c.GetServiceGroups(ctx, nil, platform.GetServiceGroupsOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -243,19 +243,19 @@ func (ServiceGroup) List(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
-func (ServiceGroup) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (ServiceGroup) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting service groups")
 		resp, err := c.GetServiceGroups(ctx, refs.NameOrUUIDs(), platform.GetServiceGroupsOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -324,10 +324,10 @@ func (ServiceGroup) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (ServiceGroup) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (ServiceGroup) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var req platform.CreateServiceGroupRequest
 	var metro string
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create != nil && field.Create.Set != nil {
 			switch key.String() {
 			case "metro":
@@ -407,7 +407,7 @@ func (ServiceGroup) Create(ctx context.Context, fields []resource.Field) ([]reso
 	return results, nil
 }
 
-func (ServiceGroup) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (ServiceGroup) Edit(ctx context.Context, key string, fields []model.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 	patches, err := patchRequests(fields, serviceGroupPatchSpec)
 	if err != nil {

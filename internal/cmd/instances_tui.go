@@ -18,8 +18,8 @@ import (
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/cloud/sdk/platform/logs"
 
+	modeltui "unikraft.com/cli/internal/model/tui"
 	"unikraft.com/cli/internal/multimetro"
-	resourcetui "unikraft.com/cli/internal/resource/tui"
 )
 
 // Subpanels returns subpanels for instance detail views.
@@ -41,7 +41,7 @@ func (Instance) Subpanels(ctx context.Context, key string) []tea.Model {
 	}
 
 	return []tea.Model{
-		resourcetui.NewReaderPanelFunc(ctx, "Logs", readerFunc, true),
+		modeltui.NewReaderPanelFunc(ctx, "Logs", readerFunc, true),
 	}
 }
 
