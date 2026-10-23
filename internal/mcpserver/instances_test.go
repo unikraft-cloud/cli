@@ -102,13 +102,3 @@ func TestInstanceTools(t *testing.T) {
 		"logs web tail=200",
 	}, fake.calls)
 }
-
-func TestInstanceToolsGating(t *testing.T) {
-	ctx := t.Context()
-	srv := newServer(t, ctx, mcpserver.Options{ReadOnly: true}, instanceTools(&fakeInstances{}))
-	assert.Equal(t, []string{"instance_logs"}, mcptest.ConnectServer(t, ctx, srv).ToolNames())
-
-	srv = newServer(t, ctx, mcpserver.Options{Resources: []string{"volume"}}, instanceTools(&fakeInstances{}))
-	assert.Empty(t, mcptest.ConnectServer(t, ctx, srv).Tools)
-	assert.EqualError(t, srv.CheckResources(), "unknown resource types: volume; known: instance")
-}

@@ -104,17 +104,17 @@ func (s *Server) AddSandboxTools(commands SandboxCommands) error {
 			Annotations: mutatingAnnotations(),
 		}, false, func(ctx context.Context, in sandboxExecArgs, stdio config.Stdio) error {
 			opts := SandboxExecOptions{Dir: in.Dir, Env: in.Env, Stdin: in.Stdin}
+			var err error
 			switch in.Command.Kind() {
 			case '[':
-				if err := json.Unmarshal(in.Command, &opts.Args); err != nil {
-					return fmt.Errorf("invalid command: %w", err)
-				}
+				err = json.Unmarshal(in.Command, &opts.Args)
 			case '"':
-				if err := json.Unmarshal(in.Command, &opts.Cmdline); err != nil {
-					return fmt.Errorf("invalid command: %w", err)
-				}
+				err = json.Unmarshal(in.Command, &opts.Cmdline)
 			default:
 				return errors.New("invalid command: give an array of strings or one command line")
+			}
+			if err != nil {
+				return fmt.Errorf("invalid command: %w", err)
 			}
 			if len(opts.Args) == 0 && opts.Cmdline == "" {
 				return errors.New("invalid command: it is empty")

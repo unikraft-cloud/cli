@@ -86,14 +86,12 @@ func TestResourcesAllowlist(t *testing.T) {
 	ctx := modelt.WithTestEnv(t.Context(), modelt.NewTestEnv())
 
 	srv := newServer(t, ctx, mcpserver.Options{Resources: []string{"Test"}}, testTools(ctx))
-	require.NoError(t, srv.CheckResources())
 	session := mcptest.ConnectServer(t, ctx, srv)
 	assert.Len(t, session.Tools, 4)
 	assert.Contains(t, session.Instructions, "Only the tools of these resource types are served: test.")
 
 	srv = newServer(t, ctx, mcpserver.Options{Resources: []string{"other-thing"}}, testTools(ctx))
 	assert.Empty(t, mcptest.ConnectServer(t, ctx, srv).Tools)
-	assert.EqualError(t, srv.CheckResources(), "unknown resource types: other_thing; known: test")
 }
 
 func TestListTools(t *testing.T) {

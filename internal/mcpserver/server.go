@@ -7,7 +7,6 @@ package mcpserver
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"maps"
@@ -24,7 +23,7 @@ import (
 const (
 	serverName       = "unikraft"
 	serverTitle      = "Unikraft Cloud"
-	serverWebsiteURL = "https://unikraft.cloud"
+	serverWebsiteURL = "https://unikraft.com"
 )
 
 // Options configures a Server.
@@ -47,7 +46,6 @@ type Server struct {
 	opts Options
 
 	resources map[string]bool
-	seen      map[string]bool
 }
 
 func New(ctx context.Context, opts Options) (*Server, error) {
@@ -69,7 +67,7 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 	if len(opts.Resources) > 0 {
 		resources = make(map[string]bool, len(opts.Resources))
 		for _, name := range opts.Resources {
-			resources[normalizeName(name)] = true
+			resources[NormalizeName(name)] = true
 		}
 	}
 
@@ -85,7 +83,6 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 		}),
 		opts:      opts,
 		resources: resources,
-		seen:      map[string]bool{},
 	}
 	if d != nil {
 		s.addDocs(ctx, d)
@@ -94,28 +91,11 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 }
 
 func (s *Server) enabled(name string, mutating bool) bool {
-	name = normalizeName(name)
-	s.seen[name] = true
+	name = NormalizeName(name)
 	if mutating && s.opts.ReadOnly {
 		return false
 	}
 	return s.resources == nil || s.resources[name]
-}
-
-func (s *Server) CheckResources() error {
-	var unknown []string
-	for name := range s.resources {
-		if !s.seen[name] {
-			unknown = append(unknown, name)
-		}
-	}
-	if len(unknown) == 0 {
-		return nil
-	}
-	slices.Sort(unknown)
-	return fmt.Errorf("unknown resource types: %s; known: %s",
-		strings.Join(unknown, ", "),
-		strings.Join(slices.Sorted(maps.Keys(s.seen)), ", "))
 }
 
 func (s *Server) Run(ctx context.Context) error {

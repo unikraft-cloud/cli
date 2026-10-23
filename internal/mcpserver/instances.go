@@ -19,11 +19,6 @@ import (
 )
 
 const (
-	instanceActionStart   = "start"
-	instanceActionStop    = "stop"
-	instanceActionRestart = "restart"
-	instanceActionSuspend = "suspend"
-
 	defaultLogTail                       = 200
 	defaultDrainTimeout types.DurationMS = -1
 )
@@ -77,7 +72,7 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 	if err != nil {
 		return err
 	}
-	schema.Properties["action"].Enum = []any{instanceActionStart, instanceActionStop, instanceActionRestart, instanceActionSuspend}
+	schema.Properties["action"].Enum = []any{"start", "stop", "restart", "suspend"}
 	return s.addCommandTool(&mcp.Tool{
 		Name:        "instance_control",
 		Title:       "Control instances",
@@ -88,26 +83,21 @@ func (s *Server) AddInstanceTools(commands InstanceCommands) error {
 		if len(in.Keys) == 0 {
 			return errors.New("no instances specified")
 		}
-		drain := drainTimeout(in.DrainTimeoutMS)
+		drain := defaultDrainTimeout
+		if in.DrainTimeoutMS != nil {
+			drain = types.DurationMS(*in.DrainTimeoutMS)
+		}
 		switch in.Action {
-		case instanceActionStart:
+		case "start":
 			return commands.Start(ctx, stdio, in.Keys)
-		case instanceActionStop:
+		case "stop":
 			return commands.Stop(ctx, stdio, in.Keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
-		case instanceActionRestart:
+		case "restart":
 			return commands.Restart(ctx, stdio, in.Keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
-		case instanceActionSuspend:
+		case "suspend":
 			return commands.Suspend(ctx, stdio, in.Keys, drain)
 		default:
-			return fmt.Errorf("unknown action %q: use %s, %s, %s or %s", in.Action,
-				instanceActionStart, instanceActionStop, instanceActionRestart, instanceActionSuspend)
+			return fmt.Errorf("unknown action %q: use start, stop, restart or suspend", in.Action)
 		}
 	})
-}
-
-func drainTimeout(ms *int64) types.DurationMS {
-	if ms == nil {
-		return defaultDrainTimeout
-	}
-	return types.DurationMS(*ms)
 }

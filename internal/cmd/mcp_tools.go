@@ -23,8 +23,6 @@ import (
 // mcpInstanceCommands runs the MCP instance tools with the CLI's own commands.
 type mcpInstanceCommands struct{}
 
-var _ mcpserver.InstanceCommands = mcpInstanceCommands{}
-
 func (mcpInstanceCommands) Start(ctx context.Context, stdio config.Stdio, instances []string) error {
 	return (&InstancesStartCmd{Targets: instances, FormatOpts: mcpserver.JSONFormat()}).Run(ctx, stdio)
 }
@@ -62,8 +60,6 @@ func (mcpInstanceCommands) Logs(ctx context.Context, stdio config.Stdio, instanc
 type mcpSandboxCommands struct {
 	partition *model.Partition
 }
-
-var _ mcpserver.SandboxCommands = mcpSandboxCommands{}
 
 func (c mcpSandboxCommands) Exec(ctx context.Context, stdio config.Stdio, instance string, opts mcpserver.SandboxExecOptions) (int, error) {
 	target, err := c.target(ctx, instance)
