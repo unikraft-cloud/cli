@@ -21,7 +21,7 @@ import (
 	"unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model/cmd"
 	wkong "unikraft.com/cli/internal/w/kong"
 	"unikraft.com/cli/pkg/types"
 )

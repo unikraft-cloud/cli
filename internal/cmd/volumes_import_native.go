@@ -29,11 +29,11 @@ import (
 	"unikraft.com/x/ptr"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
 )
 
-func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	if c.Source == "" {
 		return fmt.Errorf("source path is required")
 	}

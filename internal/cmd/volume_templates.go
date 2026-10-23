@@ -19,20 +19,20 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
 )
 
 type VolumeTemplatesCmd struct {
-	cmd.ResourceCmd[VolumeTemplate]
-	cmd.GettableResourceCmd[VolumeTemplate]
-	cmd.ListableResourceCmd[VolumeTemplate]
-	cmd.BulkDeletableResourceCmd[VolumeTemplate]
+	cmd.ModelCmd[VolumeTemplate]
+	cmd.GettableModelCmd[VolumeTemplate]
+	cmd.ListableModelCmd[VolumeTemplate]
+	cmd.BulkDeletableModelCmd[VolumeTemplate]
 
-	Create cmd.ResourceCreateCmd[VolumeTemplate] `cmd:"" help:"Create a volume template."`
-	Edit   cmd.ResourceEditCmd[VolumeTemplate]   `cmd:"" help:"Edit a volume template."`
+	Create cmd.ModelCreateCmd[VolumeTemplate] `cmd:"" help:"Create a volume template."`
+	Edit   cmd.ModelEditCmd[VolumeTemplate]   `cmd:"" help:"Edit a volume template."`
 }
 
 type VolumeTemplate struct {
@@ -60,14 +60,14 @@ type VolumeTemplate struct {
 	key multimetro.Key
 }
 
-func (VolumeTemplate) Type() resource.Type {
-	return resource.Type{
+func (VolumeTemplate) Type() model.Type {
+	return model.Type{
 		Name:  "volume-template",
 		Names: "volume-templates",
 	}
 }
 
-func (v VolumeTemplate) Key() resource.Key {
+func (v VolumeTemplate) Key() model.Key {
 	return v.key
 }
 
@@ -75,11 +75,11 @@ func (v VolumeTemplate) Raw() any {
 	return v.Volume
 }
 
-func (v VolumeTemplate) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(v)
+func (v VolumeTemplate) Fields(ctx context.Context) ([]model.Field, error) {
+	return model.FieldsFromStruct(v)
 }
 
-func (VolumeTemplate) List(ctx context.Context) ([]resource.Resource, error) {
+func (VolumeTemplate) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -88,13 +88,13 @@ func (VolumeTemplate) List(ctx context.Context) ([]resource.Resource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing volume templates")
 		resp, err := c.GetTemplateVolumes(ctx, nil, platform.GetTemplateVolumesOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -111,7 +111,7 @@ func (VolumeTemplate) List(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
-func (VolumeTemplate) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (VolumeTemplate) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -120,14 +120,14 @@ func (VolumeTemplate) Get(ctx context.Context, keys []string) ([]resource.Resour
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting volume templates")
 		resp, err := c.GetTemplateVolumes(ctx, refs.NameOrUUIDs(), platform.GetTemplateVolumesOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -208,7 +208,7 @@ func (VolumeTemplate) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (VolumeTemplate) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (VolumeTemplate) Edit(ctx context.Context, key string, fields []model.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 	patches, err := patchRequests(fields, volumeTemplatePatchSpec)
 	if err != nil {
@@ -269,9 +269,9 @@ func volumeTemplatePatchSpec(path string, op patchOp, value any) (platform.Mutab
 	}
 }
 
-func (VolumeTemplate) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (VolumeTemplate) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var volume string
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
 		}

@@ -34,27 +34,27 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/muxreader"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
-	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cli/internal/types"
 	wshell "unikraft.com/cli/internal/w/shell"
 )
 
 type InstancesCmd struct {
-	cmd.ResourceCmd[Instance]
-	cmd.GettableResourceCmd[Instance]
-	cmd.WaitableResourceCmd[Instance]
-	cmd.ListableResourceCmd[Instance]
-	cmd.BulkDeletableResourceCmd[Instance]
+	cmd.ModelCmd[Instance]
+	cmd.GettableModelCmd[Instance]
+	cmd.WaitableModelCmd[Instance]
+	cmd.ListableModelCmd[Instance]
+	cmd.BulkDeletableModelCmd[Instance]
 
-	Create     InstanceCreateCmd             `cmd:"" aliases:"new" help:"Create an instance."`
-	Run        InstanceRunCmd                `cmd:"" help:"Create an instance and optionally follow its logs."`
-	Edit       cmd.ResourceEditCmd[Instance] `cmd:"" help:"Edit an instance."`
-	Template   InstanceTemplatesCmd          `cmd:"" group:"cmd-templates" help:"Manage instance templates." aliases:"templates" set:"name=instance-template" set:"names=instance-templates"`
-	Checkpoint InstanceCheckpointsCmd        `cmd:"" group:"cmd-checkpoints" help:"Manage instance checkpoints." aliases:"checkpoints" set:"name=instance-checkpoint" set:"names=instance-checkpoints"`
+	Create     InstanceCreateCmd          `cmd:"" aliases:"new" help:"Create an instance."`
+	Run        InstanceRunCmd             `cmd:"" help:"Create an instance and optionally follow its logs."`
+	Edit       cmd.ModelEditCmd[Instance] `cmd:"" help:"Edit an instance."`
+	Template   InstanceTemplatesCmd       `cmd:"" group:"cmd-templates" help:"Manage instance templates." aliases:"templates" set:"name=instance-template" set:"names=instance-templates"`
+	Checkpoint InstanceCheckpointsCmd     `cmd:"" group:"cmd-checkpoints" help:"Manage instance checkpoints." aliases:"checkpoints" set:"name=instance-checkpoint" set:"names=instance-checkpoints"`
 
 	Logs    InstancesLogsCmd    `cmd:"" help:"Fetch and display instance logs."`
 	Start   InstancesStartCmd   `cmd:"" help:"Start one or more instances."`
@@ -74,17 +74,17 @@ type InstancesCmd struct {
 // InstanceCreateCmd extends the generic resource create command with flags
 // that do not map onto a single schema field.
 type InstanceCreateCmd struct {
-	cmd.ResourceCreateCmd[Instance]
+	cmd.ModelCreateCmd[Instance]
 
 	DeleteOnStop bool `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
 }
 
-func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
-	_, err := c.RunResources(ctx, stdio, partition)
+func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+	_, err := c.RunModels(ctx, stdio, partition)
 	return err
 }
 
-func (c *InstanceCreateCmd) RunResources(ctx context.Context, stdio config.Stdio, partition *resource.Partition) ([]resource.Resource, error) {
+func (c *InstanceCreateCmd) RunModels(ctx context.Context, stdio config.Stdio, partition *model.Partition) ([]model.Model, error) {
 	if c.DeleteOnStop {
 		c.Set = append(c.Set, map[string]string{"features": string(platform.InstanceFeatureDeleteOnStop)})
 	}
@@ -97,7 +97,7 @@ func (c *InstanceCreateCmd) RunResources(ctx context.Context, stdio config.Stdio
 			return nil, fmt.Errorf("--domain cannot be used with --service")
 		}
 	}
-	return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
+	return c.ModelCreateCmd.RunModels(ctx, stdio, partition)
 }
 
 type Instance struct {
@@ -725,14 +725,14 @@ func (a *InstanceArgs) UnmarshalJSON(data []byte) error {
 	return a.UnmarshalText([]byte(s))
 }
 
-func (Instance) Type() resource.Type {
-	return resource.Type{
+func (Instance) Type() model.Type {
+	return model.Type{
 		Name:  "instance",
 		Names: "instances",
 	}
 }
 
-func (i Instance) Key() resource.Key {
+func (i Instance) Key() model.Key {
 	return i.key
 }
 
@@ -740,9 +740,9 @@ func (i Instance) Raw() any {
 	return i.Instance
 }
 
-func (i Instance) Fields(ctx context.Context) ([]resource.Field, error) {
+func (i Instance) Fields(ctx context.Context) ([]model.Field, error) {
 	i.Metro = LinkName[Metro](defaultMetro(ctx, string(i.Metro)))
-	result, err := resource.FieldsFromStruct(i)
+	result, err := model.FieldsFromStruct(i)
 	if err != nil {
 		return nil, err
 	}
@@ -750,7 +750,7 @@ func (i Instance) Fields(ctx context.Context) ([]resource.Field, error) {
 	return result, nil
 }
 
-func (Instance) List(ctx context.Context) ([]resource.Resource, error) {
+func (Instance) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -759,13 +759,13 @@ func (Instance) List(ctx context.Context) ([]resource.Resource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing instances")
 		resp, err := c.GetInstances(ctx, nil, platform.GetInstancesOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -781,7 +781,7 @@ func (Instance) List(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
-func (Instance) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (Instance) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -790,14 +790,14 @@ func (Instance) Get(ctx context.Context, keys []string) ([]resource.Resource, er
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting instances")
 		resp, err := c.GetInstances(ctx, refs.NameOrUUIDs(), platform.GetInstancesOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -904,13 +904,13 @@ func (Instance) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (Instance) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (Instance) Edit(ctx context.Context, key string, fields []model.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 
 	// Check if there's a state transition requested - if so, we need current state.
 	var targetState types.InstanceState
 	var hasStateChange bool
-	if stateFields := resource.GetFieldByPath(fields, resource.FieldPath{"state"}); len(stateFields) > 0 {
+	if stateFields := model.GetFieldByPath(fields, model.FieldPath{"state"}); len(stateFields) > 0 {
 		field := stateFields[0]
 		if field.Edit != nil && field.Edit.Set != nil {
 			targetState = field.Edit.Set.(types.InstanceState)
@@ -930,7 +930,7 @@ func (Instance) Edit(ctx context.Context, key string, fields []resource.Field) e
 	// Extract volume add/del ops before the standard patch pipeline.
 	var volumeAddOps []*InstanceVolume
 	var volumeDelOps []string
-	for path, field := range resource.IterFields(fields) {
+	for path, field := range model.IterFields(fields) {
 		if path.String() != "volumes" || field.Edit == nil {
 			continue
 		}
@@ -1188,13 +1188,13 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 	}
 }
 
-func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var req platform.CreateInstanceRequest
 	var metro string
 	var imageURL string
 	var pullPolicy *platform.PullPolicy
 	var autostart bool
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
 		}
@@ -1805,11 +1805,11 @@ func (c *InstancesStartCmd) Run(ctx context.Context, stdio config.Stdio) error {
 	for _, k := range started {
 		keySet[k.Canonical()] = struct{}{}
 	}
-	before = slices.DeleteFunc(slices.Clone(before), func(r resource.Resource) bool {
+	before = slices.DeleteFunc(slices.Clone(before), func(r model.Model) bool {
 		_, ok := keySet[r.Key().Canonical()]
 		return !ok
 	})
-	updated = slices.DeleteFunc(slices.Clone(updated), func(r resource.Resource) bool {
+	updated = slices.DeleteFunc(slices.Clone(updated), func(r model.Model) bool {
 		_, ok := keySet[r.Key().Canonical()]
 		return !ok
 	})
@@ -1890,11 +1890,11 @@ func (c *InstancesStopCmd) Run(ctx context.Context, stdio config.Stdio) error {
 	for _, k := range stopped {
 		keySet[k.Canonical()] = struct{}{}
 	}
-	before = slices.DeleteFunc(slices.Clone(before), func(r resource.Resource) bool {
+	before = slices.DeleteFunc(slices.Clone(before), func(r model.Model) bool {
 		_, ok := keySet[r.Key().Canonical()]
 		return !ok
 	})
-	updated = slices.DeleteFunc(slices.Clone(updated), func(r resource.Resource) bool {
+	updated = slices.DeleteFunc(slices.Clone(updated), func(r model.Model) bool {
 		_, ok := keySet[r.Key().Canonical()]
 		return !ok
 	})
@@ -1985,11 +1985,11 @@ func (c *InstancesRestartCmd) Run(ctx context.Context, stdio config.Stdio) error
 	for _, k := range started {
 		keySet[k.Canonical()] = struct{}{}
 	}
-	before = slices.DeleteFunc(slices.Clone(before), func(r resource.Resource) bool {
+	before = slices.DeleteFunc(slices.Clone(before), func(r model.Model) bool {
 		_, ok := keySet[r.Key().Canonical()]
 		return !ok
 	})
-	updated = slices.DeleteFunc(slices.Clone(updated), func(r resource.Resource) bool {
+	updated = slices.DeleteFunc(slices.Clone(updated), func(r model.Model) bool {
 		_, ok := keySet[r.Key().Canonical()]
 		return !ok
 	})
@@ -2180,11 +2180,11 @@ func (c *InstancesSuspendCmd) Run(ctx context.Context, stdio config.Stdio) error
 	for _, k := range suspended {
 		keySet[k.Canonical()] = struct{}{}
 	}
-	before = slices.DeleteFunc(slices.Clone(before), func(r resource.Resource) bool {
+	before = slices.DeleteFunc(slices.Clone(before), func(r model.Model) bool {
 		_, ok := keySet[r.Key().Canonical()]
 		return !ok
 	})
-	updated = slices.DeleteFunc(slices.Clone(updated), func(r resource.Resource) bool {
+	updated = slices.DeleteFunc(slices.Clone(updated), func(r model.Model) bool {
 		_, ok := keySet[r.Key().Canonical()]
 		return !ok
 	})

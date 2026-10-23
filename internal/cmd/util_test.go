@@ -15,8 +15,8 @@ import (
 	"unikraft.com/cloud/sdk/platform/group"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
 )
 
 func TestRecoverCreatedFallsBackToCreateResponse(t *testing.T) {
@@ -77,8 +77,8 @@ func TestRecoverCreatedWithoutProfileReportsAllMissing(t *testing.T) {
 }
 
 // nameLink returns the hyperlink of the name field.
-func nameLink(fields []resource.Field) string {
-	for key, field := range resource.IterFields(fields) {
+func nameLink(fields []model.Field) string {
+	for key, field := range model.IterFields(fields) {
 		if key.String() == "name" {
 			return field.Hyperlink
 		}
@@ -101,7 +101,7 @@ func TestResourcesLinkToTheConsole(t *testing.T) {
 	})
 
 	for _, tc := range []struct {
-		resource resource.Resource
+		resource model.Model
 		link     string
 	}{
 		{Instance{Metro: "fra", Name: "web", Profile: &profile}, "https://console.unikraft.cloud/org/acme/instances/fra/web"},

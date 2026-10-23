@@ -24,8 +24,8 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/cpuguy83/go-md2man/v2/md2man"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 )
@@ -276,7 +276,7 @@ func manPrintOptions(buf *bytes.Buffer, node *kong.Node) {
 }
 
 func manPrintFields(buf *bytes.Buffer, node *kong.Node) error {
-	target, ok := node.Target.Interface().(cmd.ResourceCmdInterface)
+	target, ok := node.Target.Interface().(cmd.ModelCmdInterface)
 	if !ok {
 		return nil
 	}
@@ -286,12 +286,12 @@ func manPrintFields(buf *bytes.Buffer, node *kong.Node) error {
 	if err != nil {
 		return fmt.Errorf("could not get fields for %s: %w", NodePath(node), err)
 	}
-	fields, _ = resource.FilterFieldsByPath(fields, nil, false)
-	fields = resource.FilterFields(fields, func(field resource.Field) resource.FilterResult {
-		if field.Verbosity < resource.FieldVerbosityHidden {
-			return resource.FilterExclude
+	fields, _ = model.FilterFieldsByPath(fields, nil, false)
+	fields = model.FilterFields(fields, func(field model.Field) model.FilterResult {
+		if field.Verbosity < model.FieldVerbosityHidden {
+			return model.FilterExclude
 		}
-		return resource.FilterRecurse
+		return model.FilterRecurse
 	})
 	if len(fields) == 0 {
 		return nil
@@ -314,7 +314,7 @@ func manPrintField(buf *bytes.Buffer, path string, description string) {
 	fmt.Fprintf(buf, format, description)
 }
 
-func manFieldGroupDescription(field *resource.Field) string {
+func manFieldGroupDescription(field *model.Field) string {
 	lines := []string{}
 	if detail := manFieldDetail(field); detail != "" {
 		lines = append(lines, detail)
@@ -326,13 +326,13 @@ func manFieldGroupDescription(field *resource.Field) string {
 	return strings.Join(lines, "\n\t\t")
 }
 
-func manFieldDescendants(field *resource.Field) []string {
+func manFieldDescendants(field *model.Field) []string {
 	if len(field.Subfields) == 0 {
 		return nil
 	}
 
 	descendants := []string{}
-	for path, subfield := range resource.IterFields(field.Subfields) {
+	for path, subfield := range model.IterFields(field.Subfields) {
 		fullPath := field.Name + "." + path.String()
 		line := manFieldLine(fullPath, subfield)
 		if line == "" {
@@ -343,7 +343,7 @@ func manFieldDescendants(field *resource.Field) []string {
 	return descendants
 }
 
-func manFieldLine(path string, field *resource.Field) string {
+func manFieldLine(path string, field *model.Field) string {
 	detail := manFieldDetail(field)
 	if detail == "" {
 		if field.HasChildren() {
@@ -354,7 +354,7 @@ func manFieldLine(path string, field *resource.Field) string {
 	return fmt.Sprintf("%s: %s", path, detail)
 }
 
-func manFieldDetail(field *resource.Field) string {
+func manFieldDetail(field *model.Field) string {
 	var parts []string
 
 	if field.Value != nil {

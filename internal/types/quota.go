@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/tui/meter"
 )
 
