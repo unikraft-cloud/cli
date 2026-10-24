@@ -22,7 +22,8 @@ type ImageBuildCmd struct {
 	Secret   []string `sep:"none" help:"Secret to expose to the build (format: \"id=mysecret[,src=/local/secret]\")."`
 	SSH      []string `sep:"none" help:"SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")."`
 
-	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
+	BuildContext []string `sep:"none" help:"Set additional build contexts (format: name=path|url)."`
+	Insecure     []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 }
 
 func (ImageBuildCmd) Examples() []kingkong.Example {
@@ -67,6 +68,12 @@ func (ImageBuildCmd) Examples() []kingkong.Example {
 			Description: "Build and save to a local OCI archive",
 			Commands: []string{
 				"unikraft image build . --output ./dist/my-app.oci.tar",
+			},
+		},
+		{
+			Description: "Build with an additional named context",
+			Commands: []string{
+				"unikraft image build . --build-context shared=./shared",
 			},
 		},
 	}

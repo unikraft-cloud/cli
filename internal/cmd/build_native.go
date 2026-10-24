@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	dockerconfig "github.com/docker/cli/cli/config"
 	"github.com/moby/buildkit/client"
@@ -84,12 +86,68 @@ func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error 
 	return err
 }
 
+// resolveNamedBuildContext resolves a named Dockerfile build context.
+func resolveNamedBuildContext(name, source string) (build.Source, error) {
+	switch {
+	case source == "":
+		return nil, fmt.Errorf("build context %q has an empty source", name)
+	case strings.HasPrefix(source, "docker-image://"):
+		if strings.TrimPrefix(source, "docker-image://") == "" {
+			return nil, fmt.Errorf("build context %q has an empty image reference", name)
+		}
+		return build.FrontendSource{Ref: source}, nil
+	case strings.HasPrefix(source, "oci-layout://"):
+		if strings.TrimPrefix(source, "oci-layout://") == "" {
+			return nil, fmt.Errorf("build context %q has an empty OCI layout reference", name)
+		}
+		return build.FrontendSource{Ref: source}, nil
+	case strings.HasPrefix(source, "https://"),
+		strings.HasPrefix(source, "http://"),
+		strings.HasPrefix(source, "git://"),
+		strings.HasPrefix(source, "ssh://"):
+		return build.FrontendSource{Ref: source}, nil
+	case strings.Contains(source, "://"):
+		return nil, fmt.Errorf("build context %q: unsupported source scheme in %q", name, source)
+	}
+
+	dir, err := filepath.Abs(source)
+	if err != nil {
+		return nil, fmt.Errorf("resolve build context %q: %w", name, err)
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		return nil, fmt.Errorf("access build context %q at %q: %w", name, dir, err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("build context %q must be a directory, got %q", name, dir)
+	}
+	return build.LocalSource{Dir: dir}, nil
+}
+
 func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
 	buildOpts, err := build.LoadBuildOpts(ctx, c.Input)
 	if err != nil {
 		return err
 	}
 
+	if len(c.BuildContext) > 0 {
+		namedContexts, err := buildflags.ParseContextNames(c.BuildContext)
+		if err != nil {
+			return err
+		}
+
+		if buildOpts.Contexts == nil {
+			buildOpts.Contexts = make(map[string]build.Source)
+		}
+
+		for name, source := range namedContexts {
+			resolved, err := resolveNamedBuildContext(name, source)
+			if err != nil {
+				return err
+			}
+			buildOpts.Contexts[name] = resolved
+		}
+	}
 	arches := make([]string, 0, len(c.Arch))
 	for _, a := range c.Arch {
 		arch, err := imagespec.NormalizeArch(a)

@@ -166,6 +166,178 @@ cmd: ["sh", "/entrypoint.sh"]
 		}
 	})
 
+	t.Run("named-build-context", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		imageTag := uniq()
+		image := r.Profile.Organization + "/named-context-e2e:" + imageTag
+		instName := uniq()
+
+		dir := t.TempDir()
+		require.NoError(t, fstest.Apply(
+			fstest.CreateDir("shared", 0o755),
+			fstest.CreateFile(
+				"shared/marker.txt",
+				[]byte("NAMED_CONTEXT_OK\n"),
+				0o644,
+			),
+			fstest.CreateFile("Dockerfile", []byte(`
+FROM busybox:latest
+COPY --from=shared /marker.txt /named-context-marker.txt
+CMD ["sh", "-c", "cat /named-context-marker.txt"]
+`), 0o644),
+			fstest.CreateFile("Kraftfile", []byte(`
+spec: v0.7
+name: named-context-e2e
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+`), 0o644),
+		).Apply(dir))
+
+		r.Run(t, []string{
+			"unikraft", "build", ".",
+			"--build-context", "shared=./shared",
+			"--output", image,
+		}, integ.WithWorkDir(dir))
+
+		out := r.Run(t, []string{
+			"unikraft", "image", "inspect", image,
+		})
+		assert.Regexp(t, `named-context-e2e`, out)
+
+		r.Run(t, []string{
+			"unikraft", "run",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--output", "quiet",
+			"--image", image,
+		})
+
+		r.Run(t, []string{
+			"unikraft", "--timeout", "10s",
+			"instance", "wait", "--until", "state==stopped",
+			"test-" + instName,
+		})
+
+		out = r.Run(t, []string{
+			"unikraft", "instance", "logs", "test-" + instName,
+		})
+		assert.Regexp(t, `NAMED_CONTEXT_OK`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+		r.Run(t, []string{"unikraft", "image", "delete", image})
+	})
+
+	t.Run("named-image-context", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		imageTag := uniq()
+		image := r.Profile.Organization + "/named-image-context-e2e:" + imageTag
+		instName := uniq()
+
+		dir := t.TempDir()
+		require.NoError(t, fstest.Apply(
+			fstest.CreateFile("Dockerfile", []byte(`
+FROM busybox:latest
+COPY --from=shared /etc/alpine-release /named-context-marker.txt
+CMD ["sh", "-c", "cat /named-context-marker.txt"]
+`), 0o644),
+			fstest.CreateFile("Kraftfile", []byte(`
+spec: v0.7
+name: named-image-context-e2e
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+`), 0o644),
+		).Apply(dir))
+
+		r.Run(t, []string{
+			"unikraft", "build", ".",
+			"--build-context", "shared=docker-image://docker.io/library/alpine:3.22",
+			"--output", image,
+		}, integ.WithWorkDir(dir))
+
+		out := r.Run(t, []string{"unikraft", "image", "inspect", image})
+		assert.Regexp(t, `named-image-context-e2e`, out)
+
+		r.Run(t, []string{
+			"unikraft", "run",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--output", "quiet",
+			"--image", image,
+		})
+
+		r.Run(t, []string{
+			"unikraft", "--timeout", "10s",
+			"instance", "wait", "--until", "state==stopped",
+			"test-" + instName,
+		})
+
+		out = r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
+		assert.Regexp(t, `3\.22`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+		r.Run(t, []string{"unikraft", "image", "delete", image})
+	})
+
+	t.Run("named-git-context", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		imageTag := uniq()
+		image := r.Profile.Organization + "/named-git-context-e2e:" + imageTag
+		instName := uniq()
+
+		dir := t.TempDir()
+		require.NoError(t, fstest.Apply(
+			fstest.CreateFile("Dockerfile", []byte(`
+FROM busybox:latest
+COPY --from=shared /README /named-context-marker.txt
+CMD ["sh", "-c", "cat /named-context-marker.txt"]
+`), 0o644),
+			fstest.CreateFile("Kraftfile", []byte(`
+spec: v0.7
+name: named-git-context-e2e
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+`), 0o644),
+		).Apply(dir))
+
+		r.Run(t, []string{
+			"unikraft", "build", ".",
+			"--build-context", "shared=https://github.com/octocat/Hello-World.git",
+			"--output", image,
+		}, integ.WithWorkDir(dir))
+
+		out := r.Run(t, []string{
+			"unikraft", "image", "inspect", image,
+		})
+		assert.Regexp(t, `named-git-context-e2e`, out)
+
+		r.Run(t, []string{
+			"unikraft", "run",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--output", "quiet",
+			"--image", image,
+		})
+
+		r.Run(t, []string{
+			"unikraft", "--timeout", "10s",
+			"instance", "wait", "--until", "state==stopped",
+			"test-" + instName,
+		})
+
+		out = r.Run(t, []string{
+			"unikraft", "instance", "logs", "test-" + instName,
+		})
+		assert.Regexp(t, `Hello World!`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+		r.Run(t, []string{"unikraft", "image", "delete", image})
+	})
 	// A project with only a Dockerfile builds without a Kraftfile. The
 	// architecture then comes from --arch. Both a directory and a direct
 	// Dockerfile path are accepted as input.
