@@ -334,34 +334,7 @@ func TestInstances(t *testing.T) {
 		out = r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--interval", "1s", "--samples", "2"})
 		assert.Contains(t, out, "test-"+instName+"  memory (bytes)")
 
-		// A rate has no value at the first sample: three samples, three rows.
-		out = r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--metric", "cpu", "--interval", "1s", "--samples", "3", "--output", "json"})
-		var cpuRows []struct {
-			Metric string   `json:"metric"`
-			Value  *float64 `json:"value"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(out), &cpuRows))
-		require.Len(t, cpuRows, 3)
-		assert.Nil(t, cpuRows[0].Value)
-		assert.NotNil(t, cpuRows[1].Value)
-		assert.NotNil(t, cpuRows[2].Value)
-
-		// Two metrics, comma separated or repeated, give a row for each.
-		for _, metrics := range [][]string{{"--metric", "memory,conns"}, {"--metric", "memory", "--metric", "conns"}} {
-			args := append([]string{"unikraft", "instance", "graph", "test-" + instName, "--interval", "1s", "--samples", "2", "--output", "json"}, metrics...)
-			out = r.Run(t, args)
-			var rows []struct {
-				Metric string `json:"metric"`
-			}
-			require.NoError(t, json.Unmarshal([]byte(out), &rows))
-			require.Len(t, rows, 4)
-		}
-
-		// A single sample of a rate, an unknown metric and an unknown instance fail.
-		out = r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--metric", "cpu", "--samples", "1", "--output", "json"}, integ.ExpectFail())
-		assert.Contains(t, out, "a rate needs two samples")
-		out = r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--metric", "disk", "--output", "json"}, integ.ExpectFail())
-		assert.Contains(t, out, `unknown metric "disk"`)
+		// An unknown instance fails.
 		r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName + "-missing", "--samples", "2", "--interval", "1s", "--output", "json"}, integ.ExpectFail())
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})

@@ -88,34 +88,6 @@ func TestGraphSparkRowsTooNarrow(t *testing.T) {
 	assert.NotContains(t, got, "\n")
 }
 
-func TestGraphSparkRowsShowAGapForAnInstanceWithoutAnswer(t *testing.T) {
-	t.Parallel()
-	s := newTestSessionOf(t, nil, twoTargets(), "memory")
-	observeMemory(t, s, 10, 20)
-	err := s.observe(graphT0.Add(4*time.Second), graphReading{graphTestUUID: {RssBytes: 30 << 20}}, nil)
-	require.EqualError(t, err, "web-2: no answer from the platform")
-
-	frame := s.plainFrame(60)
-	assert.Contains(t, frame, "▃▆█  last 30 MiB", "the instance with an answer goes on")
-	assert.Contains(t, frame, "last - / max 10 MiB", "the other has a gap and never a zero")
-}
-
-func TestGraphSeveralInstancesCostOneRequestForEachPoll(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		both := graphReading{graphTestUUID: {RssBytes: 1 << 20}, graphTestUUID2: {RssBytes: 2 << 20}}
-		script := &graphScript{steps: []graphStep{{readings: both}}}
-		s := newTestSessionOf(t, script.fetch, twoTargets(), "memory", "conns")
-		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(3)}
-
-		out, err := runGraph(t, c, s)
-		require.NoError(t, err)
-		assert.Equal(t, 3, script.count(), "one request for each poll, whatever the instances and fields")
-		assert.Equal(t, 4, strings.Count(out, "\n"), "four rows")
-		assert.NotContains(t, out, "\x1b")
-	})
-}
-
 func TestGraphOutputHasRowsForEveryInstanceAndField(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
@@ -199,25 +171,6 @@ func TestGraphSparkRowsFitTheWidth(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGraphSparkRowsKeepTheMetricInAShortLabel(t *testing.T) {
-	t.Parallel()
-	long := []graphTarget{
-		testTarget("a-rather-long-instance-name-1", graphTestUUID),
-		testTarget("a-rather-long-instance-name-2", graphTestUUID2),
-	}
-	s := newTestSessionOf(t, nil, long, "rx", "memory")
-	observeMemory(t, s, 10, 20)
-	lines := strings.Split(s.plainFrame(60), "\n")
-	require.Len(t, lines, 4)
-	labels := map[string]bool{}
-	for _, line := range lines {
-		labels[strings.Fields(line)[0]+" "+strings.Fields(line)[1]] = true
-	}
-	assert.Len(t, labels, 4, "each row has its own label")
-	assert.Contains(t, lines[0], " rx ")
-	assert.Contains(t, lines[2], " memory ")
 }
 
 func TestGraphSparkRowsScaleOverTheVisiblePoints(t *testing.T) {

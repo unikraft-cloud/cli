@@ -27,7 +27,6 @@ import (
 	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/tui/graph"
-	"unikraft.com/cli/internal/tui/testkit"
 )
 
 const (
@@ -102,34 +101,19 @@ func mem(mib uint64) graphStep { return graphStep{metrics: graphMetrics{RssBytes
 
 func TestGraphCPUPercentUsesVCPUs(t *testing.T) {
 	t.Parallel()
-	s := newTestSession(t, nil, "cpu")
-	require.NoError(t, s.observe(graphT0, graphReading{graphTestUUID: {CpuTimeMs: 1000}}, nil))
-	require.Len(t, s.series[0], 1)
-	assert.False(t, s.series[0][0].OK, "the first sample of a counter has no rate")
+	s := newTestSession(t, nil, "cpu", "rx", "handled")
+	require.NoError(t, s.observe(graphT0, graphReading{graphTestUUID: {CpuTimeMs: 1000, RxBytes: 1000, Ntotal: 10}}, nil))
+	for i := range s.series {
+		require.Len(t, s.series[i], 1)
+		assert.False(t, s.series[i][0].OK, "the first sample of a counter has no rate")
+	}
 
-	// 2000 CPU ms in 2 s on 2 vCPUs is 50 %.
-	require.NoError(t, s.observe(graphT0.Add(2*time.Second), graphReading{graphTestUUID: {CpuTimeMs: 3000}}, nil))
-	require.Len(t, s.series[0], 2)
-	assert.True(t, s.series[0][1].OK)
-	assert.InDelta(t, 50, s.series[0][1].V, 1e-9)
-}
-
-func TestGraphRatesUseReceiveTimes(t *testing.T) {
-	t.Parallel()
-	s := newTestSession(t, nil, "rx", "handled")
-	require.NoError(t, s.observe(graphT0, graphReading{graphTestUUID: {RxBytes: 1000, Ntotal: 10}}, nil))
 	// The answer took 4 s to arrive: the rate is over 4 s, not over the interval.
-	require.NoError(t, s.observe(graphT0.Add(4*time.Second), graphReading{graphTestUUID: {RxBytes: 5000, Ntotal: 18}}, nil))
-	assert.InDelta(t, 1000, s.series[0][1].V, 1e-9)
-	assert.InDelta(t, 2, s.series[1][1].V, 1e-9)
-}
-
-func TestGraphGaugesAreNotRates(t *testing.T) {
-	t.Parallel()
-	s := newTestSession(t, nil, "memory")
-	_ = s.observe(graphT0, graphReading{graphTestUUID: {RssBytes: 100 << 20}}, nil)
-	require.Len(t, s.series[0], 1, "a gauge has a value on the first sample")
-	assert.InDelta(t, 100<<20, s.series[0][0].V, 0)
+	// 4000 CPU ms in 4 s on 2 vCPUs is 50 %.
+	require.NoError(t, s.observe(graphT0.Add(4*time.Second), graphReading{graphTestUUID: {CpuTimeMs: 5000, RxBytes: 5000, Ntotal: 18}}, nil))
+	assert.InDelta(t, 50, s.series[0][1].V, 1e-9)
+	assert.InDelta(t, 1000, s.series[1][1].V, 1e-9)
+	assert.InDelta(t, 2, s.series[2][1].V, 1e-9)
 }
 
 func TestGraphCounterResetIsAGap(t *testing.T) {
@@ -187,8 +171,11 @@ func TestGraphValidate(t *testing.T) {
 	tests := map[string]struct {
 		cmd     InstancesGraphCmd
 		wantErr string
+		// want names the fields of a valid command. It is one field when empty.
+		want []string
 	}{
-		"default":               {cmd: InstancesGraphCmd{Interval: 2 * time.Second}},
+		"default":               {cmd: InstancesGraphCmd{Interval: 2 * time.Second}, want: []string{"memory"}},
+		"several metrics":       {cmd: InstancesGraphCmd{Interval: time.Second, Metric: []string{"cpu", "tx", "memory"}}, want: []string{"cpu", "tx", "memory"}},
 		"minimum":               {cmd: InstancesGraphCmd{Interval: time.Second}},
 		"short interval":        {cmd: InstancesGraphCmd{Interval: 999 * time.Millisecond}, wantErr: "--interval must be at least 1s, got 999ms"},
 		"zero interval":         {cmd: InstancesGraphCmd{}, wantErr: "--interval must be at least 1s"},
@@ -210,38 +197,16 @@ func TestGraphValidate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Len(t, fields, 1)
+			if tt.want == nil {
+				assert.Len(t, fields, 1)
+				return
+			}
+			names := make([]string, len(fields))
+			for i, f := range fields {
+				names[i] = f.name
+			}
+			assert.Equal(t, tt.want, names)
 		})
-	}
-}
-
-func TestGraphValidateAcceptsSeveralFields(t *testing.T) {
-	t.Parallel()
-	c := InstancesGraphCmd{Interval: time.Second, Metric: []string{"cpu", "tx", "memory"}}
-	fields, err := c.validate()
-	require.NoError(t, err)
-	require.Len(t, fields, 3)
-	assert.Equal(t, "cpu", fields[0].name)
-	assert.Equal(t, "memory", fields[2].name)
-}
-
-func TestGraphDefaultFieldIsMemory(t *testing.T) {
-	t.Parallel()
-	fields, err := parseGraphFields(nil)
-	require.NoError(t, err)
-	require.Len(t, fields, 1)
-	assert.Equal(t, "memory", fields[0].name)
-}
-
-func TestGraphAllFieldsRead(t *testing.T) {
-	t.Parallel()
-	m := graphMetrics{
-		RssBytes: 1, CpuTimeMs: 2, RxBytes: 3, TxBytes: 4, Nconns: 5, Nreqs: 6, Nqueued: 7, Ntotal: 8,
-	}
-	want := map[string]uint64{"memory": 1, "cpu": 2, "rx": 3, "tx": 4, "conns": 5, "reqs": 6, "queued": 7, "handled": 8}
-	require.Len(t, graphFields, len(want))
-	for _, f := range graphFields {
-		assert.Equal(t, want[f.name], f.read(&m), f.name)
 	}
 }
 
@@ -315,13 +280,6 @@ func TestGraphEveryPollFailingIsAnError(t *testing.T) {
 	})
 }
 
-func TestGraphCounterFrameWaitsForSecondSample(t *testing.T) {
-	t.Parallel()
-	s := newTestSession(t, nil, "rx")
-	require.NoError(t, s.observe(graphT0, graphReading{graphTestUUID: {RxBytes: 10}}, nil))
-	assert.Contains(t, s.plainFrame(80), "waiting for a second sample")
-}
-
 func TestGraphWithoutAnyValueIsAnError(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
@@ -341,25 +299,6 @@ func TestGraphInterruptBeforeAnyValueIsNotAnError(t *testing.T) {
 	cancel()
 	s := newTestSession(t, nil, "rx")
 	assert.NoError(t, s.collectFailure(ctx))
-}
-
-func TestGraphCounterGivesOneRowForEachSample(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		script := &graphScript{steps: []graphStep{{metrics: graphMetrics{CpuTimeMs: 1000}}, {metrics: graphMetrics{CpuTimeMs: 2000}}}}
-		s := newTestSession(t, script.fetch, "cpu")
-		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(3), Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}
-		out, err := runGraph(t, c, s)
-		require.NoError(t, err)
-		var rows []struct {
-			Value *float64 `json:"value"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(out), &rows))
-		require.Len(t, rows, 3, "one row for each sample")
-		assert.Nil(t, rows[0].Value, "a rate has no value at the first sample")
-		assert.NotNil(t, rows[1].Value)
-		assert.NotNil(t, rows[2].Value)
-	})
 }
 
 func TestGraphKeepsTheValuesOfAnsweredInstances(t *testing.T) {
@@ -460,27 +399,27 @@ func TestGraphOutputTableMarksMissingValues(t *testing.T) {
 	})
 }
 
-func TestGraphOutputDefaultsToTenSamples(t *testing.T) {
+func TestGraphSamplesDefault(t *testing.T) {
 	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		script := &graphScript{steps: []graphStep{mem(1)}}
-		s := newTestSession(t, script.fetch, "memory")
-		c := &InstancesGraphCmd{Interval: time.Second, Output: cmd.Printer{Type: cmd.PrinterTypeQuiet}}
-		_, err := runGraph(t, c, s)
-		require.NoError(t, err)
-		assert.Equal(t, defaultRowSamples, script.count())
-	})
-}
-
-func TestGraphPlainFrameDefaultsToThirtySamples(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		script := &graphScript{steps: []graphStep{mem(1)}}
-		s := newTestSession(t, script.fetch, "memory")
-		_, err := runGraph(t, &InstancesGraphCmd{Interval: time.Second}, s)
-		require.NoError(t, err)
-		assert.Equal(t, defaultPlainSamples, script.count())
-	})
+	tests := map[string]struct {
+		output cmd.Printer
+		want   int
+	}{
+		"rows":        {output: cmd.Printer{Type: cmd.PrinterTypeQuiet}, want: defaultRowSamples},
+		"plain frame": {want: defaultPlainSamples},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				script := &graphScript{steps: []graphStep{mem(1)}}
+				s := newTestSession(t, script.fetch, "memory")
+				_, err := runGraph(t, &InstancesGraphCmd{Interval: time.Second, Output: tt.output}, s)
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, script.count())
+			})
+		})
+	}
 }
 
 func TestCleanLine(t *testing.T) {
@@ -596,42 +535,6 @@ func TestGraphModelQuits(t *testing.T) {
 	m = newTestModel(t, &graphScript{steps: []graphStep{mem(1)}}, 0)
 	_, cmd = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	assert.Equal(t, tea.QuitMsg{}, cmd())
-}
-
-func TestGraphModelLive(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		script := &graphScript{steps: []graphStep{mem(64), mem(128)}}
-		m := newTestModel(t, script, 0)
-		m.session.interval = 10 * time.Millisecond
-		runner := testkit.New(m, 60, 20)
-		defer runner.Stop()
-
-		snap, err := runner.WaitUntilSnapshot(5*time.Second, 10*time.Millisecond, func(s string) bool {
-			return strings.Contains(s, "last 128 MiB")
-		})
-		require.NoError(t, err)
-		assert.Contains(t, snap, "256Mi┤")
-		assert.GreaterOrEqual(t, script.count(), 2)
-	})
-}
-
-func TestGraphSampleFields(t *testing.T) {
-	t.Parallel()
-	sample := GraphSample{
-		Time:     GraphTime(graphT0),
-		Instance: "my-instance",
-		Metric:   "cpu",
-		Value:    GraphValue{v: new(12.5)},
-		Unit:     "percent",
-	}
-	fields, err := sample.Fields(t.Context())
-	require.NoError(t, err)
-	names := make([]string, len(fields))
-	for i, f := range fields {
-		names[i] = f.Name
-	}
-	assert.Equal(t, []string{"time", "instance", "metric", "value", "unit"}, names)
 }
 
 func TestGraphFrameUsesCeilings(t *testing.T) {

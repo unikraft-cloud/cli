@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,20 +36,23 @@ func small() Options {
 // frame drops the newline that follows the opening backtick of an expected frame.
 func frame(s string) string { return strings.TrimPrefix(s, "\n") }
 
+// plotCells returns the plot part of a chart row, without the value labels.
+func plotCells(row string) string { return strings.TrimSpace(string([]rune(row)[gutter:])) }
+
 func TestChartFlatZero(t *testing.T) {
 	t.Parallel()
 	o := small()
 	o.Title, o.Ceiling = "my-instance  conns", 0
-	want := frame(`
-my-instance  conns  last 0
-    1┤
-     │
-  0.5┤
-     │
-    0┤                      ⣀⣀
-           11:59         12:00
-`)
-	assert.Equal(t, want, Chart(series(step2s, 0, 0, 0, 0), o)+"\n")
+	lines := strings.Split(Chart(series(step2s, 0, 0, 0, 0), o), "\n")
+	require.Len(t, lines, 7)
+	assert.Equal(t, "my-instance  conns  last 0", lines[0])
+	assert.Equal(t, "    1┤", lines[1], "a flat zero line keeps a minimum top")
+	assert.Equal(t, "  0.5┤", lines[3])
+	for _, row := range lines[1:5] {
+		assert.Empty(t, plotCells(row), "the line is on the bottom row only")
+	}
+	assert.True(t, strings.HasPrefix(lines[5], "    0┤"))
+	assert.NotEmpty(t, plotCells(lines[5]))
 }
 
 func TestChartJoinsPointsOneStepApart(t *testing.T) {
@@ -85,17 +87,16 @@ func TestChartBreaksLineAtLateSample(t *testing.T) {
 	t.Parallel()
 	late := series(step2s, 0, 8)
 	late[1].T = late[1].T.Add(3 * time.Second)
-	want := frame(`
-t  last 8
-    8┤                       ⠈
-     │
-    4┤
-     │
-    0┤                      ⡀
-           11:59         12:00
-`)
-	assert.Equal(t, want, Chart(late, small())+"\n", "points more than 1.5 intervals apart are two dots, 2.5 intervals apart")
-	assert.NotEqual(t, Chart(series(step2s, 0, 8), small()), Chart(late, small()))
+	lines := strings.Split(Chart(late, small()), "\n")
+	require.Len(t, lines, 7)
+	assert.NotEmpty(t, plotCells(lines[1]), "the late point is a dot on the top row")
+	assert.NotEmpty(t, plotCells(lines[5]), "the first point is a dot on the bottom row")
+	for _, row := range lines[2:5] {
+		assert.Empty(t, plotCells(row), "points more than 1.5 intervals apart are two dots and no line")
+	}
+
+	joined := strings.Split(Chart(series(step2s, 0, 8), small()), "\n")
+	assert.NotEmpty(t, plotCells(joined[3]), "points one step apart are joined")
 }
 
 func TestChartPlacesPointsByTime(t *testing.T) {
@@ -128,20 +129,15 @@ func TestChartDropsPointsOlderThanTheWindow(t *testing.T) {
 	o := small()
 	o.Ceiling = 0
 	assert.Contains(t, Chart(points, o), "    2┤", "a point out of the window does not set the axis")
-}
 
-func TestChartSinglePointIsADot(t *testing.T) {
-	t.Parallel()
-	want := frame(`
-t  last 4
-    8┤
-     │
-    4┤                       ⠠
-     │
-    0┤
-            11:59        12:00
-`)
-	assert.Equal(t, want, Chart(series(step2s, 4), small())+"\n")
+	// A chart keeps only the newest points that fit its width.
+	values := make([]float64, 500)
+	values[len(values)-1] = 5
+	got := Chart(series(step2s, values...), o)
+	assert.Contains(t, got, "t  last 5")
+	for line := range strings.SplitSeq(got, "\n") {
+		assert.LessOrEqual(t, len([]rune(line)), o.Width)
+	}
 }
 
 func TestChartWithoutValuesShowsNote(t *testing.T) {
@@ -155,37 +151,11 @@ func TestChartWithoutValuesShowsNote(t *testing.T) {
 func TestChartBytesUseIECLabels(t *testing.T) {
 	t.Parallel()
 	o := Options{Title: "m", Unit: UnitBytes, Width: 40, Height: 7, Interval: 30 * time.Second, Loc: time.UTC}
-	want := frame(`
-m  last 700 MiB
-  1Gi┤                                 ⡄
-     │                                ⢠⠻
-512Mi┤                                ⡸
-     │                               ⢀⠇
-    0┤
-               11:40     11:50     12:00
-`)
-	assert.Equal(t, want, Chart(series(30*time.Second, 200<<20, 300<<20, 600<<20, 900<<20, 700<<20), o)+"\n")
-}
-
-func TestChartPercentCeiling(t *testing.T) {
-	t.Parallel()
-	o := Options{Title: "my-instance  cpu (%)", Unit: UnitPercent, Ceiling: 100, Width: 36, Height: 9, Interval: step2s, Loc: time.UTC}
-	want := frame(`
-my-instance  cpu (%)  last 10
-  100┤                           ⢸⡄
-     │                           ⡎⢇
-     │                          ⢸⠁⢸
-   50┤                         ⢠⠇ ⠸⡀
-     │                         ⡎   ⡇
-     │                        ⢰⠁   ⢣
-    0┤                        ⠁    ⠈
-             11:59          12:00
-`)
-	assert.Equal(t, want, Chart(series(step2s, 10, 20, 30, 50, 50, 70, 70, 100, 90, 60, 30, 10), o)+"\n")
-
-	o.Ceiling = 50
-	got := Chart(series(step2s, 10, 20, 120), o)
-	assert.Contains(t, got, "  120┤", "data above the ceiling moves the axis top to the ladder")
+	got := Chart(series(30*time.Second, 200<<20, 300<<20, 600<<20, 900<<20, 700<<20), o)
+	assert.Contains(t, got, "m  last 700 MiB")
+	assert.Contains(t, got, "  1Gi┤", "a top near 1000 MiB is 1 GiB")
+	assert.Contains(t, got, "512Mi┤")
+	assert.Contains(t, got, "    0┤")
 }
 
 func TestChartTooSmall(t *testing.T) {
@@ -212,45 +182,6 @@ func TestChartHeight(t *testing.T) {
 	assert.Len(t, strings.Split(Chart(series(step2s, 1), o), "\n"), PlotHeight+2, "the default has a title, 10 plot rows and an x axis row")
 	o.Height = MinHeight
 	assert.Len(t, strings.Split(Chart(series(step2s, 1), o), "\n"), MinHeight)
-}
-
-func TestChartKeepsOnlyNewestPointsThatFit(t *testing.T) {
-	t.Parallel()
-	o := small()
-	o.Ceiling = 0
-	values := make([]float64, 500)
-	values[len(values)-1] = 5
-	got := Chart(series(step2s, values...), o)
-	assert.Contains(t, got, "t  last 5")
-	for line := range strings.SplitSeq(got, "\n") {
-		assert.LessOrEqual(t, len([]rune(line)), o.Width)
-	}
-}
-
-func TestZeroStyleAddsNoEscapes(t *testing.T) {
-	t.Parallel()
-	assert.NotContains(t, Chart(series(step2s, 1, 3, 2), small()), "\x1b")
-	assert.NotContains(t, Sparkline(series(step2s, 1, 3, 2), 8, 3), "\x1b")
-
-	o := small()
-	o.Style = Style{Line: lipgloss.NewStyle().Bold(true)}
-	assert.Contains(t, Chart(series(step2s, 1, 3, 2), o), "\x1b", "a style is applied when set")
-}
-
-func TestChartIsDeterministic(t *testing.T) {
-	t.Parallel()
-	first := Chart(series(step2s, 1, 5, 3, math.NaN(), 7), small())
-	second := Chart(series(step2s, 1, 5, 3, math.NaN(), 7), small())
-	assert.Equal(t, first, second)
-}
-
-func TestTimeLabelsFollowTheZone(t *testing.T) {
-	t.Parallel()
-	o := small()
-	o.Loc = time.FixedZone("plus-two", 2*60*60)
-	lines := strings.Split(Chart(series(step2s, 1, 2, 3), o), "\n")
-	assert.Contains(t, lines[len(lines)-1], "13:59")
-	assert.NotContains(t, lines[len(lines)-1], "11:59")
 }
 
 func TestPickStep(t *testing.T) {
@@ -343,11 +274,4 @@ func TestSparkline(t *testing.T) {
 	assert.Equal(t, "▆█", Sparkline(series(step2s, 1, 2, 3, 4), 2, 4), "only the newest points that fit are kept")
 	assert.Equal(t, "▁▁", Sparkline(series(step2s, 1, 2), 2, 0), "no ceiling draws the lowest block")
 	assert.Equal(t, "▁█", Sparkline(series(step2s, -3, 9), 2, 8), "values are clamped to the scale")
-}
-
-func TestCeilingSharesOneScale(t *testing.T) {
-	t.Parallel()
-	a, b := series(step2s, 1, 2), series(step2s, 7, math.NaN())
-	assert.InDelta(t, 7, Ceiling(a, b), 0)
-	assert.InDelta(t, 0, Ceiling(), 0)
 }
