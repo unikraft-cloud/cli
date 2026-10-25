@@ -83,7 +83,7 @@ unikraft run [flags] <image> [<args>...]
 unikraft instances list                 # List all instances
 unikraft instances get <name|uuid>      # Inspect instance details
 unikraft instances logs <name|uuid>     # View instance logs
-unikraft instances graph <name|uuid>    # Graph live instance metrics (-f cpu|memory|rx|tx|conns|reqs|queued|handled)
+unikraft instances graph <name|uuid>    # Graph live instance metrics (--metric cpu|memory|rx|tx|conns|reqs|queued|handled)
 unikraft instances stop <name|uuid>     # Stop an instance
 unikraft instances start <name|uuid>    # Start a stopped instance
 unikraft instances restart <name|uuid>  # Restart an instance

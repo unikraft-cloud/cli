@@ -193,13 +193,13 @@ func TestGraphValidate(t *testing.T) {
 		"short interval":        {cmd: InstancesGraphCmd{Interval: 999 * time.Millisecond}, wantErr: "--interval must be at least 1s, got 999ms"},
 		"zero interval":         {cmd: InstancesGraphCmd{}, wantErr: "--interval must be at least 1s"},
 		"negative count":        {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(-1)}, wantErr: "--samples must not be negative"},
-		"unknown field":         {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"disk"}}, wantErr: `unknown field "disk": valid fields are cpu, memory, rx, tx, conns, reqs, queued, handled`},
-		"repeated field":        {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"cpu", "cpu"}}, wantErr: `field "cpu" is given twice`},
-		"each valid name":       {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"handled"}}},
-		"one sample of a rate":  {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(1), Field: []string{"cpu", "memory", "rx"}}, wantErr: "--samples must be 0 or at least 2 for cpu, rx: a rate needs two samples"},
-		"one sample of a gauge": {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(1), Field: []string{"memory"}}},
-		"two samples of a rate": {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(2), Field: []string{"cpu"}}},
-		"until interrupted":     {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(0), Field: []string{"cpu"}}},
+		"unknown metric":        {cmd: InstancesGraphCmd{Interval: time.Second, Metric: []string{"disk"}}, wantErr: `unknown metric "disk": valid metrics are cpu, memory, rx, tx, conns, reqs, queued, handled`},
+		"repeated metric":       {cmd: InstancesGraphCmd{Interval: time.Second, Metric: []string{"cpu", "cpu"}}, wantErr: `metric "cpu" is given twice`},
+		"each valid name":       {cmd: InstancesGraphCmd{Interval: time.Second, Metric: []string{"handled"}}},
+		"one sample of a rate":  {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(1), Metric: []string{"cpu", "memory", "rx"}}, wantErr: "--samples must be 0 or at least 2 for cpu, rx: a rate needs two samples"},
+		"one sample of a gauge": {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(1), Metric: []string{"memory"}}},
+		"two samples of a rate": {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(2), Metric: []string{"cpu"}}},
+		"until interrupted":     {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(0), Metric: []string{"cpu"}}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -217,7 +217,7 @@ func TestGraphValidate(t *testing.T) {
 
 func TestGraphValidateAcceptsSeveralFields(t *testing.T) {
 	t.Parallel()
-	c := InstancesGraphCmd{Interval: time.Second, Field: []string{"cpu", "tx", "memory"}}
+	c := InstancesGraphCmd{Interval: time.Second, Metric: []string{"cpu", "tx", "memory"}}
 	fields, err := c.validate()
 	require.NoError(t, err)
 	require.Len(t, fields, 3)
@@ -271,15 +271,35 @@ func TestGraphWithoutTerminalPrintsOneFrame(t *testing.T) {
 	})
 }
 
-func TestGraphFrameShowsTheLastError(t *testing.T) {
+func TestGraphFrameKeepsTheLastErrorOffStdout(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		script := &graphScript{steps: []graphStep{mem(100), {err: errors.New("bad\x1b[31m gateway\nretry")}}}
 		s := newTestSession(t, script.fetch, "memory")
-		out, err := runGraph(t, &InstancesGraphCmd{Interval: time.Second, Samples: new(2)}, s)
-		require.NoError(t, err)
-		assert.Contains(t, out, "\nerror: bad gateway retry")
-		assert.NotContains(t, out, "\x1b")
+		var stdout, stderr bytes.Buffer
+		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(2)}
+		require.NoError(t, c.run(t.Context(), config.Stdio{Stdout: &stdout, Stderr: &stderr}, s))
+		assert.NotContains(t, stdout.String(), "error:", "a piped chart stays a chart")
+		assert.Equal(t, "error: bad gateway retry\n", stderr.String())
+	})
+}
+
+func TestGraphTimeoutPrintsWhatWasCollectedAndFails(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		script := &graphScript{steps: []graphStep{mem(100)}}
+		s := newTestSession(t, script.fetch, "memory")
+
+		var out bytes.Buffer
+		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(0), Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}
+		err := c.run(ctx, config.Stdio{Stdout: &out, Stderr: &out}, s)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+
+		var rows []map[string]any
+		require.NoError(t, json.Unmarshal(out.Bytes(), &rows))
+		assert.Len(t, rows, 3, "the samples before the deadline are printed: at 0 s, 2 s and 4 s")
 	})
 }
 

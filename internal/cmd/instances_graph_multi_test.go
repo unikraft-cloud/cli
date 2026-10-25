@@ -98,7 +98,6 @@ func TestGraphSparkRowsShowAGapForAnInstanceWithoutAnswer(t *testing.T) {
 	frame := s.plainFrame(60)
 	assert.Contains(t, frame, "▃▆█  last 30 MiB", "the instance with an answer goes on")
 	assert.Contains(t, frame, "last - / max 10 MiB", "the other has a gap and never a zero")
-	assert.Contains(t, frame, "\nerror: web-2: no answer from the platform")
 }
 
 func TestGraphSeveralInstancesCostOneRequestForEachPoll(t *testing.T) {

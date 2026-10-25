@@ -10,9 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +27,6 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/cmd"
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/tui/graph"
 )
@@ -52,10 +49,10 @@ const (
 type InstancesGraphCmd struct {
 	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Instances to graph."`
 
-	Field    []string      `short:"f" sep:"none" placeholder:"metric" help:"Metric to graph, given once for each metric. One of: cpu, memory, rx, tx, conns, reqs, queued, handled. Defaults to memory."`
+	Metric   []string      `placeholder:"metric" help:"Metric to graph. Repeat the flag or separate the metrics with commas. One of: cpu (percent of all vCPUs, 100 means every vCPU is busy), memory, rx, tx, conns, reqs, queued, handled. Defaults to memory."`
 	Interval time.Duration `short:"i" default:"2s" placeholder:"duration" help:"Time between samples. At least 1s."`
-	Samples  *int          `short:"n" placeholder:"count" help:"Stop after this many samples. 0 runs until interrupted. Defaults to 0 on a terminal, 30 without one, and 10 with --output."`
-	Output   cmd.Printer   `short:"o" placeholder:"format" help:"Print the samples as rows instead of drawing a chart. One of: kv, table, json, yaml, raw, quiet, template."`
+	Samples  *int          `short:"n" placeholder:"count" help:"Stop after this many samples. 0 runs until interrupted. Defaults to 0 on a terminal, 30 without one, and 10 with --output. A rate (cpu, rx, tx, handled) has no value at the first sample, so give it at least 2."`
+	Output   cmd.Printer   `short:"o" placeholder:"format" help:"Print the samples as rows instead of drawing a chart. One of: kv, table, json, yaml, raw, template."`
 }
 
 func (c InstancesGraphCmd) Examples() []kingkong.Example {
@@ -66,15 +63,15 @@ func (c InstancesGraphCmd) Examples() []kingkong.Example {
 		},
 		{
 			Description: "Graph CPU use, sampled every 5 seconds",
-			Commands:    []string{"unikraft instances graph my-instance -f cpu -i 5s"},
+			Commands:    []string{"unikraft instances graph my-instance --metric cpu -i 5s"},
 		},
 		{
 			Description: "Compare the memory and CPU use of two instances as sparklines",
-			Commands:    []string{"unikraft instances graph web-1 web-2 -f memory -f cpu"},
+			Commands:    []string{"unikraft instances graph web-1 web-2 --metric memory,cpu"},
 		},
 		{
 			Description: "Print 10 samples of the received bytes per second as JSON",
-			Commands:    []string{"unikraft instances graph my-instance -f rx -n 10 -o json"},
+			Commands:    []string{"unikraft instances graph my-instance --metric rx -n 10 -o json"},
 		},
 	}
 }
@@ -146,7 +143,7 @@ func (c *InstancesGraphCmd) validate() ([]graphField, error) {
 	if c.Samples != nil && *c.Samples < 0 {
 		return nil, fmt.Errorf("--samples must not be negative, got %d", *c.Samples)
 	}
-	fields, err := parseGraphFields(c.Field)
+	fields, err := parseGraphFields(c.Metric)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +177,10 @@ func (c *InstancesGraphCmd) run(ctx context.Context, stdio config.Stdio, s *grap
 		if err := s.collectFailure(ctx); err != nil {
 			return err
 		}
-		return c.Output.Print(context.WithoutCancel(ctx), stdio.Stdout, nil, GraphSample{}, s.rows()...)
+		if err := c.Output.Print(context.WithoutCancel(ctx), stdio.Stdout, nil, GraphSample{}, s.rows()...); err != nil {
+			return err
+		}
+		return timedOut(ctx)
 	}
 	if xio.IsTTY(stdio.Stdout) {
 		return runGraphLive(ctx, stdio, s, c.samplesOr(0))
@@ -189,8 +189,22 @@ func (c *InstancesGraphCmd) run(ctx context.Context, stdio config.Stdio, s *grap
 	if err := s.collectFailure(ctx); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintln(stdio.Stdout, s.plainFrame(guesstermwidth.GuessTermWidth(stdio.Stdout)))
-	return err
+	if _, err := fmt.Fprintln(stdio.Stdout, s.plainFrame(guesstermwidth.GuessTermWidth(stdio.Stdout))); err != nil {
+		return err
+	}
+	if s.lastErr != nil {
+		fmt.Fprintln(stdio.Stderr, "error: "+cleanLine(s.lastErr.Error()))
+	}
+	return timedOut(ctx)
+}
+
+// timedOut returns the error of a run that the --timeout flag ended. A run
+// that prints once prints what it has collected, and then fails.
+func timedOut(ctx context.Context) error {
+	if err := ctx.Err(); errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	return nil
 }
 
 // graphTarget is the instance that is graphed.
@@ -269,7 +283,7 @@ var graphFields = []graphField{
 	},
 }
 
-// parseGraphFields maps the names of --field to fields. No name means memory.
+// parseGraphFields maps the names of --metric to fields. No name means memory.
 func parseGraphFields(names []string) ([]graphField, error) {
 	if len(names) == 0 {
 		names = []string{"memory"}
@@ -282,10 +296,10 @@ func parseGraphFields(names []string) ([]graphField, error) {
 			for j, f := range graphFields {
 				valid[j] = f.name
 			}
-			return nil, fmt.Errorf("unknown field %q: valid fields are %s", name, strings.Join(valid, ", "))
+			return nil, fmt.Errorf("unknown metric %q: valid metrics are %s", name, strings.Join(valid, ", "))
 		}
 		if slices.ContainsFunc(fields, func(f graphField) bool { return f.name == name }) {
-			return nil, fmt.Errorf("field %q is given twice", name)
+			return nil, fmt.Errorf("metric %q is given twice", name)
 		}
 		fields = append(fields, graphFields[i])
 	}
@@ -525,13 +539,9 @@ func (s *graphSession) frame(width, height int, style graph.Style) string {
 	return s.sparkRows(width, height, style)
 }
 
-// plainFrame is a frame without styles, with the error of the last poll below.
+// plainFrame is a frame without styles.
 func (s *graphSession) plainFrame(width int) string {
-	frame := s.frame(width, 0, graph.Style{})
-	if s.lastErr != nil {
-		frame += "\nerror: " + cleanLine(s.lastErr.Error())
-	}
-	return frame
+	return s.frame(width, 0, graph.Style{})
 }
 
 // chart draws one series as a line chart.
@@ -764,71 +774,4 @@ func (s *graphSession) rows() []model.Model {
 		out[i] = row
 	}
 	return out
-}
-
-// GraphSample is one sample of one metric of an instance. It is a row of
-// the output of "instances graph --output".
-type GraphSample struct {
-	Time     GraphTime  `field:"time,short" json:"time"`
-	Instance string     `field:",short" json:"instance"`
-	Metric   string     `field:",short" json:"metric"`
-	Value    GraphValue `field:",short" json:"value"`
-	Unit     string     `field:",short" json:"unit"`
-
-	key multimetro.Key
-}
-
-func (GraphSample) Type() model.Type {
-	return model.Type{
-		Name:  "instance-graph-sample",
-		Names: "instance-graph-samples",
-	}
-}
-
-func (s GraphSample) Key() model.Key {
-	return s.key
-}
-
-func (s GraphSample) Raw() any {
-	return s
-}
-
-func (s GraphSample) Fields(ctx context.Context) ([]model.Field, error) {
-	return model.FieldsFromStruct(s)
-}
-
-// GraphTime is the time at which a sample was received.
-type GraphTime time.Time
-
-func (t GraphTime) MarshalText() ([]byte, error) {
-	return []byte(time.Time(t).Format(time.RFC3339Nano)), nil
-}
-
-func (t GraphTime) Render(value.RenderOpts) (string, error) {
-	return time.Time(t).Format(time.RFC3339), nil
-}
-
-// GraphValue is the value of a sample. A sample without a value is null in
-// JSON and "-" in a table, and a zero is a real zero.
-type GraphValue struct {
-	v *float64
-}
-
-// NewGraphValue returns the value of a sample that has a number.
-func NewGraphValue(v float64) GraphValue {
-	return GraphValue{v: &v}
-}
-
-func (v GraphValue) MarshalJSON() ([]byte, error) {
-	if v.v == nil {
-		return []byte("null"), nil
-	}
-	return strconv.AppendFloat(nil, *v.v, 'g', -1, 64), nil
-}
-
-func (v GraphValue) Render(value.RenderOpts) (string, error) {
-	if v.v == nil {
-		return "-", nil
-	}
-	return strconv.FormatFloat(math.Round(*v.v*1000)/1000, 'f', -1, 64), nil
 }
