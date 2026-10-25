@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"unikraft.com/cloud/sdk/platform"
+
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
@@ -102,13 +104,14 @@ func TestGraphCPUPercentUsesVCPUs(t *testing.T) {
 	t.Parallel()
 	s := newTestSession(t, nil, "cpu")
 	require.NoError(t, s.observe(graphT0, graphReading{graphTestUUID: {CpuTimeMs: 1000}}, nil))
-	assert.Empty(t, s.series[0], "the first sample of a counter has no rate")
+	require.Len(t, s.series[0], 1)
+	assert.False(t, s.series[0][0].OK, "the first sample of a counter has no rate")
 
 	// 2000 CPU ms in 2 s on 2 vCPUs is 50 %.
 	require.NoError(t, s.observe(graphT0.Add(2*time.Second), graphReading{graphTestUUID: {CpuTimeMs: 3000}}, nil))
-	require.Len(t, s.series[0], 1)
-	assert.True(t, s.series[0][0].OK)
-	assert.InDelta(t, 50, s.series[0][0].V, 1e-9)
+	require.Len(t, s.series[0], 2)
+	assert.True(t, s.series[0][1].OK)
+	assert.InDelta(t, 50, s.series[0][1].V, 1e-9)
 }
 
 func TestGraphRatesUseReceiveTimes(t *testing.T) {
@@ -117,8 +120,8 @@ func TestGraphRatesUseReceiveTimes(t *testing.T) {
 	require.NoError(t, s.observe(graphT0, graphReading{graphTestUUID: {RxBytes: 1000, Ntotal: 10}}, nil))
 	// The answer took 4 s to arrive: the rate is over 4 s, not over the interval.
 	require.NoError(t, s.observe(graphT0.Add(4*time.Second), graphReading{graphTestUUID: {RxBytes: 5000, Ntotal: 18}}, nil))
-	assert.InDelta(t, 1000, s.series[0][0].V, 1e-9)
-	assert.InDelta(t, 2, s.series[1][0].V, 1e-9)
+	assert.InDelta(t, 1000, s.series[0][1].V, 1e-9)
+	assert.InDelta(t, 2, s.series[1][1].V, 1e-9)
 }
 
 func TestGraphGaugesAreNotRates(t *testing.T) {
@@ -135,10 +138,10 @@ func TestGraphCounterResetIsAGap(t *testing.T) {
 	_ = s.observe(graphT0, graphReading{graphTestUUID: {RxBytes: 9000}}, nil)
 	_ = s.observe(graphT0.Add(2*time.Second), graphReading{graphTestUUID: {RxBytes: 100}}, nil)
 	_ = s.observe(graphT0.Add(4*time.Second), graphReading{graphTestUUID: {RxBytes: 300}}, nil)
-	require.Len(t, s.series[0], 2)
-	assert.False(t, s.series[0][0].OK, "a counter that goes down is a gap and never a negative rate")
-	assert.True(t, s.series[0][1].OK)
-	assert.InDelta(t, 100, s.series[0][1].V, 1e-9, "the next rate starts from the new count")
+	require.Len(t, s.series[0], 3)
+	assert.False(t, s.series[0][1].OK, "a counter that goes down is a gap and never a negative rate")
+	assert.True(t, s.series[0][2].OK)
+	assert.InDelta(t, 100, s.series[0][2].V, 1e-9, "the next rate starts from the new count")
 }
 
 func TestGraphFailedPollIsAGapNotZero(t *testing.T) {
@@ -185,14 +188,18 @@ func TestGraphValidate(t *testing.T) {
 		cmd     InstancesGraphCmd
 		wantErr string
 	}{
-		"default":         {cmd: InstancesGraphCmd{Interval: 2 * time.Second}},
-		"minimum":         {cmd: InstancesGraphCmd{Interval: time.Second}},
-		"short interval":  {cmd: InstancesGraphCmd{Interval: 999 * time.Millisecond}, wantErr: "--interval must be at least 1s, got 999ms"},
-		"zero interval":   {cmd: InstancesGraphCmd{}, wantErr: "--interval must be at least 1s"},
-		"negative count":  {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(-1)}, wantErr: "--samples must not be negative"},
-		"unknown field":   {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"disk"}}, wantErr: `unknown field "disk": valid fields are cpu, memory, rx, tx, conns, reqs, queued, handled`},
-		"repeated field":  {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"cpu", "cpu"}}, wantErr: `field "cpu" is given twice`},
-		"each valid name": {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"handled"}}},
+		"default":               {cmd: InstancesGraphCmd{Interval: 2 * time.Second}},
+		"minimum":               {cmd: InstancesGraphCmd{Interval: time.Second}},
+		"short interval":        {cmd: InstancesGraphCmd{Interval: 999 * time.Millisecond}, wantErr: "--interval must be at least 1s, got 999ms"},
+		"zero interval":         {cmd: InstancesGraphCmd{}, wantErr: "--interval must be at least 1s"},
+		"negative count":        {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(-1)}, wantErr: "--samples must not be negative"},
+		"unknown field":         {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"disk"}}, wantErr: `unknown field "disk": valid fields are cpu, memory, rx, tx, conns, reqs, queued, handled`},
+		"repeated field":        {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"cpu", "cpu"}}, wantErr: `field "cpu" is given twice`},
+		"each valid name":       {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"handled"}}},
+		"one sample of a rate":  {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(1), Field: []string{"cpu", "memory", "rx"}}, wantErr: "--samples must be 0 or at least 2 for cpu, rx: a rate needs two samples"},
+		"one sample of a gauge": {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(1), Field: []string{"memory"}}},
+		"two samples of a rate": {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(2), Field: []string{"cpu"}}},
+		"until interrupted":     {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(0), Field: []string{"cpu"}}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -290,13 +297,73 @@ func TestGraphEveryPollFailingIsAnError(t *testing.T) {
 
 func TestGraphCounterFrameWaitsForSecondSample(t *testing.T) {
 	t.Parallel()
+	s := newTestSession(t, nil, "rx")
+	require.NoError(t, s.observe(graphT0, graphReading{graphTestUUID: {RxBytes: 10}}, nil))
+	assert.Contains(t, s.plainFrame(80), "waiting for a second sample")
+}
+
+func TestGraphWithoutAnyValueIsAnError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		script := &graphScript{steps: []graphStep{{metrics: graphMetrics{RxBytes: 10}}}}
-		s := newTestSession(t, script.fetch, "rx")
-		out, err := runGraph(t, &InstancesGraphCmd{Interval: time.Second, Samples: new(1)}, s)
-		require.NoError(t, err)
-		assert.Contains(t, out, "waiting for a second sample")
+		for _, printer := range []cmd.Printer{{}, {Type: cmd.PrinterTypeJSON}} {
+			s := newTestSession(t, script.fetch, "rx")
+			out, err := runGraph(t, &InstancesGraphCmd{Interval: time.Second, Samples: new(1), Output: printer}, s)
+			require.EqualError(t, err, "no values were collected", "one sample of a rate gives no value")
+			assert.Empty(t, out)
+		}
 	})
+}
+
+func TestGraphInterruptBeforeAnyValueIsNotAnError(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	s := newTestSession(t, nil, "rx")
+	assert.NoError(t, s.collectFailure(ctx))
+}
+
+func TestGraphCounterGivesOneRowForEachSample(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		script := &graphScript{steps: []graphStep{{metrics: graphMetrics{CpuTimeMs: 1000}}, {metrics: graphMetrics{CpuTimeMs: 2000}}}}
+		s := newTestSession(t, script.fetch, "cpu")
+		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(3), Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}
+		out, err := runGraph(t, c, s)
+		require.NoError(t, err)
+		var rows []struct {
+			Value *float64 `json:"value"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out), &rows))
+		require.Len(t, rows, 3, "one row for each sample")
+		assert.Nil(t, rows[0].Value, "a rate has no value at the first sample")
+		assert.NotNil(t, rows[1].Value)
+		assert.NotNil(t, rows[2].Value)
+	})
+}
+
+func TestGraphKeepsTheValuesOfAnsweredInstances(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "conns")
+	cause := errors.New("fra: 503")
+	err := s.observe(graphT0, graphReading{graphTestUUID: {Nconns: 4}}, cause)
+	require.ErrorIs(t, err, cause)
+	assert.True(t, s.series[0][0].OK, "the instance that was answered keeps its value")
+	assert.False(t, s.series[1][0].OK)
+	assert.Equal(t, cause, s.lastErr)
+}
+
+func TestReadInstancesReportsTheMessageOfAnAnswer(t *testing.T) {
+	t.Parallel()
+	ok, failed := platform.ResponseStatusSuccess, platform.ResponseStatusError
+	reading := graphReading{}
+	err := readInstances(reading, []graphMetrics{
+		{Status: &ok, Uuid: graphTestUUID, Name: "web-1", RssBytes: 5},
+		{Status: &failed, Uuid: graphTestUUID2, Name: "web-2", Message: new("instance is \x1b[31mnot running\n")},
+		{Status: &failed, Uuid: "other", Name: "web-3"},
+	})
+	assert.Len(t, reading, 1)
+	assert.EqualError(t, err, "web-2: instance is not running\nweb-3: no answer from the platform")
 }
 
 func TestGraphInterruptPrintsWhatWasCollected(t *testing.T) {

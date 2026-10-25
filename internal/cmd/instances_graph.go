@@ -47,9 +47,8 @@ const (
 
 // InstancesGraphCmd graphs the live metrics of one or more instances.
 //
-// The platform reports the current value of each metric and keeps no history,
-// so the series is built here by polling. Rates use the time at which each
-// answer arrives.
+// The metrics endpoint returns current values only, so the series is built
+// here by polling. Rates use the time at which each answer arrives.
 type InstancesGraphCmd struct {
 	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Instances to graph."`
 
@@ -151,6 +150,17 @@ func (c *InstancesGraphCmd) validate() ([]graphField, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.Samples != nil && *c.Samples == 1 {
+		var rates []string
+		for _, f := range fields {
+			if f.counter {
+				rates = append(rates, f.name)
+			}
+		}
+		if len(rates) > 0 {
+			return nil, fmt.Errorf("--samples must be 0 or at least 2 for %s: a rate needs two samples", strings.Join(rates, ", "))
+		}
+	}
 	return fields, nil
 }
 
@@ -167,7 +177,7 @@ func (c *InstancesGraphCmd) samplesOr(def int) int {
 func (c *InstancesGraphCmd) run(ctx context.Context, stdio config.Stdio, s *graphSession) error {
 	if c.Output.Type != "" {
 		s.collect(ctx, c.samplesOr(defaultRowSamples))
-		if err := s.failure(); err != nil {
+		if err := s.collectFailure(ctx); err != nil {
 			return err
 		}
 		return c.Output.Print(context.WithoutCancel(ctx), stdio.Stdout, nil, GraphSample{}, s.rows()...)
@@ -176,7 +186,7 @@ func (c *InstancesGraphCmd) run(ctx context.Context, stdio config.Stdio, s *grap
 		return runGraphLive(ctx, stdio, s, c.samplesOr(0))
 	}
 	s.collect(ctx, c.samplesOr(defaultPlainSamples))
-	if err := s.failure(); err != nil {
+	if err := s.collectFailure(ctx); err != nil {
 		return err
 	}
 	_, err := fmt.Fprintln(stdio.Stdout, s.plainFrame(guesstermwidth.GuessTermWidth(stdio.Stdout)))
@@ -225,7 +235,7 @@ var graphFields = []graphField{
 		name: "cpu", title: "cpu (%)", unit: "percent", kind: graph.UnitPercent, counter: true, suffix: "%",
 		read: func(m *graphMetrics) uint64 { return m.CpuTimeMs },
 		// A rate of CPU milliseconds per second is a tenth of a percent of one vCPU.
-		scale:   func(t graphTarget) float64 { return 1 / (10 * float64(max(t.vcpus, 1))) },
+		scale:   func(t graphTarget) float64 { return 1 / (10 * float64(t.vcpus)) },
 		ceiling: func(graphTarget) float64 { return 100 },
 	},
 	{
@@ -287,6 +297,7 @@ func newGraphFetch(g *group.Group[multimetro.MetroClient], keys multimetro.Keys)
 	return func(ctx context.Context) (graphReading, error) {
 		var mu sync.Mutex
 		reading := graphReading{}
+		var failed []error
 		err := group.DoRefs(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 			resp, err := c.GetInstanceMetrics(ctx, refs.NameOrUUIDs(), platform.GetInstanceMetricsOpts{})
 			if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
@@ -297,16 +308,30 @@ func newGraphFetch(g *group.Group[multimetro.MetroClient], keys multimetro.Keys)
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			for _, m := range resp.Data.Instances {
-				if m.Status == nil || *m.Status != platform.ResponseStatusSuccess {
-					continue
-				}
-				reading[m.Uuid] = m
-			}
+			failed = append(failed, readInstances(reading, resp.Data.Instances))
 			return refs, nil
 		})
-		return reading, err
+		return reading, errors.Join(append(failed, err)...)
 	}
+}
+
+// readInstances adds the answers of the platform to reading. It returns why
+// the platform gave no metrics for an instance, with the message that it sent.
+func readInstances(reading graphReading, instances []graphMetrics) error {
+	var failed []error
+	for _, m := range instances {
+		if m.Status != nil && *m.Status == platform.ResponseStatusSuccess {
+			reading[m.Uuid] = m
+			continue
+		}
+		name := cmp.Or(m.Name, m.Uuid)
+		cause := errGraphMissing
+		if m.Message != nil && cleanLine(*m.Message) != "" {
+			cause = errors.New(cleanLine(*m.Message))
+		}
+		failed = append(failed, fmt.Errorf("%s: %w", name, cause))
+	}
+	return errors.Join(failed...)
 }
 
 // errGraphMissing is the cause of a gap when the answer lacks an instance.
@@ -363,13 +388,15 @@ func newGraphSession(targets []graphTarget, fields []graphField, interval time.D
 }
 
 // observe records one poll that finished at t. It returns why the poll gave
-// no values, or nil. A failed poll adds a gap to each series and never a zero.
+// no values for some series, or nil. A series without a value gets a gap and
+// never a zero. A failed request keeps the values of the instances that
+// were answered before it failed.
 func (s *graphSession) observe(t time.Time, reading graphReading, fetchErr error) error {
 	cause := fetchErr
 	for i, line := range s.lines {
 		target, f := s.targets[line.target], s.fields[line.field]
 		m, found := reading[target.key.UUID]
-		if fetchErr != nil || !found {
+		if !found {
 			if cause == nil {
 				cause = fmt.Errorf("%s: %w", target.name, errGraphMissing)
 			}
@@ -384,6 +411,7 @@ func (s *graphSession) observe(t time.Time, reading graphReading, fetchErr error
 		prev := s.prev[i]
 		s.prev[i] = rawSample{t: t, v: raw, set: true}
 		if !prev.set {
+			s.add(i, graph.Point{T: t})
 			continue
 		}
 		elapsed := t.Sub(prev.t).Seconds()
@@ -424,6 +452,19 @@ func (s *graphSession) failure() error {
 		return nil
 	}
 	return s.lastErr
+}
+
+// collectFailure is the error of a run that ends and prints once. It is the
+// last error when no poll gave a value, and it is also an error when the
+// polls gave no value for another reason, such as one sample of a rate.
+func (s *graphSession) collectFailure(ctx context.Context) error {
+	if err := s.failure(); err != nil {
+		return err
+	}
+	if !s.hasValue() && ctx.Err() == nil {
+		return errors.New("no values were collected")
+	}
+	return nil
 }
 
 // collect polls n times, one poll for each interval, or until ctx ends when n
