@@ -301,6 +301,42 @@ func TestInstances(t *testing.T) {
 		}, 2*time.Minute, 5*time.Second, "relay target never became deletable")
 	})
 
+	t.Run("graph", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+		image := integ.Busybox.Build(t, r)
+
+		r.Run(t, []string{
+			"unikraft", "run",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--output", "quiet",
+			"--image", image,
+			"--args", "sleep 120",
+		})
+		r.Run(t, []string{"unikraft", "--timeout", "30s", "instance", "wait", "--until", "state==running", "test-" + instName})
+
+		out := r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--field", "memory", "--interval", "1s", "--samples", "2", "--output", "json"})
+		var rows []struct {
+			Instance string   `json:"instance"`
+			Metric   string   `json:"metric"`
+			Value    *float64 `json:"value"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out), &rows))
+		require.Len(t, rows, 2)
+		for _, row := range rows {
+			assert.Equal(t, "test-"+instName, row.Instance)
+			assert.Equal(t, "memory", row.Metric)
+			require.NotNil(t, row.Value)
+			assert.Positive(t, *row.Value)
+		}
+
+		out = r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--interval", "1s", "--samples", "2"})
+		assert.Contains(t, out, "test-"+instName+"  memory (bytes)")
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
 	t.Run("create-oom", func(t *testing.T) {
 		// TODO: Add 'stable' back when it runs platform version 13. Older
 		// versions send a duplicate "status" member that breaks every wait.

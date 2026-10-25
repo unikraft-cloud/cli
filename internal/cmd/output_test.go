@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
@@ -89,6 +90,7 @@ func TestOutput(t *testing.T) {
 	run("instance-templates", instanceTemplatesOutputTests)
 	run("instance-checkpoints", instanceCheckpointsOutputTests)
 	run("instance-history", instanceHistoryOutputTests)
+	run("instance-graph", instanceGraphOutputTests)
 	run("volumes", volumesOutputTests)
 	run("volume-templates", volumeTemplatesOutputTests)
 	run("services", servicesOutputTests)
@@ -270,6 +272,18 @@ func instanceHistoryOutputTests(t *testing.T) {
 		UUID:   "f6a7b8c9-d0e1-2345-f012-3456789abcde",
 		// Created is left as the zero value so it renders deterministically
 		// ("never") instead of a wall-clock-relative string.
+	}
+
+	integ.Gild[model.Model](t, dumpResource, sample)
+}
+
+func instanceGraphOutputTests(t *testing.T) {
+	sample := cmd.GraphSample{
+		Time:     cmd.GraphTime(time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)),
+		Instance: "my-instance",
+		Metric:   "cpu",
+		Value:    cmd.NewGraphValue(12.5),
+		Unit:     "percent",
 	}
 
 	integ.Gild[model.Model](t, dumpResource, sample)
