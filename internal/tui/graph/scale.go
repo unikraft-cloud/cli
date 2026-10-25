@@ -136,21 +136,47 @@ const axisLabelWidth = 5
 
 // axisLabel formats v in at most axisLabelWidth cells.
 func axisLabel(v float64, unit Unit) string {
-	var number, prefix, short string
+	if label, ok := axisLabelForm(v, unit, false); ok {
+		return label
+	}
+	label, _ := axisLabelForm(v, unit, true)
+	return label
+}
+
+// axisLabels formats the labels of one axis in one form. If a label does not
+// fit with a full prefix, such as "1.25Mi", every label uses the short form,
+// such as "1.25M", so that one axis never mixes "Mi" and "M".
+func axisLabels(values []float64, unit Unit) []string {
+	short := false
+	for _, v := range values {
+		if _, ok := axisLabelForm(v, unit, false); !ok {
+			short = true
+		}
+	}
+	labels := make([]string, len(values))
+	for i, v := range values {
+		labels[i], _ = axisLabelForm(v, unit, short)
+	}
+	return labels
+}
+
+// axisLabelForm formats v with the full prefix, or without the "i" of a
+// binary prefix when short is set. It reports false when the label is too
+// wide, and then returns a label of two significant figures.
+func axisLabelForm(v float64, unit Unit, short bool) (string, bool) {
+	var number, prefix string
 	if unit.binary() {
 		scaled, i := scaleBinary(v)
 		number, prefix = sig(scaled, 3), binaryPrefixes[i]
-		short = strings.TrimSuffix(prefix, "i")
+		if short {
+			prefix = strings.TrimSuffix(prefix, "i")
+		}
 	} else {
 		scaled, i := scaleDecimal(v)
 		number, prefix = sig(scaled, 3), decimalSuffix[i]
-		short = prefix
 	}
 	if label := number + prefix; len(label) <= axisLabelWidth {
-		return label
+		return label, true
 	}
-	if label := number + short; len(label) <= axisLabelWidth {
-		return label
-	}
-	return sig(v, 2)
+	return sig(v, 2), false
 }

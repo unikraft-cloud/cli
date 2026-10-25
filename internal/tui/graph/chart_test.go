@@ -328,6 +328,14 @@ func TestLabels(t *testing.T) {
 	}
 }
 
+func TestAxisLabelsUseOneForm(t *testing.T) {
+	t.Parallel()
+	mib := float64(1 << 20)
+	assert.Equal(t, []string{"2.5M", "1.25M", "0"}, axisLabels([]float64{2.5 * mib, 1.25 * mib, 0}, UnitBytes), "one label needs the short form, so all use it")
+	assert.Equal(t, []string{"1Gi", "512Mi", "0"}, axisLabels([]float64{1 << 30, 512 * mib, 0}, UnitBytes), "full prefixes stay when they fit")
+	assert.Equal(t, []string{"2.5k", "1.25k", "0"}, axisLabels([]float64{2500, 1250, 0}, UnitCount))
+}
+
 func TestSparkline(t *testing.T) {
 	t.Parallel()
 	require.Empty(t, Sparkline(nil, 0, 1))

@@ -96,7 +96,7 @@ func Chart(points []Point, o Options) string {
 
 	top := axisTop(maxValue(points), o.Unit, o.Ceiling)
 	canvas := drawCanvas(points, o, top, plotW, plotH)
-	labels := axisLabels(top, o.Unit, plotH)
+	labels := axisLabelRows(top, o.Unit, plotH)
 	for r := range plotH {
 		label, tick := "", "│"
 		if l, ok := labels[r]; ok {
@@ -140,12 +140,14 @@ func maxValue(points []Point) float64 {
 	return m
 }
 
-// axisLabels maps plot rows to the value labels of the top, middle and bottom.
-func axisLabels(top float64, unit Unit, plotH int) map[int]string {
+// axisLabelRows maps plot rows to the value labels of the top, middle and
+// bottom.
+func axisLabelRows(top float64, unit Unit, plotH int) map[int]string {
+	labels := axisLabels([]float64{top, top / 2, 0}, unit)
 	return map[int]string{
-		0:                 axisLabel(top, unit),
-		(4*plotH - 1) / 8: axisLabel(top/2, unit),
-		plotH - 1:         axisLabel(0, unit),
+		0:                 labels[0],
+		(4*plotH - 1) / 8: labels[1],
+		plotH - 1:         labels[2],
 	}
 }
 
