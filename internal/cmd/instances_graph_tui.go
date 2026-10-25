@@ -47,8 +47,9 @@ type (
 )
 
 // graphModel is the live chart. It draws from the samples that it holds at the
-// size of the last tea.WindowSizeMsg. Only a tick starts a request, and a tick
-// is ignored while a request runs.
+// size of the last tea.WindowSizeMsg. A tick starts a request, unless one is
+// still running, and the ticks come on a fixed schedule. Thus the time between
+// two samples does not grow with the time that a request takes.
 type graphModel struct {
 	ctx     context.Context
 	session *graphSession
@@ -65,7 +66,11 @@ type graphModel struct {
 
 func (m *graphModel) Init() tea.Cmd {
 	m.fetching = true
-	return m.fetchCmd()
+	return tea.Batch(m.fetchCmd(), m.tickCmd())
+}
+
+func (m *graphModel) tickCmd() tea.Cmd {
+	return tea.Tick(m.session.interval, func(time.Time) tea.Msg { return graphTickMsg{} })
 }
 
 func (m *graphModel) fetchCmd() tea.Cmd {
@@ -86,13 +91,13 @@ func (m *graphModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.samples > 0 && m.taken >= m.samples {
 			return m, tea.Quit
 		}
-		return m, tea.Tick(m.session.interval, func(time.Time) tea.Msg { return graphTickMsg{} })
+		return m, nil
 	case graphTickMsg:
 		if m.fetching {
-			return m, nil
+			return m, m.tickCmd()
 		}
 		m.fetching = true
-		return m, m.fetchCmd()
+		return m, tea.Batch(m.fetchCmd(), m.tickCmd())
 	case tea.KeyPressMsg:
 		if k := msg.Keystroke(); k == "ctrl+c" || k == "q" {
 			return m, tea.Quit

@@ -407,12 +407,36 @@ func newTestModel(t *testing.T, script *graphScript, samples int) *graphModel {
 	return &graphModel{ctx: t.Context(), session: newTestSession(t, script.fetch, "memory"), samples: samples}
 }
 
+// runCmds runs a command, and the commands of a batch, and returns their
+// messages. Run it inside a synctest bubble: a timer then ends when the
+// fake clock reaches it.
+func runCmds(cmd tea.Cmd) []tea.Msg {
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return []tea.Msg{msg}
+	}
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var msgs []tea.Msg
+	for _, c := range batch {
+		wg.Go(func() {
+			got := runCmds(c)
+			mu.Lock()
+			defer mu.Unlock()
+			msgs = append(msgs, got...)
+		})
+	}
+	wg.Wait()
+	return msgs
+}
+
 func TestGraphModelResizeDoesNotFetch(t *testing.T) {
 	t.Parallel()
 	script := &graphScript{steps: []graphStep{mem(10)}}
 	m := newTestModel(t, script, 0)
 	_, cmd := m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {RssBytes: 10 << 20}}})
-	require.NotNil(t, cmd)
+	assert.Nil(t, cmd, "an answer starts no timer: the ticks run on their own")
 
 	wide := m.View().Content
 	_, cmd = m.Update(tea.WindowSizeMsg{Width: 50, Height: 20})
@@ -425,23 +449,37 @@ func TestGraphModelResizeDoesNotFetch(t *testing.T) {
 	}
 }
 
-func TestGraphModelIgnoresTickWhileFetching(t *testing.T) {
+func TestGraphModelPollsOnAFixedSchedule(t *testing.T) {
 	t.Parallel()
-	script := &graphScript{steps: []graphStep{mem(10)}}
-	m := newTestModel(t, script, 0)
-	require.NotNil(t, m.Init())
-	assert.True(t, m.fetching)
+	synctest.Test(t, func(t *testing.T) {
+		script := &graphScript{steps: []graphStep{mem(10)}}
+		m := newTestModel(t, script, 0)
+		start := time.Now()
 
-	_, cmd := m.Update(graphTickMsg{})
-	assert.Nil(t, cmd, "one request at a time")
+		msgs := runCmds(m.Init())
+		require.Len(t, msgs, 2, "the first request and the first tick")
+		assert.Equal(t, 1, script.count())
+		assert.True(t, m.fetching)
+		assert.Contains(t, msgs, graphTickMsg{})
 
-	m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {}}})
-	assert.False(t, m.fetching)
-	_, cmd = m.Update(graphTickMsg{})
-	require.NotNil(t, cmd)
-	assert.True(t, m.fetching)
-	cmd()
-	assert.Equal(t, 1, script.count(), "the tick started the request")
+		// The first tick arrives while the request still runs: no second request.
+		_, cmd := m.Update(graphTickMsg{})
+		require.NotNil(t, cmd)
+		assert.Equal(t, []tea.Msg{graphTickMsg{}}, runCmds(cmd), "the tick is armed again at once")
+		assert.Equal(t, 1, script.count(), "one request at a time")
+
+		m.Update(graphSampleMsg{at: time.Now(), reading: graphReading{graphTestUUID: {}}})
+		assert.False(t, m.fetching)
+
+		// The next tick starts a request and arms the next tick.
+		_, cmd = m.Update(graphTickMsg{})
+		require.NotNil(t, cmd)
+		assert.True(t, m.fetching)
+		msgs = runCmds(cmd)
+		assert.Len(t, msgs, 2)
+		assert.Equal(t, 2, script.count())
+		assert.Equal(t, 3*m.session.interval, time.Since(start), "each tick is one interval after the one before it")
+	})
 }
 
 func TestGraphModelKeepsDataOnError(t *testing.T) {
@@ -450,8 +488,7 @@ func TestGraphModelKeepsDataOnError(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {RssBytes: 64 << 20}}})
 	_, cmd := m.Update(graphSampleMsg{at: graphT0.Add(2 * time.Second), err: errors.New("503 \x1b[2Junavailable")})
-	require.NotNil(t, cmd)
-	assert.NotEqual(t, tea.QuitMsg{}, runQuick(cmd), "a failed poll does not end the chart")
+	assert.Nil(t, cmd, "a failed poll does not end the chart")
 
 	view := ansi.Strip(m.View().Content)
 	assert.Contains(t, view, "my-instance  memory (bytes)")
@@ -461,23 +498,11 @@ func TestGraphModelKeepsDataOnError(t *testing.T) {
 	assert.False(t, m.session.series[0][1].OK)
 }
 
-// runQuick runs a command, unless it is a timer.
-func runQuick(cmd tea.Cmd) tea.Msg {
-	done := make(chan tea.Msg, 1)
-	go func() { done <- cmd() }()
-	select {
-	case msg := <-done:
-		return msg
-	case <-time.After(50 * time.Millisecond):
-		return nil
-	}
-}
-
 func TestGraphModelQuits(t *testing.T) {
 	t.Parallel()
 	m := newTestModel(t, &graphScript{steps: []graphStep{mem(1)}}, 2)
 	_, cmd := m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {}}})
-	assert.NotEqual(t, tea.QuitMsg{}, runQuick(cmd))
+	assert.Nil(t, cmd)
 	_, cmd = m.Update(graphSampleMsg{at: graphT0.Add(time.Second), reading: graphReading{graphTestUUID: {}}})
 	assert.Equal(t, tea.QuitMsg{}, cmd(), "the chart ends after the requested samples")
 
@@ -488,18 +513,20 @@ func TestGraphModelQuits(t *testing.T) {
 
 func TestGraphModelLive(t *testing.T) {
 	t.Parallel()
-	script := &graphScript{steps: []graphStep{mem(64), mem(128)}}
-	m := newTestModel(t, script, 0)
-	m.session.interval = 10 * time.Millisecond
-	runner := testkit.New(m, 60, 20)
-	defer runner.Stop()
+	synctest.Test(t, func(t *testing.T) {
+		script := &graphScript{steps: []graphStep{mem(64), mem(128)}}
+		m := newTestModel(t, script, 0)
+		m.session.interval = 10 * time.Millisecond
+		runner := testkit.New(m, 60, 20)
+		defer runner.Stop()
 
-	snap, err := runner.WaitUntilSnapshot(5*time.Second, 10*time.Millisecond, func(s string) bool {
-		return strings.Contains(s, "last 128 MiB")
+		snap, err := runner.WaitUntilSnapshot(5*time.Second, 10*time.Millisecond, func(s string) bool {
+			return strings.Contains(s, "last 128 MiB")
+		})
+		require.NoError(t, err)
+		assert.Contains(t, snap, "256Mi┤")
+		assert.GreaterOrEqual(t, script.count(), 2)
 	})
-	require.NoError(t, err)
-	assert.Contains(t, snap, "256Mi┤")
-	assert.GreaterOrEqual(t, script.count(), 2)
 }
 
 func TestGraphSampleFields(t *testing.T) {
