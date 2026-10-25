@@ -28,7 +28,10 @@ import (
 	"unikraft.com/cli/internal/tui/testkit"
 )
 
-const graphTestUUID = "00000000-0000-4000-8000-000000000001"
+const (
+	graphTestUUID  = "00000000-0000-4000-8000-000000000001"
+	graphTestUUID2 = "00000000-0000-4000-8000-000000000002"
+)
 
 var graphT0 = time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)
 
@@ -38,6 +41,8 @@ type graphStep struct {
 	err     error
 	// omit answers without the instance.
 	omit bool
+	// readings answers with these metrics, by UUID, instead of with metrics.
+	readings graphReading
 }
 
 // graphScript answers polls in order and repeats the last answer.
@@ -57,6 +62,8 @@ func (s *graphScript) fetch(context.Context) (graphReading, error) {
 		return nil, step.err
 	case step.omit:
 		return graphReading{}, nil
+	case step.readings != nil:
+		return step.readings, nil
 	}
 	step.metrics.Uuid = graphTestUUID
 	return graphReading{graphTestUUID: step.metrics}, nil
@@ -68,17 +75,25 @@ func (s *graphScript) count() int {
 	return s.calls
 }
 
-func newTestSession(t *testing.T, fetch graphFetch, names ...string) *graphSession {
-	t.Helper()
-	fields, err := parseGraphFields(names)
-	require.NoError(t, err)
-	target := graphTarget{
-		key:         multimetro.Key{Metro: "fra", UUID: graphTestUUID},
-		name:        "my-instance",
+func testTarget(name, uuid string) graphTarget {
+	return graphTarget{
+		key:         multimetro.Key{Metro: "fra", UUID: uuid},
+		name:        name,
 		vcpus:       2,
 		memoryBytes: 256 << 20,
 	}
-	return newGraphSession(target, fields, 2*time.Second, fetch, time.UTC)
+}
+
+func newTestSession(t *testing.T, fetch graphFetch, names ...string) *graphSession {
+	t.Helper()
+	return newTestSessionOf(t, fetch, []graphTarget{testTarget("my-instance", graphTestUUID)}, names...)
+}
+
+func newTestSessionOf(t *testing.T, fetch graphFetch, targets []graphTarget, names ...string) *graphSession {
+	t.Helper()
+	fields, err := parseGraphFields(names)
+	require.NoError(t, err)
+	return newGraphSession(targets, fields, 2*time.Second, fetch, time.UTC)
 }
 
 func mem(mib uint64) graphStep { return graphStep{metrics: graphMetrics{RssBytes: mib << 20}} }
@@ -134,8 +149,8 @@ func TestGraphFailedPollIsAGapNotZero(t *testing.T) {
 		cause   error
 	}{
 		"failed poll":      {err: errors.New("boom"), cause: errors.New("boom")},
-		"missing instance": {reading: graphReading{}, cause: errGraphMissing},
-		"other instance":   {reading: graphReading{"someone-else": {}}, cause: errGraphMissing},
+		"missing instance": {reading: graphReading{}, cause: errors.New("my-instance: no answer from the platform")},
+		"other instance":   {reading: graphReading{"someone-else": {}}, cause: errors.New("my-instance: no answer from the platform")},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -176,7 +191,7 @@ func TestGraphValidate(t *testing.T) {
 		"zero interval":   {cmd: InstancesGraphCmd{}, wantErr: "--interval must be at least 1s"},
 		"negative count":  {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(-1)}, wantErr: "--samples must not be negative"},
 		"unknown field":   {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"disk"}}, wantErr: `unknown field "disk": valid fields are cpu, memory, rx, tx, conns, reqs, queued, handled`},
-		"repeated field":  {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"cpu", "tx"}}, wantErr: "--field can be given once"},
+		"repeated field":  {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"cpu", "cpu"}}, wantErr: `field "cpu" is given twice`},
 		"each valid name": {cmd: InstancesGraphCmd{Interval: time.Second, Field: []string{"handled"}}},
 	}
 	for name, tt := range tests {
@@ -191,6 +206,16 @@ func TestGraphValidate(t *testing.T) {
 			assert.Len(t, fields, 1)
 		})
 	}
+}
+
+func TestGraphValidateAcceptsSeveralFields(t *testing.T) {
+	t.Parallel()
+	c := InstancesGraphCmd{Interval: time.Second, Field: []string{"cpu", "tx", "memory"}}
+	fields, err := c.validate()
+	require.NoError(t, err)
+	require.Len(t, fields, 3)
+	assert.Equal(t, "cpu", fields[0].name)
+	assert.Equal(t, "memory", fields[2].name)
 }
 
 func TestGraphDefaultFieldIsMemory(t *testing.T) {

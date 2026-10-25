@@ -105,8 +105,12 @@ func (m *graphModel) View() tea.View {
 	width := cmp.Or(m.width, defaultGraphWidth)
 	height := 0
 	if m.height > 0 {
-		// Leave one row for the status line.
-		height = min(m.height-1, graph.PlotHeight+2)
+		// Leave one row for the status line. A chart is not taller than it
+		// needs to be, and sparklines use the rows that they have.
+		height = m.height - 1
+		if len(m.session.lines) == 1 {
+			height = min(height, graph.PlotHeight+2)
+		}
 	}
 	return tea.NewView(m.session.frame(width, height, graphStyle) + "\n" + m.status(width))
 }

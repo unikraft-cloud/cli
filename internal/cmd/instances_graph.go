@@ -45,15 +45,15 @@ const (
 	defaultRowSamples   = 10
 )
 
-// InstancesGraphCmd graphs the live metrics of an instance.
+// InstancesGraphCmd graphs the live metrics of one or more instances.
 //
 // The platform reports the current value of each metric and keeps no history,
 // so the series is built here by polling. Rates use the time at which each
 // answer arrives.
 type InstancesGraphCmd struct {
-	Target string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Instance to graph."`
+	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Instances to graph."`
 
-	Field    []string      `short:"f" sep:"none" placeholder:"metric" help:"Metric to graph. One of: cpu, memory, rx, tx, conns, reqs, queued, handled. Defaults to memory."`
+	Field    []string      `short:"f" sep:"none" placeholder:"metric" help:"Metric to graph, given once for each metric. One of: cpu, memory, rx, tx, conns, reqs, queued, handled. Defaults to memory."`
 	Interval time.Duration `short:"i" default:"2s" placeholder:"duration" help:"Time between samples. At least 1s."`
 	Samples  *int          `short:"n" placeholder:"count" help:"Stop after this many samples. 0 runs until interrupted. Defaults to 0 on a terminal, 30 without one, and 10 with --output."`
 	Output   cmd.Printer   `short:"o" placeholder:"format" help:"Print the samples as rows instead of drawing a chart. One of: kv, table, json, yaml, raw, quiet, template."`
@@ -70,6 +70,10 @@ func (c InstancesGraphCmd) Examples() []kingkong.Example {
 			Commands:    []string{"unikraft instances graph my-instance -f cpu -i 5s"},
 		},
 		{
+			Description: "Compare the memory and CPU use of two instances as sparklines",
+			Commands:    []string{"unikraft instances graph web-1 web-2 -f memory -f cpu"},
+		},
+		{
 			Description: "Print 10 samples of the received bytes per second as JSON",
 			Commands:    []string{"unikraft instances graph my-instance -f rx -n 10 -o json"},
 		},
@@ -82,29 +86,41 @@ func (c *InstancesGraphCmd) Run(ctx context.Context, stdio config.Stdio) error {
 		return err
 	}
 
-	found, err := Instance{}.Get(ctx, []string{c.Target})
-	if err != nil && len(found) == 0 {
+	found, err := Instance{}.Get(ctx, c.Targets)
+	if err != nil {
 		return err
 	}
-	if len(found) != 1 {
-		return fmt.Errorf("%q matches %d instances: name one of them with a prefix, such as fra/my-instance", c.Target, len(found))
+	var targets []graphTarget
+	for _, res := range found {
+		instance, ok := res.(Instance)
+		if !ok {
+			return fmt.Errorf("unexpected resource %T", res)
+		}
+		target := graphTarget{
+			key:         multimetro.Key{Metro: string(instance.Metro), UUID: instance.UUID},
+			name:        cmp.Or(instance.Name, instance.UUID),
+			vcpus:       max(instance.Resources.VCPUs, 1),
+			memoryBytes: float64(instance.Resources.Memory) * (1 << 20),
+		}
+		if slices.ContainsFunc(targets, func(t graphTarget) bool { return t.key.UUID == target.key.UUID }) {
+			continue
+		}
+		targets = append(targets, target)
 	}
-	instance, ok := found[0].(Instance)
-	if !ok {
-		return fmt.Errorf("unexpected resource %T", found[0])
+
+	if len(targets) == 0 {
+		return errors.New("no instances to graph")
 	}
 
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return err
 	}
-	target := graphTarget{
-		key:         multimetro.Key{Metro: string(instance.Metro), UUID: instance.UUID},
-		name:        cmp.Or(instance.Name, instance.UUID),
-		vcpus:       max(instance.Resources.VCPUs, 1),
-		memoryBytes: float64(instance.Resources.Memory) * (1 << 20),
+	keys := make(multimetro.Keys, len(targets))
+	for i, t := range targets {
+		keys[i] = t.key
 	}
-	session := newGraphSession(target, fields, c.Interval, newGraphFetch(g, target.key), time.Local)
+	session := newGraphSession(targets, fields, c.Interval, newGraphFetch(g, keys), time.Local)
 	return c.run(ctx, stdio, session)
 }
 
@@ -119,9 +135,6 @@ func (c *InstancesGraphCmd) validate() ([]graphField, error) {
 	fields, err := parseGraphFields(c.Field)
 	if err != nil {
 		return nil, err
-	}
-	if len(fields) > 1 {
-		return nil, errors.New("--field can be given once")
 	}
 	return fields, nil
 }
@@ -151,7 +164,7 @@ func (c *InstancesGraphCmd) run(ctx context.Context, stdio config.Stdio, s *grap
 	if err := s.failure(); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintln(stdio.Stdout, s.frame(guesstermwidth.GuessTermWidth(stdio.Stdout), 0, graph.Style{}))
+	_, err := fmt.Fprintln(stdio.Stdout, s.plainFrame(guesstermwidth.GuessTermWidth(stdio.Stdout)))
 	return err
 }
 
@@ -184,6 +197,8 @@ type graphField struct {
 	// counter marks a value that only grows. It is graphed as a rate.
 	counter bool
 	read    func(m *graphMetrics) uint64
+	// suffix follows the values in sparkline rows.
+	suffix string
 	// scale turns a rate per second into the graphed value. Nil means 1.
 	scale func(t graphTarget) float64
 	// ceiling fixes the top of the chart axis. Nil means none.
@@ -192,7 +207,7 @@ type graphField struct {
 
 var graphFields = []graphField{
 	{
-		name: "cpu", title: "cpu (%)", unit: "percent", kind: graph.UnitPercent, counter: true,
+		name: "cpu", title: "cpu (%)", unit: "percent", kind: graph.UnitPercent, counter: true, suffix: "%",
 		read: func(m *graphMetrics) uint64 { return m.CpuTimeMs },
 		// A rate of CPU milliseconds per second is a tenth of a percent of one vCPU.
 		scale:   func(t graphTarget) float64 { return 1 / (10 * float64(max(t.vcpus, 1))) },
@@ -224,7 +239,7 @@ var graphFields = []graphField{
 		read: func(m *graphMetrics) uint64 { return m.Nqueued },
 	},
 	{
-		name: "handled", title: "handled (per second)", unit: "per second", kind: graph.UnitPerSecond, counter: true,
+		name: "handled", title: "handled (per second)", unit: "per second", kind: graph.UnitPerSecond, counter: true, suffix: "/s",
 		read: func(m *graphMetrics) uint64 { return m.Ntotal },
 	},
 }
@@ -252,12 +267,12 @@ func parseGraphFields(names []string) ([]graphField, error) {
 	return fields, nil
 }
 
-// newGraphFetch reads the metrics of one instance with one grouped request.
-func newGraphFetch(g *group.Group[multimetro.MetroClient], key multimetro.Key) graphFetch {
+// newGraphFetch reads the metrics of the instances with one grouped request.
+func newGraphFetch(g *group.Group[multimetro.MetroClient], keys multimetro.Keys) graphFetch {
 	return func(ctx context.Context) (graphReading, error) {
 		var mu sync.Mutex
 		reading := graphReading{}
-		err := group.DoRefs(ctx, g, multimetro.Keys{key}.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+		err := group.DoRefs(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 			resp, err := c.GetInstanceMetrics(ctx, refs.NameOrUUIDs(), platform.GetInstanceMetricsOpts{})
 			if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 				return nil, err
@@ -279,8 +294,8 @@ func newGraphFetch(g *group.Group[multimetro.MetroClient], key multimetro.Key) g
 	}
 }
 
-// errGraphMissing is the cause of a gap when the answer lacks the instance.
-var errGraphMissing = errors.New("the platform did not answer for the instance")
+// errGraphMissing is the cause of a gap when the answer lacks an instance.
+var errGraphMissing = errors.New("no answer from the platform")
 
 // rawSample is the last value that was read of a counter.
 type rawSample struct {
@@ -289,15 +304,22 @@ type rawSample struct {
 	set bool
 }
 
-// graphSession collects the samples of one instance.
+// graphLine is the series of one field of one instance.
+type graphLine struct {
+	target, field int
+}
+
+// graphSession collects the samples of the instances.
 type graphSession struct {
-	target   graphTarget
+	targets  []graphTarget
 	fields   []graphField
 	interval time.Duration
 	fetch    graphFetch
 	loc      *time.Location
 
-	// series and prev have one entry per field.
+	// lines, series and prev have one entry for each field of each
+	// instance. The fields of an instance are together.
+	lines  []graphLine
 	series [][]graph.Point
 	prev   []rawSample
 	// limit bounds the points of a series. Zero means no bound.
@@ -305,15 +327,22 @@ type graphSession struct {
 	lastErr error
 }
 
-func newGraphSession(target graphTarget, fields []graphField, interval time.Duration, fetch graphFetch, loc *time.Location) *graphSession {
+func newGraphSession(targets []graphTarget, fields []graphField, interval time.Duration, fetch graphFetch, loc *time.Location) *graphSession {
+	var lines []graphLine
+	for ti := range targets {
+		for fi := range fields {
+			lines = append(lines, graphLine{target: ti, field: fi})
+		}
+	}
 	return &graphSession{
-		target:   target,
+		targets:  targets,
 		fields:   fields,
 		interval: interval,
 		fetch:    fetch,
 		loc:      loc,
-		series:   make([][]graph.Point, len(fields)),
-		prev:     make([]rawSample, len(fields)),
+		lines:    lines,
+		series:   make([][]graph.Point, len(lines)),
+		prev:     make([]rawSample, len(lines)),
 		limit:    graphRingSize,
 	}
 }
@@ -321,18 +350,14 @@ func newGraphSession(target graphTarget, fields []graphField, interval time.Dura
 // observe records one poll that finished at t. It returns why the poll gave
 // no values, or nil. A failed poll adds a gap to each series and never a zero.
 func (s *graphSession) observe(t time.Time, reading graphReading, fetchErr error) error {
-	m, found := reading[s.target.key.UUID]
-	var cause error
-	switch {
-	case fetchErr != nil:
-		cause = fetchErr
-	case !found:
-		cause = errGraphMissing
-	}
-	s.lastErr = cause
-
-	for i, f := range s.fields {
-		if cause != nil {
+	cause := fetchErr
+	for i, line := range s.lines {
+		target, f := s.targets[line.target], s.fields[line.field]
+		m, found := reading[target.key.UUID]
+		if fetchErr != nil || !found {
+			if cause == nil {
+				cause = fmt.Errorf("%s: %w", target.name, errGraphMissing)
+			}
 			s.add(i, graph.Point{T: t})
 			continue
 		}
@@ -353,10 +378,11 @@ func (s *graphSession) observe(t time.Time, reading graphReading, fetchErr error
 		}
 		rate := float64(raw-prev.v) / elapsed
 		if f.scale != nil {
-			rate *= f.scale(s.target)
+			rate *= f.scale(target)
 		}
 		s.add(i, graph.Point{T: t, V: rate, OK: true})
 	}
+	s.lastErr = cause
 	return cause
 }
 
@@ -406,33 +432,143 @@ func (s *graphSession) collect(ctx context.Context, n int) {
 	}
 }
 
-// frame draws the chart of the session in a frame of the given size.
+const (
+	// maxSparkRows is how many rows the sparkline view shows when the
+	// terminal does not limit it.
+	maxSparkRows = 20
+	// maxSparkLabel is the widest label of a sparkline row.
+	maxSparkLabel = 24
+	// minSparkWidth is the narrowest sparkline.
+	minSparkWidth = 8
+	// minSparkFrame is the narrowest frame of the sparkline view.
+	minSparkFrame = 40
+)
+
+// frame draws the session in a frame of the given size: a chart for one
+// series, or one sparkline row for each series.
 func (s *graphSession) frame(width, height int, style graph.Style) string {
-	var frames []string
-	for i, f := range s.fields {
-		o := graph.Options{
-			Title:    s.target.name + "  " + f.title,
-			Unit:     f.kind,
-			Width:    width,
-			Height:   height,
-			Interval: s.interval,
-			Loc:      s.loc,
-			Empty:    "waiting for the first sample",
-			Style:    style,
-		}
-		if f.ceiling != nil {
-			o.Ceiling = f.ceiling(s.target)
-		}
-		if f.counter {
-			o.Empty = "waiting for a second sample"
-		}
-		frames = append(frames, graph.Chart(s.series[i], o))
+	if len(s.lines) == 1 {
+		return s.chart(0, width, height, style)
 	}
-	frame := strings.Join(frames, "\n")
+	return s.sparkRows(width, height, style)
+}
+
+// plainFrame is a frame without styles, with the error of the last poll below.
+func (s *graphSession) plainFrame(width int) string {
+	frame := s.frame(width, 0, graph.Style{})
 	if s.lastErr != nil {
-		frame += "\n" + "error: " + cleanLine(s.lastErr.Error())
+		frame += "\nerror: " + cleanLine(s.lastErr.Error())
 	}
 	return frame
+}
+
+// chart draws one series as a line chart.
+func (s *graphSession) chart(i, width, height int, style graph.Style) string {
+	target, f := s.targets[s.lines[i].target], s.fields[s.lines[i].field]
+	o := graph.Options{
+		Title:    target.name + "  " + f.title,
+		Unit:     f.kind,
+		Width:    width,
+		Height:   height,
+		Interval: s.interval,
+		Loc:      s.loc,
+		Empty:    "waiting for the first sample",
+		Style:    style,
+	}
+	if f.counter {
+		o.Empty = "waiting for a second sample"
+	}
+	if f.ceiling != nil {
+		o.Ceiling = f.ceiling(target)
+	}
+	return graph.Chart(s.series[i], o)
+}
+
+// sparkRows draws each series as a row. Rows of one field share a scale, and
+// are next to each other. Rows that do not fit are counted in the last line.
+func (s *graphSession) sparkRows(width, height int, style graph.Style) string {
+	if width < minSparkFrame {
+		return style.Note.Render(ansi.Truncate(fmt.Sprintf("too small for sparklines (needs %d columns)", minSparkFrame), max(width, 1), ""))
+	}
+
+	order := make([]int, len(s.lines))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortStableFunc(order, func(a, b int) int {
+		return cmp.Or(cmp.Compare(s.lines[a].field, s.lines[b].field), cmp.Compare(s.lines[a].target, s.lines[b].target))
+	})
+	budget := maxSparkRows
+	if height > 0 {
+		budget = max(height, 2)
+	}
+	hidden := 0
+	if len(order) > budget {
+		hidden = len(order) - (budget - 1)
+		order = order[:budget-1]
+	}
+
+	scale := make([]float64, len(s.fields))
+	for fi := range s.fields {
+		var group [][]graph.Point
+		for i, line := range s.lines {
+			if line.field == fi {
+				group = append(group, s.series[i])
+			}
+		}
+		scale[fi] = graph.Ceiling(group...)
+	}
+
+	labels := make([]string, len(order))
+	stats := make([]string, len(order))
+	labelW, statW := 0, 0
+	for r, i := range order {
+		labels[r] = ansi.Truncate(s.label(s.lines[i]), maxSparkLabel, "…")
+		stats[r] = s.stat(i)
+		labelW = max(labelW, ansi.StringWidth(labels[r]))
+		statW = max(statW, ansi.StringWidth(stats[r]))
+	}
+	sparkW := max(width-labelW-statW-4, minSparkWidth)
+
+	rows := make([]string, 0, len(order)+1)
+	for r, i := range order {
+		spark := graph.Sparkline(s.series[i], sparkW, scale[s.lines[i].field])
+		pad := strings.Repeat(" ", labelW-ansi.StringWidth(labels[r]))
+		row := style.Axis.Render(labels[r]+pad) + "  " + style.Line.Render(spark) + "  " + style.Note.Render(stats[r])
+		rows = append(rows, row)
+	}
+	if hidden > 0 {
+		rows = append(rows, style.Note.Render(fmt.Sprintf("+%d more", hidden)))
+	}
+	return strings.Join(rows, "\n")
+}
+
+// label names a series in a sparkline row. It leaves out what is the same in
+// every row.
+func (s *graphSession) label(line graphLine) string {
+	target, f := s.targets[line.target].name, s.fields[line.field].name
+	switch {
+	case len(s.targets) == 1:
+		return f
+	case len(s.fields) == 1:
+		return target
+	}
+	return target + " " + f
+}
+
+// stat is the text at the end of a sparkline row: the newest and the largest
+// value.
+func (s *graphSession) stat(i int) string {
+	f := s.fields[s.lines[i].field]
+	points := s.series[i]
+	if !slices.ContainsFunc(points, func(p graph.Point) bool { return p.OK }) {
+		return "no value"
+	}
+	last := "-"
+	if p := points[len(points)-1]; p.OK {
+		last = graph.FormatReading(p.V, f.kind) + f.suffix
+	}
+	return "last " + last + " / max " + graph.FormatReading(graph.Ceiling(points), f.kind) + f.suffix
 }
 
 // cleanLine removes escape sequences and control characters from text that
@@ -444,14 +580,15 @@ func cleanLine(s string) string {
 // rows returns the samples as resources, oldest first.
 func (s *graphSession) rows() []model.Model {
 	var rows []GraphSample
-	for i, f := range s.fields {
+	for i, line := range s.lines {
+		target, f := s.targets[line.target], s.fields[line.field]
 		for _, p := range s.series[i] {
 			row := GraphSample{
 				Time:     GraphTime(p.T.In(s.loc)),
-				Instance: s.target.name,
+				Instance: target.name,
 				Metric:   f.name,
 				Unit:     f.unit,
-				key:      s.target.key,
+				key:      target.key,
 			}
 			if p.OK {
 				row.Value = NewGraphValue(p.V)

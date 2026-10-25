@@ -35,7 +35,7 @@ Resources:
   history
           Show checkpoint history for an instance.
   graph
-          Graph the live metrics of an instance.
+          Graph the live metrics of instances.
   shell, sh
           Open an interactive shell on a sandbox instance.
   exec
