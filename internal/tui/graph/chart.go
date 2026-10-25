@@ -47,7 +47,7 @@ type Options struct {
 	// plot height.
 	Height int
 	// Interval is the time between two samples. It sets the time scale of
-	// the x axis and where a line breaks.
+	// the x axis, where a point sits and where a line breaks.
 	Interval time.Duration
 	// Loc is the time zone of the x axis labels. Nil means UTC.
 	Loc *time.Location
@@ -89,7 +89,7 @@ func Chart(points []Point, o Options) string {
 		plotH = min(PlotHeight, o.Height-2)
 	}
 	subW := 2 * plotW
-	points = points[max(0, len(points)-subW):]
+	points = visible(points, o.Interval, subW)
 
 	var lines []string
 	lines = append(lines, o.Style.Note.Render(ansi.Truncate(headline(points, o), o.Width, "…")))
@@ -155,8 +155,30 @@ var brailleBits = [2][4]uint8{
 	{0x08, 0x10, 0x20, 0x80},
 }
 
+// column returns the dot column of a point. The newest point is in the last
+// column, and a column is one interval wide. Without an interval, the columns
+// follow the index of the point.
+func column(points []Point, i int, interval time.Duration, subW int) int {
+	if interval <= 0 {
+		return subW - len(points) + i
+	}
+	age := points[len(points)-1].T.Sub(points[i].T)
+	return subW - 1 - int(math.Round(float64(age)/float64(interval)))
+}
+
+// visible returns the points that have a dot column on the chart.
+func visible(points []Point, interval time.Duration, subW int) []Point {
+	for i := range points {
+		if column(points, i, interval, subW) >= 0 {
+			return points[i:]
+		}
+	}
+	return points
+}
+
 // drawCanvas draws the series on a grid of braille dots, two per cell
-// horizontally and four vertically. Each point has one dot column.
+// horizontally and four vertically. A point sits in the dot column of its
+// time.
 func drawCanvas(points []Point, o Options, top float64, plotW, plotH int) []string {
 	cells := make([][]uint8, plotH)
 	for r := range cells {
@@ -173,17 +195,16 @@ func drawCanvas(points []Point, o Options, top float64, plotW, plotH int) []stri
 		return int(math.Round((1 - ratio) * float64(4*plotH-1)))
 	}
 
-	offset := 2*plotW - len(points)
 	for i, p := range points {
 		if !p.OK {
 			continue
 		}
-		x, y := offset+i, row(p.V)
+		x, y := column(points, i, o.Interval, 2*plotW), row(p.V)
 		set(x, y)
 		if i == 0 || !points[i-1].OK || o.joinGap(points[i-1], p) {
 			continue
 		}
-		line(x-1, row(points[i-1].V), x, y, set)
+		line(column(points, i-1, o.Interval, 2*plotW), row(points[i-1].V), x, y, set)
 	}
 
 	out := make([]string, plotH)

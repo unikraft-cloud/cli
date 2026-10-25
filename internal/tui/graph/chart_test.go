@@ -91,11 +91,43 @@ t  last 8
      │
     4┤
      │
-    0┤                       ⡀
+    0┤                      ⡀
            11:59         12:00
 `)
-	assert.Equal(t, want, Chart(late, small())+"\n", "points more than 1.5 intervals apart are two dots")
+	assert.Equal(t, want, Chart(late, small())+"\n", "points more than 1.5 intervals apart are two dots, 2.5 intervals apart")
 	assert.NotEqual(t, Chart(series(step2s, 0, 8), small()), Chart(late, small()))
+}
+
+func TestChartPlacesPointsByTime(t *testing.T) {
+	t.Parallel()
+	// Ten samples 5 s apart on a 2 s scale cover 45 s, about 23 dot columns.
+	points := series(5*time.Second, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6)
+	subW := 2 * (MinWidth - gutter)
+	assert.Equal(t, subW-1, column(points, len(points)-1, step2s, subW))
+	assert.Equal(t, subW-1-23, column(points, 0, step2s, subW), "the oldest point is 45 s, or 22.5 intervals, back")
+
+	o := small()
+	o.Ceiling = 0
+	lines := strings.Split(Chart(points, o), "\n")
+	plot := lines[1 : len(lines)-1]
+	first, last := math.MaxInt, 0
+	for _, l := range plot {
+		for i, r := range []rune(l)[gutter:] {
+			if r != ' ' {
+				first, last = min(first, i), max(last, i)
+			}
+		}
+	}
+	assert.InDelta(t, 12, last-first+1, 1, "the chart spans 45 s and not 18 s")
+}
+
+func TestChartDropsPointsOlderThanTheWindow(t *testing.T) {
+	t.Parallel()
+	points := series(step2s, 9, 1, 2)
+	points[0].T = points[0].T.Add(-10 * time.Minute)
+	o := small()
+	o.Ceiling = 0
+	assert.Contains(t, Chart(points, o), "    2┤", "a point out of the window does not set the axis")
 }
 
 func TestChartSinglePointIsADot(t *testing.T) {
