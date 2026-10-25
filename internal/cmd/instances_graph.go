@@ -111,6 +111,7 @@ func (c *InstancesGraphCmd) Run(ctx context.Context, stdio config.Stdio) error {
 	if len(targets) == 0 {
 		return errors.New("no instances to graph")
 	}
+	qualifyGraphNames(targets)
 
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
@@ -122,6 +123,20 @@ func (c *InstancesGraphCmd) Run(ctx context.Context, stdio config.Stdio) error {
 	}
 	session := newGraphSession(targets, fields, c.Interval, newGraphFetch(g, keys), time.Local)
 	return c.run(ctx, stdio, session)
+}
+
+// qualifyGraphNames adds the metro to the name of each instance that shares
+// its name with another instance, so that rows and charts stay apart.
+func qualifyGraphNames(targets []graphTarget) {
+	count := map[string]int{}
+	for _, t := range targets {
+		count[t.name]++
+	}
+	for i, t := range targets {
+		if count[t.name] > 1 {
+			targets[i].name = t.name + " (" + t.key.Metro + ")"
+		}
+	}
 }
 
 // validate refuses bad flag values and returns the fields to graph.
@@ -438,10 +453,26 @@ const (
 	maxSparkRows = 20
 	// maxSparkLabel is the widest label of a sparkline row.
 	maxSparkLabel = 24
+	// minSparkInstance is the fewest cells of an instance name in a label.
+	minSparkInstance = 4
 	// minSparkWidth is the narrowest sparkline.
 	minSparkWidth = 8
 	// minSparkFrame is the narrowest frame of the sparkline view.
 	minSparkFrame = 40
+	// sparkGap is the space between the columns of a row.
+	sparkGap = 2
+)
+
+// statMode is how much a row says after its sparkline.
+type statMode int
+
+const (
+	// statFull is the newest and the largest value.
+	statFull statMode = iota
+	// statLast is the newest value.
+	statLast
+	// statNone is nothing.
+	statNone
 )
 
 // frame draws the session in a frame of the given size: a chart for one
@@ -484,8 +515,51 @@ func (s *graphSession) chart(i, width, height int, style graph.Style) string {
 	return graph.Chart(s.series[i], o)
 }
 
+// sparkRow is a series in the sparkline view.
+type sparkRow struct {
+	// instance and metric are the parts of the label. A part that is the
+	// same in every row is empty.
+	instance, metric string
+}
+
+// width is the width of the label of the row.
+func (r sparkRow) width() int {
+	w := ansi.StringWidth(r.instance) + ansi.StringWidth(r.metric)
+	if r.instance != "" && r.metric != "" {
+		w++
+	}
+	return w
+}
+
+// label shortens the instance to fit in w cells. The metric always stays.
+func (r sparkRow) label(w int) string {
+	if r.instance == "" {
+		return r.metric
+	}
+	if r.metric == "" {
+		return shortenMiddle(r.instance, w)
+	}
+	return shortenMiddle(r.instance, w-1-ansi.StringWidth(r.metric)) + " " + r.metric
+}
+
+// shortenMiddle cuts the middle of s to fit in w cells. Names of one group
+// often differ at the end, and the end stays.
+func shortenMiddle(s string, w int) string {
+	if ansi.StringWidth(s) <= w {
+		return s
+	}
+	if w < 1 {
+		return ""
+	}
+	tail := (w - 1) / 2
+	head := w - 1 - tail
+	return ansi.Truncate(s, head, "") + "…" + ansi.TruncateLeft(s, ansi.StringWidth(s)-tail, "")
+}
+
 // sparkRows draws each series as a row. Rows of one field share a scale, and
 // are next to each other. Rows that do not fit are counted in the last line.
+// No row is wider than width. When the width is short, the labels give up
+// cells first, then the rows say less after the sparkline.
 func (s *graphSession) sparkRows(width, height int, style graph.Style) string {
 	if width < minSparkFrame {
 		return style.Note.Render(ansi.Truncate(fmt.Sprintf("too small for sparklines (needs %d columns)", minSparkFrame), max(width, 1), ""))
@@ -508,65 +582,112 @@ func (s *graphSession) sparkRows(width, height int, style graph.Style) string {
 		order = order[:budget-1]
 	}
 
+	rows := make([]sparkRow, len(order))
+	labelW, minLabelW := 0, 0
+	for r, i := range order {
+		rows[r] = s.sparkRow(i)
+		labelW = max(labelW, rows[r].width())
+		w := ansi.StringWidth(rows[r].metric)
+		if rows[r].instance != "" {
+			w += minSparkInstance
+			if rows[r].metric != "" {
+				w++
+			}
+		}
+		minLabelW = max(minLabelW, w)
+	}
+	labelW = min(labelW, maxSparkLabel)
+
+	// Pick the longest stat text that leaves a label and a sparkline.
+	mode, statW := statFull, 0
+	for ; mode < statNone; mode++ {
+		statW = 0
+		for _, i := range order {
+			statW = max(statW, ansi.StringWidth(s.stat(i, mode, graphRingSize)))
+		}
+		if width-minSparkWidth-2*sparkGap-statW >= minLabelW {
+			break
+		}
+	}
+	if mode == statNone {
+		statW = 0
+	}
+	room := width - minSparkWidth - sparkGap
+	if statW > 0 {
+		room -= sparkGap + statW
+	}
+	labelW = max(min(labelW, room), minLabelW)
+	sparkW := width - labelW - sparkGap
+	if statW > 0 {
+		sparkW -= sparkGap + statW
+	}
+
+	// The scale of a field covers the points that are on screen.
 	scale := make([]float64, len(s.fields))
 	for fi := range s.fields {
 		var group [][]graph.Point
 		for i, line := range s.lines {
 			if line.field == fi {
-				group = append(group, s.series[i])
+				group = append(group, lastPoints(s.series[i], sparkW))
 			}
 		}
 		scale[fi] = graph.Ceiling(group...)
 	}
 
-	labels := make([]string, len(order))
-	stats := make([]string, len(order))
-	labelW, statW := 0, 0
+	out := make([]string, 0, len(order)+1)
 	for r, i := range order {
-		labels[r] = ansi.Truncate(s.label(s.lines[i]), maxSparkLabel, "…")
-		stats[r] = s.stat(i)
-		labelW = max(labelW, ansi.StringWidth(labels[r]))
-		statW = max(statW, ansi.StringWidth(stats[r]))
-	}
-	sparkW := max(width-labelW-statW-4, minSparkWidth)
-
-	rows := make([]string, 0, len(order)+1)
-	for r, i := range order {
+		label := rows[r].label(labelW)
+		pad := strings.Repeat(" ", labelW-ansi.StringWidth(label))
 		spark := graph.Sparkline(s.series[i], sparkW, scale[s.lines[i].field])
-		pad := strings.Repeat(" ", labelW-ansi.StringWidth(labels[r]))
-		row := style.Axis.Render(labels[r]+pad) + "  " + style.Line.Render(spark) + "  " + style.Note.Render(stats[r])
-		rows = append(rows, row)
+		row := style.Axis.Render(label+pad) + strings.Repeat(" ", sparkGap) + style.Line.Render(spark)
+		if statW > 0 {
+			stat := ansi.Truncate(s.stat(i, mode, sparkW), statW, "")
+			row += strings.Repeat(" ", sparkGap) + style.Note.Render(stat)
+		}
+		out = append(out, row)
 	}
 	if hidden > 0 {
-		rows = append(rows, style.Note.Render(fmt.Sprintf("+%d more", hidden)))
+		out = append(out, style.Note.Render(fmt.Sprintf("+%d more", hidden)))
 	}
-	return strings.Join(rows, "\n")
+	return strings.Join(out, "\n")
 }
 
-// label names a series in a sparkline row. It leaves out what is the same in
-// every row.
-func (s *graphSession) label(line graphLine) string {
-	target, f := s.targets[line.target].name, s.fields[line.field].name
+// sparkRow returns the label parts of a series. It leaves out what is the
+// same in every row.
+func (s *graphSession) sparkRow(i int) sparkRow {
+	line := s.lines[i]
+	row := sparkRow{instance: s.targets[line.target].name, metric: s.fields[line.field].name}
 	switch {
 	case len(s.targets) == 1:
-		return f
+		row.instance = ""
 	case len(s.fields) == 1:
-		return target
+		row.metric = ""
 	}
-	return target + " " + f
+	return row
 }
 
-// stat is the text at the end of a sparkline row: the newest and the largest
-// value.
-func (s *graphSession) stat(i int) string {
+// lastPoints returns the newest n points.
+func lastPoints(points []graph.Point, n int) []graph.Point {
+	return points[max(0, len(points)-n):]
+}
+
+// stat is the text at the end of a sparkline row. It covers the newest
+// window points, which are the points that the sparkline shows.
+func (s *graphSession) stat(i int, mode statMode, window int) string {
+	if mode == statNone {
+		return ""
+	}
 	f := s.fields[s.lines[i].field]
-	points := s.series[i]
+	points := lastPoints(s.series[i], window)
 	if !slices.ContainsFunc(points, func(p graph.Point) bool { return p.OK }) {
 		return "no value"
 	}
 	last := "-"
 	if p := points[len(points)-1]; p.OK {
 		last = graph.FormatReading(p.V, f.kind) + f.suffix
+	}
+	if mode == statLast {
+		return "last " + last
 	}
 	return "last " + last + " / max " + graph.FormatReading(graph.Ceiling(points), f.kind) + f.suffix
 }
