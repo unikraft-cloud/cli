@@ -48,6 +48,8 @@ Flags:
           SSH agent socket or keys to expose to the build (format: "default|<id>[=<socket>|<key>[,<key>]]").
       --insecure
           Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all.
+      --remote=<url> ($UNIKRAFT_BUILD_URL)
+          Build on the build service at this URL and push the image from there, instead of building locally.
 
 Global flags:
   -h, --help

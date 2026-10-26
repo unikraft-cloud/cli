@@ -161,6 +161,7 @@ jobs:
           UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
           UNIKRAFT_ENDPOINT: ${{ secrets[format('UNIKRAFT_ENDPOINT_{0}', matrix.target)] }}
           UNIKRAFT_X_TEST_SERVER: ${{ env[format('UNIKRAFT_SERVER_{0}', matrix.target)] }}
+          UNIKRAFT_X_TEST_BUILD_URL: ${{ matrix.target == 'STABLE' && secrets.UNIKRAFT_BUILD_URL_STABLE || '' }}
 
   # The hosted Windows runners reach only the public prod endpoint.  The runners
   # take turns, so that both do not use the same organization at once.
