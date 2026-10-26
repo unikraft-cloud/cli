@@ -69,7 +69,12 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 	})
 
 	log.G(ctx).Info().Str("addr", l.Addr().String()).Msg("listening")
-	err := srv.Serve(l)
+	var err error
+	if s.opts.TLSCertFile != "" {
+		err = srv.ServeTLS(l, s.opts.TLSCertFile, s.opts.TLSKeyFile)
+	} else {
+		err = srv.Serve(l)
+	}
 	if stop() {
 		return err
 	}

@@ -26,6 +26,9 @@ type Options struct {
 
 	DocsURL    string
 	HTTPClient *http.Client
+
+	TLSCertFile string
+	TLSKeyFile  string
 }
 
 // Server serves an MCP server over stdio or HTTP, with a documentation site

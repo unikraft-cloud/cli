@@ -7,10 +7,12 @@ package mcpserver_test
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -19,20 +21,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	integ "unikraft.com/cli/internal/integration"
 	"unikraft.com/cli/internal/mcpserver"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
 	modelmcp "unikraft.com/cli/internal/model/mcp"
 	modelt "unikraft.com/cli/internal/model/testing"
 )
-
-func serveHTTP(t *testing.T, ctx context.Context, srv *mcpserver.Server) *httptest.Server {
-	t.Helper()
-	ts := httptest.NewUnstartedServer(srv.Handler())
-	ts.Config.BaseContext = func(net.Listener) context.Context { return ctx }
-	ts.Start()
-	t.Cleanup(ts.Close)
-	return ts
-}
 
 func newServer(t *testing.T, ctx context.Context, opts mcpserver.Options) *mcpserver.Server {
 	t.Helper()
@@ -42,61 +36,52 @@ func newServer(t *testing.T, ctx context.Context, opts mcpserver.Options) *mcpse
 	return srv
 }
 
-func readBody(t *testing.T, resp *http.Response) string {
-	t.Helper()
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-	return string(body)
+func TestServe(t *testing.T) {
+	t.Run("http", func(t *testing.T) {
+		testServe(t, mcpserver.Options{}, "http", http.DefaultClient)
+	})
+	t.Run("https", func(t *testing.T) {
+		cert := integ.GenerateCert(t, "localhost")
+		dir := t.TempDir()
+		opts := mcpserver.Options{TLSCertFile: filepath.Join(dir, "cert.pem"), TLSKeyFile: filepath.Join(dir, "key.pem")}
+		require.NoError(t, os.WriteFile(opts.TLSCertFile, []byte(cert.Chain), 0o600))
+		require.NoError(t, os.WriteFile(opts.TLSKeyFile, []byte(cert.Key), 0o600))
+		client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+		testServe(t, opts, "https", client)
+	})
 }
 
-func TestHTTPTools(t *testing.T) {
+func testServe(t *testing.T, opts mcpserver.Options, scheme string, client *http.Client) {
 	env := modelt.NewTestEnv()
 	env.Add(modelt.TestModel{ID: "1", Name: "a"})
-	ctx := modelt.WithTestEnv(t.Context(), env)
-	srv := newServer(t, ctx, mcpserver.Options{})
-	require.NoError(t, modelmcp.New(srv.MCP(), modelmcp.Options{}).AddTools[modelt.TestModel](ctx))
-	ts := serveHTTP(t, ctx, srv)
-	session := mcptest.Connect(t, &mcp.StreamableClientTransport{Endpoint: ts.URL + mcpserver.HTTPPath, HTTPClient: ts.Client()})
-
-	res := mcptest.CallTool(t, ctx, session, "test_list", map[string]any{"fields": []string{"name"}})
-	require.False(t, res.IsError, mcptest.Text(res))
-	assert.Equal(t, []map[string]any{{"name": "a"}}, mcptest.Resources(t, res))
-}
-
-func TestHTTPEndpoints(t *testing.T) {
-	ctx := t.Context()
-	ts := serveHTTP(t, ctx, newServer(t, ctx, mcpserver.Options{}))
-	client := ts.Client()
-
-	resp, err := client.Get(ts.URL + "/healthz")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "ok\n", readBody(t, resp))
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ts.URL+mcpserver.HTTPPath, strings.NewReader("{}"))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set("Sec-Fetch-Site", "cross-site")
-	resp, err = client.Do(req)
-	require.NoError(t, err)
-	readBody(t, resp)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-func TestHTTPServeShutdown(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(modelt.WithTestEnv(t.Context(), env))
 	defer cancel()
-	srv := newServer(t, ctx, mcpserver.Options{})
+	srv := newServer(t, ctx, opts)
+	require.NoError(t, modelmcp.New(srv.MCP(), modelmcp.Options{}).AddTools[modelt.TestModel](ctx))
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ctx, l) }()
+	url := scheme + "://" + l.Addr().String() + mcpserver.HTTPPath
 
-	session := mcptest.Connect(t, &mcp.StreamableClientTransport{Endpoint: "http://" + l.Addr().String() + mcpserver.HTTPPath, HTTPClient: http.DefaultClient})
+	session := mcptest.Connect(t, &mcp.StreamableClientTransport{Endpoint: url, HTTPClient: client})
+	res := mcptest.CallTool(t, ctx, session, "test_list", map[string]any{"fields": []string{"name"}})
+	require.False(t, res.IsError, mcptest.Text(res))
+	assert.Equal(t, []map[string]any{{"name": "a"}}, mcptest.Resources(t, res))
 	require.NoError(t, session.Close())
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader("{}"))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	_, err = io.Copy(io.Discard, resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 
 	cancel()
 	select {

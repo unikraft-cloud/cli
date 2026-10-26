@@ -53,8 +53,10 @@ type MCPCmd struct {
 	ReadOnly    bool     `help:"Expose only the tools that cannot change anything: list, image_get, instance_logs and sandbox_read."`
 	Resources   []string `name:"resources" placeholder:"type,..." help:"Serve only the tools of these resource types. The names are the prefixes of the tool names. Defaults to every type."`
 	DocsURL     string   `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"${docs_url}" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
-	Listen      string   `name:"listen" placeholder:"host:port" help:"Serve the protocol over plain HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set."`
+	Listen      string   `name:"listen" placeholder:"host:port" help:"Serve the protocol over HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set."`
 	AllowRemote bool     `name:"allow-remote" help:"Let --listen bind a non-loopback address. Every client then acts with this profile's credentials, so only do this behind an authenticating proxy or on a private network."`
+	TLSCert     string   `name:"tls-cert" and:"tls" type:"path" placeholder:"file" help:"Serve --listen over HTTPS with this PEM certificate chain."`
+	TLSKey      string   `name:"tls-key" and:"tls" type:"path" placeholder:"file" help:"PEM private key of --tls-cert."`
 }
 
 func (MCPCmd) Help() string {
@@ -90,10 +92,11 @@ func (MCPCmd) Help() string {
 
 		    {"mcpServers": {"unikraft": {"command": "unikraft", "args": ["mcp"]}}}
 
-		With %[1]s--listen host:port%[1]s the same tools are served over plain HTTP at %[1]s/mcp%[1]s,
-		with a liveness check at %[1]s/healthz%[1]s, still using this profile's credentials.
-		Only loopback addresses are accepted unless %[1]s--allow-remote%[1]s is given. When it
-		is, put an authenticating proxy or the platform's TLS termination in front,
+		With %[1]s--listen host:port%[1]s the same tools are served over HTTP at %[1]s/mcp%[1]s, with
+		a liveness check at %[1]s/healthz%[1]s, still using this profile's credentials. Pass
+		%[1]s--tls-cert%[1]s and %[1]s--tls-key%[1]s to serve HTTPS instead. Only loopback addresses
+		are accepted unless %[1]s--allow-remote%[1]s is given. TLS encrypts the traffic but
+		does not authenticate clients, so then put an authenticating proxy in front,
 		since every client acts as you. A %[1]s--timeout%[1]s then stops accepting requests
 		and drains the calls in flight. Clients register the server by URL:
 
@@ -134,7 +137,13 @@ func (MCPCmd) Examples() []kingkong.Example {
 			},
 		},
 		{
-			Description: "Serve every interface, for a hosted deployment behind the platform's TLS",
+			Description: "Serve HTTPS on every interface with a certificate",
+			Commands: []string{
+				"unikraft mcp --listen :8443 --allow-remote --tls-cert cert.pem --tls-key key.pem",
+			},
+		},
+		{
+			Description: "Serve every interface on an instance whose service terminates TLS",
 			Commands: []string{
 				"unikraft mcp --listen :8080 --allow-remote",
 			},
@@ -174,7 +183,7 @@ func (c *MCPCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.P
 		if !loopback {
 			log.G(ctx).Warn().Str("listen", c.Listen).Msg("serving MCP without authentication on a non-loopback address: every client acts with this profile's credentials")
 		}
-		log.G(ctx).Info().Bool("read-only", c.ReadOnly).Str("listen", c.Listen).Msg("serving MCP over HTTP")
+		log.G(ctx).Info().Bool("read-only", c.ReadOnly).Str("listen", c.Listen).Bool("tls", c.TLSCert != "").Msg("serving MCP over HTTP")
 		err = srv.ListenAndServe(ctx, c.Listen)
 	}
 	if err != nil && !errors.Is(err, context.Canceled) {
@@ -199,6 +208,8 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		Instructions: mcp.Instructions(c.ReadOnly, c.Resources, c.DocsURL),
 		Logger:       logger,
 		DocsURL:      c.DocsURL,
+		TLSCertFile:  c.TLSCert,
+		TLSKeyFile:   c.TLSKey,
 	})
 	if err != nil {
 		return nil, err
