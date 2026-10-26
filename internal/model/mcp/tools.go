@@ -26,6 +26,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/internal/model/patch"
 )
 
 // Options configures the tools registered for model types.
@@ -123,10 +124,14 @@ type getArgs struct {
 	Fields []string `json:"fields"`
 }
 
-func (ts *Tools) AddGetTool[R model.GettableModel](ctx context.Context, description string) error {
+func (ts *Tools) AddGetTool[R model.GettableModel](ctx context.Context, description string, opts ...ToolOption) error {
 	typ, fields, err := fieldsOf[R](ctx)
 	if err != nil {
 		return err
+	}
+	partition := ts.opts.Partition
+	if newToolOptions(opts).unpartitioned {
+		partition = nil
 	}
 	return ts.AddTool(typ.Name, &mcp.Tool{
 		Name:        toolName(typ.Name, "get"),
@@ -138,7 +143,7 @@ func (ts *Tools) AddGetTool[R model.GettableModel](ctx context.Context, descript
 		return (&cmd.ModelGetCmd[R]{
 			Targets:    args.Keys,
 			FormatOpts: JSONFormat(args.Fields...),
-		}).Run(ctx, stdio, ts.opts.Partition)
+		}).Run(ctx, stdio, partition)
 	})
 }
 
@@ -153,8 +158,14 @@ func (ts *Tools) AddCreateTool[R model.CreatableModel](ctx context.Context, opts
 		return err
 	}
 	schema := createSchema(fields)
+	o := newToolOptions(opts)
+	for path := range o.references {
+		if _, ok := schema.Properties["set"].Properties[path]; !ok {
+			return fmt.Errorf("%s: cannot reference %q: not a creatable field", toolName(typ.Name, "create"), path)
+		}
+	}
 	defaults := make(map[string]jsontext.Value)
-	for path, value := range newToolOptions(opts).createDefaults {
+	for path, value := range o.createDefaults {
 		prop, ok := schema.Properties["set"].Properties[path]
 		if !ok {
 			return fmt.Errorf("%s: cannot default %q: not a creatable field", toolName(typ.Name, "create"), path)
@@ -180,6 +191,10 @@ func (ts *Tools) AddCreateTool[R model.CreatableModel](ctx context.Context, opts
 			if v, ok := args.Set[path]; !ok || v.Kind() == 'n' {
 				args.Set[path] = value
 			}
+		}
+		spec := patch.PatchSpec{Create: true, Set: patchSpec(args.Set)}
+		if err := ts.checkCreate(ctx, fields, spec, o.references); err != nil {
+			return err
 		}
 		return (&cmd.ModelCreateCmd[R]{
 			Set:        patchArgs(args.Set),
@@ -209,6 +224,10 @@ func (ts *Tools) AddEditTool[R model.EditableModel](ctx context.Context, opts ..
 		InputSchema: editSchema(typ, fields),
 		Annotations: MutatingAnnotations(),
 	}, true, func(ctx context.Context, args editArgs, stdio config.Stdio) error {
+		spec := patch.PatchSpec{Set: patchSpec(args.Set), Add: patchSpec(args.Add)}
+		if err := ts.checkEdit[R](ctx, args.Key, spec); err != nil {
+			return err
+		}
 		return (&cmd.ModelEditCmd[R]{
 			Target:     args.Key,
 			Set:        patchArgs(args.Set),
@@ -237,8 +256,12 @@ func (ts *Tools) AddDeleteTool[R model.DeletableModel](ctx context.Context) erro
 		if len(args.Keys) == 0 {
 			return fmt.Errorf("no %s specified", typ.Names)
 		}
+		keys, err := ts.PartitionKeys[R](ctx, args.Keys)
+		if err != nil {
+			return err
+		}
 		return (&cmd.ModelRemoveCmd[R]{
-			Targets:    args.Keys,
+			Targets:    keys,
 			FormatOpts: JSONFormat(),
 		}).Run(ctx, stdio, ts.opts.Partition)
 	})
@@ -364,6 +387,18 @@ func withoutNulls(v any) any {
 		}
 	}
 	return v
+}
+
+// patchSpec turns set or add arguments into the path to values form of
+// patch.PatchSpec, which the partition checks apply to the fields.
+func patchSpec(values map[string]jsontext.Value) map[string][]string {
+	spec := make(map[string][]string, len(values))
+	for path, v := range values {
+		if vs := patchValues(v); len(vs) > 0 {
+			spec[path] = vs
+		}
+	}
+	return spec
 }
 
 // patchArgs turns set, add or del arguments into the path=value pairs that
