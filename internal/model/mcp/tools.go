@@ -15,7 +15,6 @@ import (
 	"io"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -263,6 +262,16 @@ func (ts *Tools) addCommandTool[In any](tool *mcp.Tool, structured bool, run fun
 	singleTypes(schema)
 	tool = new(*tool)
 	tool.InputSchema = schema
+	check := schema.CloneSchemas()
+	// The command checks the fields required in set once it has filled in
+	// defaults such as the profile's metro.
+	for _, prop := range check.Properties {
+		prop.Required = nil
+	}
+	resolved, err := check.Resolve(nil)
+	if err != nil {
+		return fmt.Errorf("%s: %w", tool.Name, err)
+	}
 	ts.srv.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := req.Params.Arguments
 		if len(args) == 0 {
@@ -271,8 +280,17 @@ func (ts *Tools) addCommandTool[In any](tool *mcp.Tool, structured bool, run fun
 		ctx = log.WithLogger(ctx, new(log.G(ctx).With().Str("tool", req.Params.Name).Logger()))
 		log.G(ctx).Trace().RawJSON("arguments", args).Msg("calling tool")
 
+		var instance any
+		err := json.Unmarshal(args, &instance)
+		if err == nil {
+			err = resolved.Validate(withoutNulls(instance))
+		}
 		var in In
-		if err := unmarshalArgs(args, schema, &in); err != nil {
+		if err == nil {
+			err = json.Unmarshal(args, &in)
+		}
+		if err != nil {
+			err = fmt.Errorf("invalid arguments: %w", err)
 			log.G(ctx).Debug().Err(err).Msg("tool call rejected")
 			var res mcp.CallToolResult
 			res.SetError(err)
@@ -330,25 +348,17 @@ func (ts *Tools) capture(ctx context.Context, structured bool, run func(context.
 	return res
 }
 
-func unmarshalArgs(args []byte, schema *jsonschema.Schema, v any) error {
-	var members map[string]jsontext.Value
-	if err := json.Unmarshal(args, &members); err != nil {
-		return fmt.Errorf("invalid arguments: %w", err)
-	}
-	for _, name := range slices.Sorted(maps.Keys(members)) {
-		if _, ok := schema.Properties[name]; !ok {
-			return fmt.Errorf("invalid arguments: unknown argument %q; valid arguments: %s", name, strings.Join(slices.Sorted(maps.Keys(schema.Properties)), ", "))
+func withoutNulls(v any) any {
+	if m, ok := v.(map[string]any); ok {
+		for k, e := range m {
+			if e == nil {
+				delete(m, k)
+			} else {
+				withoutNulls(e)
+			}
 		}
 	}
-	for _, name := range schema.Required {
-		if m, ok := members[name]; !ok || m.Kind() == 'n' {
-			return fmt.Errorf("invalid arguments: %s is required", name)
-		}
-	}
-	if err := json.Unmarshal(args, v); err != nil {
-		return fmt.Errorf("invalid arguments: %w", err)
-	}
-	return nil
+	return v
 }
 
 // patchArgs turns set, add or del arguments into the path=value pairs that

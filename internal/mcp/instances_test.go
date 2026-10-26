@@ -92,7 +92,7 @@ func TestInstanceTools(t *testing.T) {
 
 	res = mcptest.CallTool(t, ctx, session, "instance_control", map[string]any{"action": "explode", "keys": []string{"web"}})
 	assert.True(t, res.IsError)
-	assert.Contains(t, mcptest.Text(res), `unknown action "explode"`)
+	assert.Contains(t, mcptest.Text(res), "explode does not equal any of")
 
 	res = mcptest.CallTool(t, ctx, session, "instance_logs", map[string]any{"key": "web"})
 	require.False(t, res.IsError, mcptest.Text(res))

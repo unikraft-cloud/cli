@@ -86,7 +86,7 @@ func TestSandboxTools(t *testing.T) {
 
 	res = mcptest.CallTool(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": 7})
 	assert.True(t, res.IsError)
-	assert.Contains(t, mcptest.Text(res), "invalid command")
+	assert.Contains(t, mcptest.Text(res), "validating /properties/command")
 
 	res = mcptest.CallTool(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": []string{}})
 	assert.True(t, res.IsError)

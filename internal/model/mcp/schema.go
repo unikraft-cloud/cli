@@ -95,7 +95,8 @@ func dryRunSchema() *jsonschema.Schema {
 
 func listSchema(typ model.Type, fields []model.Field) *jsonschema.Schema {
 	return &jsonschema.Schema{
-		Type: "object",
+		Type:                 "object",
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		Properties: map[string]*jsonschema.Schema{
 			"keys":   stringArray(fmt.Sprintf("Return only these %s, given as names or UUIDs, optionally prefixed with metro/. Omit to list all.", typ.Names)),
 			"filter": stringArray("Conditions every result must satisfy, such as name==my-app, metro==fra or state!=running. Field paths: " + strings.Join(fieldPaths(fields), ", ") + "." + fieldGlossary(fields)),
@@ -107,7 +108,8 @@ func listSchema(typ model.Type, fields []model.Field) *jsonschema.Schema {
 
 func getSchema(typ model.Type, fields []model.Field) *jsonschema.Schema {
 	return &jsonschema.Schema{
-		Type: "object",
+		Type:                 "object",
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		Properties: map[string]*jsonschema.Schema{
 			"keys":   keysSchema(typ),
 			"fields": stringArray("Field paths to include in the result. Omit for every field. Available: " + strings.Join(fieldPaths(fields), ", ") + "." + fieldGlossary(fields)),
@@ -119,7 +121,8 @@ func getSchema(typ model.Type, fields []model.Field) *jsonschema.Schema {
 func createSchema(fields []model.Field) *jsonschema.Schema {
 	set, _, _ := patchSchema(fields, true)
 	schema := &jsonschema.Schema{
-		Type: "object",
+		Type:                 "object",
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		Properties: map[string]*jsonschema.Schema{
 			"set":     set,
 			"dry_run": dryRunSchema(),
@@ -134,7 +137,8 @@ func createSchema(fields []model.Field) *jsonschema.Schema {
 func editSchema(typ model.Type, fields []model.Field) *jsonschema.Schema {
 	set, add, del := patchSchema(fields, false)
 	return &jsonschema.Schema{
-		Type: "object",
+		Type:                 "object",
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		Properties: map[string]*jsonschema.Schema{
 			"key":     {Type: "string", Description: fmt.Sprintf("The %s to change, as a name or UUID, optionally prefixed with metro/.", typ.Name)},
 			"set":     set,
@@ -148,9 +152,10 @@ func editSchema(typ model.Type, fields []model.Field) *jsonschema.Schema {
 
 func deleteSchema(typ model.Type) *jsonschema.Schema {
 	return &jsonschema.Schema{
-		Type:       "object",
-		Properties: map[string]*jsonschema.Schema{"keys": keysSchema(typ)},
-		Required:   []string{"keys"},
+		Type:                 "object",
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+		Properties:           map[string]*jsonschema.Schema{"keys": keysSchema(typ)},
+		Required:             []string{"keys"},
 	}
 }
 

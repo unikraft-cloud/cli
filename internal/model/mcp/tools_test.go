@@ -111,6 +111,14 @@ func TestCallList(t *testing.T) {
 	res = mcptest.CallTool(t, ctx, session, "test_list", map[string]any{"keys": []string{"missing"}})
 	require.False(t, res.IsError, mcptest.Text(res))
 	assert.Empty(t, mcptest.Resources(t, res))
+
+	res = mcptest.CallTool(t, ctx, session, "test_list", map[string]any{"keys": []string{"a"}, "filter": nil, "fields": []string{"name"}})
+	require.False(t, res.IsError, mcptest.Text(res))
+	assert.Equal(t, []map[string]any{{"name": "a"}}, mcptest.Resources(t, res))
+
+	res = mcptest.CallTool(t, ctx, session, "test_list", map[string]any{"nope": 1})
+	assert.True(t, res.IsError)
+	assert.Contains(t, mcptest.Text(res), `unexpected additional properties ["nope"]`)
 }
 
 func TestCallCreate(t *testing.T) {
@@ -185,7 +193,7 @@ func TestCallDelete(t *testing.T) {
 
 	res = mcptest.CallTool(t, ctx, session, "test_delete", map[string]any{})
 	assert.True(t, res.IsError)
-	assert.Contains(t, mcptest.Text(res), "keys is required")
+	assert.Contains(t, mcptest.Text(res), `missing properties: ["keys"]`)
 }
 
 func TestCallLogging(t *testing.T) {
@@ -206,5 +214,5 @@ func TestCallLogging(t *testing.T) {
 	assert.Contains(t, out, `"message":"tool call complete"`)
 	assert.Contains(t, out, `"tool":"test_create","took":`)
 	assert.Contains(t, out, `"error":"unknown fields: [nope]","message":"tool call failed"`)
-	assert.Contains(t, out, `"tool":"test_delete","error":"invalid arguments: keys is required","message":"tool call rejected"`)
+	assert.Contains(t, out, `"tool":"test_delete","error":"invalid arguments: validating root: required: missing properties: [\"keys\"]","message":"tool call rejected"`)
 }
