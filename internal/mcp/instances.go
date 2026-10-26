@@ -43,13 +43,13 @@ type InstanceStopOptions struct {
 
 type instanceControlArgs struct {
 	Action         string   `json:"action" jsonschema:"What to do with the instances."`
-	Keys           []string `json:"keys" jsonschema:"Instances to act on: names, UUIDs or metro/name keys."`
+	Keys           []string `json:"keys" jsonschema:"Instances to act on: names or UUIDs, optionally prefixed with metro/."`
 	Force          bool     `json:"force,omitzero" jsonschema:"For stop and restart: stop immediately instead of draining connections first."`
 	DrainTimeoutMS *int64   `json:"drain_timeout_ms,omitzero" jsonschema:"For stop, restart and suspend: milliseconds to drain connections first. Defaults to the platform's timeout."`
 }
 
 type instanceLogsArgs struct {
-	Key  string `json:"key" jsonschema:"The instance to read logs from: a name, UUID or metro/name key."`
+	Key  string `json:"key" jsonschema:"The instance to read logs from: a name or UUID, optionally prefixed with metro/."`
 	Tail int    `json:"tail,omitzero" jsonschema:"How many lines from the end of the log to return. Defaults to 200."`
 }
 

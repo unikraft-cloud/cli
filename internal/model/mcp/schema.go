@@ -86,7 +86,7 @@ func stringArray(desc string) *jsonschema.Schema {
 }
 
 func keysSchema(typ model.Type) *jsonschema.Schema {
-	return stringArray(fmt.Sprintf("Keys of the %s: names, UUIDs or metro/name.", typ.Names))
+	return stringArray(fmt.Sprintf("Keys of the %s: names or UUIDs, optionally prefixed with metro/.", typ.Names))
 }
 
 func dryRunSchema() *jsonschema.Schema {
@@ -97,7 +97,7 @@ func listSchema(typ model.Type, fields []model.Field) *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
-			"keys":   stringArray(fmt.Sprintf("Return only these %s, given as names, UUIDs or metro/name. Omit to list all.", typ.Names)),
+			"keys":   stringArray(fmt.Sprintf("Return only these %s, given as names or UUIDs, optionally prefixed with metro/. Omit to list all.", typ.Names)),
 			"filter": stringArray("Conditions every result must satisfy, such as name==my-app, metro==fra or state!=running. Field paths: " + strings.Join(fieldPaths(fields), ", ") + "." + fieldGlossary(fields)),
 			"sort":   stringArray("Field paths to sort by, most significant first; prefix a path with - for descending order. Same paths as filter."),
 			"fields": stringArray("Field paths to include in the result. Omit for every field. Same paths as filter."),
@@ -136,7 +136,7 @@ func editSchema(typ model.Type, fields []model.Field) *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
-			"key":     {Type: "string", Description: fmt.Sprintf("The %s to change, as a name, UUID or metro/name.", typ.Name)},
+			"key":     {Type: "string", Description: fmt.Sprintf("The %s to change, as a name or UUID, optionally prefixed with metro/.", typ.Name)},
 			"set":     set,
 			"add":     add,
 			"del":     del,

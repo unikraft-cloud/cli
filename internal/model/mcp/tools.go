@@ -96,21 +96,23 @@ type listArgs struct {
 }
 
 func (ts *Tools) AddListTool[R model.GettableListableModel](ctx context.Context) error {
-	return ts.resourceTool[R](ctx, false, func(typ model.Type, fields []model.Field) error {
-		return ts.addCommandTool(&mcp.Tool{
-			Name:        toolName(typ.Name, "list"),
-			Title:       "List " + typ.Names,
-			Description: fmt.Sprintf("List all %s, or fetch specific ones by passing their keys. Narrow with filter and trim the output with fields; both take the field paths listed on those parameters. Returns one JSON object per %s.", typ.Names, typ.Name),
-			InputSchema: listSchema(typ, fields),
-			Annotations: ReadOnlyAnnotations(),
-		}, true, func(ctx context.Context, args listArgs, stdio config.Stdio) error {
-			return (&cmd.ModelListCmd[R]{
-				Targets:    args.Keys,
-				Filter:     args.Filter,
-				Sort:       args.Sort,
-				FormatOpts: JSONFormat(args.Fields...),
-			}).Run(ctx, stdio, ts.opts.Partition)
-		})
+	typ, fields, err := fieldsOf[R](ctx)
+	if err != nil {
+		return err
+	}
+	return ts.AddTool(typ.Name, &mcp.Tool{
+		Name:        toolName(typ.Name, "list"),
+		Title:       "List " + typ.Names,
+		Description: fmt.Sprintf("List all %s, or fetch specific ones by passing their keys. Narrow with filter and trim the output with fields; both take the field paths listed on those parameters. Returns one JSON object per %s.", typ.Names, typ.Name),
+		InputSchema: listSchema(typ, fields),
+		Annotations: ReadOnlyAnnotations(),
+	}, true, func(ctx context.Context, args listArgs, stdio config.Stdio) error {
+		return (&cmd.ModelListCmd[R]{
+			Targets:    args.Keys,
+			Filter:     args.Filter,
+			Sort:       args.Sort,
+			FormatOpts: JSONFormat(args.Fields...),
+		}).Run(ctx, stdio, ts.opts.Partition)
 	})
 }
 
@@ -120,19 +122,21 @@ type getArgs struct {
 }
 
 func (ts *Tools) AddGetTool[R model.GettableModel](ctx context.Context, description string) error {
-	return ts.resourceTool[R](ctx, false, func(typ model.Type, fields []model.Field) error {
-		return ts.addCommandTool(&mcp.Tool{
-			Name:        toolName(typ.Name, "get"),
-			Title:       "Inspect " + typ.Names,
-			Description: description,
-			InputSchema: getSchema(typ, fields),
-			Annotations: ReadOnlyAnnotations(),
-		}, true, func(ctx context.Context, args getArgs, stdio config.Stdio) error {
-			return (&cmd.ModelGetCmd[R]{
-				Targets:    args.Keys,
-				FormatOpts: JSONFormat(args.Fields...),
-			}).Run(ctx, stdio, ts.opts.Partition)
-		})
+	typ, fields, err := fieldsOf[R](ctx)
+	if err != nil {
+		return err
+	}
+	return ts.AddTool(typ.Name, &mcp.Tool{
+		Name:        toolName(typ.Name, "get"),
+		Title:       "Inspect " + typ.Names,
+		Description: description,
+		InputSchema: getSchema(typ, fields),
+		Annotations: ReadOnlyAnnotations(),
+	}, true, func(ctx context.Context, args getArgs, stdio config.Stdio) error {
+		return (&cmd.ModelGetCmd[R]{
+			Targets:    args.Keys,
+			FormatOpts: JSONFormat(args.Fields...),
+		}).Run(ctx, stdio, ts.opts.Partition)
 	})
 }
 
@@ -142,43 +146,44 @@ type createArgs struct {
 }
 
 func (ts *Tools) AddCreateTool[R model.CreatableModel](ctx context.Context, opts ...ToolOption) error {
-	return ts.resourceTool[R](ctx, true, func(typ model.Type, fields []model.Field) error {
-		name := toolName(typ.Name, "create")
-		schema := createSchema(fields)
-		defaults := make(map[string]jsontext.Value)
-		for path, value := range newToolOptions(opts).createDefaults {
-			prop, ok := schema.Properties["set"].Properties[path]
-			if !ok {
-				return fmt.Errorf("%s: cannot default %q: not a creatable field", name, path)
-			}
-			raw, err := json.Marshal(value)
-			if err != nil {
-				return fmt.Errorf("%s: cannot default %q: %w", name, path, err)
-			}
-			prop.Default = raw
-			defaults[path] = raw
+	typ, fields, err := fieldsOf[R](ctx)
+	if err != nil {
+		return err
+	}
+	schema := createSchema(fields)
+	defaults := make(map[string]jsontext.Value)
+	for path, value := range newToolOptions(opts).createDefaults {
+		prop, ok := schema.Properties["set"].Properties[path]
+		if !ok {
+			return fmt.Errorf("%s: cannot default %q: not a creatable field", toolName(typ.Name, "create"), path)
 		}
-		return ts.addCommandTool(&mcp.Tool{
-			Name:        name,
-			Title:       "Create " + typ.Name,
-			Description: createDescription(typ, fields, schema.Properties["set"], defaults),
-			InputSchema: schema,
-			Annotations: MutatingAnnotations(),
-		}, true, func(ctx context.Context, args createArgs, stdio config.Stdio) error {
-			if args.Set == nil {
-				args.Set = map[string]jsontext.Value{}
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("%s: cannot default %q: %w", toolName(typ.Name, "create"), path, err)
+		}
+		prop.Default = raw
+		defaults[path] = raw
+	}
+	return ts.AddTool(typ.Name, &mcp.Tool{
+		Name:        toolName(typ.Name, "create"),
+		Title:       "Create " + typ.Name,
+		Description: createDescription(typ, fields, schema.Properties["set"], defaults),
+		InputSchema: schema,
+		Annotations: MutatingAnnotations(),
+	}, true, func(ctx context.Context, args createArgs, stdio config.Stdio) error {
+		if args.Set == nil {
+			args.Set = map[string]jsontext.Value{}
+		}
+		for path, value := range defaults {
+			if v, ok := args.Set[path]; !ok || v.Kind() == 'n' {
+				args.Set[path] = value
 			}
-			for path, value := range defaults {
-				if v, ok := args.Set[path]; !ok || v.Kind() == 'n' {
-					args.Set[path] = value
-				}
-			}
-			return (&cmd.ModelCreateCmd[R]{
-				Set:        patchArgs(args.Set),
-				DryRun:     args.DryRun,
-				FormatOpts: JSONFormat(),
-			}).Run(ctx, stdio, ts.opts.Partition)
-		})
+		}
+		return (&cmd.ModelCreateCmd[R]{
+			Set:        patchArgs(args.Set),
+			DryRun:     args.DryRun,
+			FormatOpts: JSONFormat(),
+		}).Run(ctx, stdio, ts.opts.Partition)
 	})
 }
 
@@ -191,23 +196,25 @@ type editArgs struct {
 }
 
 func (ts *Tools) AddEditTool[R model.EditableModel](ctx context.Context, opts ...ToolOption) error {
-	return ts.resourceTool[R](ctx, true, func(typ model.Type, fields []model.Field) error {
-		return ts.addCommandTool(&mcp.Tool{
-			Name:        toolName(typ.Name, "edit"),
-			Title:       "Edit " + typ.Name,
-			Description: editDescription(typ, newToolOptions(opts).editNote),
-			InputSchema: editSchema(typ, fields),
-			Annotations: MutatingAnnotations(),
-		}, true, func(ctx context.Context, args editArgs, stdio config.Stdio) error {
-			return (&cmd.ModelEditCmd[R]{
-				Target:     args.Key,
-				Set:        patchArgs(args.Set),
-				Add:        patchArgs(args.Add),
-				Del:        patchArgs(args.Del),
-				DryRun:     args.DryRun,
-				FormatOpts: JSONFormat(),
-			}).Run(ctx, stdio, ts.opts.Partition)
-		})
+	typ, fields, err := fieldsOf[R](ctx)
+	if err != nil {
+		return err
+	}
+	return ts.AddTool(typ.Name, &mcp.Tool{
+		Name:        toolName(typ.Name, "edit"),
+		Title:       "Edit " + typ.Name,
+		Description: editDescription(typ, newToolOptions(opts).editNote),
+		InputSchema: editSchema(typ, fields),
+		Annotations: MutatingAnnotations(),
+	}, true, func(ctx context.Context, args editArgs, stdio config.Stdio) error {
+		return (&cmd.ModelEditCmd[R]{
+			Target:     args.Key,
+			Set:        patchArgs(args.Set),
+			Add:        patchArgs(args.Add),
+			Del:        patchArgs(args.Del),
+			DryRun:     args.DryRun,
+			FormatOpts: JSONFormat(),
+		}).Run(ctx, stdio, ts.opts.Partition)
 	})
 }
 
@@ -216,48 +223,46 @@ type deleteArgs struct {
 }
 
 func (ts *Tools) AddDeleteTool[R model.DeletableModel](ctx context.Context) error {
-	return ts.resourceTool[R](ctx, true, func(typ model.Type, _ []model.Field) error {
-		return ts.addCommandTool(&mcp.Tool{
-			Name:        toolName(typ.Name, "delete"),
-			Title:       "Delete " + typ.Names,
-			Description: fmt.Sprintf("Delete %[1]s by key. This cannot be undone. Returns the deleted %[1]s.", typ.Names),
-			InputSchema: deleteSchema(typ),
-			Annotations: destructiveAnnotations(),
-		}, true, func(ctx context.Context, args deleteArgs, stdio config.Stdio) error {
-			if len(args.Keys) == 0 {
-				return fmt.Errorf("no %s specified", typ.Names)
-			}
-			return (&cmd.ModelRemoveCmd[R]{
-				Targets:    args.Keys,
-				FormatOpts: JSONFormat(),
-			}).Run(ctx, stdio, ts.opts.Partition)
-		})
+	var empty R
+	typ := empty.Type()
+	return ts.AddTool(typ.Name, &mcp.Tool{
+		Name:        toolName(typ.Name, "delete"),
+		Title:       "Delete " + typ.Names,
+		Description: fmt.Sprintf("Delete %[1]s by key. This cannot be undone. Returns the deleted %[1]s.", typ.Names),
+		InputSchema: deleteSchema(typ),
+		Annotations: destructiveAnnotations(),
+	}, true, func(ctx context.Context, args deleteArgs, stdio config.Stdio) error {
+		if len(args.Keys) == 0 {
+			return fmt.Errorf("no %s specified", typ.Names)
+		}
+		return (&cmd.ModelRemoveCmd[R]{
+			Targets:    args.Keys,
+			FormatOpts: JSONFormat(),
+		}).Run(ctx, stdio, ts.opts.Partition)
 	})
 }
 
-func (ts *Tools) resourceTool[R model.GettableModel](ctx context.Context, mutating bool, add func(model.Type, []model.Field) error) error {
+func fieldsOf[R model.GettableModel](ctx context.Context) (model.Type, []model.Field, error) {
 	var empty R
-	typ := empty.Type()
-	if !ts.enabled(typ.Name, mutating) {
-		return nil
-	}
 	fields, err := empty.Fields(ctx)
-	if err != nil {
-		return err
-	}
-	return add(typ, fields)
+	return empty.Type(), fields, err
 }
 
 func (ts *Tools) addCommandTool[In any](tool *mcp.Tool, structured bool, run func(context.Context, In, config.Stdio) error) error {
+	var schema *jsonschema.Schema
 	if tool.InputSchema == nil {
-		schema, err := jsonschema.For[In](nil)
-		if err != nil {
+		var err error
+		if schema, err = jsonschema.For[In](nil); err != nil {
 			return fmt.Errorf("%s: %w", tool.Name, err)
 		}
-		tool.InputSchema = schema
+	} else {
+		schema = tool.InputSchema.(*jsonschema.Schema).CloneSchemas()
 	}
-	schema := tool.InputSchema.(*jsonschema.Schema)
+	// For types nil-able fields as ["null", T]; clients such as the MCP
+	// Inspector reject array-valued types.
 	singleTypes(schema)
+	tool = new(*tool)
+	tool.InputSchema = schema
 	ts.srv.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := req.Params.Arguments
 		if len(args) == 0 {
@@ -346,6 +351,8 @@ func unmarshalArgs(args []byte, schema *jsonschema.Schema, v any) error {
 	return nil
 }
 
+// patchArgs turns set, add or del arguments into the path=value pairs that
+// the --set, --add and --del flags give, one per array element, in path order.
 func patchArgs(values map[string]jsontext.Value) []map[string]string {
 	var args []map[string]string
 	for _, path := range slices.Sorted(maps.Keys(values)) {
@@ -356,6 +363,8 @@ func patchArgs(values map[string]jsontext.Value) []map[string]string {
 	return args
 }
 
+// patchValues gives the CLI values of one argument: none for null, one per
+// array element, and strings unquoted.
 func patchValues(v jsontext.Value) []string {
 	switch v.Kind() {
 	case 'n':

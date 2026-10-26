@@ -41,7 +41,7 @@ type SandboxWriteOptions struct {
 }
 
 type sandboxExecArgs struct {
-	Key       string            `json:"key" jsonschema:"The sandbox instance: a name, UUID or metro/name key."`
+	Key       string            `json:"key" jsonschema:"The sandbox instance: a name or UUID, optionally prefixed with metro/."`
 	Command   jsontext.Value    `json:"command"`
 	Dir       string            `json:"dir,omitzero" jsonschema:"Directory to run the command in."`
 	Env       map[string]string `json:"env,omitzero" jsonschema:"The whole environment the command sees, not an addition to it."`
@@ -50,12 +50,12 @@ type sandboxExecArgs struct {
 }
 
 type sandboxReadArgs struct {
-	Key  string `json:"key" jsonschema:"The sandbox instance: a name, UUID or metro/name key."`
+	Key  string `json:"key" jsonschema:"The sandbox instance: a name or UUID, optionally prefixed with metro/."`
 	Path string `json:"path" jsonschema:"Absolute path of the file inside the sandbox."`
 }
 
 type sandboxWriteArgs struct {
-	Key     string `json:"key" jsonschema:"The sandbox instance: a name, UUID or metro/name key."`
+	Key     string `json:"key" jsonschema:"The sandbox instance: a name or UUID, optionally prefixed with metro/."`
 	Path    string `json:"path" jsonschema:"Absolute path of the file inside the sandbox."`
 	Content string `json:"content" jsonschema:"The text to write."`
 	Append  bool   `json:"append,omitzero" jsonschema:"Append to the file instead of replacing it."`

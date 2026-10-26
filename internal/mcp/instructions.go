@@ -15,7 +15,7 @@ import (
 func Instructions(readOnly bool, resources []string, docsURL string) string {
 	text := `Tools are named <resource>_<operation>: list, create, edit and delete for each Unikraft Cloud resource type. A list tool returns everything unless keys names specific resources, so it doubles as get. image_get inspects any image reference, including public ones. instance_control starts, stops, restarts or suspends instances and instance_logs reads their console output. instance_create starts the new instance unless autostart is set to false; do that only when the user explicitly asks for a stopped instance.
 
-Resource keys accept a name, a UUID, or metro/name to target one metro. Reads fan out to every metro of the current profile; narrow a list with filter entries such as metro==fra or state==running.
+Resource keys accept a name or a UUID, optionally prefixed with metro/ to target one metro, as in fra/my-app. Reads fan out to every metro of the current profile; narrow a list with filter entries such as metro==fra or state==running.
 
 Create takes a set object and edit takes set, add and del objects, all keyed by dotted field paths, exactly like the CLI's --set, --add and --del flags. Values may be strings, parsed as on the command line, or JSON values of the field's type. Pass dry_run to preview the resulting patch without applying it.
 
