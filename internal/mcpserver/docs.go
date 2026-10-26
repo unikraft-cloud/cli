@@ -10,10 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
-	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -30,21 +29,13 @@ const (
 	docsMaxBytes = 8 << 20
 )
 
-var (
-	errDocsNotFound = errors.New("documentation page not found")
-
-	// docsListed holds the path prefixes registered as individual resources;
-	// every other page stays readable through the index and the template.
-	docsListed = []string{"features/", "platform/", "use-cases/"}
-)
+var errDocsNotFound = errors.New("documentation page not found")
 
 type docs struct {
 	base   *url.URL
 	uri    string
 	title  string
 	client *http.Client
-	entry  *regexp.Regexp
-	link   *regexp.Regexp
 
 	mu    sync.Mutex
 	cache map[string]cachedPage
@@ -66,19 +57,16 @@ func newDocs(baseURL, uri, title string, client *http.Client) (*docs, error) {
 	if !strings.HasSuffix(base.Path, "/") {
 		base.Path += "/"
 	}
-	prefix := regexp.QuoteMeta(base.Path)
 	return &docs{
 		base:   base,
 		uri:    uri,
 		title:  title,
 		client: client,
-		entry:  regexp.MustCompile(`^- \[([^\]]+)\]\(` + prefix + `([^)\s]+?)\.md\)(?::\s*(.*))?$`),
-		link:   regexp.MustCompile(`\]\(` + prefix + `([^)\s]+?)\.md\)`),
 		cache:  make(map[string]cachedPage),
 	}, nil
 }
 
-func (s *Server) addDocs(ctx context.Context, d *docs) {
+func (s *Server) addDocs(d *docs) {
 	site := d.base.String()
 	s.srv.AddResource(&mcp.Resource{
 		URI:         d.uri,
@@ -94,32 +82,6 @@ func (s *Server) addDocs(ctx context.Context, d *docs) {
 		Description: "A documentation page by path, such as " + d.uri + "/cli/fields, with the same content as " + site + "<path>.",
 		MIMEType:    docsMIMEType,
 	}, d.read)
-	go s.addDocsPages(ctx, d)
-}
-
-func (s *Server) addDocsPages(ctx context.Context, d *docs) {
-	index, _, err := d.fetch(ctx, docsIndex)
-	if err != nil {
-		log.G(ctx).Warn().Err(err).Msg("documentation index unavailable, pages can still be read by path")
-		return
-	}
-	for line := range strings.SplitSeq(index, "\n") {
-		m := d.entry.FindStringSubmatch(strings.TrimSpace(line))
-		if m == nil {
-			continue
-		}
-		title, path, description := m[1], m[2], m[3]
-		if !validDocsPath(path) || !slices.ContainsFunc(docsListed, func(prefix string) bool { return strings.HasPrefix(path, prefix) }) {
-			continue
-		}
-		s.srv.AddResource(&mcp.Resource{
-			URI:         d.uri + "/" + path,
-			Name:        path,
-			Title:       title,
-			Description: description,
-			MIMEType:    docsMIMEType,
-		}, d.read)
-	}
 }
 
 func (d *docs) read(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
@@ -149,9 +111,10 @@ func (d *docs) lookup(ctx context.Context, uri string) (string, bool, error) {
 		if err != nil {
 			return "", cached, err
 		}
-		return d.link.ReplaceAllString(index, "]("+d.uri+"/$1)"), cached, nil
+		return strings.ReplaceAll(index, "]("+d.base.Path, "]("+d.uri+"/"), cached, nil
 	}
 	path, ok := strings.CutPrefix(uri, d.uri+"/")
+	path = strings.TrimSuffix(path, ".md")
 	if !ok || !validDocsPath(path) {
 		return "", false, errDocsNotFound
 	}
@@ -182,11 +145,17 @@ func (d *docs) fetch(ctx context.Context, rel string) (string, bool, error) {
 	case resp.StatusCode == http.StatusNotFound:
 		return "", false, fmt.Errorf("%w: %s", errDocsNotFound, target)
 	case resp.StatusCode != http.StatusOK:
-		return "", false, fmt.Errorf("fetching %s: %s", target, resp.Status)
+		return "", false, fmt.Errorf("documentation site returned %s for %s", resp.Status, target)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, docsMaxBytes))
+	if mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); mediaType != docsMIMEType && mediaType != "text/plain" {
+		return "", false, fmt.Errorf("documentation site returned %q instead of markdown for %s", mediaType, target)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, docsMaxBytes+1))
 	if err != nil {
 		return "", false, fmt.Errorf("reading %s: %w", target, err)
+	}
+	if len(data) > docsMaxBytes {
+		return "", false, fmt.Errorf("%s is larger than %d MiB", target, docsMaxBytes>>20)
 	}
 
 	body := string(data)

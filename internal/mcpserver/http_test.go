@@ -28,10 +28,10 @@ import (
 	modelt "unikraft.com/cli/internal/model/testing"
 )
 
-func newServer(t *testing.T, ctx context.Context, opts mcpserver.Options) *mcpserver.Server {
+func newServer(t *testing.T, opts mcpserver.Options) *mcpserver.Server {
 	t.Helper()
 	opts.Name, opts.Title = "unikraft", "Unikraft Cloud"
-	srv, err := mcpserver.New(ctx, opts)
+	srv, err := mcpserver.New(opts)
 	require.NoError(t, err)
 	return srv
 }
@@ -56,7 +56,7 @@ func testServe(t *testing.T, opts mcpserver.Options, scheme string, client *http
 	env.Add(modelt.TestModel{ID: "1", Name: "a"})
 	ctx, cancel := context.WithCancel(modelt.WithTestEnv(t.Context(), env))
 	defer cancel()
-	srv := newServer(t, ctx, opts)
+	srv := newServer(t, opts)
 	require.NoError(t, modelmcp.New(srv.MCP(), modelmcp.Options{}).AddTools[modelt.TestModel](ctx))
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")

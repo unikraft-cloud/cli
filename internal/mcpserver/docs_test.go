@@ -8,13 +8,11 @@ package mcpserver_test
 import (
 	"bytes"
 	"fmt"
-	"maps"
 	"net/http"
 	"net/http/httptest"
-	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/rs/zerolog"
@@ -63,6 +61,11 @@ func newDocsSite(t *testing.T, indexStatus int) (*httptest.Server, *atomic.Int32
 			fmt.Fprint(w, "# Introduction\n")
 		case "/docs/guides/nginx.md":
 			fmt.Fprint(w, "# NGINX\n")
+		case "/docs/login.md":
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, "<html>Sign in</html>")
+		case "/docs/huge.md":
+			fmt.Fprint(w, strings.Repeat("a", 8<<20+1))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprint(w, "# Not found\n")
@@ -77,28 +80,17 @@ func TestDocsResources(t *testing.T) {
 	var logs bytes.Buffer
 	logger := zerolog.New(&logs).Level(zerolog.DebugLevel)
 	ctx := log.WithLogger(t.Context(), &logger)
-	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{DocsURL: site.URL + "/docs", HTTPClient: site.Client()}).MCP())
+	session := mcptest.ConnectServer(t, ctx, newServer(t, mcpserver.Options{DocsURL: site.URL + "/docs", HTTPClient: site.Client()}).MCP())
 
 	templates, err := session.ListResourceTemplates(ctx, nil)
 	require.NoError(t, err)
 	require.Len(t, templates.ResourceTemplates, 1)
 	assert.Equal(t, "unikraft://docs/{+path}", templates.ResourceTemplates[0].URITemplate)
 
-	byURI := map[string]*mcp.Resource{}
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		res, err := session.ListResources(ctx, nil)
-		require.NoError(c, err)
-		assert.Len(c, res.Resources, 3)
-		for _, r := range res.Resources {
-			byURI[r.URI] = r
-		}
-	}, 5*time.Second, 20*time.Millisecond)
-	require.ElementsMatch(t, []string{"unikraft://docs", "unikraft://docs/features/autoscale", "unikraft://docs/platform/instances"}, slices.Collect(maps.Keys(byURI)))
-	instances := byURI["unikraft://docs/platform/instances"]
-	assert.Equal(t, "platform/instances", instances.Name)
-	assert.Equal(t, "Instances", instances.Title)
-	assert.Equal(t, "Run unikernels", instances.Description)
-	assert.Equal(t, "text/markdown", instances.MIMEType)
+	listed, err := session.ListResources(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, listed.Resources, 1)
+	assert.Equal(t, "unikraft://docs", listed.Resources[0].URI)
 
 	page, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs/cli/fields"})
 	require.NoError(t, err)
@@ -116,14 +108,19 @@ func TestDocsResources(t *testing.T) {
 	toc, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs"})
 	require.NoError(t, err)
 	require.Len(t, toc.Contents, 1)
-	assert.Contains(t, toc.Contents[0].Text, "[Fields](unikraft://docs/cli/fields): Display")
-	assert.Contains(t, toc.Contents[0].Text, "[Introduction](unikraft://docs/introduction)")
-	assert.Contains(t, toc.Contents[0].Text, "[NGINX](unikraft://docs/guides/nginx): Deploy NGINX")
+	assert.Contains(t, toc.Contents[0].Text, "[Fields](unikraft://docs/cli/fields.md): Display")
+	assert.Contains(t, toc.Contents[0].Text, "[Introduction](unikraft://docs/introduction.md)")
+	assert.Contains(t, toc.Contents[0].Text, "[NGINX](unikraft://docs/guides/nginx.md): Deploy NGINX")
 
-	guide, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs/guides/nginx"})
+	guide, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs/guides/nginx.md"})
 	require.NoError(t, err)
 	assert.Equal(t, "# NGINX\n", guide.Contents[0].Text)
-	assert.NotContains(t, toc.Contents[0].Text, ".md)")
+
+	_, err = session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs/login"})
+	require.ErrorContains(t, err, `"text/html" instead of markdown`)
+
+	_, err = session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs/huge"})
+	require.ErrorContains(t, err, "larger than 8 MiB")
 
 	_, err = session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs/missing/page"})
 	require.ErrorContains(t, err, "not found")
@@ -135,7 +132,7 @@ func TestDocsResources(t *testing.T) {
 func TestDocsIndexUnavailable(t *testing.T) {
 	site, _ := newDocsSite(t, http.StatusInternalServerError)
 	ctx := t.Context()
-	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{DocsURL: site.URL + "/docs/", HTTPClient: site.Client()}).MCP())
+	session := mcptest.ConnectServer(t, ctx, newServer(t, mcpserver.Options{DocsURL: site.URL + "/docs/", HTTPClient: site.Client()}).MCP())
 
 	page, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs/introduction"})
 	require.NoError(t, err)
@@ -147,11 +144,11 @@ func TestDocsIndexUnavailable(t *testing.T) {
 
 func TestDocsDisabledAndInvalid(t *testing.T) {
 	ctx := t.Context()
-	session := mcptest.ConnectServer(t, ctx, newServer(t, ctx, mcpserver.Options{}).MCP())
+	session := mcptest.ConnectServer(t, ctx, newServer(t, mcpserver.Options{}).MCP())
 	res, err := session.ListResources(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, res.Resources)
 
-	_, err = mcpserver.New(ctx, mcpserver.Options{DocsURL: "unikraft.com/docs"})
+	_, err = mcpserver.New(mcpserver.Options{DocsURL: "unikraft.com/docs"})
 	require.ErrorContains(t, err, "invalid documentation URL")
 }

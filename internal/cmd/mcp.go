@@ -200,7 +200,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 	if log.G(ctx).GetLevel() <= log.DebugLevel {
 		logger = slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	}
-	srv, err := mcpserver.New(ctx, mcpserver.Options{
+	srv, err := mcpserver.New(mcpserver.Options{
 		Name:         branding.Name,
 		Title:        branding.Product,
 		WebsiteURL:   branding.WebsiteURL,

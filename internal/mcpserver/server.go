@@ -38,7 +38,7 @@ type Server struct {
 	opts Options
 }
 
-func New(ctx context.Context, opts Options) (*Server, error) {
+func New(opts Options) (*Server, error) {
 	if opts.HTTPClient == nil {
 		opts.HTTPClient = httpclient.GetClient(false)
 	}
@@ -63,7 +63,7 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 		opts: opts,
 	}
 	if d != nil {
-		s.addDocs(ctx, d)
+		s.addDocs(d)
 	}
 	return s, nil
 }
