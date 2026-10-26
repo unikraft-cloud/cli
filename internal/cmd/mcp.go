@@ -23,6 +23,7 @@ import (
 	"unikraft.com/x/log"
 	"unikraft.com/x/version"
 
+	"unikraft.com/cli/internal/branding"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcp"
 	"unikraft.com/cli/internal/mcpserver"
@@ -51,7 +52,7 @@ const imageGetDescription = "Inspect images by reference, resolving each one fro
 type MCPCmd struct {
 	ReadOnly    bool     `help:"Expose only the tools that cannot change anything: list, image_get, instance_logs and sandbox_read."`
 	Resources   []string `name:"resources" placeholder:"type,..." help:"Serve only the tools of these resource types. The names are the prefixes of the tool names. Defaults to every type."`
-	DocsURL     string   `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"https://unikraft.com/docs/" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
+	DocsURL     string   `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"${docs_url}" placeholder:"url" help:"Documentation site served as resources. Pass an empty value to serve none."`
 	Listen      string   `name:"listen" placeholder:"host:port" help:"Serve the protocol over plain HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set."`
 	AllowRemote bool     `name:"allow-remote" help:"Let --listen bind a non-loopback address. Every client then acts with this profile's credentials, so only do this behind an authenticating proxy or on a private network."`
 }
@@ -191,9 +192,9 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		logger = slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	}
 	srv, err := mcpserver.New(ctx, mcpserver.Options{
-		Name:         "unikraft",
-		Title:        "Unikraft Cloud",
-		WebsiteURL:   "https://unikraft.com",
+		Name:         branding.Name,
+		Title:        branding.Product,
+		WebsiteURL:   branding.WebsiteURL,
 		Version:      version.Version,
 		Instructions: mcp.Instructions(c.ReadOnly, c.Resources, c.DocsURL),
 		Logger:       logger,
