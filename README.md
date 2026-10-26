@@ -296,6 +296,7 @@ unikraft instances logs my-instance
 | `run`          | Run an image as an instance                                                    |
 | `build`        | Build a Unikraft project into a VM image                                       |
 | `tui`          | Browse resources in a TUI                                                      |
+| `mcp`          | Serve Unikraft Cloud to AI assistants over the Model Context Protocol          |
 | `metros`       | List available metro locations                                                 |
 | `instances`    | Manage instances (list, get, create, edit, delete, logs, start, stop, restart) |
 | `volumes`      | Manage persistent volumes (list, get, create, edit, delete, clone)             |
@@ -374,6 +375,7 @@ The CLI stores configuration in `~/.config/unikraft/config.yaml` (or the path sp
 | `UNIKRAFT_LOG_LEVEL`    | Set log level (`trace`, `debug`, `info`, `warn`, `error`, `fatal`)                                   |
 | `UNIKRAFT_LOG_TYPE`     | Set output format (`text`, `json`)                                                                   |
 | `UNIKRAFT_TELEMETRY`    | Enable/disable usage analytics (`true`, `false`)                                                     |
+| `UNIKRAFT_DOCS_URL`     | Documentation site that `unikraft mcp` serves as resources; empty serves none                        |
 | `UKC_TOKEN`             | API token for legacy profiles / `UNIKRAFT_PROFILE_ENV`                                               |
 | `UKC_METRO`             | Metro name (e.g. `fra`) or full endpoint URL for legacy profiles / `UNIKRAFT_PROFILE_ENV`            |
 | `UKC_ALLOW_INSECURE`    | Skip TLS verification for the metro from `UKC_METRO` (`true`, `false`)                               |
@@ -410,6 +412,48 @@ unikraft instances get my-instance --fields name,state,image
 # Include verbose/detailed fields
 unikraft instances get my-instance -v
 ```
+
+## MCP Server
+
+`unikraft mcp` lets AI assistants such as Claude Code, Claude Desktop or Cursor manage Unikraft Cloud through the [Model Context Protocol](https://modelcontextprotocol.io).
+Every resource type gets typed tools such as `instance_list` or `volume_create`, instances also get `instance_control` and `instance_logs`, and sandboxes get `sandbox_exec`, `sandbox_read` and `sandbox_write`.
+The tools use the current profile, and the documentation is served as `unikraft://docs` resources.
+
+Register the server with a client as a stdio server:
+
+```json
+{"mcpServers": {"unikraft": {"command": "unikraft", "args": ["mcp"]}}}
+```
+
+With Claude Code:
+
+```sh
+claude mcp add unikraft -- unikraft mcp
+```
+
+Serve fewer tools to keep the assistant's context small, or only the ones that cannot change anything:
+
+```sh
+# Only the instance, volume and metro tools
+unikraft mcp --resources instance,volume,metro
+
+# Only list, image_get, instance_logs and sandbox_read
+unikraft mcp --read-only
+```
+
+Pass `--listen` to serve over HTTP at `/mcp` instead, and `--tls-cert` with `--tls-key` for HTTPS.
+Clients then register the server by URL:
+
+```sh
+unikraft mcp --listen 127.0.0.1:8080
+```
+
+```json
+{"mcpServers": {"unikraft": {"type": "http", "url": "http://127.0.0.1:8080/mcp"}}}
+```
+
+Only loopback addresses are accepted unless `--allow-remote` is given.
+Every client acts with the profile's credentials, so put an authenticating proxy in front of a server that others can reach.
 
 ## Shell Completion
 
