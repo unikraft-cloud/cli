@@ -39,6 +39,7 @@ require (
 	github.com/sirupsen/logrus v1.10.2
 	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.19.0
+	github.com/tonistiigi/fsutil v0.0.0-20260819142231-83cac42c1c52
 	github.com/unikraft/go-archivefs v0.0.0-20261019091157-8981da32f72d
 	github.com/unikraft/go-cpio v0.0.0-20260415131742-4f1984ca41f3
 	golang.org/x/mod v0.41.0
@@ -51,6 +52,7 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
 	unikraft.com/cloud/sdk v0.3.1-0.20261021152129-3431e7639ef3
+	unikraft.com/cloud/sdk/build v0.0.0-20261026110214-14d62e60ef3c
 	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260925102313-8051b659e1ce
 	unikraft.com/x/build v0.0.0-20261020121654-15b23b7bb4a5
 	unikraft.com/x/buildkit v0.0.0-20261016091434-6ed7891be538
@@ -171,7 +173,6 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
-	github.com/tonistiigi/fsutil v0.0.0-20260819142231-83cac42c1c52 // indirect
 	github.com/tonistiigi/go-csvvalue v0.0.0-20240814133006-030d3b2625d0 // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
 	github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab // indirect
