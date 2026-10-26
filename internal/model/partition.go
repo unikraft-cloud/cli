@@ -104,6 +104,18 @@ func (p *Partition) Save() error {
 	return nil
 }
 
+func (p *Partition) Reload() error {
+	if p == nil || p.Path == "" {
+		return nil
+	}
+	fresh, err := LoadPartition(p.Path, p.Cleanup...)
+	if err != nil {
+		return err
+	}
+	p.Keys = fresh.Keys
+	return nil
+}
+
 // Teardown attempts to delete all resources tracked by the partition. Some
 // resources may not be deletable, in which case they are skipped.
 func (p *Partition) Teardown(ctx context.Context) (rerr error) {

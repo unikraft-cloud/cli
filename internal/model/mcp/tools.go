@@ -15,6 +15,7 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -41,6 +42,8 @@ type Tools struct {
 	opts Options
 
 	resources map[string]bool
+
+	partitionMu sync.Mutex
 }
 
 func New(srv *mcp.Server, opts Options) *Tools {
@@ -322,7 +325,9 @@ func destructiveAnnotations() *mcp.ToolAnnotations {
 func (ts *Tools) capture(ctx context.Context, structured bool, run func(context.Context, config.Stdio) error) *mcp.CallToolResult {
 	start := time.Now()
 	var out bytes.Buffer
-	err := run(ctx, config.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: ts.opts.Stderr})
+	err := ts.syncPartition(func() error {
+		return run(ctx, config.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: ts.opts.Stderr})
+	})
 	msg := "tool call complete"
 	if err != nil {
 		msg = "tool call failed"
