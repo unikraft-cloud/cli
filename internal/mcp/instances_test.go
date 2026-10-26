@@ -8,6 +8,7 @@ package mcp_test
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -18,7 +19,9 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcp"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
+	"unikraft.com/cli/internal/model"
 	modelmcp "unikraft.com/cli/internal/model/mcp"
+	modelt "unikraft.com/cli/internal/model/testing"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -53,17 +56,17 @@ func (f *fakeInstances) Logs(_ context.Context, stdio config.Stdio, instance str
 	return nil
 }
 
-func connect(t *testing.T, add func(*modelmcp.Tools) error) *mcptest.Session {
+func connect(t *testing.T, ctx context.Context, opts modelmcp.Options, add func(*modelmcp.Tools) error) *mcptest.Session {
 	t.Helper()
 	srv := sdk.NewServer(&sdk.Implementation{Name: "test"}, nil)
-	require.NoError(t, add(modelmcp.New(srv, modelmcp.Options{})))
-	return mcptest.ConnectServer(t, t.Context(), srv)
+	require.NoError(t, add(modelmcp.New(srv, opts)))
+	return mcptest.ConnectServer(t, ctx, srv)
 }
 
 func TestInstanceTools(t *testing.T) {
 	ctx := t.Context()
 	fake := &fakeInstances{}
-	session := connect(t, func(tools *modelmcp.Tools) error { return mcp.AddInstanceTools(tools, fake) })
+	session := connect(t, ctx, modelmcp.Options{}, func(tools *modelmcp.Tools) error { return mcp.AddInstanceTools[modelt.TestModel](tools, fake) })
 
 	assert.ElementsMatch(t, []string{"instance_control", "instance_logs"}, session.ToolNames())
 	logs := session.Tool("instance_logs")
@@ -106,4 +109,39 @@ func TestInstanceTools(t *testing.T) {
 		"suspend web drain=-1",
 		"logs web tail=200",
 	}, fake.calls)
+}
+
+func TestPartitionInstanceTools(t *testing.T) {
+	env := modelt.NewTestEnv()
+	ctx := modelt.WithTestEnv(t.Context(), env)
+	partition, err := model.LoadPartition(filepath.Join(t.TempDir(), "partition.json"), modelt.TestModel{})
+	require.NoError(t, err)
+	web := modelt.TestModel{ID: "web", Name: "web"}
+	env.Add(web)
+	require.NoError(t, partition.Add(ctx, web))
+	require.NoError(t, partition.Save())
+	env.Add(modelt.TestModel{ID: "outside", Name: "outside"})
+	fake := &fakeInstances{}
+	session := connect(t, ctx, modelmcp.Options{Partition: partition}, func(tools *modelmcp.Tools) error {
+		return mcp.AddInstanceTools[modelt.TestModel](tools, fake)
+	})
+
+	res := mcptest.CallTool(t, ctx, session, "instance_control", map[string]any{"action": "stop", "keys": []string{"web", "outside"}})
+	assert.True(t, res.IsError)
+	assert.Contains(t, mcptest.Text(res), `test "outside" is outside this server's partition`)
+
+	res = mcptest.CallTool(t, ctx, session, "instance_logs", map[string]any{"key": "outside"})
+	assert.True(t, res.IsError)
+	assert.Contains(t, mcptest.Text(res), `test "outside" is outside this server's partition`)
+
+	res = mcptest.CallTool(t, ctx, session, "instance_logs", map[string]any{"key": "missing"})
+	assert.True(t, res.IsError)
+	assert.Contains(t, mcptest.Text(res), `test "missing" not found`)
+
+	res = mcptest.CallTool(t, ctx, session, "instance_control", map[string]any{"action": "stop", "keys": []string{"web"}})
+	require.False(t, res.IsError, mcptest.Text(res))
+	res = mcptest.CallTool(t, ctx, session, "instance_logs", map[string]any{"key": "web"})
+	require.False(t, res.IsError, mcptest.Text(res))
+
+	assert.Equal(t, []string{"stop web force=false drain=-1", "logs web tail=200"}, fake.calls)
 }
