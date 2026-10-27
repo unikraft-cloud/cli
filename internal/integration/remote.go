@@ -62,6 +62,7 @@ func populate() (*Remote, error) {
 		}
 		profile.Type = config.ProfileTypeCloud
 		profile.ControlPlane = ""
+		profile.MetroDefault = ""
 		profile.Metros = profile.Metros[:1]
 		profile.Metros[0].Name = "test"
 		profile.Metros[0].Location = "xxx"

@@ -69,3 +69,139 @@ Global flags:
           [default: true]
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft buildkit --help
+
+Manage the builder that remote builds run on.
+
+Usage:
+  unikraft buildkit <command> [flags]
+
+Commands:
+  create
+          Create the builder that remote builds run on.
+  du
+          Show the disk usage of the builder's cache.
+  prune
+          Free the builder's cache, keeping the builder.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft buildkit create --help
+
+Create the builder that remote builds run on.
+
+Usage:
+  unikraft buildkit create [flags]
+
+Examples:
+  # Create the builder of remote builds in fra
+  unikraft buildkit create --metro fra
+
+Flags:
+      --metro=<metro>
+          Metro to create the builder in, the build service's. Defaults to the profile's default metro.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft buildkit du --help
+
+Show the disk usage of the builder's cache.
+
+Usage:
+  unikraft buildkit du [flags]
+
+Examples:
+  # Show how much cache the builder of remote builds in fra holds
+  unikraft buildkit du --metro fra
+
+Flags:
+      --metro=<metro>
+          Metro of the builder, the build service's. Defaults to the profile's default metro.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft buildkit prune --help
+
+Free the builder's cache, keeping the builder.
+
+Usage:
+  unikraft buildkit prune [flags]
+
+Examples:
+  # Free the cache of the builder of remote builds in fra
+  unikraft buildkit prune --metro fra
+
+Flags:
+      --metro=<metro>
+          Metro of the builder, the build service's. Defaults to the profile's default metro.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).

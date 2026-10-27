@@ -40,9 +40,10 @@ import (
 type UnikraftCLI struct {
 	globalFlags
 
-	Run   RunCmd   `cmd:"" group:"cmd-commands" help:"Run an image as an instance." set:"name=instance" set:"names=instances"`
-	Build BuildCmd `cmd:"" group:"cmd-commands" help:"Build a Unikraft project into a container image."`
-	TUI   TUICmd   `cmd:"" group:"cmd-commands" help:"Browse resources in a TUI."`
+	Run      RunCmd      `cmd:"" group:"cmd-commands" help:"Run an image as an instance." set:"name=instance" set:"names=instances"`
+	Build    BuildCmd    `cmd:"" group:"cmd-commands" help:"Build a Unikraft project into a container image."`
+	Buildkit BuildkitCmd `cmd:"" group:"cmd-commands" help:"Manage the builder that remote builds run on."`
+	TUI      TUICmd      `cmd:"" group:"cmd-commands" help:"Browse resources in a TUI."`
 
 	Metros       MetrosCmd       `cmd:"" group:"cmd-resources" help:"Manage Unikraft Cloud metros." aliases:"metro,metros" set:"name=metro" set:"names=metros"`
 	Quotas       MetroQuotasCmd  `cmd:"" group:"cmd-resources" help:"Display quota usage for metros." aliases:"quota"`
