@@ -54,7 +54,7 @@ func (f *fakeSandbox) WriteFile(_ context.Context, instance, path string, data [
 func TestSandboxTools(t *testing.T) {
 	ctx := t.Context()
 	fake := &fakeSandbox{data: []byte("hello\n")}
-	session := connect(t, func(tools *modelmcp.Tools) error { return mcp.AddSandboxTools(tools, fake) })
+	session := connect(t, ctx, modelmcp.Options{}, func(tools *modelmcp.Tools) error { return mcp.AddSandboxTools(tools, fake) })
 
 	assert.ElementsMatch(t, []string{"sandbox_exec", "sandbox_read", "sandbox_write"}, session.ToolNames())
 	assert.True(t, session.Tool("sandbox_read").Annotations.ReadOnlyHint)

@@ -12,7 +12,7 @@ import (
 	modelmcp "unikraft.com/cli/internal/model/mcp"
 )
 
-func Instructions(readOnly bool, resources []string, docsURL string) string {
+func Instructions(readOnly, partitioned bool, resources []string, docsURL string) string {
 	text := `Tools are named <resource>_<operation>: list, create, edit and delete for each Unikraft Cloud resource type. A list tool returns everything unless keys names specific resources, so it doubles as get. image_get inspects any image reference, including public ones. instance_control starts, stops, restarts or suspends instances and instance_logs reads their console output. instance_create starts the new instance unless autostart is set to false; do that only when the user explicitly asks for a stopped instance.
 
 Resource keys accept a name or a UUID, optionally prefixed with metro/ to target one metro, as in fra/my-app. Reads fan out to every metro of the current profile; narrow a list with filter entries such as metro==fra or state==running.
@@ -32,6 +32,9 @@ Results come back as JSON text and as structured content under "resources". Pass
 		}
 		slices.Sort(names)
 		text += "\n\nOnly the tools of these resource types are served: " + strings.Join(slices.Compact(names), ", ") + "."
+	}
+	if partitioned {
+		text += "\n\nThis server is confined to a partition: its tools only see and act on the resources recorded in it, which include everything the server creates. List tools leave other resources out, and keys or field values that name them are rejected."
 	}
 	if readOnly {
 		text += "\n\nThis server runs in read-only mode: only the list, image_get, instance_logs and sandbox_read tools are available."
