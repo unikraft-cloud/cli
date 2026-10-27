@@ -1569,13 +1569,14 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 	keys, err := group.CollectMetro(ctx, g, metro, func(ctx context.Context, c multimetro.MetroClient) (multimetro.Keys, error) {
 		log.G(ctx).Trace().Msg("creating instance")
 		resp, err := timeouts.TryWithFallback(ctx, req, c.CreateInstance)
-		if _, err = timeouts.Tolerate(ctx, resp, err, "instance create did not complete in time"); err != nil {
-			if len(req.NetworkInterfaces) > 0 && strings.Contains(err.Error(), "Unknown member 'network_interfaces'") {
-				return nil, fmt.Errorf("%w\nhint: --network needs the net_manager permission, contact support to enable it", err)
-			}
-			return nil, err
+		_, err = timeouts.Tolerate(ctx, resp, err, "instance create did not complete in time")
+		if err != nil && len(req.NetworkInterfaces) > 0 && strings.Contains(err.Error(), "Unknown member 'network_interfaces'") {
+			return nil, fmt.Errorf("%w\nhint: --network needs the net_manager permission, contact support to enable it", err)
 		}
 		if resp == nil || resp.Data == nil || len(resp.Data.Instances) == 0 {
+			if err != nil {
+				return nil, err
+			}
 			return nil, fmt.Errorf("no instances created")
 		}
 		created := make(multimetro.Keys, 0, len(resp.Data.Instances))
@@ -1606,6 +1607,9 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 			}
 			createdData[key.String()] = createdResource[platform.Instance]{data: instance, metro: c.Metro}
 			created = append(created, key)
+		}
+		if err != nil {
+			errs = []error{err}
 		}
 		if len(created) == 0 {
 			return nil, errors.Join(errs...)
