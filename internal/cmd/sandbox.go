@@ -104,6 +104,9 @@ func (c *ExecSandboxInstanceCmd) runOn(ctx context.Context, target sandbox.Targe
 	if err != nil {
 		return err
 	}
+	if code < 0 {
+		code = 128 - code
+	}
 	if code != 0 {
 		return ExitStatus(code)
 	}
