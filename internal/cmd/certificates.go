@@ -18,20 +18,20 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
 )
 
 type CertificatesCmd struct {
-	cmd.ResourceCmd[Certificate]
-	cmd.GettableResourceCmd[Certificate]
-	cmd.WaitableResourceCmd[Certificate]
-	cmd.ListableResourceCmd[Certificate]
-	cmd.BulkDeletableResourceCmd[Certificate]
+	cmd.ModelCmd[Certificate]
+	cmd.GettableModelCmd[Certificate]
+	cmd.WaitableModelCmd[Certificate]
+	cmd.ListableModelCmd[Certificate]
+	cmd.BulkDeletableModelCmd[Certificate]
 
-	Create cmd.ResourceCreateCmd[Certificate] `cmd:"" help:"Create a certificate."`
+	Create cmd.ModelCreateCmd[Certificate] `cmd:"" help:"Create a certificate."`
 }
 
 type Certificate struct {
@@ -61,14 +61,14 @@ type Certificate struct {
 	key multimetro.Key
 }
 
-func (Certificate) Type() resource.Type {
-	return resource.Type{
+func (Certificate) Type() model.Type {
+	return model.Type{
 		Name:  "certificate",
 		Names: "certificates",
 	}
 }
 
-func (c Certificate) Key() resource.Key {
+func (c Certificate) Key() model.Key {
 	return c.key
 }
 
@@ -76,23 +76,23 @@ func (c Certificate) Raw() any {
 	return c.Certificate
 }
 
-func (c Certificate) Fields(ctx context.Context) ([]resource.Field, error) {
+func (c Certificate) Fields(ctx context.Context) ([]model.Field, error) {
 	c.Metro = LinkName[Metro](defaultMetro(ctx, string(c.Metro)))
-	return resource.FieldsFromStruct(c)
+	return model.FieldsFromStruct(c)
 }
 
-func (Certificate) List(ctx context.Context) ([]resource.Resource, error) {
+func (Certificate) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing certificates")
 		resp, err := c.GetCertificates(ctx, nil, platform.GetCertificatesOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -108,19 +108,19 @@ func (Certificate) List(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
-func (Certificate) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (Certificate) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting certificates")
 		resp, err := c.GetCertificates(ctx, refs.NameOrUUIDs(), platform.GetCertificatesOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -203,10 +203,10 @@ func (Certificate) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (Certificate) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (Certificate) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var req platform.CreateCertificateRequest
 	var metro string
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create.Set != nil {
 			switch key.String() {
 			case "name":

@@ -20,8 +20,8 @@ import (
 	"unikraft.com/cloud/sdk/platform"
 
 	"unikraft.com/cli/internal/cmd"
-	"unikraft.com/cli/internal/resource"
-	resourcecmd "unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	modelcmd "unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -37,25 +37,25 @@ func sectionHeader(name string) string {
 
 // dumpResource renders a resource using kv, kv-all, table, and debug printers
 // and returns the concatenated output.
-func dumpResource(t *testing.T, res resource.Resource) string {
+func dumpResource(t *testing.T, res model.Model) string {
 	t.Helper()
 	var output strings.Builder
 
 	type section struct {
 		name       string
-		format     resourcecmd.PrinterType
+		format     modelcmd.PrinterType
 		fieldSpecs []string
 	}
 
 	sections := []section{
-		{"kv", resourcecmd.PrinterTypeKeyValue, nil},
-		{"kv-all", resourcecmd.PrinterTypeKeyValue, []string{"all"}},
-		{"table", resourcecmd.PrinterTypeTable, nil},
-		{"debug", resourcecmd.PrintTypeDebug, nil},
+		{"kv", modelcmd.PrinterTypeKeyValue, nil},
+		{"kv-all", modelcmd.PrinterTypeKeyValue, []string{"all"}},
+		{"table", modelcmd.PrinterTypeTable, nil},
+		{"debug", modelcmd.PrintTypeDebug, nil},
 	}
 
 	for _, s := range sections {
-		printer := resourcecmd.Printer{Type: s.format}
+		printer := modelcmd.Printer{Type: s.format}
 
 		var buf bytes.Buffer
 		err := printer.Print(t.Context(), &buf, s.fieldSpecs, res, res)
@@ -168,7 +168,7 @@ func instancesOutputTests(t *testing.T) {
 	sample.Stop.ExitCode = &exitCode
 	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }
 
 // Every other sample carries a registry reference, so nothing exercises how an
@@ -186,7 +186,7 @@ func instancesHTTPOCIOutputTests(t *testing.T) {
 		"https+oci://cdn.example.com/me/app/@sha256:"+
 			"43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190")))
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }
 
 func instanceTemplatesOutputTests(t *testing.T) {
@@ -209,7 +209,7 @@ func instanceTemplatesOutputTests(t *testing.T) {
 	sample.Timing.TemplateTime = new(types.DurationUS(56000))
 	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }
 
 func instanceCheckpointsOutputTests(t *testing.T) {
@@ -240,7 +240,7 @@ func instanceCheckpointsOutputTests(t *testing.T) {
 	sample.Timing.CheckpointTime = new(types.DurationUS(78000))
 	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }
 
 func instanceHistoryOutputTests(t *testing.T) {
@@ -253,7 +253,7 @@ func instanceHistoryOutputTests(t *testing.T) {
 		// ("never") instead of a wall-clock-relative string.
 	}
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }
 
 func volumesOutputTests(t *testing.T) {
@@ -275,7 +275,7 @@ func volumesOutputTests(t *testing.T) {
 		AccessMode:  new(types.AccessMode(platform.VolumeAccessModeRwo)),
 	}
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }
 
 func volumeTemplatesOutputTests(t *testing.T) {
@@ -290,7 +290,7 @@ func volumeTemplatesOutputTests(t *testing.T) {
 		Persistent: true,
 	}
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }
 
 func servicesOutputTests(t *testing.T) {
@@ -319,7 +319,7 @@ func servicesOutputTests(t *testing.T) {
 	sample.Limits.Soft = 5
 	sample.Limits.Hard = 50
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }
 
 func certificatesOutputTests(t *testing.T) {
@@ -334,7 +334,7 @@ func certificatesOutputTests(t *testing.T) {
 		State:        types.CertificateState(platform.CertificateStateValid),
 	}
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }
 
 func imagesOutputTests(t *testing.T) {
@@ -373,5 +373,5 @@ func imagesOutputTests(t *testing.T) {
 	require.NoError(t, sample.Ref.UnmarshalText([]byte("nginx:latest")))
 	require.NoError(t, sample.Config.Platform.UnmarshalText([]byte("linux/amd64")))
 
-	integ.Gild[resource.Resource](t, dumpResource, sample)
+	integ.Gild[model.Model](t, dumpResource, sample)
 }

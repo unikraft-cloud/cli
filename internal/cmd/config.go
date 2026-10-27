@@ -11,14 +11,14 @@ import (
 	"fmt"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/x/kingkong"
 )
 
 type ConfigCmd struct {
-	cmd.ResourceCmd[Config]
-	cmd.GettableResourceCmd[Config]
+	cmd.ModelCmd[Config]
+	cmd.GettableModelCmd[Config]
 }
 
 // Config wraps config.Config to implement the resource interfaces.
@@ -26,14 +26,14 @@ type Config struct {
 	*config.Config
 }
 
-func (Config) Type() resource.Type {
-	return resource.Type{
+func (Config) Type() model.Type {
+	return model.Type{
 		Name:  "config",
 		Names: "config",
 	}
 }
 
-func (c Config) Key() resource.Key {
+func (c Config) Key() model.Key {
 	return staticKey(c.Path)
 }
 
@@ -41,23 +41,23 @@ func (c Config) Raw() any {
 	return c.Config
 }
 
-func (c Config) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(c.Config)
+func (c Config) Fields(ctx context.Context) ([]model.Field, error) {
+	return model.FieldsFromStruct(c.Config)
 }
 
-func (c Config) Default(ctx context.Context) (resource.Resource, error) {
+func (c Config) Default(ctx context.Context) (model.Model, error) {
 	cfg := config.G(ctx)
 	return Config{Config: cfg}, nil
 }
 
-func (Config) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (Config) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	if len(keys) == 0 {
 		cfg := config.G(ctx)
-		return []resource.Resource{Config{Config: cfg}}, nil
+		return []model.Model{Config{Config: cfg}}, nil
 	}
 
 	var (
-		results []resource.Resource
+		results []model.Model
 		loadErr error
 	)
 	for _, key := range keys {

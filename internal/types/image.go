@@ -9,9 +9,9 @@ import (
 	"unikraft.com/x/image-spec/reference"
 
 	"unikraft.com/cli/internal/images"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/value"
 )
 
 // ImageRef is a resource field holding an image reference, which is either an
@@ -67,7 +67,7 @@ func (ir ImageRef) String() string {
 	return ir.ref.String()
 }
 
-func (ir ImageRef) Link() (string, resource.Key, bool) {
+func (ir ImageRef) Link() (string, model.Key, bool) {
 	if ir.ref.IsZero() {
 		return "", nil, false
 	}
