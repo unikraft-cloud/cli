@@ -485,8 +485,8 @@ unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260925102313-8051b659e1ce h1:8Fy
 unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260925102313-8051b659e1ce/go.mod h1:FmqgK+oA/ujOKGzcdZm3LeVS02rFkbt08DWY0BqKziM=
 unikraft.com/x/build v0.0.0-20261020121654-15b23b7bb4a5 h1:j6VeahXa2Nl0UClVQ55E9hOYbhO8yGFlgNXvOY2Be9s=
 unikraft.com/x/build v0.0.0-20261020121654-15b23b7bb4a5/go.mod h1:bWH9EPozJIDfhaCyYD2l8BYIuiBYtZm2/uF8hXzovzY=
-unikraft.com/x/buildkit v0.0.0-20261016091434-6ed7891be538 h1:hqwzD2mY8iDnSlEisVOka0BY681O0kj60cCUpmVh0PY=
-unikraft.com/x/buildkit v0.0.0-20261016091434-6ed7891be538/go.mod h1:JHFqrP+N1B4Lu8VXmt0lKuhX6LCqZIEvIzM5NkOnAAw=
+unikraft.com/x/buildkit v0.0.0-20261027124450-dfcf25878f57 h1:9MIeRql7SH/fNACV6ssGVFEmlW9M/bfmBFcPEVuYV3k=
+unikraft.com/x/buildkit v0.0.0-20261027124450-dfcf25878f57/go.mod h1:dv0325XVI1G1IsJDY6qjfFJKemm2u4UWRnvCDg0rFrg=
 unikraft.com/x/colors v0.0.0-20261007115714-ef931437a206 h1:5ib843DltfcnYQZ+S2kpR1+atvum3Js/zE1nAz4f2Xs=
 unikraft.com/x/colors v0.0.0-20261007115714-ef931437a206/go.mod h1:21D4S0qGuffQi3xdL24P8AoHhXT/Oo6neAvkaYnD5/Q=
 unikraft.com/x/filters v0.0.0-20260929150216-7e946e02e58b h1:9ixkamFqXxVHrMTmYfu7Yf25klhCaoI5q7sq8PG5rY8=

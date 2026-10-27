@@ -55,7 +55,7 @@ require (
 	unikraft.com/cloud/sdk/build v0.0.0-20261026110214-14d62e60ef3c
 	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260925102313-8051b659e1ce
 	unikraft.com/x/build v0.0.0-20261020121654-15b23b7bb4a5
-	unikraft.com/x/buildkit v0.0.0-20261016091434-6ed7891be538
+	unikraft.com/x/buildkit v0.0.0-20261027124450-dfcf25878f57
 	unikraft.com/x/colors v0.0.0-20261007115714-ef931437a206
 	unikraft.com/x/filters v0.0.0-20260929150216-7e946e02e58b
 	unikraft.com/x/fingerprint v0.0.0-20261001064809-1661668e8c87
