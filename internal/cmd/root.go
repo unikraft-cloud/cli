@@ -28,6 +28,7 @@ import (
 	xsignal "unikraft.com/x/signal"
 	"unikraft.com/x/version"
 
+	"unikraft.com/cli/internal/branding"
 	"unikraft.com/cli/internal/cmd/login"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/logfmt"
@@ -54,6 +55,7 @@ type UnikraftCLI struct {
 	Resources    AnyResourceCmd  `cmd:"" group:"cmd-resources" hidden:"" help:"Manage any Unikraft Cloud resource." aliases:"resource,resources" set:"name=resource" set:"names=resources"`
 
 	API APICmd `cmd:"" group:"cmd-utilities" help:"Make an authenticated HTTP request to the Unikraft Cloud API."`
+	MCP MCPCmd `cmd:"" group:"cmd-utilities" help:"Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP."`
 
 	Login   login.LoginCmd  `cmd:"" group:"cmd-config" help:"Login to Unikraft Cloud."`
 	Logout  login.LogoutCmd `cmd:"" group:"cmd-config" help:"Logout from Unikraft Cloud."`
@@ -299,13 +301,14 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 	}
 
 	opts := []kong.Option{
-		kong.Name("unikraft"),
+		kong.Name(branding.Name),
 		kong.UsageOnError(),
+		kong.Vars{"docs_url": branding.DocsURL},
 		kong.Description("The Unikraft Command-Line Interface."),
 		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n" +
 			"    _         \n" +
-			"  c'3'o  .-.  Docs:   https://unikraft.com/docs/cli\n" +
-			"  (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues\n" +
+			"  c'3'o  .-.  Docs:   " + branding.DocsURL + "cli\n" +
+			"  (| |)_/     Issues: " + branding.IssuesURL + "\n" +
 			"              "),
 		kong.ConfigureHelp(helpOptions),
 		kong.Help(kingkong.HelpPrinter(version.Version)),
