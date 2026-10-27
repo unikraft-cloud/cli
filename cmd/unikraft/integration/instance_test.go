@@ -1437,6 +1437,22 @@ cmd: ["cat", "/marker.txt"]
 		out = r.Run(t, append([]string{"unikraft", "instance", "inspect"}, instances...))
 		assert.Regexp(t, `image:\s+nginx`, out)
 
+		// A taken name fails one instance, and the create still shows the replica it made.
+		out = r.Run(t, []string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--image", "nginx:latest",
+			"--memory", "128",
+			"--vcpus", "1",
+			"--replicas", "1",
+		}, integ.ExpectFail())
+		assert.Contains(t, out, "already exists")
+		replica := regexp.MustCompile(`test-` + instName + `-\w+`).FindString(out)
+		require.NotEmpty(t, replica)
+		instances = append(instances, replica)
+
 		r.Run(t, append([]string{"unikraft", "instance", "delete"}, instances...))
 	})
 

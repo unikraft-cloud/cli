@@ -1491,10 +1491,11 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 	keys, err := group.CollectMetro(ctx, g, metro, func(ctx context.Context, c multimetro.MetroClient) (multimetro.Keys, error) {
 		log.G(ctx).Trace().Msg("creating instance")
 		resp, err := timeouts.TryWithFallback(ctx, req, c.CreateInstance)
-		if _, err = timeouts.Tolerate(ctx, resp, err, "instance create did not complete in time"); err != nil {
-			return nil, err
-		}
+		_, err = timeouts.Tolerate(ctx, resp, err, "instance create did not complete in time")
 		if resp == nil || resp.Data == nil || len(resp.Data.Instances) == 0 {
+			if err != nil {
+				return nil, err
+			}
 			return nil, fmt.Errorf("no instances created")
 		}
 		created := make(multimetro.Keys, 0, len(resp.Data.Instances))
@@ -1525,6 +1526,9 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 			}
 			createdData[key.String()] = createdResource[platform.Instance]{data: instance, metro: c.Metro}
 			created = append(created, key)
+		}
+		if err != nil {
+			errs = []error{err}
 		}
 		if len(created) == 0 {
 			return nil, errors.Join(errs...)
