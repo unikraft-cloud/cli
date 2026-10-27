@@ -53,7 +53,7 @@ require (
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
 	unikraft.com/cloud/sdk v0.3.1-0.20261021152129-3431e7639ef3
 	unikraft.com/cloud/sdk/build v0.0.0-20261026110214-14d62e60ef3c
-	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260925102313-8051b659e1ce
+	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261027110526-41cac40eecd3
 	unikraft.com/x/build v0.0.0-20261020121654-15b23b7bb4a5
 	unikraft.com/x/buildkit v0.0.0-20261027124450-dfcf25878f57
 	unikraft.com/x/colors v0.0.0-20261007115714-ef931437a206
@@ -67,7 +67,7 @@ require (
 	unikraft.com/x/kraftfile v0.0.0-20261020121654-15b23b7bb4a5
 	unikraft.com/x/log v0.0.0-20261007115714-ef931437a206
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
-	unikraft.com/x/shell v0.0.0-20261022090906-56846b6bd1b6
+	unikraft.com/x/shell v0.0.0-20261027110532-fc72bba849a7
 	unikraft.com/x/signal v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/stdio v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/version v0.0.0-20260819081122-82fdef94867a
