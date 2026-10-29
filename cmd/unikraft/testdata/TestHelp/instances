@@ -57,6 +57,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -137,6 +138,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -225,6 +227,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -315,6 +318,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -457,6 +461,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -540,6 +545,8 @@ Create flags:
           [examples: fra, sfo]
   -n, --name=<name>
           Instance name, unique per metro. Generated when omitted.
+      --node=<node>
+          Node to place the instance on.
       --tag=<tag> ...
           Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest.
           [example: env-prod]
@@ -722,6 +729,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -805,6 +813,8 @@ Create flags:
           [examples: fra, sfo]
   -n, --name=<name>
           Instance name, unique per metro. Generated when omitted.
+      --node=<node>
+          Node to place the instance on.
       --tag=<tag> ...
           Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest.
           [example: env-prod]
@@ -971,6 +981,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -1056,6 +1067,8 @@ Create flags:
           [examples: fra, sfo]
   -n, --name=<name>
           Instance name, unique per metro. Generated when omitted.
+      --node=<node>
+          Node to place the instance on.
       --tag=<tag> ...
           Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest.
           [example: env-prod]
@@ -1205,6 +1218,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -1351,6 +1365,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -1448,6 +1463,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -1505,6 +1521,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -1570,6 +1587,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -1641,6 +1659,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -1720,6 +1739,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -1808,6 +1828,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -1886,6 +1907,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -1943,6 +1965,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -2008,6 +2031,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -2075,6 +2099,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -2144,6 +2169,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -2223,6 +2249,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock
@@ -2311,6 +2338,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   delete-lock

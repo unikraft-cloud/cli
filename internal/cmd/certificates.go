@@ -38,6 +38,7 @@ type Certificate struct {
 	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
 	Name  string          `mirror:"certificate.name" field:",short" create:"set" flag:"name" help:"Certificate name. Generated when omitted." placeholder:"name"`
 	UUID  string          `mirror:"certificate.uuid" field:",long" help:"Unique identifier assigned at creation."`
+	Node  string          `mirror:"certificate.node" field:",long" create:"set" flag:"node" help:"Node to place the certificate on." placeholder:"node"`
 
 	CommonName   string `mirror:"certificate.common_name" field:",short" help:"Common name: the fully qualified domain name the certificate is for."`
 	Subject      string `mirror:"certificate.subject" field:",long" help:"Subject distinguished name, present once issued."`
@@ -212,6 +213,8 @@ func (Certificate) Create(ctx context.Context, fields []model.Field) ([]model.Mo
 			case "name":
 				name := field.Create.Set.(string)
 				req.Name = &name
+			case "node":
+				req.Node = new(field.Create.Set.(string))
 			case "metro":
 				metro = string(field.Create.Set.(LinkName[Metro]))
 			case "cn":

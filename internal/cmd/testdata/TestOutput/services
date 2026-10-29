@@ -21,6 +21,7 @@ services:
 metro:         fra
 name:          my-service
 uuid:          b2c3d4e5-f6a7-8901-bcde-f12345678901
+node:
 persistent:    true
 autoscale:     true
 limits:
@@ -77,6 +78,14 @@ fra    my-service  true       never    example.unikraft.app  443     8080       
     "name": "uuid",
     "value": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
     "verbosity": "long"
+  },
+  {
+    "name": "node",
+    "value": "",
+    "verbosity": "long",
+    "create": {
+      "set": ""
+    }
   },
   {
     "name": "persistent",
