@@ -21,6 +21,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -69,6 +70,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -125,6 +127,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -183,6 +186,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -248,6 +252,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -299,6 +304,8 @@ Create flags:
           [examples: fra, sfo]
       --name=<name>
           Certificate name.
+      --node=<node>
+          Node to place the certificate on.
       --common-name=<fqdn>, --cn
           Certificate common name.
           [example: demo.unikraft.dev.]
@@ -326,6 +333,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer

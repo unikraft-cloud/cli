@@ -43,6 +43,7 @@ type ServiceGroup struct {
 	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
 	Name  string          `mirror:"service_group.name" field:",short" create:"set" flag:"name" help:"Service group name." placeholder:"name"`
 	UUID  string          `mirror:"service_group.uuid" field:",long"`
+	Node  string          `mirror:"service_group.node" field:",long" create:"set" flag:"node" help:"Node to place the service group on." placeholder:"node"`
 
 	Persistent bool `mirror:"service_group.persistent" field:",long"`
 	Autoscale  bool `mirror:"service_group.autoscale" field:",short"`
@@ -335,6 +336,8 @@ func (ServiceGroup) Create(ctx context.Context, fields []resource.Field) ([]reso
 			case "name":
 				name := field.Create.Set.(string)
 				req.Name = &name
+			case "node":
+				req.Node = new(field.Create.Set.(string))
 			case "limits.soft":
 				limit := field.Create.Set.(uint64)
 				req.SoftLimit = &limit

@@ -23,6 +23,7 @@ Fields:
   metro
   name
   uuid
+  node
   persistent
   autoscale
   limits, limits.soft, limits.hard
@@ -72,6 +73,7 @@ Fields:
   metro
   name
   uuid
+  node
   persistent
   autoscale
   limits, limits.soft, limits.hard
@@ -129,6 +131,7 @@ Fields:
   metro
   name
   uuid
+  node
   persistent
   autoscale
   limits, limits.soft, limits.hard
@@ -188,6 +191,7 @@ Fields:
   metro
   name
   uuid
+  node
   persistent
   autoscale
   limits, limits.soft, limits.hard
@@ -249,6 +253,7 @@ Fields:
   metro
   name
   uuid
+  node
   persistent
   autoscale
   limits, limits.soft, limits.hard
@@ -301,6 +306,8 @@ Create flags:
           [examples: fra, sfo]
       --name=<name>
           Service group name.
+      --node=<node>
+          Node to place the service group on.
       --soft-limit=<n>
           Soft limit.
           [examples: 1, 5]
@@ -337,6 +344,7 @@ Fields:
   metro
   name
   uuid
+  node
   persistent
   autoscale
   limits, limits.soft, limits.hard
@@ -424,6 +432,7 @@ Fields:
   metro
   name
   uuid
+  node
   persistent
   autoscale
   limits, limits.soft, limits.hard

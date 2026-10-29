@@ -2,6 +2,7 @@
 metro:        fra
 name:         my-volume
 uuid:         a1b2c3d4-e5f6-7890-abcd-ef1234567890
+node:         node-1
 tags:         ["env-prod"]
 state:        available
 usage:        80%  ⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀
@@ -16,6 +17,7 @@ access-mode:  rwo
 metro:        fra
 name:         my-volume
 uuid:         a1b2c3d4-e5f6-7890-abcd-ef1234567890
+node:         node-1
 tags:         ["env-prod"]
 state:        available
 usage:        80%  ⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀
@@ -65,6 +67,14 @@ fra    my-volume  available  80%  ⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀  10MiB  50MiB  
     "name": "uuid",
     "value": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "verbosity": "long"
+  },
+  {
+    "name": "node",
+    "value": "node-1",
+    "verbosity": "long",
+    "create": {
+      "set": "node-1"
+    }
   },
   {
     "name": "tags",

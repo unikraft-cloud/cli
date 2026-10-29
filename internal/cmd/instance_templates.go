@@ -40,6 +40,7 @@ type InstanceTemplate struct {
 	Metro LinkName[Metro] `field:"metro,short"`
 	Name  string          `mirror:"instance.name" field:",short"`
 	UUID  string          `mirror:"instance.uuid" field:",long"`
+	Node  string          `mirror:"instance.node" field:",long"`
 
 	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
 	Annotations map[string]string `mirror:"instance.annotations" field:",long"`

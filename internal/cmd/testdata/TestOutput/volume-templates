@@ -12,6 +12,7 @@ persistent: true
 metro:       fra
 name:        my-vol-template
 uuid:        e5f6a7b8-c9d0-1234-ef01-23456789abcd
+node:
 tags:        ["env-staging"]
 delete-lock: false
 state:       available
@@ -46,6 +47,11 @@ fra    my-vol-template  available  20MiB  never
   {
     "name": "uuid",
     "value": "e5f6a7b8-c9d0-1234-ef01-23456789abcd",
+    "verbosity": "long"
+  },
+  {
+    "name": "node",
+    "value": "",
     "verbosity": "long"
   },
   {

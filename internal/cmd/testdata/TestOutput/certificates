@@ -12,6 +12,7 @@ state:         valid
 metro:         fra
 name:          my-cert
 uuid:          c3d4e5f6-a7b8-9012-cdef-123456789012
+node:
 common-name:   example.unikraft.app
 subject:       CN=example.unikraft.app
 issuer:        CN=Test CA
@@ -55,6 +56,14 @@ fra    my-cert  example.unikraft.app  valid  never    never
     "name": "uuid",
     "value": "c3d4e5f6-a7b8-9012-cdef-123456789012",
     "verbosity": "long"
+  },
+  {
+    "name": "node",
+    "value": "",
+    "verbosity": "long",
+    "create": {
+      "set": ""
+    }
   },
   {
     "name": "common-name",
