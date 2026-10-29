@@ -261,6 +261,7 @@ func volumesOutputTests(t *testing.T) {
 		Metro: "fra",
 		Name:  "my-volume",
 		UUID:  "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		Node:  "node-1",
 		Tags:  []string{"env-prod"},
 		State: types.VolumeState(platform.VolumeStateAvailable),
 		Size:  50,

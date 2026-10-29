@@ -64,6 +64,7 @@ stop:
 metro:               fra
 name:                my-instance
 uuid:                7b79b250-0658-4d10-8dc0-d854399d7e74
+node:
 tags:                ["env-prod", "team-core"]
 annotations:
   env:               production
@@ -176,6 +177,14 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
     "name": "uuid",
     "value": "7b79b250-0658-4d10-8dc0-d854399d7e74",
     "verbosity": "long"
+  },
+  {
+    "name": "node",
+    "value": "",
+    "verbosity": "long",
+    "create": {
+      "set": ""
+    }
   },
   {
     "name": "tags",

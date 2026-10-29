@@ -35,6 +35,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -90,6 +91,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -153,6 +155,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -218,6 +221,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -284,6 +288,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -342,6 +347,8 @@ Create flags:
           [examples: fra, sfo]
   -n, --name=<name>
           Volume name.
+      --node=<node>
+          Node to place the volume on.
       --tag=<tag> ...
           Volume tag.
           [example: env-prod]
@@ -569,6 +576,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -657,6 +665,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -729,6 +738,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -776,6 +786,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -831,6 +842,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -892,6 +904,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -955,6 +968,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -1029,6 +1043,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state

@@ -47,6 +47,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   annotations
   state
@@ -128,6 +129,8 @@ Create flags:
           [examples: fra, sfo]
   -n, --name=<name>
           Instance name.
+      --node=<node>
+          Node to place the instance on.
       --tag=<tag> ...
           Instance tag.
           [example: env-prod]

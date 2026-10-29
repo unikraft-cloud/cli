@@ -104,6 +104,7 @@ type Instance struct {
 	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to deploy in." placeholder:"metro" example:"fra,sfo"`
 	Name  string          `mirror:"instance.name" field:",short" create:"set" flag:"name" short:"n" help:"Instance name." placeholder:"name"`
 	UUID  string          `mirror:"instance.uuid" field:",long"`
+	Node  string          `mirror:"instance.node" field:",long" create:"set" flag:"node" help:"Node to place the instance on." placeholder:"node"`
 
 	Tags        []string          `mirror:"instance.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Instance tag." placeholder:"tag" example:"env-prod"`
 	Annotations map[string]string `mirror:"instance.annotations" field:",long" create:"set" edit:"set,add,del=keys" flag:"annotation" sep:"none" mapsep:"none" help:"Instance annotation." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
@@ -1202,6 +1203,8 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 		case "name":
 			name := field.Create.Set.(string)
 			req.Name = &name
+		case "node":
+			req.Node = new(field.Create.Set.(string))
 		case "tags":
 			req.Tags = field.Create.Set.([]string)
 		case "annotations":

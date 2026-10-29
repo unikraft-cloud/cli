@@ -12,6 +12,7 @@ resources:
 metro:               fra
 name:                my-instance
 uuid:                a1b2c3d4-e5f6-7890-abcd-ef1234567890
+node:
 tags:
 annotations:
 state:               running
@@ -101,6 +102,14 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
     "name": "uuid",
     "value": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "verbosity": "long"
+  },
+  {
+    "name": "node",
+    "value": "",
+    "verbosity": "long",
+    "create": {
+      "set": ""
+    }
   },
   {
     "name": "tags",

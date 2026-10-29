@@ -39,6 +39,7 @@ type VolumeTemplate struct {
 	Metro LinkName[Metro] `field:"metro,short"`
 	Name  string          `mirror:"volume.name" field:",short"`
 	UUID  string          `mirror:"volume.uuid" field:",long"`
+	Node  string          `mirror:"volume.node" field:",long"`
 
 	Tags       []string `mirror:"volume.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Template tag." placeholder:"tag" example:"env-dev"`
 	DeleteLock bool     `mirror:"volume.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent deletion of the template."`
