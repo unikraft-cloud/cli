@@ -16,8 +16,8 @@ Commands:
           Run an image as an instance.
   build
           Build a Unikraft project into a container image.
-  buildkit
-          Manage the builder that remote builds run on.
+  builder
+          Manage the builders that remote builds run on.
   tui
           Browse resources in a TUI.
 
@@ -97,7 +97,7 @@ Run "unikraft <command> --help" for more information on a command.
 
 │  
 │ error:
-│   parsing arguments: expected one of "run", "build", "buildkit", "tui", "metros", ...
+│   parsing arguments: expected one of "run", "build", "builder", "tui", "metros", ...
 │
 
 exit code: 1
@@ -120,8 +120,8 @@ Commands:
           Run an image as an instance.
   build
           Build a Unikraft project into a container image.
-  buildkit
-          Manage the builder that remote builds run on.
+  builder
+          Manage the builders that remote builds run on.
   tui
           Browse resources in a TUI.
 
@@ -226,8 +226,8 @@ Commands:
           Run an image as an instance.
   build
           Build a Unikraft project into a container image.
-  buildkit
-          Manage the builder that remote builds run on.
+  builder
+          Manage the builders that remote builds run on.
   tui
           Browse resources in a TUI.
 
@@ -329,8 +329,8 @@ Commands:
           Run an image as an instance.
   build
           Build a Unikraft project into a container image.
-  buildkit
-          Manage the builder that remote builds run on.
+  builder
+          Manage the builders that remote builds run on.
   tui
           Browse resources in a TUI.
 
