@@ -76,7 +76,8 @@ type InstancesCmd struct {
 type InstanceCreateCmd struct {
 	cmd.ResourceCreateCmd[Instance]
 
-	DeleteOnStop bool `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	DeleteOnStop bool             `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
+	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | recreate\n  by: service (default) | tags\n  target: the new instance's services or tags to select by (default: all of them)\n  batch: instances that a rolling rollout replaces at a time (default: 1)\n  healthy-after: time each new batch must keep running before the rollout goes on" placeholder:"<key>=<value>" example:"recreate,batch=2\\,healthy-after=30s,tags\\,target=env-prod"`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
@@ -96,6 +97,12 @@ func (c *InstanceCreateCmd) RunResources(ctx context.Context, stdio config.Stdio
 		if flags.IsSet("service.domains") {
 			return nil, fmt.Errorf("--domain cannot be used with --service")
 		}
+	}
+	if c.Rollout != nil {
+		if c.Save == "" {
+			return c.runRollout(ctx, stdio, partition)
+		}
+		log.G(ctx).Info().Msg("--save only saves the fields, so --rollout has no effect")
 	}
 	return c.ResourceCreateCmd.RunResources(ctx, stdio, partition)
 }
@@ -1491,10 +1498,11 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 	keys, err := group.CollectMetro(ctx, g, metro, func(ctx context.Context, c multimetro.MetroClient) (multimetro.Keys, error) {
 		log.G(ctx).Trace().Msg("creating instance")
 		resp, err := timeouts.TryWithFallback(ctx, req, c.CreateInstance)
-		if _, err = timeouts.Tolerate(ctx, resp, err, "instance create did not complete in time"); err != nil {
-			return nil, err
-		}
+		_, err = timeouts.Tolerate(ctx, resp, err, "instance create did not complete in time")
 		if resp == nil || resp.Data == nil || len(resp.Data.Instances) == 0 {
+			if err != nil {
+				return nil, err
+			}
 			return nil, fmt.Errorf("no instances created")
 		}
 		created := make(multimetro.Keys, 0, len(resp.Data.Instances))
@@ -1525,6 +1533,9 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 			}
 			createdData[key.String()] = createdResource[platform.Instance]{data: instance, metro: c.Metro}
 			created = append(created, key)
+		}
+		if err != nil {
+			errs = []error{err}
 		}
 		if len(created) == 0 {
 			return nil, errors.Join(errs...)
@@ -1613,6 +1624,40 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --metro fra \
 	  --image nginx:latest \
 	  --plugin 'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'`,
+				},
+			},
+			{
+				Description: "Replace every instance in a service group with a new image",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-app:v2 \
+	  --service my-service \
+	  --autostart \
+	  --rollout`,
+				},
+			},
+			{
+				Description: "Roll a service group whose instances need sole access to their volume, and hold the new ones up for a minute first",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-db:v2 \
+	  --service my-db \
+	  --autostart \
+	  --rollout=recreate,healthy-after=1m`,
+				},
+			},
+			{
+				Description: "Replace the app-web instances two at a time with ones that also carry a version tag",
+				Commands: []string{
+					`unikraft instance create \
+	  --metro fra \
+	  --image my-app:v2 \
+	  --tag app-web \
+	  --tag v2 \
+	  --autostart \
+	  --rollout=tags,target=app-web,batch=2`,
 				},
 			},
 		},
