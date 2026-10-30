@@ -65,26 +65,42 @@ func clampWidth(width int) int {
 	return width
 }
 
+// Thresholds are the ratios above which a meter is colored as a warning or
+// as a danger.
+type Thresholds struct {
+	Warning float64
+	Danger  float64
+}
+
+// DefaultThresholds are the thresholds used by Render.
+var DefaultThresholds = Thresholds{Warning: 0.6, Danger: 0.8}
+
+func (t Thresholds) color(ratio float64) string {
+	switch {
+	case ratio <= t.Warning:
+		return ansi.NewStyle().ForegroundColor(safeColor).String()
+	case ratio <= t.Danger:
+		return ansi.NewStyle().ForegroundColor(warningColor).String()
+	default:
+		return ansi.NewStyle().ForegroundColor(dangerColor).String()
+	}
+}
+
+func clampRatio(ratio float64) float64 {
+	return min(max(ratio, 0), 1)
+}
+
 // Render renders a colored meter bar representing ratio at the given width,
 // e.g. "⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀". ratio is clamped to [0, 1]. The returned string ends
 // with a foreground-color reset.
 func Render(ratio float64, width int) string {
-	if ratio > 1 {
-		ratio = 1
-	}
-	if ratio < 0 {
-		ratio = 0
-	}
+	return RenderWith(ratio, width, DefaultThresholds)
+}
 
-	var color string
-	switch {
-	case ratio <= 0.6:
-		color = ansi.NewStyle().ForegroundColor(safeColor).String()
-	case ratio <= 0.8:
-		color = ansi.NewStyle().ForegroundColor(warningColor).String()
-	default:
-		color = ansi.NewStyle().ForegroundColor(dangerColor).String()
-	}
+// RenderWith is like Render, but colors the bar using thresholds.
+func RenderWith(ratio float64, width int, thresholds Thresholds) string {
+	ratio = clampRatio(ratio)
+	color := thresholds.color(ratio)
 
 	empty := ansi.NewStyle().ForegroundColor(emptyColor).String()
 	reset := ansi.NewStyle().ForegroundColor(nil).String()
@@ -113,4 +129,35 @@ func Render(ratio float64, width int) string {
 	}
 
 	return bar + reset
+}
+
+// Gauge renders a colored gauge marking the position of ratio along a track
+// of the given width, e.g. "┣━━━━━━╋───┤". ratio is clamped to [0, 1]. The
+// returned string ends with a foreground-color reset.
+func Gauge(ratio float64, width int, thresholds Thresholds) string {
+	ratio = clampRatio(ratio)
+	width = max(width, 1)
+	color := thresholds.color(ratio)
+	empty := ansi.NewStyle().ForegroundColor(emptyColor).String()
+	reset := ansi.NewStyle().ForegroundColor(nil).String()
+
+	pos := int(math.Round(ratio * float64(width-1)))
+
+	var b strings.Builder
+	b.WriteString(color)
+	for i := range pos {
+		if i == 0 {
+			b.WriteRune('┣')
+		} else {
+			b.WriteRune('━')
+		}
+	}
+	b.WriteRune('╋')
+	if pos < width-1 {
+		b.WriteString(empty)
+		b.WriteString(strings.Repeat("─", width-pos-2))
+		b.WriteRune('┤')
+	}
+	b.WriteString(reset)
+	return b.String()
 }

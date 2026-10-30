@@ -120,9 +120,9 @@ type Instance struct {
 	}
 
 	Resources struct {
-		Memory types.SizeMebibytes `mirror:"instance.memory_mb" field:",short" create:"set" edit:"set" flag:"memory" short:"m" help:"Memory allocation." placeholder:"size" example:"128MiB,1GiB"`
-		VCPUs  int                 `mirror:"instance.vcpus" field:"vcpus,short" create:"set" edit:"set" flag:"vcpus" help:"Number of vCPUs." placeholder:"n" example:"1,2,4"`
-		GPUs   int                 `field:"gpus,long" create:"set" flag:"gpus" help:"Number of GPUs to attach. Requires type \"full\" and a plan with GPU support. Currently limited to 1." placeholder:"n" example:"0,1"`
+		Memory InstanceMemory `field:",short,embed" create:"set" edit:"set" flag:"memory" short:"m" help:"Memory allocation. With vertical scaling, the initial allocation between the minimum and maximum." placeholder:"size" example:"128MiB,1GiB"`
+		VCPUs  InstanceVCPUs  `field:"vcpus,short,embed" create:"set" edit:"set" flag:"vcpus" help:"Number of vCPUs. With vertical scaling, the initial allocation between the minimum and maximum." placeholder:"n" example:"1,2,4"`
+		GPUs   int            `field:"gpus,long" create:"set" flag:"gpus" help:"Number of GPUs to attach. Requires type \"full\" and a plan with GPU support. Currently limited to 1." placeholder:"n" example:"0,1"`
 	}
 
 	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set" flag:"service" help:"Service group name or key." placeholder:"name"`
@@ -187,6 +187,41 @@ type Instance struct {
 	key multimetro.Key
 
 	DeleteLock bool `mirror:"instance.delete_lock" field:"delete-lock,long" edit:"set" flag:"delete-lock" help:"Prevent instance deletion until the lock is removed."`
+}
+
+type InstanceMemory struct {
+	Current types.SizeMebibytes `mirror:"instance.memory_mb" field:",long"`
+	Min     types.SizeMebibytes `mirror:"instance.min_memory_mb" field:",long" create:"set" flag:"min-memory" help:"Minimum memory for vertical scaling. Requires type \"micro\"." placeholder:"size" example:"128MiB"`
+	Max     types.SizeMebibytes `mirror:"instance.max_memory_mb" field:",long" create:"set" flag:"max-memory" help:"Maximum memory for vertical scaling. Requires type \"micro\"." placeholder:"size" example:"1GiB"`
+}
+
+func (m InstanceMemory) Value() any {
+	return types.Gauge[types.SizeMebibytes]{Current: m.Current, Min: m.Min, Max: m.Max}
+}
+
+func (m *InstanceMemory) UnmarshalText(text []byte) error {
+	*m = InstanceMemory{}
+	return m.Current.UnmarshalText(text)
+}
+
+type InstanceVCPUs struct {
+	Current int `mirror:"instance.vcpus" field:",long"`
+	Min     int `mirror:"instance.min_vcpus" field:",long" create:"set" flag:"min-vcpus" help:"Minimum vCPUs for vertical scaling. Requires type \"micro\"." placeholder:"n" example:"1"`
+	Max     int `mirror:"instance.max_vcpus" field:",long" create:"set" flag:"max-vcpus" help:"Maximum vCPUs for vertical scaling. Requires type \"micro\"." placeholder:"n" example:"4"`
+}
+
+func (v InstanceVCPUs) Value() any {
+	return types.Gauge[int]{Current: v.Current, Min: v.Min, Max: v.Max}
+}
+
+func (v *InstanceVCPUs) UnmarshalText(text []byte) error {
+	*v = InstanceVCPUs{}
+	n, err := strconv.Atoi(strings.TrimSpace(string(text)))
+	if err != nil {
+		return err
+	}
+	v.Current = n
+	return nil
 }
 
 type InstanceNetwork struct {
@@ -1097,9 +1132,9 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 		}
 		return platform.MutableInstancePropertyEnv, value.(map[string]string), nil
 	case "resources.memory":
-		return platform.MutableInstancePropertyMemoryMb, int64(value.(types.SizeMebibytes)), nil
+		return platform.MutableInstancePropertyMemoryMb, int64(value.(InstanceMemory).Current), nil
 	case "resources.vcpus":
-		return platform.MutableInstancePropertyVcpus, value.(int), nil
+		return platform.MutableInstancePropertyVcpus, value.(InstanceVCPUs).Current, nil
 	case "sched-priority":
 		return platform.MutableInstancePropertySchedPriority, string(*value.(*platform.SchedPriority)), nil
 	case "scale-to-zero":
@@ -1221,11 +1256,17 @@ func (Instance) Create(ctx context.Context, fields []resource.Field) ([]resource
 		case "runtime.env":
 			req.Env = field.Create.Set.(map[string]string)
 		case "resources.memory":
-			mem := int64(field.Create.Set.(types.SizeMebibytes))
-			req.MemoryMb = &mem
+			req.MemoryMb = new(int64(field.Create.Set.(InstanceMemory).Current))
+		case "resources.memory.min":
+			req.MinMemoryMb = new(int64(field.Create.Set.(types.SizeMebibytes)))
+		case "resources.memory.max":
+			req.MaxMemoryMb = new(int64(field.Create.Set.(types.SizeMebibytes)))
 		case "resources.vcpus":
-			vcpus := int32(field.Create.Set.(int))
-			req.Vcpus = &vcpus
+			req.Vcpus = new(int32(field.Create.Set.(InstanceVCPUs).Current))
+		case "resources.vcpus.min":
+			req.MinVcpus = new(int32(field.Create.Set.(int)))
+		case "resources.vcpus.max":
+			req.MaxVcpus = new(int32(field.Create.Set.(int)))
 		case "resources.gpus":
 			gpus := int32(field.Create.Set.(int))
 			req.Gpus = &gpus

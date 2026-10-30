@@ -64,7 +64,9 @@ Fields:
   pull-policy
   type
   runtime, runtime.args, runtime.env
-  resources, resources.memory, resources.vcpus, resources.gpus
+  resources, resources.memory, resources.memory.current, resources.memory.min,
+  resources.memory.max, resources.vcpus, resources.vcpus.current,
+  resources.vcpus.min, resources.vcpus.max, resources.gpus
   service, service.name, service.uuid, service.services, service.domains,
   service.domains.*, service.domains.*.fqdn, service.domains.*.certificate,
   service.domains.*.certificate.name, service.domains.*.certificate.uuid,
@@ -140,7 +142,9 @@ Fields:
   pull-policy
   type
   runtime, runtime.args, runtime.env
-  resources, resources.memory, resources.vcpus, resources.gpus
+  resources, resources.memory, resources.memory.current, resources.memory.min,
+  resources.memory.max, resources.vcpus, resources.vcpus.current,
+  resources.vcpus.min, resources.vcpus.max, resources.gpus
   service, service.name, service.uuid, service.services, service.domains,
   service.domains.*, service.domains.*.fqdn, service.domains.*.certificate,
   service.domains.*.certificate.name, service.domains.*.certificate.uuid,
@@ -224,7 +228,9 @@ Fields:
   pull-policy
   type
   runtime, runtime.args, runtime.env
-  resources, resources.memory, resources.vcpus, resources.gpus
+  resources, resources.memory, resources.memory.current, resources.memory.min,
+  resources.memory.max, resources.vcpus, resources.vcpus.current,
+  resources.vcpus.min, resources.vcpus.max, resources.gpus
   service, service.name, service.uuid, service.services, service.domains,
   service.domains.*, service.domains.*.fqdn, service.domains.*.certificate,
   service.domains.*.certificate.name, service.domains.*.certificate.uuid,
@@ -310,7 +316,9 @@ Fields:
   pull-policy
   type
   runtime, runtime.args, runtime.env
-  resources, resources.memory, resources.vcpus, resources.gpus
+  resources, resources.memory, resources.memory.current, resources.memory.min,
+  resources.memory.max, resources.vcpus, resources.vcpus.current,
+  resources.vcpus.min, resources.vcpus.max, resources.gpus
   service, service.name, service.uuid, service.services, service.domains,
   service.domains.*, service.domains.*.fqdn, service.domains.*.certificate,
   service.domains.*.certificate.name, service.domains.*.certificate.uuid,
@@ -421,7 +429,9 @@ Fields:
   pull-policy
   type
   runtime, runtime.args, runtime.env
-  resources, resources.memory, resources.vcpus, resources.gpus
+  resources, resources.memory, resources.memory.current, resources.memory.min,
+  resources.memory.max, resources.vcpus, resources.vcpus.current,
+  resources.vcpus.min, resources.vcpus.max, resources.gpus
   service, service.name, service.uuid, service.services, service.domains,
   service.domains.*, service.domains.*.fqdn, service.domains.*.certificate,
   service.domains.*.certificate.name, service.domains.*.certificate.uuid,
@@ -514,11 +524,23 @@ Create flags:
           Environment variable.
           [example: DEBUG=true]
   -m, --memory=<size>
-          Memory allocation.
+          Memory allocation. With vertical scaling, the initial allocation between the minimum and maximum.
           [examples: 128MiB, 1GiB]
+      --min-memory=<size>
+          Minimum memory for vertical scaling. Requires type "micro".
+          [example: 128MiB]
+      --max-memory=<size>
+          Maximum memory for vertical scaling. Requires type "micro".
+          [example: 1GiB]
       --vcpus=<n>
-          Number of vCPUs.
+          Number of vCPUs. With vertical scaling, the initial allocation between the minimum and maximum.
           [examples: 1, 2, 4]
+      --min-vcpus=<n>
+          Minimum vCPUs for vertical scaling. Requires type "micro".
+          [example: 1]
+      --max-vcpus=<n>
+          Maximum vCPUs for vertical scaling. Requires type "micro".
+          [example: 4]
       --gpus=<n>
           Number of GPUs to attach. Requires type "full" and a plan with GPU support. Currently limited to 1.
           [examples: 0, 1]
@@ -622,7 +644,9 @@ Fields:
   pull-policy
   type
   runtime, runtime.args, runtime.env
-  resources, resources.memory, resources.vcpus, resources.gpus
+  resources, resources.memory, resources.memory.current, resources.memory.min,
+  resources.memory.max, resources.vcpus, resources.vcpus.current,
+  resources.vcpus.min, resources.vcpus.max, resources.gpus
   service, service.name, service.uuid, service.services, service.domains,
   service.domains.*, service.domains.*.fqdn, service.domains.*.certificate,
   service.domains.*.certificate.name, service.domains.*.certificate.uuid,
@@ -715,11 +739,23 @@ Create flags:
           Environment variable.
           [example: DEBUG=true]
   -m, --memory=<size>
-          Memory allocation.
+          Memory allocation. With vertical scaling, the initial allocation between the minimum and maximum.
           [examples: 128MiB, 1GiB]
+      --min-memory=<size>
+          Minimum memory for vertical scaling. Requires type "micro".
+          [example: 128MiB]
+      --max-memory=<size>
+          Maximum memory for vertical scaling. Requires type "micro".
+          [example: 1GiB]
       --vcpus=<n>
-          Number of vCPUs.
+          Number of vCPUs. With vertical scaling, the initial allocation between the minimum and maximum.
           [examples: 1, 2, 4]
+      --min-vcpus=<n>
+          Minimum vCPUs for vertical scaling. Requires type "micro".
+          [example: 1]
+      --max-vcpus=<n>
+          Maximum vCPUs for vertical scaling. Requires type "micro".
+          [example: 4]
       --gpus=<n>
           Number of GPUs to attach. Requires type "full" and a plan with GPU support. Currently limited to 1.
           [examples: 0, 1]
@@ -831,7 +867,9 @@ Fields:
   pull-policy
   type
   runtime, runtime.args, runtime.env
-  resources, resources.memory, resources.vcpus, resources.gpus
+  resources, resources.memory, resources.memory.current, resources.memory.min,
+  resources.memory.max, resources.vcpus, resources.vcpus.current,
+  resources.vcpus.min, resources.vcpus.max, resources.gpus
   service, service.name, service.uuid, service.services, service.domains,
   service.domains.*, service.domains.*.fqdn, service.domains.*.certificate,
   service.domains.*.certificate.name, service.domains.*.certificate.uuid,
@@ -926,11 +964,23 @@ Create flags:
           Environment variable.
           [example: DEBUG=true]
   -m, --memory=<size>
-          Memory allocation.
+          Memory allocation. With vertical scaling, the initial allocation between the minimum and maximum.
           [examples: 128MiB, 1GiB]
+      --min-memory=<size>
+          Minimum memory for vertical scaling. Requires type "micro".
+          [example: 128MiB]
+      --max-memory=<size>
+          Maximum memory for vertical scaling. Requires type "micro".
+          [example: 1GiB]
       --vcpus=<n>
-          Number of vCPUs.
+          Number of vCPUs. With vertical scaling, the initial allocation between the minimum and maximum.
           [examples: 1, 2, 4]
+      --min-vcpus=<n>
+          Minimum vCPUs for vertical scaling. Requires type "micro".
+          [example: 1]
+      --max-vcpus=<n>
+          Maximum vCPUs for vertical scaling. Requires type "micro".
+          [example: 4]
       --gpus=<n>
           Number of GPUs to attach. Requires type "full" and a plan with GPU support. Currently limited to 1.
           [examples: 0, 1]
@@ -1028,7 +1078,9 @@ Fields:
   pull-policy
   type
   runtime, runtime.args, runtime.env
-  resources, resources.memory, resources.vcpus, resources.gpus
+  resources, resources.memory, resources.memory.current, resources.memory.min,
+  resources.memory.max, resources.vcpus, resources.vcpus.current,
+  resources.vcpus.min, resources.vcpus.max, resources.gpus
   service, service.name, service.uuid, service.services, service.domains,
   service.domains.*, service.domains.*.fqdn, service.domains.*.certificate,
   service.domains.*.certificate.name, service.domains.*.certificate.uuid,
@@ -1114,10 +1166,10 @@ Edit flags:
           Environment variable.
           [example: DEBUG=true]
   -m, --memory=<size>
-          Memory allocation.
+          Memory allocation. With vertical scaling, the initial allocation between the minimum and maximum.
           [examples: 128MiB, 1GiB]
       --vcpus=<n>
-          Number of vCPUs.
+          Number of vCPUs. With vertical scaling, the initial allocation between the minimum and maximum.
           [examples: 1, 2, 4]
       --rom=name=<name>,image=<ref>,at=<path> ...
           Attach ROM.
@@ -1169,7 +1221,9 @@ Fields:
   pull-policy
   type
   runtime, runtime.args, runtime.env
-  resources, resources.memory, resources.vcpus, resources.gpus
+  resources, resources.memory, resources.memory.current, resources.memory.min,
+  resources.memory.max, resources.vcpus, resources.vcpus.current,
+  resources.vcpus.min, resources.vcpus.max, resources.gpus
   service, service.name, service.uuid, service.services, service.domains,
   service.domains.*, service.domains.*.fqdn, service.domains.*.certificate,
   service.domains.*.certificate.name, service.domains.*.certificate.uuid,
