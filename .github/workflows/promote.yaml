@@ -1,0 +1,15 @@
+name: promote
+
+on:
+  push:
+    branches: [prod-staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    uses: unikraft-cloud/x/.github/workflows/promote.yaml@prod-staging
+    secrets:
+      gh_pat: ${{ secrets.GH_PAT }}
