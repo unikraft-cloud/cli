@@ -55,19 +55,26 @@ func newBuilder(pw progress.Writer) build.Builder {
 			return d.Client, func() { _ = d.Release() }, nil
 		},
 		Session: func(ctx context.Context) ([]session.Attachable, error) {
-			profile, err := config.G(ctx).CurrentProfile()
+			auth, err := authAttachable(ctx)
 			if err != nil {
 				return nil, err
 			}
-			dockerConfig := dockerconfig.LoadDefaultConfigFile(os.Stderr)
-			return []session.Attachable{
-				authprovider.NewDockerAuthProvider(authprovider.DockerAuthProviderConfig{
-					AuthConfigProvider: images.LoadBuildkitAuthConfig(dockerConfig, profile),
-				}),
-			}, nil
+			return []session.Attachable{auth}, nil
 		},
 		Progress: pw,
 	}
+}
+
+// authAttachable answers registry logins from the docker config and the current profile.
+func authAttachable(ctx context.Context) (session.Attachable, error) {
+	profile, err := config.G(ctx).CurrentProfile()
+	if err != nil {
+		return nil, err
+	}
+	dockerConfig := dockerconfig.LoadDefaultConfigFile(os.Stderr)
+	return authprovider.NewDockerAuthProvider(authprovider.DockerAuthProviderConfig{
+		AuthConfigProvider: images.LoadBuildkitAuthConfig(dockerConfig, profile),
+	}), nil
 }
 
 // buildWithProgress runs fn on a builder that draws its progress to stderr,
@@ -85,6 +92,10 @@ func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error 
 }
 
 func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
+	if c.Remote != "" {
+		return c.runRemote(ctx, cfg, partition)
+	}
+
 	buildOpts, err := build.LoadBuildOpts(ctx, c.Input)
 	if err != nil {
 		return err

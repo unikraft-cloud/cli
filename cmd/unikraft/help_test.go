@@ -206,6 +206,10 @@ func buildHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
 	integ.Gild(t, cli(r),
 		[]string{"unikraft", "build", "--help"},
+		[]string{"unikraft", "builder", "--help"},
+		[]string{"unikraft", "builder", "create", "--help"},
+		[]string{"unikraft", "builder", "du", "--help"},
+		[]string{"unikraft", "builder", "prune", "--help"},
 	)
 }
 

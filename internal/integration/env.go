@@ -66,6 +66,7 @@ type cmdConfig struct {
 	timeout       time.Duration
 	withoutCancel bool
 	exitCode      *int
+	env           []string
 }
 
 func WithWorkDir(dir string) CmdOption {
@@ -99,6 +100,11 @@ func WithoutCancel() CmdOption {
 // Use for commands that run indefinitely (e.g. --follow).
 func WithTimeout(d time.Duration) CmdOption {
 	return func(c *cmdConfig) { c.timeout = d }
+}
+
+// WithEnv adds the variables env, each as key=value, to the environment of the command.
+func WithEnv(env ...string) CmdOption {
+	return func(c *cmdConfig) { c.env = append(c.env, env...) }
 }
 
 // WithNoPartition disables partition tracking for the command. The resource is not
@@ -147,6 +153,7 @@ func (env *TestEnv) RunRaw(t *testing.T, args []string, opts ...CmdOption) (stri
 	c.Env = append(c.Env, "NO_COLOR=1")
 	c.Env = append(c.Env, "UNIKRAFT_CONFIG="+env.configPath)
 	c.Env = append(c.Env, "BUILDKIT_PROGRESS=quiet")
+	c.Env = append(c.Env, cfg.env...)
 	if !cfg.noPartition {
 		c.Env = append(c.Env, resource.UnikraftPartitionEnv+"="+env.partitionPath)
 	}

@@ -48,6 +48,159 @@ Flags:
           SSH agent socket or keys to expose to the build (format: "default|<id>[=<socket>|<key>[,<key>]]").
       --insecure
           Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all.
+      --remote=<url> ($UNIKRAFT_BUILD_URL)
+          Build on the build service at this URL and push the image from there, instead of building locally.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft builder --help
+
+Manage the builders that remote builds run on.
+
+Usage:
+  unikraft builder <command> [flags]
+
+Commands:
+  create
+          Create a builder that remote builds run on.
+  du
+          Show the disk usage of a builder's cache.
+  prune
+          Free a builder's cache, keeping the builder.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft builder create --help
+
+Create a builder that remote builds run on.
+
+Usage:
+  unikraft builder create --remote=url [<name>]
+
+Arguments:
+  [<name>]
+          Name of the builder.
+          [default: default]
+
+Examples:
+  # Create the builder of remote builds
+  unikraft builder create --remote https://build.example.com
+
+Flags:
+      --remote=<url> ($UNIKRAFT_BUILD_URL)
+          URL of the build service that manages the builder.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft builder du --help
+
+Show the disk usage of a builder's cache.
+
+Usage:
+  unikraft builder du --remote=url [<name>]
+
+Arguments:
+  [<name>]
+          Name of the builder.
+          [default: default]
+
+Examples:
+  # Show how much cache the builder of remote builds holds
+  unikraft builder du --remote https://build.example.com
+
+Flags:
+      --remote=<url> ($UNIKRAFT_BUILD_URL)
+          URL of the build service that manages the builder.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft builder prune --help
+
+Free a builder's cache, keeping the builder.
+
+Usage:
+  unikraft builder prune --remote=url [<name>]
+
+Arguments:
+  [<name>]
+          Name of the builder.
+          [default: default]
+
+Examples:
+  # Free the cache of the builder of remote builds
+  unikraft builder prune --remote https://build.example.com
+
+Flags:
+      --remote=<url> ($UNIKRAFT_BUILD_URL)
+          URL of the build service that manages the builder.
 
 Global flags:
   -h, --help

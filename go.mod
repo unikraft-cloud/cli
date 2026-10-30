@@ -1,6 +1,6 @@
 module unikraft.com/cli
 
-go 1.27.2
+go 1.27.3
 
 tool github.com/caarlos0/svu/v3
 
@@ -39,6 +39,7 @@ require (
 	github.com/sirupsen/logrus v1.10.2
 	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.19.0
+	github.com/tonistiigi/fsutil v0.0.0-20260819142231-83cac42c1c52
 	github.com/unikraft/go-archivefs v0.0.0-20261019091157-8981da32f72d
 	github.com/unikraft/go-cpio v0.0.0-20260415131742-4f1984ca41f3
 	golang.org/x/mod v0.41.0
@@ -51,9 +52,10 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
 	unikraft.com/cloud/sdk v0.3.1-0.20261021152129-3431e7639ef3
-	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20260925102313-8051b659e1ce
+	unikraft.com/cloud/sdk/build v0.0.0-20261030150712-62563f400155
+	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261027110526-41cac40eecd3
 	unikraft.com/x/build v0.0.0-20261020121654-15b23b7bb4a5
-	unikraft.com/x/buildkit v0.0.0-20261016091434-6ed7891be538
+	unikraft.com/x/buildkit v0.0.0-20261027124450-dfcf25878f57
 	unikraft.com/x/colors v0.0.0-20261007115714-ef931437a206
 	unikraft.com/x/filters v0.0.0-20260929150216-7e946e02e58b
 	unikraft.com/x/fingerprint v0.0.0-20261001064809-1661668e8c87
@@ -65,7 +67,7 @@ require (
 	unikraft.com/x/kraftfile v0.0.0-20261020121654-15b23b7bb4a5
 	unikraft.com/x/log v0.0.0-20261007115714-ef931437a206
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
-	unikraft.com/x/shell v0.0.0-20261022090906-56846b6bd1b6
+	unikraft.com/x/shell v0.0.0-20261027110532-fc72bba849a7
 	unikraft.com/x/signal v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/stdio v0.0.0-20260917103502-010252eb5050
 	unikraft.com/x/version v0.0.0-20260819081122-82fdef94867a
@@ -171,7 +173,6 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
-	github.com/tonistiigi/fsutil v0.0.0-20260819142231-83cac42c1c52 // indirect
 	github.com/tonistiigi/go-csvvalue v0.0.0-20240814133006-030d3b2625d0 // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
 	github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab // indirect

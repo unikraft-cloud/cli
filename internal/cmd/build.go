@@ -23,6 +23,8 @@ type ImageBuildCmd struct {
 	SSH      []string `sep:"none" help:"SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")."`
 
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
+
+	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"Build on the build service at this URL and push the image from there, instead of building locally."`
 }
 
 func (ImageBuildCmd) Examples() []kingkong.Example {
