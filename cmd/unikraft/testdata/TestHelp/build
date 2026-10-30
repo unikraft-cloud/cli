@@ -70,20 +70,20 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
-$ unikraft buildkit --help
+$ unikraft builder --help
 
-Manage the builder that remote builds run on.
+Manage the builders that remote builds run on.
 
 Usage:
-  unikraft buildkit <command> [flags]
+  unikraft builder <command> [flags]
 
 Commands:
   create
-          Create the builder that remote builds run on.
+          Create a builder that remote builds run on.
   du
-          Show the disk usage of the builder's cache.
+          Show the disk usage of a builder's cache.
   prune
-          Free the builder's cache, keeping the builder.
+          Free a builder's cache, keeping the builder.
 
 Global flags:
   -h, --help
@@ -104,20 +104,25 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
-$ unikraft buildkit create --help
+$ unikraft builder create --help
 
-Create the builder that remote builds run on.
+Create a builder that remote builds run on.
 
 Usage:
-  unikraft buildkit create [flags]
+  unikraft builder create --remote=url [<name>]
+
+Arguments:
+  [<name>]
+          Name of the builder.
+          [default: default]
 
 Examples:
-  # Create the builder of remote builds in fra
-  unikraft buildkit create --metro fra
+  # Create the builder of remote builds
+  unikraft builder create --remote https://build.example.com
 
 Flags:
-      --metro=<metro>
-          Metro to create the builder in, the build service's. Defaults to the profile's default metro.
+      --remote=<url> ($UNIKRAFT_BUILD_URL)
+          URL of the build service that manages the builder.
 
 Global flags:
   -h, --help
@@ -138,20 +143,25 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
-$ unikraft buildkit du --help
+$ unikraft builder du --help
 
-Show the disk usage of the builder's cache.
+Show the disk usage of a builder's cache.
 
 Usage:
-  unikraft buildkit du [flags]
+  unikraft builder du --remote=url [<name>]
+
+Arguments:
+  [<name>]
+          Name of the builder.
+          [default: default]
 
 Examples:
-  # Show how much cache the builder of remote builds in fra holds
-  unikraft buildkit du --metro fra
+  # Show how much cache the builder of remote builds holds
+  unikraft builder du --remote https://build.example.com
 
 Flags:
-      --metro=<metro>
-          Metro of the builder, the build service's. Defaults to the profile's default metro.
+      --remote=<url> ($UNIKRAFT_BUILD_URL)
+          URL of the build service that manages the builder.
 
 Global flags:
   -h, --help
@@ -172,20 +182,25 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
-$ unikraft buildkit prune --help
+$ unikraft builder prune --help
 
-Free the builder's cache, keeping the builder.
+Free a builder's cache, keeping the builder.
 
 Usage:
-  unikraft buildkit prune [flags]
+  unikraft builder prune --remote=url [<name>]
+
+Arguments:
+  [<name>]
+          Name of the builder.
+          [default: default]
 
 Examples:
-  # Free the cache of the builder of remote builds in fra
-  unikraft buildkit prune --metro fra
+  # Free the cache of the builder of remote builds
+  unikraft builder prune --remote https://build.example.com
 
 Flags:
-      --metro=<metro>
-          Metro of the builder, the build service's. Defaults to the profile's default metro.
+      --remote=<url> ($UNIKRAFT_BUILD_URL)
+          URL of the build service that manages the builder.
 
 Global flags:
   -h, --help

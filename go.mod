@@ -52,7 +52,7 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
 	unikraft.com/cloud/sdk v0.3.1-0.20261021152129-3431e7639ef3
-	unikraft.com/cloud/sdk/build v0.0.0-20261026110214-14d62e60ef3c
+	unikraft.com/cloud/sdk/build v0.0.0-20261030150712-62563f400155
 	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261027110526-41cac40eecd3
 	unikraft.com/x/build v0.0.0-20261020121654-15b23b7bb4a5
 	unikraft.com/x/buildkit v0.0.0-20261027124450-dfcf25878f57

@@ -33,14 +33,6 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	return notAvailable("image build")
 }
 
-func (c *BuildkitDuCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	return notAvailable("buildkit du")
-}
-
-func (c *BuildkitPruneCmd) Run(ctx context.Context) error {
-	return notAvailable("buildkit prune")
-}
-
 func (c *CompletionCmd) Run(ctx *kong.Context) error {
 	return notAvailable("completion")
 }
