@@ -3,7 +3,7 @@ name: check/pr
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
-    branches: [prod-staging, prod-stable]
+    branches: [prod-staging]
 
 jobs:
   check-pr:
