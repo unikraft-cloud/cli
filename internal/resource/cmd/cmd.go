@@ -838,12 +838,12 @@ func (cmd *ResourceCreateCmd[R]) RunResources(ctx context.Context, stdio config.
 	r := partition.WrapCreatable(empty)
 	fieldsResource := resource.Resource(empty)
 	if typed, ok := any(empty).(interface {
-		WithType(string) resource.Resource
+		WithKind(string) resource.Resource
 	}); ok {
-		if v, ok := spec.SetTyped["type"].(string); ok && v != "" {
-			fieldsResource = typed.WithType(v)
-		} else if values := spec.Set["type"]; len(values) > 0 {
-			fieldsResource = typed.WithType(values[0])
+		if v, ok := spec.SetTyped["kind"].(string); ok && v != "" {
+			fieldsResource = typed.WithKind(v)
+		} else if values := spec.Set["kind"]; len(values) > 0 {
+			fieldsResource = typed.WithKind(values[0])
 		}
 	}
 	fields, err := fieldsResource.Fields(ctx)
