@@ -746,7 +746,7 @@ func (i Instance) Fields(ctx context.Context) ([]resource.Field, error) {
 	if err != nil {
 		return nil, err
 	}
-	linkToConsole(ctx, result, i.Profile, "instances", i.Metro, i.Name)
+	linkToConsole(ctx, result, i.Profile, "instances", string(i.Metro), i.Name)
 	return result, nil
 }
 

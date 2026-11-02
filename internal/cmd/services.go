@@ -212,7 +212,7 @@ func (s ServiceGroup) Fields(ctx context.Context) ([]resource.Field, error) {
 		return nil, err
 	}
 	profile, _ := config.G(ctx).CurrentProfile()
-	linkToConsole(ctx, result, profile, "services", s.Metro, s.Name)
+	linkToConsole(ctx, result, profile, "services", string(s.Metro), s.Name)
 	return result, nil
 }
 

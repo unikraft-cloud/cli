@@ -59,6 +59,8 @@ func (i Metro) Fields(ctx context.Context) ([]resource.Field, error) {
 	if err != nil {
 		return nil, err
 	}
+	profile, _ := config.G(ctx).CurrentProfile()
+	linkToConsole(ctx, fields, profile, "metros", i.Name)
 
 	baseClient := httpclient.GetClient(ptr.ZeroIfNil(i.Insecure))
 

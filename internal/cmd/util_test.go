@@ -108,6 +108,7 @@ func TestResourcesLinkToTheConsole(t *testing.T) {
 		{InstanceTemplate{Metro: "fra", Name: "base", Profile: &profile}, "https://console.unikraft.cloud/org/acme/instances/templates/fra/base"},
 		{Volume{Metro: "fra", Name: "data"}, "https://console.unikraft.cloud/org/acme/volumes/fra/data"},
 		{ServiceGroup{Metro: "fra", Name: "api"}, "https://console.unikraft.cloud/org/acme/services/fra/api"},
+		{Metro{Name: "fra"}, "https://console.unikraft.cloud/org/acme/metros/fra"},
 	} {
 		fields, err := tc.resource.Fields(ctx)
 		require.NoError(t, err)
