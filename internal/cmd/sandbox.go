@@ -91,14 +91,12 @@ func (c *ExecSandboxInstanceCmd) runOn(ctx context.Context, target sandbox.Targe
 		in = strings.NewReader("")
 	}
 
-	out := xio.Unwrap(stdio.Stdout)
-
 	cmd := target.CommandArgs(ctx, c.Cmd)
 	cmd.Dir = c.Dir
 	cmd.Env = sandbox.EnvMap(c.Env)
 	cmd.Stdin = in
-	cmd.Stdout = out
-	cmd.Stderr = out
+	cmd.Stdout = xio.Unwrap(stdio.Stdout)
+	cmd.Stderr = xio.Unwrap(stdio.Stderr)
 
 	code, err := shell.ExitStatus(cmd.Run())
 	if err != nil {
