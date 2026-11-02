@@ -67,7 +67,7 @@ func newBuilder(pw progress.Writer) build.Builder {
 
 // authAttachable answers registry logins from the docker config and the current profile.
 func authAttachable(ctx context.Context) (session.Attachable, error) {
-	profile, err := config.G(ctx).CurrentProfile()
+	profile, err := config.G(ctx).OptionalProfile()
 	if err != nil {
 		return nil, err
 	}

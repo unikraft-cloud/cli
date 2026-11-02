@@ -315,6 +315,33 @@ func TestEnvProfileDisabled(t *testing.T) {
 	}
 }
 
+func TestOptionalProfile(t *testing.T) {
+	t.Run("not setup", func(t *testing.T) {
+		for _, config := range []*Config{nil, {}} {
+			profile, err := config.OptionalProfile()
+			require.NoError(t, err)
+			assert.Nil(t, profile)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		config := &Config{DefaultProfile: "missing"}
+		_, err := config.OptionalProfile()
+		assert.ErrorIs(t, err, ErrProfileNotFound{Name: "missing"})
+	})
+
+	t.Run("current", func(t *testing.T) {
+		config := &Config{
+			DefaultProfile: "default",
+			Profiles:       map[string]Profile{"default": {Name: "default", Token: "token"}},
+		}
+		profile, err := config.OptionalProfile()
+		require.NoError(t, err)
+		require.NotNil(t, profile)
+		assert.Equal(t, "token", profile.Token)
+	})
+}
+
 func TestEnvProfileBypassesConfigFile(t *testing.T) {
 	// When enabled, the env-derived profile takes precedence over on-disk profiles.
 	t.Setenv("UNIKRAFT_PROFILE_ENV", "true")
