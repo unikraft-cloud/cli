@@ -30,6 +30,8 @@ type PatchSpec struct {
 	// SetTyped skips parsing for values that already are the field's type.
 	// It takes precedence over Set.
 	SetTyped map[string]any
+	// AddTyped is the add counterpart of SetTyped. Its entries come after Add.
+	AddTyped map[string]any
 }
 
 func (spec *PatchSpec) Keys() iter.Seq[string] {
@@ -54,6 +56,11 @@ func (spec *PatchSpec) Keys() iter.Seq[string] {
 				return
 			}
 		}
+		for key := range spec.AddTyped {
+			if !yield(key) {
+				return
+			}
+		}
 	}
 }
 
@@ -63,6 +70,7 @@ func (spec *PatchSpec) Keys() iter.Seq[string] {
 func PatchedFields(ctx context.Context, fields []resource.Field, spec PatchSpec) ([]resource.Field, error) {
 	foundFields := make(map[string]struct{})
 	typedFields := make(map[string]struct{})
+	typedAddFields := make(map[string]struct{})
 	setForbiddenFields := make(map[string]struct{})
 	addForbiddenFields := make(map[string]struct{})
 	delForbiddenFields := make(map[string]struct{})
@@ -124,17 +132,29 @@ func PatchedFields(ctx context.Context, fields []resource.Field, spec PatchSpec)
 			*patch = &resource.Patch{Set: original.Set}
 		}
 
-		if vs, ok := spec.Add[keyStr]; ok {
-			if original.Add != nil {
-				add, err := value.ParseNew(vs, original.Add)
+		typedAdd, hasTypedAdd := spec.AddTyped[keyStr]
+		addStrs, hasAddStrs := spec.Add[keyStr]
+		typedAddFits := hasTypedAdd && original.Add != nil &&
+			reflect.TypeOf(typedAdd) == reflect.TypeOf(original.Add)
+
+		switch {
+		case original.Add == nil && (hasTypedAdd || hasAddStrs):
+			addForbiddenFields[keyStr] = struct{}{}
+		case typedAddFits || hasAddStrs:
+			var add any
+			if hasAddStrs {
+				parsed, err := value.ParseNew(addStrs, original.Add)
 				if err != nil {
 					return nil, fmt.Errorf("failed to unpack add value for %s: %w", keyStr, err)
 				}
-				*patch = &resource.Patch{Add: add}
-			} else {
-				addForbiddenFields[keyStr] = struct{}{}
+				add = parsed
 			}
-		} else if spec.Create && original.Add != nil && !value.IsZero(original.Add) {
+			if typedAddFits {
+				typedAddFields[keyStr] = struct{}{}
+				add = mergeSet(add, typedAdd, hasAddStrs)
+			}
+			*patch = &resource.Patch{Add: add}
+		case spec.Create && original.Add != nil && !value.IsZero(original.Add):
 			*patch = &resource.Patch{Add: original.Add}
 		}
 		if vs, ok := spec.Del[keyStr]; ok {
@@ -168,6 +188,14 @@ func PatchedFields(ctx context.Context, fields []resource.Field, spec PatchSpec)
 			unfittedFields = append(unfittedFields, key)
 		}
 	}
+	for key := range spec.AddTyped {
+		_, fitted := typedAddFields[key]
+		_, found := foundFields[key]
+		_, forbidden := addForbiddenFields[key]
+		if !fitted && found && !forbidden && !slices.Contains(unfittedFields, key) {
+			unfittedFields = append(unfittedFields, key)
+		}
+	}
 
 	var err error
 	if len(unfittedFields) > 0 {
@@ -196,8 +224,8 @@ func PatchedFields(ctx context.Context, fields []resource.Field, spec PatchSpec)
 	return FilterEditFields(fields), nil
 }
 
-// mergeSet combines a value parsed from --set with one from a flag naming the
-// same field. Slices concatenate and maps overlay, both with the flag's
+// mergeSet combines a value parsed from --set or --add with one from a flag
+// naming the same field. Slices concatenate and maps overlay, both with the flag's
 // entries last; a scalar takes the flag's value outright.
 func mergeSet(base, typed any, hasBase bool) any {
 	if !hasBase {

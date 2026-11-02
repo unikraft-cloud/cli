@@ -35,8 +35,9 @@ type flagFixture struct {
 		Soft uint64 `field:",long" create:"set" edit:"set" flag:"soft-limit" help:"Soft limit."`
 	}
 
-	Tags  []string    `field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Tag."`
-	Ports []*flagPort `field:",embed" create:"set" flag:"port" sep:"none" help:"Port."`
+	Tags  []string          `field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Tag."`
+	Env   map[string]string `field:",long" create:"set" edit:"set,add,del=keys" flag:"env" flag-edit:"add" sep:"none" mapsep:"none" help:"Env."`
+	Ports []*flagPort       `field:",embed" create:"set" flag:"port" sep:"none" help:"Port."`
 
 	// Neither is exposed: Secret is settable but opts out by having no flag
 	// tag, Plain is not settable at all.
@@ -92,13 +93,13 @@ func TestGenerateFlags(t *testing.T) {
 	t.Run("flags are opt-in", func(t *testing.T) {
 		set, err := parseGenerated(t, true)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"metro", "name", "soft-limit", "tag", "port"}, flagNames(set))
+		assert.Equal(t, []string{"metro", "name", "soft-limit", "tag", "env", "port"}, flagNames(set))
 	})
 
 	t.Run("edit only exposes editable fields", func(t *testing.T) {
 		set, err := parseGenerated(t, false)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"name", "soft-limit", "tag"}, flagNames(set))
+		assert.Equal(t, []string{"name", "soft-limit", "tag", "env"}, flagNames(set))
 	})
 
 	t.Run("presentation comes from the field tag", func(t *testing.T) {
@@ -194,6 +195,136 @@ func TestGenerateFlags(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "fra", metro.Create.Set)
 	})
+}
+
+func TestEditFlagOp(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		args    []string
+		wantSet map[string]any
+		wantAdd map[string]any
+	}{
+		{
+			name:    "scalar flag sets",
+			args:    []string{"--name=x"},
+			wantSet: map[string]any{"name": "x"},
+		},
+		{
+			name:    "flag without flag-edit sets",
+			args:    []string{"--tag=a", "--tag=b"},
+			wantSet: map[string]any{"tags": []string{"a", "b"}},
+		},
+		{
+			name:    "flag with flag-edit add adds",
+			args:    []string{"--env=A=1", "--env=B=x,y"},
+			wantAdd: map[string]any{"env": map[string]string{"A": "1", "B": "x,y"}},
+		},
+		{
+			name:    "both ops in one call",
+			args:    []string{"--name=x", "--env=A=1"},
+			wantSet: map[string]any{"name": "x"},
+			wantAdd: map[string]any{"env": map[string]string{"A": "1"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			set, err := parseGenerated(t, false, tt.args...)
+			require.NoError(t, err)
+			var spec patch.PatchSpec
+			require.NoError(t, set.Apply(&spec))
+			assert.Equal(t, tt.wantSet, spec.SetTyped)
+			assert.Equal(t, tt.wantAdd, spec.AddTyped)
+		})
+	}
+}
+
+func TestEditFlagPatchesAdd(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+		add  map[string][]string
+		path string
+		want any
+	}{
+		{
+			name: "map flag",
+			args: []string{"--env=A=1"},
+			path: "env",
+			want: map[string]string{"A": "1"},
+		},
+		{
+			name: "map flag merges with --add",
+			args: []string{"--env=B=2"},
+			add:  map[string][]string{"env": {"A=1", "B=0"}},
+			path: "env",
+			want: map[string]string{"A": "1", "B": "2"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fields, err := resource.FieldsFromStruct(flagFixture{})
+			require.NoError(t, err)
+
+			set, err := parseGenerated(t, false, tt.args...)
+			require.NoError(t, err)
+			spec := patch.PatchSpec{Add: tt.add}
+			require.NoError(t, set.Apply(&spec))
+
+			patched, err := patch.PatchedFields(t.Context(), fields, spec)
+			require.NoError(t, err)
+			field, ok := resource.Field{Subfields: patched}.Get(tt.path)
+			require.True(t, ok)
+			require.NotNil(t, field.Edit)
+			assert.Nil(t, field.Edit.Set)
+			assert.Equal(t, tt.want, field.Edit.Add)
+		})
+	}
+}
+
+func TestFlagEditTagIsValidated(t *testing.T) {
+	t.Parallel()
+
+	type notAddable struct {
+		A string `field:"a" edit:"set" flag:"a" flag-edit:"add"`
+	}
+	type unknownOp struct {
+		A []string `field:"a" edit:"set,add" flag:"a" flag-edit:"merge"`
+	}
+	tests := []struct {
+		name string
+		in   any
+		want string
+	}{
+		{name: "field without add", in: notAddable{}, want: `has flag-edit:"add" but is not addable`},
+		{name: "unknown op", in: unknownOp{}, want: `has unknown flag-edit:"merge"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := resource.FieldsFromStruct(tt.in)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+func TestTypedAddFittingNoFieldIsRejected(t *testing.T) {
+	t.Parallel()
+	fields := []resource.Field{
+		{Name: "tags", Value: []string(nil), Edit: &resource.Patch{Add: []string(nil)}},
+	}
+
+	_, err := patch.PatchedFields(t.Context(), fields, patch.PatchSpec{
+		AddTyped: map[string]any{"tags": 1},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no field of a matching type for: [tags]")
 }
 
 // A path can cover several fields of different types, as when a resource and

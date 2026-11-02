@@ -696,6 +696,11 @@ func (cmd *ResourceEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, part
 	for k := range spec.Add {
 		allFields[k]++
 	}
+	for k := range spec.AddTyped {
+		if _, ok := spec.Add[k]; !ok {
+			allFields[k]++
+		}
+	}
 	for k := range spec.Del {
 		allFields[k]++
 	}

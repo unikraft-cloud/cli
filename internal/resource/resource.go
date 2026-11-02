@@ -120,7 +120,9 @@ type FlagSpec struct {
 	File bool
 	// Arg makes the field a positional argument rather than a flag.
 	Arg bool
-	Tag reflect.StructTag
+	// EditAdd makes the edit flag add to the field instead of replacing it.
+	EditAdd bool
+	Tag     reflect.StructTag
 }
 
 func (f Field) HasChildren() bool {
