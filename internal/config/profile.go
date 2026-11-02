@@ -7,6 +7,7 @@ package config
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -249,6 +250,16 @@ func (config *Config) CurrentProfile() (*Profile, error) {
 	}
 
 	return &profile, nil
+}
+
+// OptionalProfile is like CurrentProfile, but returns a nil profile instead of
+// ErrNotSetup when no profile has been set up.
+func (config *Config) OptionalProfile() (*Profile, error) {
+	profile, err := config.CurrentProfile()
+	if errors.Is(err, ErrNotSetup) {
+		return nil, nil
+	}
+	return profile, err
 }
 
 func (config *Config) CurrentProfileName() string {
