@@ -15,17 +15,17 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	jujuerrors "github.com/juju/errors"
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/tui/selector"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 )
 
 type ProfileCmd struct {
-	cmd.ResourceCmd[Profile]
-	cmd.GettableResourceCmd[Profile]
-	cmd.ListableResourceCmd[Profile]
+	cmd.ModelCmd[Profile]
+	cmd.GettableModelCmd[Profile]
+	cmd.ListableModelCmd[Profile]
 
 	Use UseCmd `cmd:"" help:"Switch between profiles."`
 }
@@ -37,14 +37,14 @@ type Profile struct {
 	Metros []string `field:",short" json:"metros" help:"Metros of the profile."`
 }
 
-func (Profile) Type() resource.Type {
-	return resource.Type{
+func (Profile) Type() model.Type {
+	return model.Type{
 		Name:  "profile",
 		Names: "profiles",
 	}
 }
 
-func (i Profile) Key() resource.Key {
+func (i Profile) Key() model.Key {
 	return staticKey(i.Name)
 }
 
@@ -52,15 +52,15 @@ func (i Profile) Raw() any {
 	return i
 }
 
-func (i Profile) Fields(ctx context.Context) ([]resource.Field, error) {
-	return resource.FieldsFromStruct(i)
+func (i Profile) Fields(ctx context.Context) ([]model.Field, error) {
+	return model.FieldsFromStruct(i)
 }
 
-func (Profile) List(ctx context.Context) ([]resource.Resource, error) {
+func (Profile) List(ctx context.Context) ([]model.Model, error) {
 	cfg := config.G(ctx)
 	profiles := cfg.Profiles
 
-	var results []resource.Resource
+	var results []model.Model
 	for _, profile := range profiles {
 		metroNames := make([]string, 0, len(profile.Metros))
 		for _, metro := range profile.Metros {
@@ -74,13 +74,13 @@ func (Profile) List(ctx context.Context) ([]resource.Resource, error) {
 		}
 		results = append(results, result)
 	}
-	slices.SortFunc(results, func(a, b resource.Resource) int {
+	slices.SortFunc(results, func(a, b model.Model) int {
 		return cmp.Compare(a.(Profile).Name, b.(Profile).Name)
 	})
 	return results, nil
 }
 
-func (Profile) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (Profile) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	return getFromListable(ctx, Profile{}, keys)
 }
 

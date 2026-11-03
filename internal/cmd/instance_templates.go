@@ -20,20 +20,20 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
 )
 
 type InstanceTemplatesCmd struct {
-	cmd.ResourceCmd[InstanceTemplate]
-	cmd.GettableResourceCmd[InstanceTemplate]
-	cmd.ListableResourceCmd[InstanceTemplate]
-	cmd.BulkDeletableResourceCmd[InstanceTemplate]
+	cmd.ModelCmd[InstanceTemplate]
+	cmd.GettableModelCmd[InstanceTemplate]
+	cmd.ListableModelCmd[InstanceTemplate]
+	cmd.BulkDeletableModelCmd[InstanceTemplate]
 
-	Create cmd.ResourceCreateCmd[InstanceTemplate] `cmd:"" help:"Create an instance template."`
-	Edit   cmd.ResourceEditCmd[InstanceTemplate]   `cmd:"" help:"Edit an instance template."`
+	Create cmd.ModelCreateCmd[InstanceTemplate] `cmd:"" help:"Create an instance template."`
+	Edit   cmd.ModelEditCmd[InstanceTemplate]   `cmd:"" help:"Edit an instance template."`
 }
 
 type InstanceTemplate struct {
@@ -91,14 +91,14 @@ type InstanceTemplate struct {
 	key multimetro.Key
 }
 
-func (InstanceTemplate) Type() resource.Type {
-	return resource.Type{
+func (InstanceTemplate) Type() model.Type {
+	return model.Type{
 		Name:  "instance-template",
 		Names: "instance-templates",
 	}
 }
 
-func (i InstanceTemplate) Key() resource.Key {
+func (i InstanceTemplate) Key() model.Key {
 	return i.key
 }
 
@@ -106,8 +106,8 @@ func (i InstanceTemplate) Raw() any {
 	return i.Instance
 }
 
-func (i InstanceTemplate) Fields(ctx context.Context) ([]resource.Field, error) {
-	result, err := resource.FieldsFromStruct(i)
+func (i InstanceTemplate) Fields(ctx context.Context) ([]model.Field, error) {
+	result, err := model.FieldsFromStruct(i)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (i InstanceTemplate) Fields(ctx context.Context) ([]resource.Field, error) 
 	return result, nil
 }
 
-func (InstanceTemplate) List(ctx context.Context) ([]resource.Resource, error) {
+func (InstanceTemplate) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -124,13 +124,13 @@ func (InstanceTemplate) List(ctx context.Context) ([]resource.Resource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing instance templates")
 		resp, err := c.GetTemplateInstances(ctx, nil, platform.GetTemplateInstancesOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -147,7 +147,7 @@ func (InstanceTemplate) List(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
-func (InstanceTemplate) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (InstanceTemplate) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -156,14 +156,14 @@ func (InstanceTemplate) Get(ctx context.Context, keys []string) ([]resource.Reso
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting instance templates")
 		resp, err := c.GetTemplateInstances(ctx, refs.NameOrUUIDs(), platform.GetTemplateInstancesOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -244,7 +244,7 @@ func (InstanceTemplate) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (InstanceTemplate) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (InstanceTemplate) Edit(ctx context.Context, key string, fields []model.Field) error {
 	parsedKeys := multimetro.ParseKeys([]string{key})
 	patches, err := patchRequests(fields, instanceTemplatePatchSpec)
 	if err != nil {
@@ -312,10 +312,10 @@ func instanceTemplatePatchSpec(path string, op patchOp, value any) (platform.Mut
 	}
 }
 
-func (InstanceTemplate) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (InstanceTemplate) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var instance string
 	var autokill Autokill
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create == nil || field.Create.Set == nil {
 			continue
 		}

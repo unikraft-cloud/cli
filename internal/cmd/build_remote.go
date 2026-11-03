@@ -34,14 +34,14 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/model"
 )
 
 // remoteContext is the name the session serves the build context under.
 const remoteContext = "context"
 
 // runRemote builds on the build service at c.Remote, which pushes the image.
-func (c *ImageBuildCmd) runRemote(ctx context.Context, cfg *config.Config, partition *resource.Partition) error {
+func (c *ImageBuildCmd) runRemote(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
 	secrets, err := buildflags.ParseSecretSpecs(c.Secret)
 	if err != nil {
 		return err

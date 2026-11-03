@@ -23,7 +23,7 @@ import (
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/config"
 	integ "unikraft.com/cli/internal/integration"
-	"unikraft.com/cli/internal/resource"
+	"unikraft.com/cli/internal/model"
 )
 
 func TestMain(m *testing.M) {
@@ -98,7 +98,7 @@ func runner(t *testing.T, online bool, servers []string) *integ.TestEnv {
 			return
 		}
 
-		partition, err := resource.LoadPartition(partitionPath, cmd.PartitionedResources...)
+		partition, err := model.LoadPartition(partitionPath, cmd.PartitionedResources...)
 		require.NoError(t, err)
 		require.NotNil(t, partition)
 

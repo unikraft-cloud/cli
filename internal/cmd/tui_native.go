@@ -14,15 +14,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/resource"
-	resourcetui "unikraft.com/cli/internal/resource/tui"
+	"unikraft.com/cli/internal/model"
+	modeltui "unikraft.com/cli/internal/model/tui"
 	"unikraft.com/cli/internal/tui/uitui"
 	xio "unikraft.com/x/io"
 )
 
 // NewTUIModel builds the same Bubble Tea model used by `unikraft tui`.
 func NewTUIModel(ctx context.Context, resourceArg, nameArg string) (tea.Model, error) {
-	registry := resource.NewRegistry()
+	registry := model.NewRegistry()
 	registry.Register(Instance{}, Instance{})
 	registry.Register(Volume{}, Volume{})
 	registry.Register(ServiceGroup{}, ServiceGroup{})
@@ -44,28 +44,28 @@ func NewTUIModel(ctx context.Context, resourceArg, nameArg string) (tea.Model, e
 		if selected.Get == nil {
 			return nil, fmt.Errorf("resource %s does not support get", selected.Name)
 		}
-		panel = resourcetui.NewDetailPanel(ctx, registry, selected, nameArg)
+		panel = modeltui.NewDetailPanel(ctx, registry, selected, nameArg)
 	case resourceArg != "":
 		selected, ok := registry.Resolve(resourceArg)
 		if !ok {
 			return nil, fmt.Errorf("unknown resource: %s", resourceArg)
 		}
-		panel = resourcetui.NewListPanel(ctx, registry, selected)
+		panel = modeltui.NewListPanel(ctx, registry, selected)
 	default:
-		panel = resourcetui.NewHomePanel(ctx, registry)
+		panel = modeltui.NewHomePanel(ctx, registry)
 	}
 
 	return uitui.NewModel(panel), nil
 }
 
 func (cmd *TUICmd) Run(ctx context.Context, stdio config.Stdio) error {
-	model, err := NewTUIModel(ctx, cmd.Resource, cmd.Name)
+	m, err := NewTUIModel(ctx, cmd.Resource, cmd.Name)
 	if err != nil {
 		return err
 	}
 
 	program := tea.NewProgram(
-		model,
+		m,
 		tea.WithInput(stdio.Stdin),
 		tea.WithOutput(xio.Unwrap(stdio.Stdout)),
 	)

@@ -11,12 +11,12 @@ import (
 
 	"unikraft.com/cloud/sdk/platform/group"
 
+	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
 )
 
 // Link models a resource reference using group.Ref-compatible fields.
-type Link[T resource.Resource] struct {
+type Link[T model.Model] struct {
 	Metro string `name:"metro" json:"metro,omitempty" mirror:"metro" field:"-"`
 	Name  string `name:"name" json:"name,omitempty" mirror:"name" field:",long" help:"Name of the linked resource."`
 	UUID  string `name:"uuid" json:"uuid,omitempty" mirror:"uuid" field:",long" help:"Unique identifier of the linked resource."`
@@ -30,7 +30,7 @@ func (l Link[T]) Ref() group.Ref {
 	}
 }
 
-func (l Link[T]) Link() (string, resource.Key, bool) {
+func (l Link[T]) Link() (string, model.Key, bool) {
 	if l.Name == "" && l.UUID == "" {
 		return "", nil, false
 	}
@@ -48,7 +48,7 @@ func (l Link[T]) Link() (string, resource.Key, bool) {
 // always embedded anonymously, so encoding.TextMarshaler would promote onto
 // every embedder - including through a `type X Y` alias, which strips
 // explicit methods but not promoted ones. Embed TextLink to opt in.
-func FormatLink[T resource.Resource](l Link[T]) ([]byte, error) {
+func FormatLink[T model.Model](l Link[T]) ([]byte, error) {
 	k := multimetro.Key{
 		Metro: l.Metro,
 		Name:  l.Name,
@@ -59,7 +59,7 @@ func FormatLink[T resource.Resource](l Link[T]) ([]byte, error) {
 
 // ParseLink parses text as a multimetro key. Not a (*Link).UnmarshalText
 // method, for the same reason as FormatLink.
-func ParseLink[T resource.Resource](text []byte) (Link[T], error) {
+func ParseLink[T model.Model](text []byte) (Link[T], error) {
 	// multimetro.ParseKey takes its input as-is, so surrounding whitespace
 	// would end up inside the name and fail every lookup.
 	key := multimetro.ParseKey(strings.TrimSpace(string(text)))
@@ -74,7 +74,7 @@ func ParseLink[T resource.Resource](text []byte) (Link[T], error) {
 // fields holding nothing but a reference (`certificate=my-cert`). Embedding
 // Link alone grants no marshaling, so a type needing its own can define it
 // without being silently overridden.
-type TextLink[T resource.Resource] struct {
+type TextLink[T model.Model] struct {
 	Link[T]
 }
 
@@ -111,9 +111,9 @@ func (l *TextLink[T]) UnmarshalJSON(data []byte) error {
 }
 
 // LinkName models a simple name-only link.
-type LinkName[T resource.Resource] string
+type LinkName[T model.Model] string
 
-func (l LinkName[T]) Link() (string, resource.Key, bool) {
+func (l LinkName[T]) Link() (string, model.Key, bool) {
 	if l == "" {
 		return "", nil, false
 	}
