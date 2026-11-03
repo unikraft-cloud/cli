@@ -84,6 +84,7 @@ type Profile struct {
 	Insecure bool `json:"controlplane_insecure,omitempty" field:",long" help:"Skip TLS verification when connecting to the control plane."`
 	// RegistryMirror is the endpoint that gets the requests for the Unikraft image registry.
 	RegistryMirror string `json:"registry_mirror,omitempty" field:",long" help:"Endpoint that serves requests for the Unikraft image registry."`
+	BuildURL       string `json:"build_url,omitempty" field:",long" help:"URL of the build service that the builder commands use."`
 	// Metros is a static list of metros.
 	Metros []Metro `json:"metros,omitempty" field:",long,embed" help:"Metros of the profile."`
 	// MetroDefault is the default metro to use when creating resources.

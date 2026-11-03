@@ -43,7 +43,7 @@ type UnikraftCLI struct {
 
 	Run     RunCmd     `cmd:"" group:"cmd-commands" help:"Run an image as an instance." set:"name=instance" set:"names=instances"`
 	Build   BuildCmd   `cmd:"" group:"cmd-commands" help:"Build a Unikraft project into a container image."`
-	Builder BuilderCmd `cmd:"" group:"cmd-commands" help:"Manage the builders that remote builds run on."`
+	Builder BuilderCmd `cmd:"" group:"cmd-commands" help:"Manage the builders that remote builds run on." set:"name=builder" set:"names=builders"`
 	TUI     TUICmd     `cmd:"" group:"cmd-commands" help:"Browse resources in a TUI."`
 
 	Metros       MetrosCmd       `cmd:"" group:"cmd-resources" help:"Manage Unikraft Cloud metros." aliases:"metro,metros" set:"name=metro" set:"names=metros"`
@@ -144,6 +144,7 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictModelKey[Certificate](ctx)),
 		kongcompletion.WithPredictor("resource-key-image", cmd.PredictModelKey[ImageEntry](ctx)),
 		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictModelKey[AnyResource](ctx)),
+		kongcompletion.WithPredictor("resource-key-builder", complete.PredictNothing),
 	)
 
 	kctx, err := parser.Parse(args)

@@ -34,9 +34,28 @@ func TestBuilder(t *testing.T) {
 	out := r.Run(t, []string{"unikraft", "builder", "create"}, env)
 	assert.Regexp(t, `builder ready`, out)
 
+	out = r.Run(t, []string{"unikraft", "builder", "get"}, env)
+	assert.Regexp(t, `(?m)^instance: +.*name=remote-builder-default\b`, out)
+
+	out = r.Run(t, []string{"unikraft", "builder", "list"}, env)
+	assert.Regexp(t, `(?m)^default +true +`, out)
+
 	out = r.Run(t, []string{"unikraft", "builder", "du"}, env)
 	assert.Regexp(t, `(?m)^Reclaimable: +\S+\nTotal: +\S+$`, out)
 
 	out = r.Run(t, []string{"unikraft", "builder", "prune"}, env)
 	assert.Regexp(t, `pruned the builder's cache freed=\S+`, out)
+
+	// A builder of its own, so that deleting it leaves the shared one.
+	name := "cli-test-" + uniq()
+	r.Run(t, []string{"unikraft", "builder", "create", name}, env)
+	t.Cleanup(func() {
+		r.Run(t, []string{"unikraft", "builder", "delete", name}, env, integ.WithoutCancel(), integ.AllowFail())
+	})
+
+	out = r.Run(t, []string{"unikraft", "builder", "delete", name}, env)
+	assert.Regexp(t, `(?m)^`+name+`$`, out)
+
+	out = r.Run(t, []string{"unikraft", "builder", "get", name}, env, integ.ExpectFail())
+	assert.Regexp(t, `there is no builder `+name, out)
 }
