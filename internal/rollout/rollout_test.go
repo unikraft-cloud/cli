@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -90,9 +91,9 @@ func TestApply(t *testing.T) {
 			done: true,
 		},
 		{
-			name:     "rolling in one batch",
-			strategy: rollout.Rolling{Batch: 5},
-			calls:    []string{"new[0:2].create", "new[0:2].start", "new[0:2].up", "old[0:2].stop", "old[0:2].delete"},
+			name:     "rolling in one batch holds the new set up",
+			strategy: rollout.Rolling{Batch: 5, HealthyAfter: time.Millisecond},
+			calls:    []string{"new[0:2].create", "new[0:2].start", "new[0:2].up", "new[0:2].up", "old[0:2].stop", "old[0:2].delete"},
 			done:     true,
 		},
 		{
@@ -125,6 +126,17 @@ func TestApply(t *testing.T) {
 			err: "the new instances did not stay up: new[0:1].up failed",
 		},
 		{
+			name:     "rolling starts the kept batch that did not run when the restore fails",
+			strategy: rollout.Rolling{},
+			fail:     []string{"old[0:1].start"},
+			cancelAt: "new[1:2].create",
+			calls: []string{
+				"new[0:1].create", "new[0:1].start", "new[0:1].up", "old[0:1].stop",
+				"new[1:2].create", "old[0:1].start", "new[1:2].start",
+			},
+			err: "the new instances new-0 new-1 are kept",
+		},
+		{
 			name:     "rolling is done when the old set stays",
 			strategy: rollout.Rolling{Batch: 2},
 			fail:     []string{"old[0:2].delete"},
@@ -138,6 +150,46 @@ func TestApply(t *testing.T) {
 			cancelAt: "new[0:1].create",
 			calls:    []string{"new[0:1].create", "new[0:1].delete"},
 			err:      "rollout interrupted while the new instances were created",
+		},
+		{
+			name:     "rolling undoes an interrupt",
+			strategy: rollout.Rolling{HealthyAfter: time.Hour},
+			cancelAt: "new[0:1].up",
+			calls:    []string{"new[0:1].create", "new[0:1].start", "new[0:1].up cancelled", "new[0:1].delete"},
+			err:      "rollout interrupted while the new instances were up",
+		},
+		{
+			name:     "recreate",
+			strategy: rollout.Recreate{},
+			calls:    []string{"new[0:2].create", "old[0:2].stop", "new[0:2].start", "new[0:2].up", "old[0:2].delete"},
+			done:     true,
+		},
+		{
+			name:     "recreate restores an old set that does not stop",
+			strategy: rollout.Recreate{},
+			fail:     []string{"old[0:2].stop"},
+			calls:    []string{"new[0:2].create", "old[0:2].stop", "old[0:2].start", "old[0:2].up", "new[0:2].delete"},
+			err:      "stopping the replaced instances: old[0:2].stop failed",
+		},
+		{
+			name:     "recreate restores the old set when the new set is not up",
+			strategy: rollout.Recreate{},
+			fail:     []string{"new[0:2].up"},
+			calls: []string{
+				"new[0:2].create", "old[0:2].stop", "new[0:2].start", "new[0:2].up",
+				"new[0:2].stop", "old[0:2].start", "old[0:2].up", "new[0:2].delete",
+			},
+			err: "the new instances did not come up",
+		},
+		{
+			name:     "recreate keeps the new set running when the restore fails",
+			strategy: rollout.Recreate{},
+			fail:     []string{"new[0:2].up", "old[0:2].start"},
+			calls: []string{
+				"new[0:2].create", "old[0:2].stop", "new[0:2].start", "new[0:2].up",
+				"new[0:2].stop", "old[0:2].start", "new[0:2].start",
+			},
+			err: "the new instances new-0 new-1 are kept",
 		},
 	}
 	for _, tt := range tests {

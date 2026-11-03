@@ -26,12 +26,14 @@ import (
 	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/rollout"
+	"unikraft.com/cli/internal/types"
 )
 
 // InstanceRollout holds the options of a rollout.
 type InstanceRollout struct {
-	Type  InstanceRolloutMode `name:"type" json:"type,omitempty"`
-	Batch int                 `name:"batch" json:"batch,omitempty"`
+	Type         InstanceRolloutMode `name:"type" json:"type,omitempty"`
+	Batch        int                 `name:"batch" json:"batch,omitempty"`
+	HealthyAfter types.DurationS     `name:"healthy-after" json:"healthy-after,omitempty"`
 }
 
 // UnmarshalText reads the rollout options as <key>=<value> pairs or as JSON.
@@ -41,8 +43,14 @@ func (r *InstanceRollout) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+	if parsed.HealthyAfter < 0 {
+		return fmt.Errorf("rollout healthy-after cannot be negative")
+	}
 	if parsed.Batch < 0 {
 		return fmt.Errorf("rollout batch cannot be negative")
+	}
+	if parsed.Batch != 0 && parsed.Type == RolloutRecreate {
+		return fmt.Errorf("rollout batch cannot be used with %q", RolloutRecreate)
 	}
 	*r = InstanceRollout(parsed)
 	return nil
@@ -54,15 +62,18 @@ type InstanceRolloutMode string
 const (
 	// RolloutRolling means the new instances replace the old ones a batch at a time.
 	RolloutRolling InstanceRolloutMode = "rolling"
+	// RolloutRecreate means the old instances stop before the new ones start.
+	RolloutRecreate InstanceRolloutMode = "recreate"
 )
 
 // UnmarshalText reads a rollout type and refuses an unknown one.
 func (m *InstanceRolloutMode) UnmarshalText(data []byte) error {
-	if mode := InstanceRolloutMode(data); mode == RolloutRolling {
+	switch mode := InstanceRolloutMode(data); mode {
+	case RolloutRolling, RolloutRecreate:
 		*m = mode
 		return nil
 	}
-	return fmt.Errorf("unknown rollout type %q, want %q", data, RolloutRolling)
+	return fmt.Errorf("unknown rollout type %q, want %q or %q", data, RolloutRolling, RolloutRecreate)
 }
 
 // rolloutPollInterval is how long a rollout leaves between two reads.
@@ -141,8 +152,13 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 		}
 	}
 
-	var strategy rollout.Strategy = rollout.Rolling{Batch: opts.Batch}
+	healthyAfter := time.Duration(opts.HealthyAfter) * time.Second
+	var strategy rollout.Strategy = rollout.Rolling{Batch: opts.Batch, HealthyAfter: healthyAfter}
 	first := min(opts.Batch, len(oldKeys))
+	if opts.Type == RolloutRecreate {
+		strategy = rollout.Recreate{HealthyAfter: healthyAfter}
+		first = len(oldKeys)
+	}
 	fieldsFor := func(n int) []model.Field {
 		batch := slices.Clone(fields)
 		for i, field := range batch {

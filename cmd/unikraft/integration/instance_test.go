@@ -1542,13 +1542,13 @@ cmd: ["cat", "/marker.txt"]
 			"--output", "template={{ .image }}", controlName,
 		}))
 
-		// A dry run shows the patches of the first batch and the old set, and changes nothing.
+		// A dry run shows the recreate patches and the old set, and changes nothing.
 		out := r.Run(t, append([]string{
 			"unikraft", "--log-level=error", "instance", "create",
 			"--image", "nginx:1.25",
 			"--service", svcName,
 			"--autostart",
-			"--rollout=batch=2",
+			"--rollout=type=recreate",
 			"--dry-run",
 		}, common...))
 		assert.Regexp(t, `replicas\s+:= 1`, out)
@@ -1572,7 +1572,7 @@ cmd: ["cat", "/marker.txt"]
 		}, common...), integ.ExpectFail())
 		assert.Contains(t, out, "--name cannot be used with --rollout")
 
-		// A rolling rollout replaces one instance at a time.
+		// A rolling rollout replaces one instance at a time and keeps each new one up for healthy-after first.
 		// A stopped old instance gets a stopped new one.
 		r.Run(t, []string{"unikraft", "instance", "stop", before[0]})
 		rolled := strings.Fields(r.Run(t, append([]string{
@@ -1580,7 +1580,7 @@ cmd: ["cat", "/marker.txt"]
 			"--output", "template={{ .name }}",
 			"--image", "nginx:1.25",
 			"--service", svcName,
-			"--rollout",
+			"--rollout=type=rolling,healthy-after=2s",
 		}, common...)))
 		require.Len(t, rolled, 2)
 		list = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
@@ -1597,7 +1597,74 @@ cmd: ["cat", "/marker.txt"]
 		}, rolled...))
 		assert.ElementsMatch(t, []string{"running", "stopped"}, strings.Fields(states))
 
-		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName}, rolled...))
+		// Recreate stops the old set before the new set starts.
+		recreated := strings.Fields(r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+			"--rollout=type=recreate",
+		}, common...)))
+		require.Len(t, recreated, 2)
+		list = r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
+		for _, name := range rolled {
+			assert.NotContains(t, list, name)
+		}
+		states = r.Run(t, append([]string{
+			"unikraft", "--log-level=error", "instance", "inspect", "--output", "template={{ .state }}",
+		}, recreated...))
+		assert.ElementsMatch(t, []string{"running", "stopped"}, strings.Fields(states))
+
+		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName}, recreated...))
+		r.Run(t, []string{"unikraft", "service", "delete", svcName})
+	})
+
+	t.Run("rollout-rollback", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+		common := []string{
+			"--metro", r.MetroName,
+			"--memory", "128",
+			"--vcpus", "1",
+		}
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.MetroName,
+			"--service", "443:8080/http+tls",
+		})
+		before := strings.TrimSpace(r.Run(t, append([]string{
+			"unikraft", "instance", "create",
+			"--output", "template={{ .name }}",
+			"--name", "test-" + uniq(),
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+		}, common...)))
+
+		// The timeout cancels the rollout while it holds the new set up, and the
+		// unwind starts the stopped old set again.
+		out := r.Run(t, append([]string{
+			"unikraft", "--timeout=90s", "instance", "create",
+			"--output", "quiet",
+			"--image", "nginx:1.25",
+			"--service", svcName,
+			"--autostart",
+			"--rollout=type=recreate,healthy-after=300s",
+		}, common...), integ.ExpectFail())
+		assert.Contains(t, out, "rollout interrupted")
+
+		members := r.Run(t, []string{
+			"unikraft", "--log-level=error", "service", "get",
+			"--output", "template={{ range .instances }}{{ .name }} {{ end }}", svcName,
+		})
+		assert.Equal(t, []string{before}, strings.Fields(members))
+		assert.Regexp(t, `state:\s+running`, r.Run(t, []string{"unikraft", "instance", "inspect", before}))
+
+		r.Run(t, []string{"unikraft", "instance", "delete", before})
 		r.Run(t, []string{"unikraft", "service", "delete", svcName})
 	})
 

@@ -7,6 +7,7 @@ package rollout
 
 import (
 	"context"
+	"time"
 )
 
 // Rolling replaces the old set one batch at a time, and starts each new batch
@@ -14,10 +15,12 @@ import (
 type Rolling struct {
 	// Batch is how many instances each step replaces. It is at least 1.
 	Batch int
+	// HealthyAfter is how long each new batch must run before its old batch stops.
+	HealthyAfter time.Duration
 }
 
 // Apply stops each old batch when its new batch runs, and deletes the old set
 // at the end.
 func (r Rolling) Apply(ctx context.Context, old Set, create CreateFunc) (bool, error) {
-	return apply(ctx, old, create, max(r.Batch, 1))
+	return apply(ctx, old, create, max(r.Batch, 1), false, r.HealthyAfter)
 }
