@@ -4,13 +4,7 @@
 
 - [Go](https://golang.org/dl/) 1.25+
 - Git
-- [Task](https://taskfile.dev/) (or GNU Make, which wraps Task transparently)
-
-Enable Remote Taskfiles:
-
-```sh
-export TASK_X_REMOTE_TASKFILES=1
-```
+- [Task](https://taskfile.dev/) v3.53.1+ (or GNU Make, which wraps Task transparently)
 
 ## Building
 

@@ -23,8 +23,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    env:
-      TASK_X_REMOTE_TASKFILES: 1
     defaults:
       run:
         shell: bash
@@ -86,7 +84,6 @@ jobs:
       matrix:
         target: [STAGING, STABLE]
     env:
-      TASK_X_REMOTE_TASKFILES: 1
       UNIKRAFT_SERVER_STAGING: staging
       UNIKRAFT_SERVER_STABLE: stable
       UNIKRAFT_SERVER_PROD: prod
@@ -176,7 +173,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs: integration
     env:
-      TASK_X_REMOTE_TASKFILES: 1
       UNIKRAFT_SERVER_PROD: prod
     defaults:
       run:
