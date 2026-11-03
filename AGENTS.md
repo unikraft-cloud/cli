@@ -6,7 +6,7 @@ This repo contains the Go-based Unikraft CLI. Use this file for contributor-faci
 
 ## Development practices
 
-- Use `task` for builds and workflows; enable Remote Taskfiles with `TASK_X_REMOTE_TASKFILES=1`.
+- Use `task` for builds and workflows.
 - Build the CLI with `task cli`; the binary is placed in `dist/`, and called `unikraft`.
 - Build documentation with `task docs`; outputs include Markdown docs in `dist/docs/` and man pages in `dist/man/`.
 - Quality gates: `task lint`, `task test`. Run these after making changes to ensure code quality.

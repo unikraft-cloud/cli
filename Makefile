@@ -12,15 +12,13 @@ Q             ?= @
 GO            ?= go
 
 ifeq ($(shell command -v task >/dev/null 2>&1 && echo yes),)
-TASK          ?= $(GO) run -v github.com/go-task/task/v3/cmd/task@v3.48.0 --yes
+TASK          ?= $(GO) run -v github.com/go-task/task/v3/cmd/task@v3.54.0 --yes
 else
 TASK          ?= task --yes
 endif
 ifeq ($(Q),)
 TASK          := $(TASK) --verbose
 endif
-
-export TASK_X_REMOTE_TASKFILES=1
 
 .DEFAULT_GOAL := help
 .PHONY: help
