@@ -267,7 +267,7 @@ func (Metro) Examples() map[cmd.CmdType][]kingkong.Example {
 
 type metroQuotas struct {
 	Instances struct {
-		Active types.Usage[int64] `field:",long,embed" help:"Instances not in the stopped state. The platform reports the vCPU limit as its limit."`
+		Active types.Usage[int64] `field:",long,embed" help:"Instances not in the stopped state."`
 		Total  types.Usage[int64] `field:",long,embed" help:"All instances."`
 	} `field:",long" help:"Instance counts."`
 	Vcpus struct {
