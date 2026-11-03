@@ -411,7 +411,7 @@ func TestLinkCollection(t *testing.T) {
 	}{Name: "attached-inst"})
 	vol.MountedBy = append(vol.MountedBy, struct {
 		cmd.Link[cmd.Instance]
-		ReadOnly bool `mirror:"readonly" field:",long"`
+		ReadOnly bool `mirror:"readonly" field:",long" help:"Whether the instance mounts the volume read-only."`
 	}{Name: "mounted-inst"})
 
 	sg := cmd.ServiceGroup{}

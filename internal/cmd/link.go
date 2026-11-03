@@ -18,8 +18,8 @@ import (
 // Link models a resource reference using group.Ref-compatible fields.
 type Link[T resource.Resource] struct {
 	Metro string `name:"metro" json:"metro,omitempty" mirror:"metro" field:"-"`
-	Name  string `name:"name" json:"name,omitempty" mirror:"name" field:",long"`
-	UUID  string `name:"uuid" json:"uuid,omitempty" mirror:"uuid" field:",long"`
+	Name  string `name:"name" json:"name,omitempty" mirror:"name" field:",long" help:"Name of the linked resource."`
+	UUID  string `name:"uuid" json:"uuid,omitempty" mirror:"uuid" field:",long" help:"Unique identifier of the linked resource."`
 }
 
 func (l Link[T]) Ref() group.Ref {

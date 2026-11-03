@@ -31,10 +31,10 @@ type ProfileCmd struct {
 }
 
 type Profile struct {
-	Name   string `field:",short" json:"name"`
-	Active bool   `field:",short" json:"active"`
+	Name   string `field:",short" json:"name" help:"Profile name."`
+	Active bool   `field:",short" json:"active" help:"Whether this is the default profile, which --profile overrides."`
 
-	Metros []string `field:",short" json:"metros"`
+	Metros []string `field:",short" json:"metros" help:"Metros of the profile."`
 }
 
 func (Profile) Type() resource.Type {

@@ -137,6 +137,8 @@ func fieldFromValue(pf *ParsedField, v reflect.Value) (*Field, error) {
 	result := Field{
 		Name:      pf.Name,
 		Verbosity: pf.Verbosity,
+		Help:      pf.Help,
+		Example:   pf.Example,
 		Value:     v.Interface(),
 		KeepZero:  pf.KeepZero,
 		Create:    createPatch,
@@ -292,6 +294,8 @@ type ParsedField struct {
 	Name      string
 	Type      reflect.Type
 	Verbosity FieldVerbosity
+	Help      string
+	Example   string
 
 	Embed     bool
 	Valueless bool
@@ -352,6 +356,8 @@ func ParseField(field reflect.StructField, value reflect.Value) (*ParsedField, e
 	return &ParsedField{
 		Name:      name,
 		Verbosity: verbosity,
+		Help:      field.Tag.Get("help"),
+		Example:   field.Tag.Get("example"),
 		Type:      field.Type,
 		Embed:     embed,
 		Valueless: valueless,

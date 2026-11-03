@@ -46,39 +46,39 @@ type ImagesCmd struct {
 }
 
 type Image struct {
-	Ref    types.ImageRef `field:",short"`
-	Digest digest.Digest  `field:",long"`
+	Ref    types.ImageRef `field:",short" help:"Image reference, such as user/app:tag."`
+	Digest digest.Digest  `field:",long" help:"Content digest of the image."`
 
-	Config   ImageConfig   `field:",embed"`
-	Metadata ImageMetadata `field:",long,embed"`
+	Config   ImageConfig   `field:",embed" help:"Runtime configuration of the image."`
+	Metadata ImageMetadata `field:",long,embed" help:"Image metadata."`
 
-	Kernel      *ImageFile  `field:",long,embed"`
-	KernelDebug *ImageFile  `field:"kernel-dbg,long,embed"`
-	Initrd      *ImageFile  `field:",long,embed"`
-	Roms        []ImageFile `field:",long,embed"`
+	Kernel      *ImageFile  `field:",long,embed" help:"Kernel of the image."`
+	KernelDebug *ImageFile  `field:"kernel-dbg,long,embed" help:"Kernel of the image with debug symbols."`
+	Initrd      *ImageFile  `field:",long,embed" help:"Initial ramdisk of the image."`
+	Roms        []ImageFile `field:",long,embed" help:"ROMs packaged with the image."`
 
 	Image imagespec.Image `field:"-" json:"image"`
 }
 
 type ImageConfig struct {
-	Platform types.Platform `field:",short"`
+	Platform types.Platform `field:",short" help:"Platform the image is built for."`
 
-	Cmd []string          `field:",long"`
-	Env map[string]string `field:",long"`
+	Cmd []string          `field:",long" help:"Default command-line arguments of the image."`
+	Env map[string]string `field:",long" help:"Environment variables set by the image."`
 }
 
 type imageNamespacesKey struct{}
 
 type ImageMetadata struct {
-	Author  string     `field:",long"`
-	Created *time.Time `field:",long"`
+	Author  string     `field:",long" help:"Author of the image."`
+	Created *time.Time `field:",long" help:"Creation time."`
 }
 
 type ImageFile struct {
-	Digest      digest.Digest     `field:",long"`
-	MediaType   string            `field:",long"`
-	Annotations map[string]string `field:",long"`
-	Size        types.SizeBytes   `field:",long"`
+	Digest      digest.Digest     `field:",long" help:"Digest of the image layer holding the file."`
+	MediaType   string            `field:",long" help:"Media type of the image layer holding the file."`
+	Annotations map[string]string `field:",long" help:"Annotations of the image layer holding the file."`
+	Size        types.SizeBytes   `field:",long" help:"Size of the image layer holding the file."`
 }
 
 func (Image) Type() resource.Type {
@@ -253,10 +253,10 @@ func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
 }
 
 type ImageEntry struct {
-	Ref    types.ImageRef `field:",short"`
-	Digest digest.Digest  `field:",short"`
+	Ref    types.ImageRef `field:",short" help:"Image reference, such as user/app:tag."`
+	Digest digest.Digest  `field:",short" help:"Content digest of the image."`
 
-	Namespace string
+	Namespace string `help:"First path segment of the reference, usually the organization."`
 
 	Canonical reference.Reference `field:"-"`
 
