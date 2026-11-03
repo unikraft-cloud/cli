@@ -828,14 +828,15 @@ func (cmd *ModelCreateCmd[R]) Run(ctx context.Context, stdio config.Stdio, parti
 	return err
 }
 
-func (cmd *ModelCreateCmd[R]) RunModels(ctx context.Context, stdio config.Stdio, partition *model.Partition) ([]model.Model, error) {
+// resolve reads the flags and the edit mode into the resource fields and
+// their patches.
+func (cmd *ModelCreateCmd[R]) resolve(ctx context.Context) (fields, patched []model.Field, err error) {
 	spec, err := cmd.toPatchSpec()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var empty R
-	r := partition.WrapCreatable(empty)
 	fieldsResource := model.Model(empty)
 	if typed, ok := any(empty).(interface {
 		WithType(string) model.Model
@@ -846,18 +847,13 @@ func (cmd *ModelCreateCmd[R]) RunModels(ctx context.Context, stdio config.Stdio,
 			fieldsResource = typed.WithType(values[0])
 		}
 	}
-	fields, err := fieldsResource.Fields(ctx)
+	fields, err = fieldsResource.Fields(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get fields: %w", err)
+		return nil, nil, fmt.Errorf("failed to get fields: %w", err)
 	}
-	patched, err := patch.PatchedFields(ctx, fields, spec)
+	patched, err = patch.PatchedFields(ctx, fields, spec)
 	if err != nil {
-		return nil, err
-	}
-
-	// Handle --save: write YAML to file and exit
-	if cmd.Save != "" {
-		return nil, saveYAML(cmd.Save, stdio, empty, fields, patched, true)
+		return nil, nil, err
 	}
 
 	// Handle different editing modes (mutually exclusive via xor:"edit-mode" tag)
@@ -866,7 +862,7 @@ func (cmd *ModelCreateCmd[R]) RunModels(ctx context.Context, stdio config.Stdio,
 	case cmd.Visual:
 		editor, err = patch.VisualCommandEditorFunc()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	case cmd.Cmd != "":
 		editor = patch.CommandEditorFunc(cmd.Cmd)
@@ -876,22 +872,36 @@ func (cmd *ModelCreateCmd[R]) RunModels(ctx context.Context, stdio config.Stdio,
 	if editor != nil {
 		patched, err = patch.Create(ctx, empty, fields, patched, editor)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
+	return fields, patched, nil
+}
 
-	patchedFields := patch.FilterCreateFields(patched)
+// CreateFields returns the create patches of the flags and the edit mode. Each
+// call runs the edit mode again.
+func (cmd *ModelCreateCmd[R]) CreateFields(ctx context.Context) ([]model.Field, error) {
+	fields, patched, err := cmd.resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Validate required fields before printing/applying
 	if err := patch.ValidateRequired(fields, patched, true); err != nil {
 		return nil, err
 	}
+	return patch.FilterCreateFields(patched), nil
+}
 
+// Create prints the create patches on a dry run, and else creates the
+// resources from them.
+func (cmd *ModelCreateCmd[R]) Create(ctx context.Context, stdio config.Stdio, partition *model.Partition, fields []model.Field) ([]model.Model, error) {
 	if cmd.DryRun {
-		return nil, PrintPatches(stdio.Stdout, patchedFields, true)
+		return nil, PrintPatches(stdio.Stdout, fields, true)
 	}
 
-	resources, opErr := r.Create(ctx, patchedFields)
+	var empty R
+	resources, opErr := partition.WrapCreatable(empty).Create(ctx, fields)
 	if opErr != nil && len(resources) == 0 {
 		return nil, opErr
 	}
@@ -902,6 +912,24 @@ func (cmd *ModelCreateCmd[R]) RunModels(ctx context.Context, stdio config.Stdio,
 		return resources, errors.Join(opErr, printErr)
 	}
 	return resources, opErr
+}
+
+func (cmd *ModelCreateCmd[R]) RunModels(ctx context.Context, stdio config.Stdio, partition *model.Partition) ([]model.Model, error) {
+	// Handle --save: write YAML to file and exit
+	if cmd.Save != "" {
+		fields, patched, err := cmd.resolve(ctx)
+		if err != nil {
+			return nil, err
+		}
+		var empty R
+		return nil, saveYAML(cmd.Save, stdio, empty, fields, patched, true)
+	}
+
+	fields, err := cmd.CreateFields(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return cmd.Create(ctx, stdio, partition, fields)
 }
 
 // saveYAML writes YAML to a file or stdout (if filename is "-").
