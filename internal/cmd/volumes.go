@@ -249,7 +249,7 @@ func (i Volume) Fields(ctx context.Context) ([]resource.Field, error) {
 		return nil, err
 	}
 	profile, _ := config.G(ctx).CurrentProfile()
-	linkToConsole(ctx, result, profile, "volumes", i.Metro, i.Name)
+	linkToConsole(ctx, result, profile, "volumes", string(i.Metro), i.Name)
 	return result, nil
 }
 

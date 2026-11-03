@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
+	"strings"
 
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/log"
@@ -31,31 +33,23 @@ func defaultMetro(ctx context.Context, metro string) string {
 	return profile.GetDefaultMetro()
 }
 
-// linkToConsole links the name field to the console page of the resource.
+// linkToConsole links the name field to the console page at path.
 // It does nothing when profile is not an organization on Unikraft Cloud.
-func linkToConsole(ctx context.Context, fields []resource.Field, profile *config.Profile, section string, metro LinkName[Metro], name string) {
+func linkToConsole(ctx context.Context, fields []resource.Field, profile *config.Profile, path ...string) {
 	if profile == nil || profile.ControlPlane == "" {
 		log.G(ctx).Trace().
-			Str("section", section).
-			Str("name", name).
+			Strs("path", path).
 			Msg("skipping console link: profile is not on Unikraft Cloud")
 		return
 	}
-	if name == "" || profile.Organization == "" {
+	if slices.Contains(path, "") || profile.Organization == "" {
 		log.G(ctx).Trace().
-			Str("section", section).
-			Str("name", name).
+			Strs("path", path).
 			Str("organization", profile.Organization).
-			Msg("skipping console link: name or organization is missing")
+			Msg("skipping console link: path or organization is missing")
 		return
 	}
-	link := fmt.Sprintf(
-		"https://console.unikraft.cloud/org/%s/%s/%s/%s",
-		profile.Organization,
-		section,
-		metro,
-		name,
-	)
+	link := "https://console.unikraft.cloud/org/" + profile.Organization + "/" + strings.Join(path, "/")
 	for _, field := range resource.GetFieldRefByPathString(fields, "name") {
 		field.Hyperlink = link
 	}
