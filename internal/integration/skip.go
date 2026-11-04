@@ -5,24 +5,13 @@
 
 package integration
 
-import (
-	"runtime"
-	"testing"
-)
+import "testing"
 
 // SkipUnlessIntegration skips the test when the integration tag is not set.
 func SkipUnlessIntegration(t testing.TB) {
 	t.Helper()
 	if !integrationEnabled {
 		t.Skip("skipping integration test (missing integration build tag)")
-	}
-}
-
-// RequireBuildkit skips the test on Windows, which has no BuildKit for Linux images yet.
-func RequireBuildkit(t testing.TB) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("skipping test (no BuildKit on Windows)")
 	}
 }
 
