@@ -93,3 +93,52 @@ func TestFormat(t *testing.T) {
 		})
 	}
 }
+
+// TestFormatNestedPaths checks that nested struct fields render as dotted keys.
+func TestFormatNestedPaths(t *testing.T) {
+	t.Run("nested struct flattens to dotted keys", func(t *testing.T) {
+		v := testStructNested{Name: "outer"}
+		v.Inner.Label = "x"
+		v.Ptr = &testStructInner{Flag: new(true), Label: "y"}
+
+		got, err := Render(&v, RenderOpts{})
+		require.NoError(t, err)
+		assert.Equal(t, "name=outer, inner.label=x, ptr.flag=true, ptr.label=y", got)
+	})
+
+	t.Run("round-trips through Parse", func(t *testing.T) {
+		want := testStructNested{Name: "outer"}
+		want.Ptr = &testStructInner{Flag: new(false), Label: "y"}
+		want.Text.Raw = "whole value"
+
+		rendered, err := Render(&want, RenderOpts{})
+		require.NoError(t, err)
+
+		got, err := Parse[testStructNested]([]string{rendered})
+		require.NoError(t, err, "rendered as %q", rendered)
+		assert.Equal(t, want, got, "rendered as %q", rendered)
+	})
+
+	t.Run("opacity follows MarshalText alone", func(t *testing.T) {
+		v := testStructNested{}
+		v.WriteTo.Raw = "opaque"
+		v.ReadTo.Raw = "flattened"
+
+		got, err := Render(&v, RenderOpts{})
+		require.NoError(t, err)
+		assert.Equal(t, "read-to.raw=flattened, write-to=opaque", got)
+	})
+
+	t.Run("embedded fields render whole, under their type name", func(t *testing.T) {
+		var v testStructNested
+		v.Label = "x"
+
+		got, err := Render(&v, RenderOpts{})
+		require.NoError(t, err)
+		assert.Equal(t, "test-struct-embedded=label=x", got)
+
+		back, err := Parse[testStructNested]([]string{got})
+		require.NoError(t, err)
+		assert.Equal(t, v, back)
+	})
+}
