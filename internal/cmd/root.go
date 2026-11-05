@@ -28,6 +28,7 @@ import (
 	xsignal "unikraft.com/x/signal"
 	"unikraft.com/x/version"
 
+	"unikraft.com/cli/internal/branding"
 	"unikraft.com/cli/internal/cmd/login"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/logfmt"
@@ -55,6 +56,7 @@ type UnikraftCLI struct {
 	Resources    AnyResourceCmd  `cmd:"" group:"cmd-resources" hidden:"" help:"Manage any Unikraft Cloud resource." aliases:"resource,resources" set:"name=resource" set:"names=resources"`
 
 	API APICmd `cmd:"" group:"cmd-utilities" help:"Make an authenticated HTTP request to the Unikraft Cloud API."`
+	MCP MCPCmd `cmd:"" group:"cmd-utilities" help:"Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP."`
 
 	Login   login.LoginCmd  `cmd:"" group:"cmd-config" help:"Login to Unikraft Cloud."`
 	Logout  login.LogoutCmd `cmd:"" group:"cmd-config" help:"Logout from Unikraft Cloud."`
@@ -195,22 +197,9 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 			return ctx, nil, nil, nil, jujuerrors.Annotate(err, "getting config file path")
 		}
 	}
-	cfg, err := config.Load(configPath)
+	cfg, err := loadConfig(configPath, cli.globalFlags.Profile)
 	if err != nil {
-		return ctx, nil, nil, nil, jujuerrors.Annotate(err, "loading config")
-	}
-	if cfg == nil {
-		// This is the first time the configuration is being loaded (potentially a
-		// fresh install), so we should set the path to the default location.  This
-		// ensures that when the user eventually saves the configuration, it will be
-		// saved to the expected location, even if they didn't explicitly specify
-		// it.
-		cfg = &config.Config{
-			Path: configPath,
-		}
-	}
-	if cli.globalFlags.Profile != "" {
-		cfg.OverrideCurrentProfile(cli.globalFlags.Profile)
+		return ctx, nil, nil, nil, err
 	}
 	ctx = config.WithConfig(ctx, cfg)
 	kctx.Bind(cfg)
@@ -259,6 +248,27 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 	return ctx, kctx, &cli, cleanup, nil
 }
 
+func loadConfig(path, profile string) (*config.Config, error) {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return nil, jujuerrors.Annotate(err, "loading config")
+	}
+	if cfg == nil {
+		// This is the first time the configuration is being loaded (potentially a
+		// fresh install), so we should set the path to the default location.  This
+		// ensures that when the user eventually saves the configuration, it will be
+		// saved to the expected location, even if they didn't explicitly specify
+		// it.
+		cfg = &config.Config{
+			Path: path,
+		}
+	}
+	if profile != "" {
+		cfg.OverrideCurrentProfile(profile)
+	}
+	return cfg, nil
+}
+
 func ctxWithLogger(ctx context.Context, out io.Writer, type_ log.Type, level log.Level) context.Context {
 	switch level.String() {
 	case "trace":
@@ -300,13 +310,14 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 	}
 
 	opts := []kong.Option{
-		kong.Name("unikraft"),
+		kong.Name(branding.Name),
 		kong.UsageOnError(),
+		kong.Vars{"docs_url": branding.DocsURL},
 		kong.Description("The Unikraft Command-Line Interface."),
 		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n" +
 			"    _         \n" +
-			"  c'3'o  .-.  Docs:   https://unikraft.com/docs/cli\n" +
-			"  (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues\n" +
+			"  c'3'o  .-.  Docs:   " + branding.DocsURL + "cli\n" +
+			"  (| |)_/     Issues: " + branding.IssuesURL + "\n" +
 			"              "),
 		kong.ConfigureHelp(helpOptions),
 		kong.Help(kingkong.HelpPrinter(version.Version)),
