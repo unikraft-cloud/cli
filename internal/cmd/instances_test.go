@@ -17,6 +17,7 @@ import (
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/mirror"
 	"unikraft.com/cli/internal/model/patch"
+	"unikraft.com/cli/internal/types"
 )
 
 func TestInstancePluginUnmarshalText(t *testing.T) {
@@ -241,6 +242,84 @@ func TestInstanceCreateRejectsNetworks(t *testing.T) {
 
 			_, err = cmd.Instance{}.Create(t.Context(), patched)
 			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestInstanceRolloutUnmarshalText(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    cmd.InstanceRollout
+		wantErr string
+	}{
+		{
+			name: "empty",
+			in:   "",
+			want: cmd.InstanceRollout{},
+		},
+		{
+			name: "every key",
+			in:   "type=rolling,by=tags,target=env-prod,batch=3,healthy-after=30s",
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, By: cmd.RolloutByTags, Target: []string{"env-prod"}, Batch: 3, HealthyAfter: types.DurationS(30)},
+		},
+		{
+			name: "target list",
+			in:   `by=tags,target=["app=web","env-prod"]`,
+			want: cmd.InstanceRollout{By: cmd.RolloutByTags, Target: []string{"app=web", "env-prod"}},
+		},
+		{
+			name: "empty target",
+			in:   "target=",
+			want: cmd.InstanceRollout{Target: []string{}},
+		},
+		{
+			name: "json",
+			in:   `{"type":"rolling","healthy-after":"1m"}`,
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, HealthyAfter: types.DurationS(60)},
+		},
+		{
+			name:    "unknown type",
+			in:      "type=sideways",
+			wantErr: `unknown rollout type "sideways"`,
+		},
+		{
+			name:    "unknown selector",
+			in:      "by=sideways",
+			wantErr: `unknown rollout by "sideways"`,
+		},
+		{
+			name:    "negative healthy-after",
+			in:      "healthy-after=-30s",
+			wantErr: "healthy-after cannot be negative",
+		},
+		{
+			name:    "negative batch",
+			in:      "batch=-1",
+			wantErr: "batch cannot be negative",
+		},
+		{
+			name:    "batch with recreate",
+			in:      "type=recreate,batch=2",
+			wantErr: `batch cannot be used with "recreate"`,
+		},
+		{
+			name:    "type without its key",
+			in:      "rolling",
+			wantErr: `invalid value "rolling": expected <key>=<value>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got cmd.InstanceRollout
+			err := got.UnmarshalText([]byte(tt.in))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

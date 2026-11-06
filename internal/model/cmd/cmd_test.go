@@ -2217,3 +2217,37 @@ func TestFilterComparisonOperators(t *testing.T) {
 		assert.Contains(t, out.String(), "test3")
 	})
 }
+
+func TestCreateWithChangedFields(t *testing.T) {
+	env := modelt.NewTestEnv()
+	ctx := modelt.WithTestEnv(context.Background(), env)
+	partition := &model.Partition{}
+
+	var out bytes.Buffer
+	cmd := &ModelCreateCmd[modelt.TestModel]{
+		Set: []map[string]string{
+			{"name": "test-wrapped"},
+			{"settings.foo": "100"},
+		},
+		Output: Printer{Type: PrinterTypeQuiet},
+	}
+
+	fields, err := cmd.CreateFields(ctx)
+	require.NoError(t, err)
+
+	assert.Empty(t, model.GetFieldByPathString(fields, "edit_only"))
+
+	fields = append(fields, model.Field{
+		Name:   "settings.bar",
+		Create: &model.Patch{Set: "added"},
+	})
+
+	resources, err := cmd.Create(ctx, testStdio(&out), partition, fields)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+
+	created := resources[0].(modelt.TestModel)
+	assert.Equal(t, "test-wrapped", created.Name)
+	assert.Equal(t, 100, created.Settings.Foo)
+	assert.Equal(t, "added", created.Settings.Bar)
+}
