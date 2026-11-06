@@ -209,6 +209,9 @@ func buildHelpTests(t *testing.T, unikraftPath string) {
 		[]string{"unikraft", "build", "--help"},
 		[]string{"unikraft", "builder", "--help"},
 		[]string{"unikraft", "builder", "create", "--help"},
+		[]string{"unikraft", "builder", "get", "--help"},
+		[]string{"unikraft", "builder", "list", "--help"},
+		[]string{"unikraft", "builder", "delete", "--help"},
 		[]string{"unikraft", "builder", "du", "--help"},
 		[]string{"unikraft", "builder", "prune", "--help"},
 	)
