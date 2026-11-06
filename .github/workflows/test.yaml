@@ -106,6 +106,12 @@ jobs:
         with:
           platforms: arm64
 
+      - name: Login to Docker Hub
+        uses: unikraft-cloud/x/.github/actions/login-docker-hub@prod-staging
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Set Go variables
         id: goenv
         run: |
@@ -196,6 +202,12 @@ jobs:
         uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
+
+      - name: Login to Docker Hub
+        uses: unikraft-cloud/x/.github/actions/login-docker-hub@prod-staging
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set Go variables
         id: goenv
