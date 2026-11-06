@@ -24,11 +24,13 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/ettle/strcase v0.2.0
 	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68
+	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/jotaen/kong-completion v0.0.14
 	github.com/juju/errors v1.0.0
 	github.com/mitchellh/copystructure v1.2.0
 	github.com/moby/buildkit v0.31.1
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
@@ -62,7 +64,7 @@ require (
 	unikraft.com/x/image-spec v0.0.0-20261020121654-15b23b7bb4a5
 	unikraft.com/x/io v0.0.0-20261013095502-1607ff4bc624
 	unikraft.com/x/joinerrgroup v0.0.0-20260304162956-523940cab1de
-	unikraft.com/x/kingkong v0.0.0-20261007115714-ef931437a206
+	unikraft.com/x/kingkong v0.0.0-20261105154614-c73c61ee8f7b
 	unikraft.com/x/kraftfile v0.0.0-20261020121654-15b23b7bb4a5
 	unikraft.com/x/log v0.0.0-20261007115714-ef931437a206
 	unikraft.com/x/ptr v0.0.0-20260126094137-ab6e717e5679
@@ -157,6 +159,8 @@ require (
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.11.0 // indirect
+	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.2.2 // indirect
@@ -177,6 +181,7 @@ require (
 	github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab // indirect
 	github.com/unikraft/go-cpio v0.0.0-20260415131742-4f1984ca41f3 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.71.0 // indirect
@@ -196,6 +201,7 @@ require (
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
 	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260825221802-da73d73af1c5 // indirect
