@@ -471,3 +471,79 @@ profiles:
 	assert.Equal(t, "https://api.was.unikraft.cloud", direct.URL())
 	assert.Equal(t, "index.was.unikraft.cloud", direct.Index().Host)
 }
+
+func TestDefaultConfigFilePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		goos     string
+		xdg      bool
+		noHome   bool
+		existing []string
+		expected string
+	}{
+		{
+			name:     "macOS uses the Linux path",
+			goos:     "darwin",
+			expected: ".config/unikraft/config.yaml",
+		},
+		{
+			name:     "macOS uses XDG_CONFIG_HOME",
+			goos:     "darwin",
+			xdg:      true,
+			expected: "xdg/unikraft/config.yaml",
+		},
+		{
+			name:     "XDG_CONFIG_HOME does not need HOME",
+			goos:     "darwin",
+			xdg:      true,
+			noHome:   true,
+			expected: "xdg/unikraft/config.yaml",
+		},
+		{
+			name:     "macOS keeps a legacy file",
+			goos:     "darwin",
+			existing: []string{"Library/Application Support/unikraft/config.yaml"},
+			expected: "Library/Application Support/unikraft/config.yaml",
+		},
+		{
+			name: "macOS prefers the new file to a legacy file",
+			goos: "darwin",
+			existing: []string{
+				"Library/Application Support/unikraft/config.yaml",
+				".config/unikraft/config.yaml",
+			},
+			expected: ".config/unikraft/config.yaml",
+		},
+		{
+			name:     "Linux ignores a legacy file",
+			goos:     "linux",
+			existing: []string{"Library/Application Support/unikraft/config.yaml"},
+			expected: ".config/unikraft/config.yaml",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
+			t.Setenv("XDG_CONFIG_HOME", "")
+			if tt.xdg {
+				t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
+			}
+			if tt.noHome {
+				t.Setenv("HOME", "")
+				t.Setenv("USERPROFILE", "")
+			}
+			for _, f := range tt.existing {
+				path := filepath.Join(home, filepath.FromSlash(f))
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+				require.NoError(t, os.WriteFile(path, nil, 0o600))
+			}
+
+			path, err := defaultConfigFilePath(tt.goos)
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(home, filepath.FromSlash(tt.expected)), path)
+		})
+	}
+}
