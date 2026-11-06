@@ -42,7 +42,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.19.0
 	github.com/tonistiigi/fsutil v0.0.0-20260819142231-83cac42c1c52
-	github.com/unikraft/go-archivefs v0.0.0-20261106123111-364b178a11ba
+	github.com/unikraft/go-archivefs v0.0.0-20261106133356-c81ad57e55c4
 	golang.org/x/mod v0.41.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.49.0
@@ -55,8 +55,8 @@ require (
 	unikraft.com/cloud/sdk v0.4.1-staging.4
 	unikraft.com/cloud/sdk/build v0.0.0-20261103133358-47eb7dbdbcc8
 	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261027110526-41cac40eecd3
-	unikraft.com/x/build v0.0.0-20261020121654-15b23b7bb4a5
-	unikraft.com/x/buildkit v0.0.0-20261027124450-dfcf25878f57
+	unikraft.com/x/build v0.0.0-20261106134551-637dd37aa195
+	unikraft.com/x/buildkit v0.0.0-20261106134551-637dd37aa195
 	unikraft.com/x/colors v0.0.0-20261007115714-ef931437a206
 	unikraft.com/x/filters v0.0.0-20260929150216-7e946e02e58b
 	unikraft.com/x/fingerprint v0.0.0-20261001064809-1661668e8c87
@@ -179,7 +179,6 @@ require (
 	github.com/tonistiigi/go-csvvalue v0.0.0-20240814133006-030d3b2625d0 // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
 	github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab // indirect
-	github.com/unikraft/go-cpio v0.0.0-20260415131742-4f1984ca41f3 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
