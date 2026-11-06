@@ -42,7 +42,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.19.0
 	github.com/tonistiigi/fsutil v0.0.0-20260819142231-83cac42c1c52
-	github.com/unikraft/go-archivefs v0.0.0-20261019091157-8981da32f72d
+	github.com/unikraft/go-archivefs v0.0.0-20261106123111-364b178a11ba
 	golang.org/x/mod v0.41.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.49.0
@@ -52,7 +52,7 @@ require (
 	mvdan.cc/sh/v3 v3.14.1
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
-	unikraft.com/cloud/sdk v0.4.1-staging.3
+	unikraft.com/cloud/sdk v0.4.1-staging.4
 	unikraft.com/cloud/sdk/build v0.0.0-20261103133358-47eb7dbdbcc8
 	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261027110526-41cac40eecd3
 	unikraft.com/x/build v0.0.0-20261020121654-15b23b7bb4a5
