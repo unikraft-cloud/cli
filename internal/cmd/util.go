@@ -9,13 +9,15 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
+	"strings"
 
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
 )
 
 // defaultMetro returns the metro if non-empty, otherwise falls back to the
@@ -31,43 +33,35 @@ func defaultMetro(ctx context.Context, metro string) string {
 	return profile.GetDefaultMetro()
 }
 
-// linkToConsole links the name field to the console page of the resource.
+// linkToConsole links the name field to the console page at path.
 // It does nothing when profile is not an organization on Unikraft Cloud.
-func linkToConsole(ctx context.Context, fields []resource.Field, profile *config.Profile, section string, metro LinkName[Metro], name string) {
+func linkToConsole(ctx context.Context, fields []model.Field, profile *config.Profile, path ...string) {
 	if profile == nil || profile.ControlPlane == "" {
 		log.G(ctx).Trace().
-			Str("section", section).
-			Str("name", name).
+			Strs("path", path).
 			Msg("skipping console link: profile is not on Unikraft Cloud")
 		return
 	}
-	if name == "" || profile.Organization == "" {
+	if slices.Contains(path, "") || profile.Organization == "" {
 		log.G(ctx).Trace().
-			Str("section", section).
-			Str("name", name).
+			Strs("path", path).
 			Str("organization", profile.Organization).
-			Msg("skipping console link: name or organization is missing")
+			Msg("skipping console link: path or organization is missing")
 		return
 	}
-	link := fmt.Sprintf(
-		"https://console.unikraft.cloud/org/%s/%s/%s/%s",
-		profile.Organization,
-		section,
-		metro,
-		name,
-	)
-	for _, field := range resource.GetFieldRefByPathString(fields, "name") {
+	link := "https://console.unikraft.cloud/org/" + profile.Organization + "/" + strings.Join(path, "/")
+	for _, field := range model.GetFieldRefByPathString(fields, "name") {
 		field.Hyperlink = link
 	}
 }
 
-func getFromListable(ctx context.Context, listable resource.ListableResource, keys []string) ([]resource.Resource, error) {
+func getFromListable(ctx context.Context, listable model.ListableModel, keys []string) ([]model.Model, error) {
 	all, err := listable.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	found := make([]resource.Resource, 0, len(keys))
+	found := make([]model.Model, 0, len(keys))
 	var notFound []string
 loop:
 	for _, key := range keys {
@@ -126,18 +120,18 @@ type createdResource[T any] struct {
 // recoverCreated builds resources for refs that a listing could not find but
 // that a create call already reported. Refs with nothing to fall back on are
 // returned unchanged.
-func recoverCreated[R resource.Resource, T any](
+func recoverCreated[R model.Model, T any](
 	ctx context.Context,
 	refs group.Refs,
 	createdData map[string]createdResource[T],
 	load func(*group.Ref, T, *config.Metro, *config.Profile) (R, error),
-) ([]resource.Resource, group.Refs) {
+) ([]model.Model, group.Refs) {
 	profile, err := config.G(ctx).CurrentProfile()
 	if err != nil {
 		return nil, refs
 	}
 
-	var recovered []resource.Resource
+	var recovered []model.Model
 	var missing group.Refs
 	for _, ref := range refs {
 		key := multimetro.Key(ref).String()
@@ -173,7 +167,7 @@ type patchReq[P ~string] struct {
 	Value any
 }
 
-func patchRequests[P ~string](fields []resource.Field, specFor func(path string, op patchOp, value any) (P, any, error)) ([]patchReq[P], error) {
+func patchRequests[P ~string](fields []model.Field, specFor func(path string, op patchOp, value any) (P, any, error)) ([]patchReq[P], error) {
 	var reqs []patchReq[P]
 	addReq := func(op patchOp, path string, value any) error {
 		if value == nil {
@@ -203,7 +197,7 @@ func patchRequests[P ~string](fields []resource.Field, specFor func(path string,
 		return nil
 	}
 
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Edit == nil {
 			continue
 		}

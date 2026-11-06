@@ -69,7 +69,7 @@ func resolverOptionsFor(ctx context.Context, opts ...AccessorOpt) (docker.Resolv
 		opt(&o)
 	}
 
-	profile, err := config.FromContextOrDefault(ctx).CurrentProfile()
+	profile, err := config.FromContextOrDefault(ctx).OptionalProfile()
 	if err != nil {
 		return docker.ResolverOptions{}, err
 	}

@@ -16,9 +16,9 @@ import (
 	"unikraft.com/cloud/sdk/platform"
 
 	"unikraft.com/cli/internal/cmd"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/patch"
-	"unikraft.com/cli/internal/resource/value"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/patch"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -98,6 +98,36 @@ func TestJSONRoundTrip(t *testing.T) {
 			into:       func() any { return &cmd.InstancePlugin{} },
 			wantObject: &cmd.InstancePlugin{Name: "logger", Image: "plugins/logger:latest", Config: `{"level":"debug"}`},
 			wantText:   &cmd.InstancePlugin{Name: "logger", Image: "plugins/logger:latest", Config: `{"level":"debug"}`},
+		},
+		{
+			name:   "InstanceNetwork",
+			object: `{"name":"eth1","mac":"aa:bb:cc:dd:ee:ff","tap-name":"tap0","ip":"10.0.0.5/24","autoconfig":false}`,
+			text:   `"name=eth1,tap-name=tap0"`,
+			into:   func() any { return &cmd.InstanceNetwork{} },
+			wantObject: &cmd.InstanceNetwork{
+				Name:       "eth1",
+				MAC:        "aa:bb:cc:dd:ee:ff",
+				TapName:    "tap0",
+				IP:         "10.0.0.5/24",
+				Autoconfig: new(false),
+			},
+			wantText:         &cmd.InstanceNetwork{Name: "eth1", TapName: "tap0"},
+			marshalsToObject: true,
+		},
+		{
+			name:   "InstanceNetworkRelay",
+			object: `{"relay":{"name":"my-router-eth0","uuid":"9f8e-7d6c","dns":false}}`,
+			text:   `"relay.name=my-router-eth0"`,
+			into:   func() any { return &cmd.InstanceNetwork{} },
+			wantObject: &cmd.InstanceNetwork{
+				Relay: &cmd.InstanceNetworkRelay{
+					Name: "my-router-eth0",
+					UUID: "9f8e-7d6c",
+					DNS:  new(false),
+				},
+			},
+			wantText:         &cmd.InstanceNetwork{Relay: &cmd.InstanceNetworkRelay{Name: "my-router-eth0"}},
+			marshalsToObject: true,
 		},
 		{
 			name:   "InstanceScaleToZero",
@@ -280,7 +310,7 @@ func TestEditPatches(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		res     resource.Resource
+		res     model.Model
 		spec    patch.PatchSpec
 		want    map[string]string
 		wantErr string
@@ -379,7 +409,7 @@ func TestEditPatches(t *testing.T) {
 			require.NoError(t, err)
 
 			got := map[string]string{}
-			for path, f := range resource.IterFields(patched) {
+			for path, f := range model.IterFields(patched) {
 				if f.Edit == nil {
 					continue
 				}
@@ -391,6 +421,80 @@ func TestEditPatches(t *testing.T) {
 					require.NoError(t, err)
 					got[path.String()+"."+op] = s
 				}
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestNetworkCreatePatches checks that each --network value sets one network
+// interface, and that the read-only keys cannot be set.
+func TestNetworkCreatePatches(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		spec    map[string][]string
+		want    []*cmd.InstanceNetwork
+		wantErr string
+	}{
+		{
+			name:    "dns without a relay target rejected",
+			spec:    map[string][]string{"networks": {"name=eth1,relay.dns=false"}},
+			wantErr: "relay requires relay.name or relay.uuid",
+		},
+		{
+			name: "repeated builds one interface each",
+			spec: map[string][]string{"networks": {
+				"relay.name=my-router-eth0",
+				"name=eth1,tap-name=tap0,ip=10.0.0.5/24,mac=aa:bb:cc:dd:ee:ff,autoconfig=false",
+			}},
+			want: []*cmd.InstanceNetwork{
+				{Relay: &cmd.InstanceNetworkRelay{Name: "my-router-eth0"}},
+				{
+					Name:       "eth1",
+					TapName:    "tap0",
+					IP:         "10.0.0.5/24",
+					MAC:        "aa:bb:cc:dd:ee:ff",
+					Autoconfig: new(false),
+				},
+			},
+		},
+		{
+			name:    "read-only keys rejected",
+			spec:    map[string][]string{"networks": {"uuid=abc"}},
+			wantErr: "unknown fields: [uuid]",
+		},
+		{
+			name: "the json form cannot set read-only keys either",
+			spec: map[string][]string{"networks": {`[{"name":"eth1","uuid":"abc","private-ip":"10.0.0.5"}]`}},
+			want: []*cmd.InstanceNetwork{{Name: "eth1"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fields, err := cmd.Instance{}.Fields(t.Context())
+			require.NoError(t, err)
+
+			patched, err := patch.PatchedFields(t.Context(), fields, patch.PatchSpec{
+				Create: true,
+				Set:    tt.spec,
+			})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			var got []*cmd.InstanceNetwork
+			for path, f := range model.IterFields(patched) {
+				if path.String() != "networks" || f.Create == nil {
+					continue
+				}
+				got = f.Create.Set.([]*cmd.InstanceNetwork)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -411,7 +515,7 @@ func TestLinkCollection(t *testing.T) {
 	}{Name: "attached-inst"})
 	vol.MountedBy = append(vol.MountedBy, struct {
 		cmd.Link[cmd.Instance]
-		ReadOnly bool `mirror:"readonly" field:",long"`
+		ReadOnly bool `mirror:"readonly" field:",long" help:"Whether the instance mounts the volume read-only."`
 	}{Name: "mounted-inst"})
 
 	sg := cmd.ServiceGroup{}
@@ -420,7 +524,7 @@ func TestLinkCollection(t *testing.T) {
 	}{Name: "member-inst"})
 
 	for _, tt := range []struct {
-		res  resource.Resource
+		res  model.Model
 		path string
 		want string
 	}{
@@ -433,7 +537,7 @@ func TestLinkCollection(t *testing.T) {
 			require.NoError(t, err)
 
 			var got []string
-			for path, f := range resource.IterFields(fields) {
+			for path, f := range model.IterFields(fields) {
 				if path.String() != tt.path {
 					continue
 				}
@@ -495,7 +599,7 @@ service:
 `, string(shown))
 
 	got := map[string]string{}
-	for path, f := range resource.IterFields(out) {
+	for path, f := range model.IterFields(out) {
 		if f.Create == nil || f.Create.Set == nil {
 			continue
 		}

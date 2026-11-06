@@ -12,6 +12,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	jujuerrors "github.com/juju/errors"
 	"sigs.k8s.io/yaml"
@@ -21,10 +22,10 @@ import (
 
 // Config represents the global configuration for the Unikraft CLI.
 type Config struct {
-	Path string `json:"-" field:"path,short"`
+	Path string `json:"-" field:"path,short" help:"Path of the configuration file."`
 
-	DefaultProfile string             `json:"profile" field:"profile,short"`
-	Profiles       map[string]Profile `json:"profiles" field:",short,embed"`
+	DefaultProfile string             `json:"profile" field:"profile,short" help:"Profile used when neither --profile nor UNIKRAFT_PROFILE is set."`
+	Profiles       map[string]Profile `json:"profiles" field:",short,embed" help:"Configured profiles, by name."`
 
 	selectedProfile string
 }
@@ -38,12 +39,40 @@ func ConfigFilePath() (string, error) {
 	if path, ok := os.LookupEnv("UNIKRAFT_CONFIG"); ok {
 		return path, nil
 	}
+	return defaultConfigFilePath(runtime.GOOS)
+}
 
-	userConfigDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", jujuerrors.Annotate(err, "getting user config dir")
+func defaultConfigFilePath(goos string) (string, error) {
+	if goos == "windows" {
+		dir, err := os.UserConfigDir()
+		if err != nil {
+			return "", jujuerrors.Annotate(err, "getting user config dir")
+		}
+		return filepath.Join(dir, "unikraft", defaultConfigFilename), nil
 	}
-	return filepath.Join(userConfigDir, "unikraft", defaultConfigFilename), nil
+
+	home, homeErr := os.UserHomeDir()
+	dir := os.Getenv("XDG_CONFIG_HOME")
+	if !filepath.IsAbs(dir) {
+		if homeErr != nil {
+			return "", jujuerrors.Annotate(homeErr, "getting user home dir")
+		}
+		dir = filepath.Join(home, ".config")
+	}
+	path := filepath.Join(dir, "unikraft", defaultConfigFilename)
+
+	// Existing macOS installs keep their file in Application Support. Use that
+	// file until one exists at the new path, so that no user loses a config.
+	legacy := filepath.Join(home, "Library", "Application Support", "unikraft", defaultConfigFilename)
+	if goos == "darwin" && homeErr == nil && !fileExists(path) && fileExists(legacy) {
+		return legacy, nil
+	}
+	return path, nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // Save the current configuration to the configuration file.

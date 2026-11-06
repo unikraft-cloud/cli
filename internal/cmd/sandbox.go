@@ -21,9 +21,9 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/value"
 	"unikraft.com/cloud/sdk/plugins/sandbox"
 	xio "unikraft.com/x/io"
 	"unikraft.com/x/shell"
@@ -71,7 +71,7 @@ func (cmd ExecSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	if _, err := parseEnv(c.Env); err != nil {
 		return err
 	}
@@ -91,18 +91,19 @@ func (c *ExecSandboxInstanceCmd) runOn(ctx context.Context, target sandbox.Targe
 		in = strings.NewReader("")
 	}
 
-	out := xio.Unwrap(stdio.Stdout)
-
 	cmd := target.CommandArgs(ctx, c.Cmd)
 	cmd.Dir = c.Dir
 	cmd.Env = sandbox.EnvMap(c.Env)
 	cmd.Stdin = in
-	cmd.Stdout = out
-	cmd.Stderr = out
+	cmd.Stdout = xio.Unwrap(stdio.Stdout)
+	cmd.Stderr = xio.Unwrap(stdio.Stderr)
 
 	code, err := shell.ExitStatus(cmd.Run())
 	if err != nil {
 		return err
+	}
+	if code < 0 {
+		code = 128 - code
 	}
 	if code != 0 {
 		return ExitStatus(code)
@@ -125,7 +126,7 @@ func parseEnv(records []string) (map[string]string, error) {
 	return env, nil
 }
 
-func resolveSandboxTarget(ctx context.Context, stdio config.Stdio, partition *resource.Partition, target string, opts SandboxPluginOpts) (sandbox.Target, error) {
+func resolveSandboxTarget(ctx context.Context, stdio config.Stdio, partition *model.Partition, target string, opts SandboxPluginOpts) (sandbox.Target, error) {
 	instance, err := lookupInstance(ctx, partition, target)
 	if err != nil {
 		return sandbox.Target{}, err
@@ -151,7 +152,7 @@ func resolveSandboxTarget(ctx context.Context, stdio config.Stdio, partition *re
 }
 
 // lookupInstance is the one instance target names.
-func lookupInstance(ctx context.Context, partition *resource.Partition, target string) (Instance, error) {
+func lookupInstance(ctx context.Context, partition *model.Partition, target string) (Instance, error) {
 	key := multimetro.ParseKey(target)
 
 	gettable := partition.WrapGettable(Instance{})
@@ -232,7 +233,7 @@ func (cmd WriteSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *WriteSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	if err := sandbox.StatLocalFile(c.Local, "written"); err != nil {
 		return err
 	}
@@ -298,7 +299,7 @@ func (cmd ReadSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *ReadSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	if err := checkLocalName(c.Remote, c.Local); err != nil {
 		return err
 	}
@@ -420,7 +421,7 @@ func (cmd CopySandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *CopySandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	srcTarget, srcPath := parseCopyPath(c.Source)
 	dstTarget, dstPath := parseCopyPath(c.Destination)
 

@@ -12,24 +12,24 @@ import (
 	"slices"
 	"strings"
 
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	wslices "unikraft.com/cli/internal/w/slices"
 	"unikraft.com/x/joinerrgroup"
 )
 
 type AnyResourceCmd struct {
-	cmd.ResourceCmd[AnyResource]
-	cmd.GettableResourceCmd[AnyResource]
-	cmd.ListableResourceCmd[AnyResource]
+	cmd.ModelCmd[AnyResource]
+	cmd.GettableModelCmd[AnyResource]
+	cmd.ListableModelCmd[AnyResource]
 
-	Create cmd.ResourceCreateCmd[AnyResource] `cmd:"" help:"Create a resource."`
-	Edit   cmd.ResourceEditCmd[AnyResource]   `cmd:"" help:"Edit a resource."`
+	Create cmd.ModelCreateCmd[AnyResource] `cmd:"" help:"Create a resource."`
+	Edit   cmd.ModelEditCmd[AnyResource]   `cmd:"" help:"Edit a resource."`
 
-	cmd.BulkDeletableResourceCmd[AnyResource]
+	cmd.BulkDeletableModelCmd[AnyResource]
 }
 
-var resourceBackends = []resource.Resource{
+var resourceBackends = []model.Model{
 	Instance{},
 	InstanceTemplate{},
 	Volume{},
@@ -39,12 +39,12 @@ var resourceBackends = []resource.Resource{
 }
 
 func backendIndexByType(typ string) int {
-	return slices.IndexFunc(resourceBackends, func(backend resource.Resource) bool {
+	return slices.IndexFunc(resourceBackends, func(backend model.Model) bool {
 		return backend.Type().Name == typ
 	})
 }
 
-func backendByType(typ string) (resource.Resource, bool) {
+func backendByType(typ string) (model.Model, bool) {
 	idx := backendIndexByType(typ)
 	if idx < 0 {
 		return nil, false
@@ -52,7 +52,7 @@ func backendByType(typ string) (resource.Resource, bool) {
 	return resourceBackends[idx], true
 }
 
-func wrapAnyResource(res resource.Resource) AnyResource {
+func wrapAnyResource(res model.Model) AnyResource {
 	typ := res.Type().Name
 	return AnyResource{
 		Type_:      typ,
@@ -70,14 +70,14 @@ type AnyResource struct {
 	Key_  string `field:"key,short"`
 
 	// The actual underlying resource, if populated
-	underlying resource.Resource
+	underlying model.Model
 }
 
-func (a AnyResource) Type() resource.Type {
+func (a AnyResource) Type() model.Type {
 	if a.underlying != nil {
 		return a.underlying.Type()
 	}
-	return resource.Type{
+	return model.Type{
 		Name:  "resource",
 		Names: "resources",
 	}
@@ -119,7 +119,7 @@ func parseAnyResourceKey(key string) (typ, underlyingKey string, hasType bool) {
 	return k.typ, k.key, k.typ != ""
 }
 
-func (a AnyResource) Key() resource.Key {
+func (a AnyResource) Key() model.Key {
 	if a.underlying != nil {
 		return anyResourceKey{
 			typ: a.underlying.Type().Name,
@@ -132,8 +132,8 @@ func (a AnyResource) Key() resource.Key {
 	}
 }
 
-func (a AnyResource) Fields(ctx context.Context) ([]resource.Field, error) {
-	fields, err := resource.FieldsFromStruct(a)
+func (a AnyResource) Fields(ctx context.Context) ([]model.Field, error) {
+	fields, err := model.FieldsFromStruct(a)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func (a AnyResource) Fields(ctx context.Context) ([]resource.Field, error) {
 	return fields, nil
 }
 
-func (a AnyResource) WithType(typ string) resource.Resource {
+func (a AnyResource) WithType(typ string) model.Model {
 	a.Type_ = typ
 	return a
 }
@@ -165,7 +165,7 @@ func (a AnyResource) Raw() any {
 	return nil
 }
 
-func (a AnyResource) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (a AnyResource) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	if len(keys) == 0 {
 		return nil, fmt.Errorf("no keys provided")
 	}
@@ -187,25 +187,25 @@ func (a AnyResource) Get(ctx context.Context, keys []string) ([]resource.Resourc
 			return nil, fmt.Errorf("unknown resource type: %s", k.typ)
 		}
 		backend := resourceBackends[idx]
-		if _, ok := backend.(resource.GettableResource); !ok {
+		if _, ok := backend.(model.GettableModel); !ok {
 			return nil, fmt.Errorf("resource type %s does not support Get", k.typ)
 		}
 
 		keysByBackend[idx] = append(keysByBackend[idx], k.key)
 	}
 
-	perBackend := make([][]resource.Resource, len(resourceBackends))
+	perBackend := make([][]model.Model, len(resourceBackends))
 
 	eg := joinerrgroup.Group{}
 	for i, keyList := range keysByBackend {
 		if len(keyList) == 0 {
 			continue
 		}
-		backend := resourceBackends[i].(resource.GettableResource)
+		backend := resourceBackends[i].(model.GettableModel)
 		typ := backend.Type().Name
 		eg.Go(func() error {
 			resources, err := backend.Get(ctx, keyList)
-			wrapped := make([]resource.Resource, 0, len(resources))
+			wrapped := make([]model.Model, 0, len(resources))
 			for _, res := range resources {
 				wrapped = append(wrapped, wrapAnyResource(res))
 			}
@@ -220,18 +220,18 @@ func (a AnyResource) Get(ctx context.Context, keys []string) ([]resource.Resourc
 	return wslices.Flatten(perBackend), err
 }
 
-func (a AnyResource) List(ctx context.Context) ([]resource.Resource, error) {
-	perBackend := make([][]resource.Resource, len(resourceBackends))
+func (a AnyResource) List(ctx context.Context) ([]model.Model, error) {
+	perBackend := make([][]model.Model, len(resourceBackends))
 	eg := joinerrgroup.Group{}
 	for i, backend := range resourceBackends {
-		listable, ok := backend.(resource.ListableResource)
+		listable, ok := backend.(model.ListableModel)
 		if !ok {
 			continue
 		}
 		typ := backend.Type().Name
 		eg.Go(func() error {
 			resources, err := listable.List(ctx)
-			wrapped := make([]resource.Resource, 0, len(resources))
+			wrapped := make([]model.Model, 0, len(resources))
 			for _, res := range resources {
 				wrapped = append(wrapped, wrapAnyResource(res))
 			}
@@ -246,7 +246,7 @@ func (a AnyResource) List(ctx context.Context) ([]resource.Resource, error) {
 	return wslices.Flatten(perBackend), err
 }
 
-func (a AnyResource) Edit(ctx context.Context, key string, fields []resource.Field) error {
+func (a AnyResource) Edit(ctx context.Context, key string, fields []model.Field) error {
 	typ, underlyingKey, hasType := parseAnyResourceKey(key)
 	if !hasType {
 		return fmt.Errorf("resource key %q must include resource type prefix", key)
@@ -257,7 +257,7 @@ func (a AnyResource) Edit(ctx context.Context, key string, fields []resource.Fie
 		return fmt.Errorf("unknown resource type: %s", typ)
 	}
 
-	editable, ok := backend.(resource.EditableResource)
+	editable, ok := backend.(model.EditableModel)
 	if !ok {
 		return fmt.Errorf("resource type %s does not support Edit", typ)
 	}
@@ -268,8 +268,8 @@ func (a AnyResource) Edit(ctx context.Context, key string, fields []resource.Fie
 	return nil
 }
 
-func (a AnyResource) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
-	typeFields := resource.GetFieldByPath(fields, []string{"type"})
+func (a AnyResource) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
+	typeFields := model.GetFieldByPath(fields, []string{"type"})
 	if len(typeFields) == 0 {
 		return nil, fmt.Errorf("type field is required")
 	}
@@ -280,7 +280,7 @@ func (a AnyResource) Create(ctx context.Context, fields []resource.Field) ([]res
 		return nil, fmt.Errorf("unknown resource type: %s", typ)
 	}
 
-	creatable, ok := backend.(resource.CreatableResource)
+	creatable, ok := backend.(model.CreatableModel)
 	if !ok {
 		return nil, fmt.Errorf("resource type %s does not support Create", typ)
 	}
@@ -290,7 +290,7 @@ func (a AnyResource) Create(ctx context.Context, fields []resource.Field) ([]res
 		return nil, fmt.Errorf("failed to create %s resource: %w", typ, err)
 	}
 
-	wrapped := make([]resource.Resource, 0, len(results))
+	wrapped := make([]model.Model, 0, len(results))
 	for _, res := range results {
 		wrapped = append(wrapped, wrapAnyResource(res))
 	}
@@ -298,9 +298,9 @@ func (a AnyResource) Create(ctx context.Context, fields []resource.Field) ([]res
 	return wrapped, nil
 }
 
-func (a AnyResource) underlyingFields(fields []resource.Field) []resource.Field {
+func (a AnyResource) underlyingFields(fields []model.Field) []model.Field {
 	filtered := slices.Clone(fields)
-	filtered = slices.DeleteFunc(filtered, func(field resource.Field) bool {
+	filtered = slices.DeleteFunc(filtered, func(field model.Field) bool {
 		return field.Name == "type" || field.Name == "key"
 	})
 	return filtered
@@ -319,7 +319,7 @@ func (a AnyResource) Delete(ctx context.Context, keys []string) error {
 			return fmt.Errorf("unknown resource type: %s", typ)
 		}
 		backend := resourceBackends[idx]
-		if _, ok := backend.(resource.DeletableResource); !ok {
+		if _, ok := backend.(model.DeletableModel); !ok {
 			return fmt.Errorf("resource type %s does not support Delete", typ)
 		}
 		keysByBackend[idx] = append(keysByBackend[idx], underlyingKey)
@@ -335,7 +335,7 @@ func (a AnyResource) Delete(ctx context.Context, keys []string) error {
 		}
 		backend := resourceBackends[i]
 		typ := backend.Type().Name
-		deletable := backend.(resource.DeletableResource)
+		deletable := backend.(model.DeletableModel)
 
 		if err := deletable.Delete(ctx, typeKeys); err != nil {
 			errs = append(errs, fmt.Errorf("failed to delete %s resources: %w", typ, err))

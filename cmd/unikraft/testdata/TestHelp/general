@@ -16,6 +16,8 @@ Commands:
           Run an image as an instance.
   build
           Build a Unikraft project into a container image.
+  builder
+          Manage the builders that remote builds run on.
   tui
           Browse resources in a TUI.
 
@@ -38,6 +40,8 @@ Resources:
 Utilities:
   api
           Make an authenticated HTTP request to the Unikraft Cloud API.
+  mcp
+          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP.
   completion
           Outputs shell code for initialising tab completions.
   version, ver, v
@@ -95,7 +99,7 @@ Run "unikraft <command> --help" for more information on a command.
 
 │  
 │ error:
-│   parsing arguments: expected one of "run", "build", "tui", "metros", "quotas", ...
+│   parsing arguments: expected one of "run", "build", "builder", "tui", "metros", ...
 │
 
 exit code: 1
@@ -118,6 +122,8 @@ Commands:
           Run an image as an instance.
   build
           Build a Unikraft project into a container image.
+  builder
+          Manage the builders that remote builds run on.
   tui
           Browse resources in a TUI.
 
@@ -140,6 +146,8 @@ Resources:
 Utilities:
   api
           Make an authenticated HTTP request to the Unikraft Cloud API.
+  mcp
+          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP.
   completion
           Outputs shell code for initialising tab completions.
   version, ver, v
@@ -222,6 +230,8 @@ Commands:
           Run an image as an instance.
   build
           Build a Unikraft project into a container image.
+  builder
+          Manage the builders that remote builds run on.
   tui
           Browse resources in a TUI.
 
@@ -244,6 +254,8 @@ Resources:
 Utilities:
   api
           Make an authenticated HTTP request to the Unikraft Cloud API.
+  mcp
+          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP.
   completion
           Outputs shell code for initialising tab completions.
   version, ver, v
@@ -323,6 +335,8 @@ Commands:
           Run an image as an instance.
   build
           Build a Unikraft project into a container image.
+  builder
+          Manage the builders that remote builds run on.
   tui
           Browse resources in a TUI.
 
@@ -345,6 +359,8 @@ Resources:
 Utilities:
   api
           Make an authenticated HTTP request to the Unikraft Cloud API.
+  mcp
+          Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP.
   completion
           Outputs shell code for initialising tab completions.
   version, ver, v

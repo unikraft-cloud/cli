@@ -83,6 +83,8 @@ func TestSandbox(t *testing.T) {
 		// whatever the command printed.
 		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "exit 3"},
 			integ.ExpectExitCode(3))
+		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "kill -KILL $$"},
+			integ.ExpectExitCode(137))
 
 		// The command is a command line by the time it reaches the plugin, so
 		// arguments the shell would otherwise split or expand are quoted first.

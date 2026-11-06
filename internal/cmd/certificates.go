@@ -18,57 +18,57 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
 	"unikraft.com/cli/internal/types"
 )
 
 type CertificatesCmd struct {
-	cmd.ResourceCmd[Certificate]
-	cmd.GettableResourceCmd[Certificate]
-	cmd.WaitableResourceCmd[Certificate]
-	cmd.ListableResourceCmd[Certificate]
-	cmd.BulkDeletableResourceCmd[Certificate]
+	cmd.ModelCmd[Certificate]
+	cmd.GettableModelCmd[Certificate]
+	cmd.WaitableModelCmd[Certificate]
+	cmd.ListableModelCmd[Certificate]
+	cmd.BulkDeletableModelCmd[Certificate]
 
-	Create cmd.ResourceCreateCmd[Certificate] `cmd:"" help:"Create a certificate."`
+	Create cmd.ModelCreateCmd[Certificate] `cmd:"" help:"Create a certificate."`
 }
 
 type Certificate struct {
-	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in." placeholder:"metro" example:"fra,sfo"`
-	Name  string          `mirror:"certificate.name" field:",short" create:"set" flag:"name" help:"Certificate name." placeholder:"name"`
-	UUID  string          `mirror:"certificate.uuid" field:",long"`
+	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
+	Name  string          `mirror:"certificate.name" field:",short" create:"set" flag:"name" help:"Certificate name. Generated when omitted." placeholder:"name"`
+	UUID  string          `mirror:"certificate.uuid" field:",long" help:"Unique identifier assigned at creation."`
 
-	CommonName   string `mirror:"certificate.common_name" field:",short"`
-	Subject      string `mirror:"certificate.subject" field:",long"`
-	Issuer       string `mirror:"certificate.issuer" field:",long"`
-	SerialNumber string `mirror:"certificate.serial_number" field:",long"`
+	CommonName   string `mirror:"certificate.common_name" field:",short" help:"Common name: the fully qualified domain name the certificate is for."`
+	Subject      string `mirror:"certificate.subject" field:",long" help:"Subject distinguished name, present once issued."`
+	Issuer       string `mirror:"certificate.issuer" field:",long" help:"Issuing certificate authority."`
+	SerialNumber string `mirror:"certificate.serial_number" field:",long" help:"Serial number assigned by the issuer."`
 
-	State types.CertificateState `mirror:"certificate.state" field:",short"`
+	State types.CertificateState `mirror:"certificate.state" field:",short" help:"Lifecycle state: pending (being issued or validated), valid or error (issuing failed after several attempts)."`
 
-	CN    string `field:"cn,invisible,valueless" create:"set,required" flag:"common-name" aliases:"cn" help:"Certificate common name." placeholder:"fqdn" example:"demo.unikraft.dev."`
-	Chain string `field:"chain,invisible,valueless" create:"set,required" flag-file:"chain" help:"Certificate chain file." placeholder:"file"`
-	Pkey  string `field:"pkey,invisible,valueless" create:"set,required" flag-file:"private-key" aliases:"pkey" help:"Certificate private key file." placeholder:"file"`
+	CN    string `field:"cn,invisible,valueless" create:"set,required" flag:"common-name" aliases:"cn" help:"Common name: the fully qualified domain name the certificate is for, with a trailing dot." placeholder:"fqdn" example:"demo.unikraft.dev."`
+	Chain string `field:"chain,invisible,valueless" create:"set,required" flag-file:"chain" help:"PEM certificate chain: the certificate followed by any intermediates." placeholder:"file"`
+	Pkey  string `field:"pkey,invisible,valueless" create:"set,required" flag-file:"private-key" aliases:"pkey" help:"PEM private key matching the certificate chain." placeholder:"file"`
 
 	Timestamps struct {
-		Created   types.RelativeTime `mirror:"certificate.created_at" field:",short"`
-		NotBefore types.RelativeTime `mirror:"certificate.not_before" field:",long"`
-		NotAfter  types.RelativeTime `mirror:"certificate.not_after" field:",short"`
-	}
+		Created   types.RelativeTime `mirror:"certificate.created_at" field:",short" help:"Creation time."`
+		NotBefore types.RelativeTime `mirror:"certificate.not_before" field:",long" help:"Start of the validity period."`
+		NotAfter  types.RelativeTime `mirror:"certificate.not_after" field:",short" help:"Expiry. Platform-issued certificates renew automatically, uploaded ones must be replaced before this time."`
+	} `help:"Lifecycle and validity timestamps."`
 
 	Certificate platform.Certificate `field:"-" json:"certificate"`
 
 	key multimetro.Key
 }
 
-func (Certificate) Type() resource.Type {
-	return resource.Type{
+func (Certificate) Type() model.Type {
+	return model.Type{
 		Name:  "certificate",
 		Names: "certificates",
 	}
 }
 
-func (c Certificate) Key() resource.Key {
+func (c Certificate) Key() model.Key {
 	return c.key
 }
 
@@ -76,23 +76,23 @@ func (c Certificate) Raw() any {
 	return c.Certificate
 }
 
-func (c Certificate) Fields(ctx context.Context) ([]resource.Field, error) {
+func (c Certificate) Fields(ctx context.Context) ([]model.Field, error) {
 	c.Metro = LinkName[Metro](defaultMetro(ctx, string(c.Metro)))
-	return resource.FieldsFromStruct(c)
+	return model.FieldsFromStruct(c)
 }
 
-func (Certificate) List(ctx context.Context) ([]resource.Resource, error) {
+func (Certificate) List(ctx context.Context) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]resource.Resource, error) {
+	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing certificates")
 		resp, err := c.GetCertificates(ctx, nil, platform.GetCertificatesOpts{Details: new(true)})
 		if err != nil {
 			return nil, err
 		}
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil
@@ -108,19 +108,19 @@ func (Certificate) List(ctx context.Context) ([]resource.Resource, error) {
 	})
 }
 
-func (Certificate) Get(ctx context.Context, keys []string) ([]resource.Resource, error) {
+func (Certificate) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]resource.Resource, group.Refs, error) {
+	return group.CollectRefsSlices(ctx, g, multimetro.ParseKeys(keys).Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
 		log.G(ctx).Trace().Msg("getting certificates")
 		resp, err := c.GetCertificates(ctx, refs.NameOrUUIDs(), platform.GetCertificatesOpts{Details: new(true)})
 		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 			return nil, nil, err
 		}
 		var found []group.Ref
-		var results []resource.Resource
+		var results []model.Model
 		var errs []error
 		if resp == nil || resp.Data == nil {
 			return nil, nil, nil
@@ -203,10 +203,10 @@ func (Certificate) Delete(ctx context.Context, keys []string) error {
 	})
 }
 
-func (Certificate) Create(ctx context.Context, fields []resource.Field) ([]resource.Resource, error) {
+func (Certificate) Create(ctx context.Context, fields []model.Field) ([]model.Model, error) {
 	var req platform.CreateCertificateRequest
 	var metro string
-	for key, field := range resource.IterFields(fields) {
+	for key, field := range model.IterFields(fields) {
 		if field.Create.Set != nil {
 			switch key.String() {
 			case "name":

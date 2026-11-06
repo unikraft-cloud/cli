@@ -23,8 +23,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    env:
-      TASK_X_REMOTE_TASKFILES: 1
     defaults:
       run:
         shell: bash
@@ -86,7 +84,6 @@ jobs:
       matrix:
         target: [STAGING, STABLE]
     env:
-      TASK_X_REMOTE_TASKFILES: 1
       UNIKRAFT_SERVER_STAGING: staging
       UNIKRAFT_SERVER_STABLE: stable
       UNIKRAFT_SERVER_PROD: prod
@@ -108,6 +105,12 @@ jobs:
         uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
+
+      - name: Login to Docker Hub
+        uses: unikraft-cloud/x/.github/actions/login-docker-hub@prod-staging
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set Go variables
         id: goenv
@@ -161,6 +164,7 @@ jobs:
           UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
           UNIKRAFT_ENDPOINT: ${{ secrets[format('UNIKRAFT_ENDPOINT_{0}', matrix.target)] }}
           UNIKRAFT_X_TEST_SERVER: ${{ env[format('UNIKRAFT_SERVER_{0}', matrix.target)] }}
+          UNIKRAFT_X_TEST_BUILD_URL: ${{ matrix.target == 'STABLE' && secrets.UNIKRAFT_BUILD_URL_STABLE || '' }}
 
   # The hosted Windows runners reach only the public prod endpoint.  The runners
   # take turns, so that both do not use the same organization at once.
@@ -175,7 +179,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs: integration
     env:
-      TASK_X_REMOTE_TASKFILES: 1
       UNIKRAFT_SERVER_PROD: prod
     defaults:
       run:
@@ -199,6 +202,12 @@ jobs:
         uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
+
+      - name: Login to Docker Hub
+        uses: unikraft-cloud/x/.github/actions/login-docker-hub@prod-staging
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set Go variables
         id: goenv
