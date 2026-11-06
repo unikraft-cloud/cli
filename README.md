@@ -247,8 +247,7 @@ Or, if you need to directly specify a metro endpoint, you can manually create a
 profile:
 
 ```yaml
-# Linux: ~/.config/unikraft/config.yaml
-# MacOS: ~/Library/Application\ Support/unikraft/config.yaml
+# Linux and macOS: ~/.config/unikraft/config.yaml
 # Windows: %AppData%\unikraft\config.yaml
 profile: default
 profiles:
@@ -362,7 +361,9 @@ unikraft build . --output my-org/my-app:latest
 
 ## Configuration
 
-The CLI stores configuration in `~/.config/unikraft/config.yaml` (or the path specified by `UNIKRAFT_CONFIG`).
+The CLI stores configuration in `~/.config/unikraft/config.yaml` on Linux and macOS, and in `%AppData%\unikraft\config.yaml` on Windows.
+On Linux and macOS, if `XDG_CONFIG_HOME` is set, the CLI uses `$XDG_CONFIG_HOME/unikraft/config.yaml`.
+If `UNIKRAFT_CONFIG` is set, the CLI uses that path.
 
 ### Environment Variables
 
