@@ -383,8 +383,8 @@ github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab h1:H6aJ0yKQ0gF49Q
 github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab/go.mod h1:ulncasL3N9uLrVann0m+CDlJKWsIAP34MPcOJF6VRvc=
 github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507 h1:Pshbef+pR9j+qiRihFkbpBZK5ptj6ikk70uO0MJj1D8=
 github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507/go.mod h1:wwfOgrNqUA9yjL8nmG6BIO0qQnmkEgJ8ISptbme83gI=
-github.com/unikraft/go-archivefs v0.0.0-20261019091157-8981da32f72d h1:CFQ2ZM61liqOWeqXzQohPseZCsfqkMvmGfan1H7I+uI=
-github.com/unikraft/go-archivefs v0.0.0-20261019091157-8981da32f72d/go.mod h1:NLWtSTdsTRLGQN87zqm9+vN01Ei9JX+FWwuOme2wJXw=
+github.com/unikraft/go-archivefs v0.0.0-20261106123111-364b178a11ba h1:v9Gc/bx6ifAQ0/XK33mwoMT5Ad4n3+qoqQ5FHnraACQ=
+github.com/unikraft/go-archivefs v0.0.0-20261106123111-364b178a11ba/go.mod h1:NLWtSTdsTRLGQN87zqm9+vN01Ei9JX+FWwuOme2wJXw=
 github.com/unikraft/go-cpio v0.0.0-20260415131742-4f1984ca41f3 h1:C8GONmMNDK3spdZEHBIffmq1b1hjCm9nZrquv3+4H+U=
 github.com/unikraft/go-cpio v0.0.0-20260415131742-4f1984ca41f3/go.mod h1:OFJWAQVOq1qppx75rzF7qDoE5TqGjM1oCXW5N06Lftg=
 github.com/vbatts/tar-split v0.12.3 h1:Cd46rkGXI3Td4yrVNwU8ripbxFaQbmesqhjBUUYAJSw=
