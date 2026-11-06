@@ -32,6 +32,7 @@ import (
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/internal/tui/progdl"
 	"unikraft.com/cli/internal/types"
 )
 
@@ -769,7 +770,7 @@ func (cmd ImagesCopyCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *model.Partition) error {
+func (cmd ImagesCopyCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	var opts []images.AccessorOpt
 	if cmd.Insecure != nil {
 		if len(cmd.Insecure) > 0 {
@@ -807,7 +808,10 @@ func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *model.Partition) er
 		}
 	}()
 
-	_, err = access.Save(ctx, dest, imgs...)
+	err = progdl.TrackImageProgress(ctx, stdio.Stderr, func(ctx context.Context) error {
+		_, err := access.Save(ctx, dest, imgs...)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("saving image to destination: %w", err)
 	}

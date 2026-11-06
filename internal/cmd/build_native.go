@@ -29,6 +29,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/images"
 	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/tui/progdl"
 )
 
 // localBuildkit is the buildkitd that builds run on.
@@ -91,7 +92,7 @@ func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error 
 	return err
 }
 
-func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
+func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, stdio config.Stdio, partition *model.Partition) error {
 	if c.Remote != "" {
 		return c.runRemote(ctx, cfg, partition)
 	}
@@ -172,7 +173,10 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	if err != nil {
 		return err
 	}
-	_, err = access.Save(ctx, output, imgs...)
+	err = progdl.TrackImageProgress(ctx, stdio.Stderr, func(ctx context.Context) error {
+		_, err := access.Save(ctx, output, imgs...)
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -189,6 +193,6 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	return nil
 }
 
-func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
-	return c.ImageBuildCmd.Run(ctx, cfg, partition)
+func (c *BuildCmd) Run(ctx context.Context, cfg *config.Config, stdio config.Stdio, partition *model.Partition) error {
+	return c.ImageBuildCmd.Run(ctx, cfg, stdio, partition)
 }

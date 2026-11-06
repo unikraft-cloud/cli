@@ -3,6 +3,8 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
+//go:build !js
+
 // Package progdl provides a download progress bar component using bubbletea.
 package progdl
 
@@ -101,7 +103,6 @@ type Model struct {
 	progress progress.Model
 	percent  float64
 	done     bool
-	err      error
 	width    int
 }
 
@@ -124,7 +125,7 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		if msg.String() == "ctrl+c" || msg.String() == "q" {
+		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
 		return m, nil
@@ -152,7 +153,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Sequence(cmd, tea.Quit)
 
 	case errMsg:
-		m.err = msg.err
+		m.done = true
 		return m, tea.Quit
 
 	case progress.FrameMsg:
@@ -167,10 +168,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the progress bar.
 func (m Model) View() tea.View {
-	if m.err != nil {
-		return tea.NewView(fmt.Sprintf("error: %v\n", m.err))
-	}
-
 	if m.done {
 		return tea.View{}
 	}
