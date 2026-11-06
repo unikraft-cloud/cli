@@ -58,6 +58,7 @@ type MCPCmd struct {
 	AllowRemote bool     `name:"allow-remote" help:"Let --listen bind a non-loopback address. Every client then acts with this profile's credentials, so only do this behind an authenticating proxy or on a private network."`
 	TLSCert     string   `name:"tls-cert" and:"tls" type:"path" placeholder:"file" help:"Serve --listen over HTTPS with this PEM certificate chain."`
 	TLSKey      string   `name:"tls-key" and:"tls" type:"path" placeholder:"file" help:"PEM private key of --tls-cert."`
+	NoPartition bool     `name:"no-partition" hidden:"" help:"Reach every resource even when the CLI runs in a partition. Nothing the server creates is recorded in it."`
 }
 
 func (MCPCmd) Help() string {
@@ -200,6 +201,10 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 	if err := checkResources(c.Resources); err != nil {
 		return nil, err
 	}
+	if c.NoPartition && partition != nil {
+		log.G(ctx).Debug().Str("path", partition.Path).Msg("ignoring partition")
+		partition = nil
+	}
 	var logger *slog.Logger
 	if log.G(ctx).GetLevel() <= log.DebugLevel {
 		logger = slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -209,7 +214,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		Title:        branding.Product,
 		WebsiteURL:   branding.WebsiteURL,
 		Version:      version.Version,
-		Instructions: mcp.Instructions(c.ReadOnly, c.Resources, c.DocsURL, mcpserver.DocsURI(branding.Name)),
+		Instructions: mcp.Instructions(c.ReadOnly, partition != nil, c.Resources, c.DocsURL, mcpserver.DocsURI(branding.Name)),
 		Logger:       logger,
 		DocsURL:      c.DocsURL,
 		TLSCertFile:  c.TLSCert,
@@ -230,23 +235,29 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		tools.AddCreateTool[Instance](ctx,
 			modelmcp.WithCreateDefault("autostart", true),
 			modelmcp.WithCreateExample("image", "metro", "service.services", "resources.memory"),
+			modelmcp.WithReference[InstanceTemplate]("template"),
+			modelmcp.WithReference[Instance]("branch"),
+			modelmcp.WithReference[InstanceCheckpoint]("checkpoint"),
 		),
 		tools.AddEditTool[Instance](ctx, modelmcp.WithEditNote(instanceEditNote)),
 		tools.AddDeleteTool[Instance](ctx),
 		tools.AddListTool[InstanceTemplate](ctx),
-		tools.AddCreateTool[InstanceTemplate](ctx),
+		tools.AddCreateTool[InstanceTemplate](ctx, modelmcp.WithReference[Instance]("instance")),
 		tools.AddEditTool[InstanceTemplate](ctx),
 		tools.AddDeleteTool[InstanceTemplate](ctx),
 		tools.AddListTool[InstanceCheckpoint](ctx),
-		tools.AddCreateTool[InstanceCheckpoint](ctx),
+		tools.AddCreateTool[InstanceCheckpoint](ctx, modelmcp.WithReference[Instance]("instance")),
 		tools.AddEditTool[InstanceCheckpoint](ctx),
 		tools.AddDeleteTool[InstanceCheckpoint](ctx),
 		tools.AddListTool[Volume](ctx),
-		tools.AddCreateTool[Volume](ctx, modelmcp.WithCreateExample("metro", "size", "access-mode", "filesystem")),
+		tools.AddCreateTool[Volume](ctx,
+			modelmcp.WithCreateExample("metro", "size", "access-mode", "filesystem"),
+			modelmcp.WithReference[VolumeTemplate]("template"),
+		),
 		tools.AddEditTool[Volume](ctx),
 		tools.AddDeleteTool[Volume](ctx),
 		tools.AddListTool[VolumeTemplate](ctx),
-		tools.AddCreateTool[VolumeTemplate](ctx),
+		tools.AddCreateTool[VolumeTemplate](ctx, modelmcp.WithReference[Volume]("volume")),
 		tools.AddEditTool[VolumeTemplate](ctx),
 		tools.AddDeleteTool[VolumeTemplate](ctx),
 		tools.AddListTool[ServiceGroup](ctx),
@@ -257,11 +268,11 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		tools.AddCreateTool[Certificate](ctx),
 		tools.AddDeleteTool[Certificate](ctx),
 		tools.AddListTool[ImageEntry](ctx),
-		tools.AddGetTool[Image](ctx, imageGetDescription),
+		tools.AddGetTool[Image](ctx, imageGetDescription, modelmcp.WithoutPartition()),
 		tools.AddDeleteTool[Image](ctx),
 		tools.AddListTool[Metro](ctx),
 		addProfileUseTool(ctx, tools, partition),
-		mcp.AddInstanceTools(tools, mcpInstanceCommands{}),
+		mcp.AddInstanceTools[Instance](tools, mcpInstanceCommands{}),
 		mcp.AddSandboxTools(tools, mcpSandboxCommands{partition: partition}),
 	); err != nil {
 		return nil, err

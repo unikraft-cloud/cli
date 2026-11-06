@@ -5,6 +5,8 @@
 
 package mcp
 
+import "unikraft.com/cli/internal/model"
+
 // ToolOption adjusts how a resource type's tools are registered.
 type ToolOption func(*toolOptions)
 
@@ -12,6 +14,8 @@ type toolOptions struct {
 	createDefaults map[string]any
 	createExample  []string
 	editNote       string
+	references     map[string]model.GettableModel
+	unpartitioned  bool
 }
 
 func newToolOptions(opts []ToolOption) toolOptions {
@@ -43,5 +47,25 @@ func WithCreateExample(paths ...string) ToolOption {
 func WithEditNote(note string) ToolOption {
 	return func(o *toolOptions) {
 		o.editNote = note
+	}
+}
+
+// WithReference declares that the create tool's field at path names an
+// existing R by key, so a partitioned server can refuse keys outside it.
+func WithReference[R model.GettableModel](path string) ToolOption {
+	return func(o *toolOptions) {
+		if o.references == nil {
+			o.references = map[string]model.GettableModel{}
+		}
+		var empty R
+		o.references[path] = empty
+	}
+}
+
+// WithoutPartition makes the get tool resolve keys outside the partition,
+// like the CLI's image get, which also inspects public images.
+func WithoutPartition() ToolOption {
+	return func(o *toolOptions) {
+		o.unpartitioned = true
 	}
 }

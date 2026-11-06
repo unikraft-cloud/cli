@@ -10,11 +10,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/model"
 	modelmcp "unikraft.com/cli/internal/model/mcp"
 	"unikraft.com/cli/internal/types"
 )
@@ -62,7 +64,7 @@ func schemaWithKey[T any](name, description string) (*jsonschema.Schema, error) 
 	return schema, nil
 }
 
-func AddInstanceTools(tools *modelmcp.Tools, commands InstanceCommands) error {
+func AddInstanceTools[R model.GettableModel](tools *modelmcp.Tools, commands InstanceCommands) error {
 	control, err := schemaWithKey[instanceControlArgs]("keys", "Instances to act on, each "+modelmcp.KeyFormat+".")
 	if err != nil {
 		return err
@@ -79,7 +81,14 @@ func AddInstanceTools(tools *modelmcp.Tools, commands InstanceCommands) error {
 		InputSchema: logs,
 		Annotations: modelmcp.ReadOnlyAnnotations(),
 	}, false, func(ctx context.Context, in instanceLogsArgs, stdio config.Stdio) error {
-		return commands.Logs(ctx, stdio, in.Key, cmp.Or(in.Tail, defaultLogTail))
+		keys, err := tools.PartitionKeys[R](ctx, []string{in.Key})
+		if err != nil {
+			return err
+		}
+		if len(keys) > 1 {
+			return fmt.Errorf("instance %q matches %s; pass one of them as key", in.Key, strings.Join(keys, ", "))
+		}
+		return commands.Logs(ctx, stdio, keys[0], cmp.Or(in.Tail, defaultLogTail))
 	}), tools.AddTool("instance", &mcp.Tool{
 		Name:        "instance_control",
 		Title:       "Control instances",
@@ -90,19 +99,23 @@ func AddInstanceTools(tools *modelmcp.Tools, commands InstanceCommands) error {
 		if len(in.Keys) == 0 {
 			return errors.New("no instances specified")
 		}
+		keys, err := tools.PartitionKeys[R](ctx, in.Keys)
+		if err != nil {
+			return err
+		}
 		drain := defaultDrainTimeout
 		if in.DrainTimeoutMS != nil {
 			drain = types.DurationMS(*in.DrainTimeoutMS)
 		}
 		switch in.Action {
 		case "start":
-			return commands.Start(ctx, stdio, in.Keys)
+			return commands.Start(ctx, stdio, keys)
 		case "stop":
-			return commands.Stop(ctx, stdio, in.Keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
+			return commands.Stop(ctx, stdio, keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
 		case "restart":
-			return commands.Restart(ctx, stdio, in.Keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
+			return commands.Restart(ctx, stdio, keys, InstanceStopOptions{Force: in.Force, DrainTimeout: drain})
 		case "suspend":
-			return commands.Suspend(ctx, stdio, in.Keys, drain)
+			return commands.Suspend(ctx, stdio, keys, drain)
 		default:
 			return fmt.Errorf("unknown action %q: use start, stop, restart or suspend", in.Action)
 		}

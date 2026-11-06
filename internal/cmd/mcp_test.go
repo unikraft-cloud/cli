@@ -18,6 +18,7 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
+	"unikraft.com/cli/internal/model"
 )
 
 func TestMCPServerTools(t *testing.T) {
@@ -136,4 +137,18 @@ profiles:
 	srv, err = newMCPServer(ctx, io.Discard, nil, MCPCmd{})
 	require.NoError(t, err)
 	assert.NotContains(t, mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames(), "profile_use")
+}
+
+func TestMCPServerNoPartition(t *testing.T) {
+	ctx := config.WithConfig(t.Context(), &config.Config{})
+	partition, err := model.LoadPartition(filepath.Join(t.TempDir(), "partition.json"), PartitionedResources...)
+	require.NoError(t, err)
+
+	srv, err := newMCPServer(ctx, io.Discard, partition, MCPCmd{})
+	require.NoError(t, err)
+	assert.Contains(t, mcptest.ConnectServer(t, ctx, srv.MCP()).Instructions, "confined to a partition")
+
+	srv, err = newMCPServer(ctx, io.Discard, partition, MCPCmd{NoPartition: true})
+	require.NoError(t, err)
+	assert.NotContains(t, mcptest.ConnectServer(t, ctx, srv.MCP()).Instructions, "partition")
 }
