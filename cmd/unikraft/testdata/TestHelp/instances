@@ -1044,7 +1044,7 @@ Flags:
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --follow
-          Follow instance logs after creation.
+          Follow instance logs after creation, until the instances stop.
 
 Global flags:
   -h, --help
@@ -2467,7 +2467,7 @@ Flags:
       --tail
           Number of lines to show from the end of the logs.
   -f, --follow
-          Follow log output.
+          Follow log output until the instances stop.
 
 Global flags:
   -h, --help
@@ -2508,7 +2508,7 @@ Examples:
 
 Flags:
       --follow
-          Follow log output after starting.
+          Follow log output after starting, until the instances stop.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -2658,7 +2658,7 @@ Flags:
           Timeout in milliseconds for draining connections before stopping.
           [default: -1]
       --follow
-          Follow log output after restarting.
+          Follow log output after restarting, until the instances stop.
   -f, --field
           Specify which fields to include in the output.
   -o, --output

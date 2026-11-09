@@ -47,9 +47,9 @@ cmd: ["python3", "/app/server.py"]
 	},
 }
 
-// followArgs counts the boots in /data/n, prints the count, then waits. The
-// instance stays running while the test reads the output of the boot.
-const followArgs = `runtime.args=["sh","-c","n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; sleep 30s"]`
+// followArgs counts the boots in /data/n and prints the count. The first boot
+// waits until the test stops it, and the next boots exit with code 0.
+const followArgs = `runtime.args=["sh","-c","n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; [ $n -ge 2 ] || sleep 30s"]`
 
 const sandboxPluginRom = "plugins/sandbox:latest"
 
@@ -439,6 +439,83 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
 
+	t.Run("run-follow", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+		image := integ.Busybox.Build(t, r)
+
+		out := r.Run(t, []string{
+			"unikraft", "run",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--output", "quiet",
+			"--image", image,
+			"--args", "sh -c 'echo UNIKRAFT_FOLLOW_OK; exit 3'",
+			"--follow",
+		}, integ.WithTimeout(60*time.Second))
+		assert.Regexp(t, `(?s)UNIKRAFT_FOLLOW_OK.*instance stopped.*exit-code=3`, out)
+
+		out = r.Run(t, []string{
+			"unikraft", "instance", "logs",
+			"--follow",
+			"test-" + instName,
+		}, integ.WithTimeout(30*time.Second))
+		assert.Regexp(t, `(?s)UNIKRAFT_FOLLOW_OK.*instance stopped.*exit-code=3`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("run-follow-restart", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+		volName := uniq()
+		image := integ.Busybox.Build(t, r)
+
+		r.Run(t, []string{
+			"unikraft", "volume", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + volName,
+			"--set", "size=20",
+			"--set", "metro=" + r.MetroName,
+		})
+
+		// The first boot fails, so the platform restarts the instance once.
+		out := r.Run(t, []string{
+			"unikraft", "run",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--output", "quiet",
+			"--image", image,
+			"--restart", "on-failure",
+			"--volume", "test-" + volName + ":/data",
+			"--args", `sh -c 'n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; [ $n -ge 2 ]'`,
+			"--follow",
+		}, integ.WithTimeout(90*time.Second))
+		assert.Regexp(t, `(?s)starting 1.*starting 2.*instance stopped.*exit-code=0`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+		r.Run(t, []string{"unikraft", "--timeout", "30s", "volume", "wait", "--until", "state==available", "test-" + volName})
+		r.Run(t, []string{"unikraft", "volume", "delete", "test-" + volName})
+	})
+
+	t.Run("run-rm-follow", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+		image := integ.Busybox.Build(t, r)
+
+		out := r.Run(t, []string{
+			"unikraft", "run",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--output", "quiet",
+			"--image", image,
+			"--rm",
+			"--args", "sh -c 'echo UNIKRAFT_FOLLOW_OK; sleep 5'",
+			"--follow",
+		}, integ.WithTimeout(60*time.Second))
+		assert.Contains(t, out, "UNIKRAFT_FOLLOW_OK")
+	})
+
 	t.Run("start-follow", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
@@ -479,8 +556,8 @@ func TestInstances(t *testing.T) {
 			"unikraft", "instance", "start",
 			"--follow",
 			"test-" + instName,
-		}, integ.WithTimeout(5*time.Second), integ.AllowFail())
-		assert.Contains(t, out, "starting 2")
+		}, integ.WithTimeout(60*time.Second))
+		assert.Regexp(t, `(?s)starting 2.*instance stopped.*exit-code=0`, out)
 		assert.NotContains(t, out, "starting 1")
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
@@ -523,14 +600,12 @@ func TestInstances(t *testing.T) {
 		r.Run(t, []string{"unikraft", "instance", "wait", "--until", "state==running", "--timeout", "30s", "test-" + instName})
 
 		// Second boot via restart --follow: output must contain "starting 2" only.
-		// Restart incurs stop+start overhead on top of the boot itself, so it
-		// needs more headroom than a plain start-follow to avoid flaking.
 		out := r.Run(t, []string{
 			"unikraft", "instance", "restart",
 			"--follow",
 			"test-" + instName,
-		}, integ.WithTimeout(15*time.Second), integ.AllowFail())
-		assert.Contains(t, out, "starting 2")
+		}, integ.WithTimeout(60*time.Second))
+		assert.Regexp(t, `(?s)starting 2.*instance stopped.*exit-code=0`, out)
 		assert.NotContains(t, out, "starting 1")
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
