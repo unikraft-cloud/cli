@@ -53,7 +53,7 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
 	unikraft.com/cloud/sdk v0.4.1-staging.4
-	unikraft.com/cloud/sdk/build v0.0.0-20261103133358-47eb7dbdbcc8
+	unikraft.com/cloud/sdk/build v0.0.0-20261106153318-895ff7207351
 	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261027110526-41cac40eecd3
 	unikraft.com/x/build v0.0.0-20261106134551-637dd37aa195
 	unikraft.com/x/buildkit v0.0.0-20261106134551-637dd37aa195
@@ -95,6 +95,7 @@ require (
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
+	github.com/coder/websocket v1.8.15 // indirect
 	github.com/containerd/console v1.0.5 // indirect
 	github.com/containerd/containerd/api v1.12.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
