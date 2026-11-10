@@ -71,7 +71,8 @@ jobs:
         LAST_STABLE=$(make --no-print-directory last-stable)
 
         if [[ "${{ github.ref }}" == "refs/heads/prod-stable" ]]; then
-          NEXT_VERSION=$(make --no-print-directory next-stable)
+          # HEAD is the promote merge, so HEAD^2 is the prod-staging commit being promoted
+          NEXT_VERSION=$(REF=HEAD^2 make --no-print-directory next-stable)
         else
           NEXT_VERSION=$(make --no-print-directory next-staging)
         fi
