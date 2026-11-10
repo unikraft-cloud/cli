@@ -152,9 +152,11 @@ func TestInstances(t *testing.T) {
 			"--set", "autostart=false",
 			"-e", "LIST=a,b,c",
 			"-e", "PAIRS=k1=v1,k2=v2",
+			"-e", "FROM_HOST",
 			"--set", "runtime.env=VIA_SET=x,y",
-		})
+		}, integ.WithEnv("FROM_HOST=local"))
 		assert.Regexp(t, `LIST:\s+a,b,c`, out)
+		assert.Regexp(t, `FROM_HOST:\s+local`, out)
 		assert.Regexp(t, `PAIRS:\s+k1=v1,k2=v2`, out)
 		assert.Regexp(t, `VIA_SET:\s+x,y`, out)
 

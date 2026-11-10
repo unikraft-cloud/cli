@@ -567,8 +567,8 @@ Create flags:
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
-  -e, --env=<key>=<value> ...
-          Environment variable as KEY=value.
+  -e, --env=<key>[=<value>] ...
+          Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment.
           [example: DEBUG=true]
   -m, --memory=<size>
           Memory for the instance, within the range the plan allows (see quotas.limits.memory on the metro). Defaults to 128MiB on create.
@@ -835,8 +835,8 @@ Create flags:
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
-  -e, --env=<key>=<value> ...
-          Environment variable as KEY=value.
+  -e, --env=<key>[=<value>] ...
+          Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment.
           [example: DEBUG=true]
   -m, --memory=<size>
           Memory for the instance, within the range the plan allows (see quotas.limits.memory on the metro). Defaults to 128MiB on create.
@@ -1089,8 +1089,8 @@ Create flags:
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
-  -e, --env=<key>=<value> ...
-          Environment variable as KEY=value.
+  -e, --env=<key>[=<value>] ...
+          Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment.
           [example: DEBUG=true]
   -m, --memory=<size>
           Memory for the instance, within the range the plan allows (see quotas.limits.memory on the metro). Defaults to 128MiB on create.
@@ -1313,8 +1313,8 @@ Edit flags:
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
-  -e, --env=<key>=<value> ...
-          Environment variable as KEY=value.
+  -e, --env=<key>[=<value>] ...
+          Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment.
           [example: DEBUG=true]
   -m, --memory=<size>
           Memory for the instance, within the range the plan allows (see quotas.limits.memory on the metro). Defaults to 128MiB on create.
