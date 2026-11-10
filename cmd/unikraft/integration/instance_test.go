@@ -302,42 +302,116 @@ func TestInstances(t *testing.T) {
 	})
 
 	t.Run("graph", func(t *testing.T) {
+		// The live chart needs a terminal. It is covered by the model tests in
+		// internal/cmd/instances_graph_test.go, because TestEnv.Run captures
+		// stdout in a buffer.
+		//
+		// A live value can be zero right after an instance starts (a staging
+		// run returned a memory value of 0), so these checks cover the shape
+		// of the rows and never the magnitude of a value.
 		r := runner(t, true, []string{staging, stable})
 		instName := uniq()
+		otherName := uniq()
 		image := integ.Busybox.Build(t, r)
 
-		r.Run(t, []string{
-			"unikraft", "run",
-			"--name", "test-" + instName,
-			"--metro", r.MetroName,
-			"--output", "quiet",
-			"--image", image,
-			"--args", "sleep 120",
-		})
-		r.Run(t, []string{"unikraft", "--timeout", "30s", "instance", "wait", "--until", "state==running", "test-" + instName})
+		for _, name := range []string{instName, otherName} {
+			r.Run(t, []string{
+				"unikraft", "run",
+				"--name", "test-" + name,
+				"--metro", r.MetroName,
+				"--output", "quiet",
+				"--image", image,
+				"--args", "sleep 120",
+			})
+		}
+		for _, name := range []string{instName, otherName} {
+			r.Run(t, []string{"unikraft", "--timeout", "30s", "instance", "wait", "--until", "state==running", "test-" + name})
+		}
 
-		out := r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--metric", "memory", "--interval", "1s", "--samples", "2", "--output", "json"})
-		var rows []struct {
+		type graphRow struct {
 			Instance string   `json:"instance"`
 			Metric   string   `json:"metric"`
 			Value    *float64 `json:"value"`
 		}
-		require.NoError(t, json.Unmarshal([]byte(out), &rows))
+		graph := func(args ...string) []graphRow {
+			t.Helper()
+			out := r.Run(t, append([]string{"unikraft", "instance", "graph"}, append(args, "--interval", "1s", "--samples", "2", "--output", "json")...))
+			var rows []graphRow
+			require.NoError(t, json.Unmarshal([]byte(out), &rows))
+			return rows
+		}
+		// bySeries groups rows by instance and metric. Rows of one series stay
+		// in the order of their samples.
+		bySeries := func(rows []graphRow) map[[2]string][]graphRow {
+			series := map[[2]string][]graphRow{}
+			for _, row := range rows {
+				key := [2]string{row.Instance, row.Metric}
+				series[key] = append(series[key], row)
+			}
+			return series
+		}
+
+		// A level has a value at every sample.
+		rows := graph("test-"+instName, "--metric", "memory")
 		require.Len(t, rows, 2)
 		for _, row := range rows {
 			assert.Equal(t, "test-"+instName, row.Instance)
 			assert.Equal(t, "memory", row.Metric)
 			require.NotNil(t, row.Value)
-			assert.Positive(t, *row.Value)
+			assert.GreaterOrEqual(t, *row.Value, 0.0)
 		}
 
-		out = r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--interval", "1s", "--samples", "2"})
+		// A rate has no value at the first sample, because it needs two. The
+		// run fails when no sample of a lone series has a value, so the second
+		// one is set. It can be a real zero, so only its sign is checked.
+		rows = graph("test-"+instName, "--metric", "cpu")
+		require.Len(t, rows, 2)
+		for _, row := range rows {
+			assert.Equal(t, "test-"+instName, row.Instance)
+			assert.Equal(t, "cpu", row.Metric)
+		}
+		assert.Nil(t, rows[0].Value)
+		require.NotNil(t, rows[1].Value)
+		assert.GreaterOrEqual(t, *rows[1].Value, 0.0)
+
+		// Several instances and metrics, as a comma separated list and as a
+		// repeated flag, give one series for each pair.
+		names := []string{"test-" + instName, "test-" + otherName}
+		for _, metricArgs := range [][]string{
+			{"--metric", "memory,cpu"},
+			{"--metric", "memory", "--metric", "cpu"},
+		} {
+			rows = graph(append(names, metricArgs...)...)
+			assert.Len(t, rows, len(names)*2*2)
+			series := bySeries(rows)
+			assert.Len(t, series, len(names)*2)
+			for _, name := range names {
+				memory, cpu := series[[2]string{name, "memory"}], series[[2]string{name, "cpu"}]
+				require.Len(t, memory, 2, name)
+				require.Len(t, cpu, 2, name)
+				for _, row := range memory {
+					require.NotNil(t, row.Value, name)
+					assert.GreaterOrEqual(t, *row.Value, 0.0, name)
+				}
+				assert.Nil(t, cpu[0].Value, name)
+			}
+		}
+
+		out := r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--interval", "1s", "--samples", "2"})
 		assert.Contains(t, out, "test-"+instName+"  memory (bytes)")
+
+		// A rate needs two samples.
+		out = r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--metric", "cpu", "--samples", "1"}, integ.ExpectFail())
+		assert.Contains(t, out, "--samples must be 0 or at least 2 for cpu: a rate needs two samples")
+
+		// The samples cannot be closer than a second.
+		out = r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName, "--interval", "500ms", "--samples", "2"}, integ.ExpectFail())
+		assert.Contains(t, out, "--interval must be at least 1s, got 500ms")
 
 		// An unknown instance fails.
 		r.Run(t, []string{"unikraft", "instance", "graph", "test-" + instName + "-missing", "--samples", "2", "--interval", "1s", "--output", "json"}, integ.ExpectFail())
 
-		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName, "test-" + otherName})
 	})
 
 	t.Run("create-oom", func(t *testing.T) {
