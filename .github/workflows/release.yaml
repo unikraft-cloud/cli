@@ -10,9 +10,10 @@ permissions:
   contents: write
   packages: write
 
-# Automatically cancel in-progress actions on the same branch
+# Shared across branches, so stable waits for the staging run that tags its commit
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}
+  queue: max
 
 jobs:
   release:
@@ -66,18 +67,28 @@ jobs:
       shell: bash
       id: versions
       run: |
-        {
-          echo "next-stable=$(make --no-print-directory next-stable 2>/dev/null)"
-          echo "next-staging=$(make --no-print-directory next-staging 2>/dev/null)"
-          echo "last-version=$(make --no-print-directory last-version 2>/dev/null)"
-          echo "last-stable=$(make --no-print-directory last-stable 2>/dev/null)"
-        } >> "$GITHUB_OUTPUT"
+        LAST_VERSION=$(make --no-print-directory last-version)
+        LAST_STABLE=$(make --no-print-directory last-stable)
 
         if [[ "${{ github.ref }}" == "refs/heads/prod-stable" ]]; then
-          echo "next-version=$(make --no-print-directory next-stable 2>/dev/null)" >> "$GITHUB_OUTPUT"
+          # HEAD is the promote merge, so HEAD^2 is the prod-staging commit being promoted
+          NEXT_VERSION=$(REF=HEAD^2 make --no-print-directory next-stable)
         else
-          echo "next-version=$(make --no-print-directory next-staging 2>/dev/null)" >> "$GITHUB_OUTPUT"
+          NEXT_VERSION=$(make --no-print-directory next-staging)
         fi
+
+        for VERSION in "$LAST_VERSION" "$LAST_STABLE" "$NEXT_VERSION"; do
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-staging\.[0-9]+)?$ ]]; then
+            echo "::error::Not a valid version: $VERSION"
+            exit 1
+          fi
+        done
+
+        {
+          echo "last-version=$LAST_VERSION"
+          echo "last-stable=$LAST_STABLE"
+          echo "next-version=$NEXT_VERSION"
+        } >> "$GITHUB_OUTPUT"
 
     - name: Tag next version
       shell: bash
