@@ -180,6 +180,7 @@ func certificatesHelpTests(t *testing.T, unikraftPath string) {
 		[]string{"unikraft", "certificate", "list", "--help"},
 		[]string{"unikraft", "certificate", "wait", "--help"},
 		[]string{"unikraft", "certificate", "create", "--help"},
+		[]string{"unikraft", "certificate", "edit", "--help"},
 		[]string{"unikraft", "certificate", "delete", "--help"},
 	)
 }
