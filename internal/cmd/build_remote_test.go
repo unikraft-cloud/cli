@@ -49,6 +49,7 @@ func TestRemoteRequest(t *testing.T) {
 				NoCache:  true,
 				Secret:   []string{"id=npm,src=/home/me/.npmrc"},
 				SSH:      []string{"default"},
+				Metro:    []string{"fra"},
 			},
 			want: `{
 				"kraftfile": {"session": "context", "filename": "kraft.yaml"},
@@ -56,6 +57,7 @@ func TestRemoteRequest(t *testing.T) {
 				"platforms": ["arm64"],
 				"build_args": {"VERSION": "1.2.3"},
 				"no_cache": true,
+				"hints": {"metros": ["fra"]},
 				"secrets": {"npm": {"session": "npm"}},
 				"ssh": {"default": {"session": "default"}},
 				"registries": {"*": {"session": true}},

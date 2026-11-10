@@ -94,6 +94,8 @@ Flags:
           Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
           Build on the build service at this URL and push the image from there, instead of building locally.
+      --metro=<metro> ...
+          Metros that a remote build may run in, by name or API URL. Defaults to the build service's choice.
 
 Global flags:
   -h, --help

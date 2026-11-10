@@ -95,6 +95,9 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	if c.Remote != "" {
 		return c.runRemote(ctx, cfg, partition)
 	}
+	if len(c.Metro) > 0 {
+		return errors.New("--metro applies only to a remote build, with --remote")
+	}
 
 	buildOpts, err := build.LoadBuildOpts(ctx, c.Input)
 	if err != nil {

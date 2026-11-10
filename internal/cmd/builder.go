@@ -73,7 +73,7 @@ func (Builder) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	}
 	var results []model.Model
 	for _, name := range keys {
-		s, err := client.GetBuilder(ctx, name)
+		s, err := client.GetBuilder(ctx, name, buildapi.GetBuilderOptions{})
 		if err != nil {
 			return results, builderError(err, name)
 		}
@@ -120,7 +120,7 @@ func (Builder) Delete(ctx context.Context, keys []string) error {
 		return err
 	}
 	for _, name := range keys {
-		if err := client.DeleteBuilder(ctx, name); err != nil {
+		if err := client.DeleteBuilder(ctx, name, buildapi.DeleteBuilderOptions{}); err != nil {
 			return builderError(err, name)
 		}
 	}
@@ -261,7 +261,7 @@ func (c *BuilderCreateCmd) Run(ctx context.Context, cfg *config.Config) error {
 	if c.Cache != 0 {
 		b.CacheMb = new(int64(c.Cache))
 	}
-	if _, err := client.CreateBuilder(ctx, b); err != nil {
+	if _, err := client.CreateBuilder(ctx, b, buildapi.CreateBuilderOptions{}); err != nil {
 		return err
 	}
 	log.G(ctx).Info().Str("name", c.Name).Msg("builder ready")
@@ -273,7 +273,7 @@ func (c *BuilderDuCmd) Run(ctx context.Context, cfg *config.Config, stdio config
 	if err != nil {
 		return err
 	}
-	u, err := client.GetBuilderUsage(ctx, c.Name)
+	u, err := client.GetBuilderUsage(ctx, c.Name, buildapi.GetBuilderUsageOptions{})
 	if err != nil {
 		return builderError(err, c.Name)
 	}
@@ -286,7 +286,7 @@ func (c *BuilderPruneCmd) Run(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	resp, err := client.PruneBuilder(ctx, c.Name)
+	resp, err := client.PruneBuilder(ctx, c.Name, buildapi.PruneBuilderOptions{})
 	if err != nil {
 		return builderError(err, c.Name)
 	}
