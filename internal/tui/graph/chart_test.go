@@ -288,9 +288,10 @@ func TestLabels(t *testing.T) {
 		{3 << 30, UnitBytesPerSecond, "3Gi", "3 GiB/s"},
 	}
 	for _, tt := range tests {
-		assert.Equal(t, tt.axis, axisLabel(tt.v, tt.unit), "axisLabel(%v)", tt.v)
+		label := axisLabels([]float64{tt.v}, tt.unit)[0]
+		assert.Equal(t, tt.axis, label, "axisLabels(%v)", tt.v)
 		assert.Equal(t, tt.value, FormatReading(tt.v, tt.unit), "FormatReading(%v)", tt.v)
-		assert.LessOrEqual(t, len(axisLabel(tt.v, tt.unit)), axisLabelWidth)
+		assert.LessOrEqual(t, len(label), axisLabelWidth)
 	}
 }
 

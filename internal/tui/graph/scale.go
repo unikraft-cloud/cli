@@ -134,15 +134,6 @@ func FormatReading(v float64, unit Unit) string {
 // axisLabelWidth is the width of the value gutter.
 const axisLabelWidth = 5
 
-// axisLabel formats v in at most axisLabelWidth cells.
-func axisLabel(v float64, unit Unit) string {
-	if label, ok := axisLabelForm(v, unit, false); ok {
-		return label
-	}
-	label, _ := axisLabelForm(v, unit, true)
-	return label
-}
-
 // axisLabels formats the labels of one axis in one form. If a label does not
 // fit with a full prefix, such as "1.25Mi", every label uses the short form,
 // such as "1.25M", so that one axis never mixes "Mi" and "M".
