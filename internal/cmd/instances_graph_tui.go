@@ -26,6 +26,9 @@ import (
 	"unikraft.com/cli/internal/tui/styles"
 )
 
+// graphLiveSupported reports whether this build can draw the live chart.
+const graphLiveSupported = true
+
 // defaultGraphWidth is the width used until the terminal reports its size.
 const defaultGraphWidth = 80
 
@@ -84,6 +87,9 @@ func (m *graphModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		// Keep enough points to fill the chart of a wide terminal. A shrinking
+		// window trims the series on the next point.
+		m.session.limit = graphLimit(msg.Width)
 	case graphSampleMsg:
 		m.fetching = false
 		m.err = m.session.observe(msg.at, msg.reading, msg.err)

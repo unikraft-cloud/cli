@@ -33,8 +33,8 @@ func observeMemory(t *testing.T, s *graphSession, mibs ...uint64) {
 	for i, mib := range mibs {
 		at := graphT0.Add(time.Duration(i) * s.interval)
 		reading := graphReading{
-			graphTestUUID:  {RssBytes: mib << 20, Nconns: uint64(i)},
-			graphTestUUID2: {RssBytes: mib << 19, Nconns: 10 * uint64(i)},
+			graphTestUUID:  {m: graphMetrics{RssBytes: mib << 20, Nconns: uint64(i)}},
+			graphTestUUID2: {m: graphMetrics{RssBytes: mib << 19, Nconns: 10 * uint64(i)}},
 		}
 		require.NoError(t, s.observe(at, reading, nil))
 	}
@@ -61,7 +61,7 @@ func TestGraphSparkRowsLeaveOutWhatIsTheSame(t *testing.T) {
 	assert.NotContains(t, byTarget.plainFrame(60), "memory")
 
 	byField := newTestSession(t, nil, "memory", "conns")
-	require.NoError(t, byField.observe(graphT0, graphReading{graphTestUUID: {RssBytes: 1 << 20}}, nil))
+	require.NoError(t, byField.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 1 << 20}}}, nil))
 	assert.Contains(t, byField.plainFrame(60), "memory  ")
 	assert.NotContains(t, byField.plainFrame(60), "my-instance")
 }
@@ -91,7 +91,7 @@ func TestGraphSparkRowsTooNarrow(t *testing.T) {
 func TestGraphOutputHasRowsForEveryInstanceAndField(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		both := graphReading{graphTestUUID: {RssBytes: 1 << 20, Nconns: 1}, graphTestUUID2: {RssBytes: 2 << 20, Nconns: 2}}
+		both := graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 1 << 20, Nconns: 1}}, graphTestUUID2: {m: graphMetrics{RssBytes: 2 << 20, Nconns: 2}}}
 		script := &graphScript{steps: []graphStep{{readings: both}}}
 		s := newTestSessionOf(t, script.fetch, twoTargets(), "memory", "conns")
 		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(2), Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}
@@ -150,8 +150,8 @@ func TestGraphSparkRowsFitTheWidth(t *testing.T) {
 				at := graphT0.Add(time.Duration(i) * s.interval)
 				big := uint64(i+1) * 987654321
 				reading := graphReading{
-					graphTestUUID:  {RssBytes: big, RxBytes: big * 3, TxBytes: big, CpuTimeMs: big, Ntotal: big, Nconns: big, Nreqs: big, Nqueued: big},
-					graphTestUUID2: {RssBytes: big / 7, RxBytes: big, TxBytes: big / 5, CpuTimeMs: big / 3, Ntotal: big / 9, Nconns: big / 3, Nreqs: big / 4, Nqueued: big / 5},
+					graphTestUUID:  {m: graphMetrics{RssBytes: big, RxBytes: big * 3, TxBytes: big, CpuTimeMs: big, Ntotal: big, Nconns: big, Nreqs: big, Nqueued: big}},
+					graphTestUUID2: {m: graphMetrics{RssBytes: big / 7, RxBytes: big, TxBytes: big / 5, CpuTimeMs: big / 3, Ntotal: big / 9, Nconns: big / 3, Nreqs: big / 4, Nqueued: big / 5}},
 				}
 				_ = s.observe(at, reading, nil)
 			}
@@ -177,7 +177,7 @@ func TestGraphSparkRowsScaleOverTheVisiblePoints(t *testing.T) {
 	t.Parallel()
 	s := newTestSessionOf(t, nil, twoTargets(), "conns")
 	for i, v := range []uint64{1000, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24} {
-		reading := graphReading{graphTestUUID: {Nconns: v}, graphTestUUID2: {Nconns: v}}
+		reading := graphReading{graphTestUUID: {m: graphMetrics{Nconns: v}}, graphTestUUID2: {m: graphMetrics{Nconns: v}}}
 		require.NoError(t, s.observe(graphT0.Add(time.Duration(i)*s.interval), reading, nil))
 	}
 	frame := s.plainFrame(minSparkFrame)

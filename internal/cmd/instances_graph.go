@@ -23,6 +23,7 @@ import (
 	"unikraft.com/x/guesstermwidth"
 	xio "unikraft.com/x/io"
 	"unikraft.com/x/kingkong"
+	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
@@ -143,6 +144,10 @@ func (c *InstancesGraphCmd) validate() ([]graphField, error) {
 	if c.Samples != nil && *c.Samples < 0 {
 		return nil, fmt.Errorf("--samples must not be negative, got %d", *c.Samples)
 	}
+	switch c.Output.Type {
+	case cmd.PrinterTypeQuiet, cmd.PrintTypeDebug:
+		return nil, fmt.Errorf("--output %s is not supported here", c.Output.Type)
+	}
 	fields, err := parseGraphFields(c.Metric)
 	if err != nil {
 		return nil, err
@@ -173,6 +178,8 @@ func (c *InstancesGraphCmd) samplesOr(def int) int {
 // collects its samples first and prints once.
 func (c *InstancesGraphCmd) run(ctx context.Context, stdio config.Stdio, s *graphSession) error {
 	if c.Output.Type != "" {
+		// Every sample is printed, so the series keep all of them.
+		s.limit = 0
 		s.collect(ctx, c.samplesOr(defaultRowSamples))
 		if err := s.collectFailure(ctx); err != nil {
 			return err
@@ -182,20 +189,29 @@ func (c *InstancesGraphCmd) run(ctx context.Context, stdio config.Stdio, s *grap
 		}
 		return timedOut(ctx)
 	}
-	if xio.IsTTY(stdio.Stdout) {
+	if graphLiveSupported && xio.IsTTY(stdio.Stdout) {
 		return runGraphLive(ctx, stdio, s, c.samplesOr(0))
 	}
+	width := guesstermwidth.GuessTermWidth(stdio.Stdout)
+	s.limit = graphLimit(width)
 	s.collect(ctx, c.samplesOr(defaultPlainSamples))
 	if err := s.collectFailure(ctx); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(stdio.Stdout, s.plainFrame(guesstermwidth.GuessTermWidth(stdio.Stdout))); err != nil {
+	if _, err := fmt.Fprintln(stdio.Stdout, s.plainFrame(width)); err != nil {
 		return err
 	}
 	if s.lastErr != nil {
-		fmt.Fprintln(stdio.Stderr, "error: "+cleanLine(s.lastErr.Error()))
+		log.G(ctx).Warn().Msg("the last poll failed: " + cleanLine(s.lastErr.Error()))
 	}
 	return timedOut(ctx)
+}
+
+// graphLimit is how many points of a series a frame of the given width can
+// draw: two for each column of the chart, and a sparkline has at most one for
+// each column. It is never below graphRingSize.
+func graphLimit(width int) int {
+	return max(graphRingSize, 2*width)
 }
 
 // timedOut returns the error of a run that the --timeout flag ended. A run
@@ -218,9 +234,17 @@ type graphTarget struct {
 // graphMetrics is one answer of the metrics endpoint.
 type graphMetrics = platform.GetInstancesMetricsResponseInstanceMetrics
 
+// graphAnswer is the metrics of one instance and the time at which its metro
+// answered.
+type graphAnswer struct {
+	m graphMetrics
+	// at is when the answer arrived. Zero means the time of the poll.
+	at time.Time
+}
+
 // graphReading holds the metrics of the instances that the platform answered
 // for, by UUID.
-type graphReading map[string]graphMetrics
+type graphReading map[string]graphAnswer
 
 // graphFetch reads the current metrics once.
 type graphFetch func(ctx context.Context) (graphReading, error)
@@ -314,15 +338,19 @@ func newGraphFetch(g *group.Group[multimetro.MetroClient], keys multimetro.Keys)
 		var failed []error
 		err := group.DoRefs(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 			resp, err := c.GetInstanceMetrics(ctx, refs.NameOrUUIDs(), platform.GetInstanceMetricsOpts{})
+			at := time.Now()
+			// A partial_success answer comes with an API error, and its items
+			// say which instances worked. Read them unless the answer is broken.
+			var apiErr *platform.APIError
+			if (err == nil || errors.As(err, &apiErr)) && resp != nil && resp.Data != nil && len(resp.Data.Instances) > 0 {
+				mu.Lock()
+				defer mu.Unlock()
+				failed = append(failed, readInstances(reading, resp.Data.Instances, at))
+				return refs, nil
+			}
 			if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
 				return nil, err
 			}
-			if resp == nil || resp.Data == nil {
-				return refs, nil
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			failed = append(failed, readInstances(reading, resp.Data.Instances))
 			return refs, nil
 		})
 		return reading, errors.Join(append(failed, err)...)
@@ -331,11 +359,12 @@ func newGraphFetch(g *group.Group[multimetro.MetroClient], keys multimetro.Keys)
 
 // readInstances adds the answers of the platform to reading. It returns why
 // the platform gave no metrics for an instance, with the message that it sent.
-func readInstances(reading graphReading, instances []graphMetrics) error {
+// The answers arrived at the given time.
+func readInstances(reading graphReading, instances []graphMetrics, at time.Time) error {
 	var failed []error
 	for _, m := range instances {
 		if m.Status != nil && *m.Status == platform.ResponseStatusSuccess {
-			reading[m.Uuid] = m
+			reading[m.Uuid] = graphAnswer{m: m, at: at}
 			continue
 		}
 		name := cmp.Or(m.Name, m.Uuid)
@@ -409,7 +438,7 @@ func (s *graphSession) observe(t time.Time, reading graphReading, fetchErr error
 	cause := fetchErr
 	for i, line := range s.lines {
 		target, f := s.targets[line.target], s.fields[line.field]
-		m, found := reading[target.key.UUID]
+		answer, found := reading[target.key.UUID]
 		if !found {
 			if cause == nil {
 				cause = fmt.Errorf("%s: %w", target.name, errGraphMissing)
@@ -417,18 +446,22 @@ func (s *graphSession) observe(t time.Time, reading graphReading, fetchErr error
 			s.add(i, graph.Point{T: t})
 			continue
 		}
-		raw := f.read(&m)
+		raw := f.read(&answer.m)
 		if !f.counter {
 			s.add(i, graph.Point{T: t, V: float64(raw), OK: true})
 			continue
 		}
+		// A metro that answers late must not skew the rates of the others, so
+		// a rate uses the time at which its own answer arrived. The point is
+		// still at the time of the poll, to keep the series aligned.
+		at := cmp.Or(answer.at, t)
 		prev := s.prev[i]
-		s.prev[i] = rawSample{t: t, v: raw, set: true}
+		s.prev[i] = rawSample{t: at, v: raw, set: true}
 		if !prev.set {
 			s.add(i, graph.Point{T: t})
 			continue
 		}
-		elapsed := t.Sub(prev.t).Seconds()
+		elapsed := at.Sub(prev.t).Seconds()
 		if raw < prev.v || elapsed <= 0 {
 			s.add(i, graph.Point{T: t})
 			continue
@@ -671,6 +704,22 @@ func (s *graphSession) sparkRows(width, height int, style graph.Style) string {
 	sparkW := width - labelW - sparkGap
 	if statW > 0 {
 		sparkW -= sparkGap + statW
+		// The text above was measured over every point. The row shows the
+		// newest sparkW points, and their maximum can be wider than the
+		// maximum of all of them (999 against 1k). Take the cells from the
+		// sparkline, and measure again, because a shorter window can change
+		// the text once more.
+		for changed := true; changed; {
+			changed = false
+			for _, i := range order {
+				w := ansi.StringWidth(s.stat(i, mode, sparkW))
+				if w > statW && sparkW-(w-statW) >= 1 {
+					sparkW -= w - statW
+					statW = w
+					changed = true
+				}
+			}
+		}
 	}
 
 	// The scale of a field covers the points that are on screen.

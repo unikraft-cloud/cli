@@ -13,6 +13,10 @@ import (
 	"unikraft.com/cli/internal/config"
 )
 
+// graphLiveSupported reports whether this build can draw the live chart. It
+// cannot, and a run without --output prints a frame instead.
+const graphLiveSupported = false
+
 func runGraphLive(context.Context, config.Stdio, *graphSession, int) error {
-	return notAvailable("the live chart of instance graph (use --samples or --output)")
+	return notAvailable("the live chart of instance graph (use --output)")
 }

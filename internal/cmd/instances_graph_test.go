@@ -10,11 +10,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -22,8 +26,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"unikraft.com/cloud/sdk/platform"
+	"unikraft.com/cloud/sdk/platform/group"
+	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/logfmt"
 	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/tui/graph"
@@ -67,7 +74,7 @@ func (s *graphScript) fetch(context.Context) (graphReading, error) {
 		return step.readings, nil
 	}
 	step.metrics.Uuid = graphTestUUID
-	return graphReading{graphTestUUID: step.metrics}, nil
+	return graphReading{graphTestUUID: {m: step.metrics}}, nil
 }
 
 func (s *graphScript) count() int {
@@ -102,7 +109,7 @@ func mem(mib uint64) graphStep { return graphStep{metrics: graphMetrics{RssBytes
 func TestGraphCPUPercentUsesVCPUs(t *testing.T) {
 	t.Parallel()
 	s := newTestSession(t, nil, "cpu", "rx", "handled")
-	require.NoError(t, s.observe(graphT0, graphReading{graphTestUUID: {CpuTimeMs: 1000, RxBytes: 1000, Ntotal: 10}}, nil))
+	require.NoError(t, s.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{CpuTimeMs: 1000, RxBytes: 1000, Ntotal: 10}}}, nil))
 	for i := range s.series {
 		require.Len(t, s.series[i], 1)
 		assert.False(t, s.series[i][0].OK, "the first sample of a counter has no rate")
@@ -110,7 +117,7 @@ func TestGraphCPUPercentUsesVCPUs(t *testing.T) {
 
 	// The answer took 4 s to arrive: the rate is over 4 s, not over the interval.
 	// 4000 CPU ms in 4 s on 2 vCPUs is 50 %.
-	require.NoError(t, s.observe(graphT0.Add(4*time.Second), graphReading{graphTestUUID: {CpuTimeMs: 5000, RxBytes: 5000, Ntotal: 18}}, nil))
+	require.NoError(t, s.observe(graphT0.Add(4*time.Second), graphReading{graphTestUUID: {m: graphMetrics{CpuTimeMs: 5000, RxBytes: 5000, Ntotal: 18}}}, nil))
 	assert.InDelta(t, 50, s.series[0][1].V, 1e-9)
 	assert.InDelta(t, 1000, s.series[1][1].V, 1e-9)
 	assert.InDelta(t, 2, s.series[2][1].V, 1e-9)
@@ -119,9 +126,9 @@ func TestGraphCPUPercentUsesVCPUs(t *testing.T) {
 func TestGraphCounterResetIsAGap(t *testing.T) {
 	t.Parallel()
 	s := newTestSession(t, nil, "rx")
-	_ = s.observe(graphT0, graphReading{graphTestUUID: {RxBytes: 9000}}, nil)
-	_ = s.observe(graphT0.Add(2*time.Second), graphReading{graphTestUUID: {RxBytes: 100}}, nil)
-	_ = s.observe(graphT0.Add(4*time.Second), graphReading{graphTestUUID: {RxBytes: 300}}, nil)
+	_ = s.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{RxBytes: 9000}}}, nil)
+	_ = s.observe(graphT0.Add(2*time.Second), graphReading{graphTestUUID: {m: graphMetrics{RxBytes: 100}}}, nil)
+	_ = s.observe(graphT0.Add(4*time.Second), graphReading{graphTestUUID: {m: graphMetrics{RxBytes: 300}}}, nil)
 	require.Len(t, s.series[0], 3)
 	assert.False(t, s.series[0][1].OK, "a counter that goes down is a gap and never a negative rate")
 	assert.True(t, s.series[0][2].OK)
@@ -137,13 +144,13 @@ func TestGraphFailedPollIsAGapNotZero(t *testing.T) {
 	}{
 		"failed poll":      {err: errors.New("boom"), cause: errors.New("boom")},
 		"missing instance": {reading: graphReading{}, cause: errors.New("my-instance: no answer from the platform")},
-		"other instance":   {reading: graphReading{"someone-else": {}}, cause: errors.New("my-instance: no answer from the platform")},
+		"other instance":   {reading: graphReading{"someone-else": {m: graphMetrics{}}}, cause: errors.New("my-instance: no answer from the platform")},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			s := newTestSession(t, nil, "memory", "conns")
-			_ = s.observe(graphT0, graphReading{graphTestUUID: {RssBytes: 5, Nconns: 3}}, nil)
+			_ = s.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 5, Nconns: 3}}}, nil)
 			err := s.observe(graphT0.Add(2*time.Second), tt.reading, tt.err)
 			require.EqualError(t, err, tt.cause.Error())
 			for i := range s.series {
@@ -160,7 +167,7 @@ func TestGraphKeepsAtMostTheRingSize(t *testing.T) {
 	t.Parallel()
 	s := newTestSession(t, nil, "memory")
 	for i := range graphRingSize + 10 {
-		_ = s.observe(graphT0.Add(time.Duration(i)*time.Second), graphReading{graphTestUUID: {RssBytes: uint64(i)}}, nil)
+		_ = s.observe(graphT0.Add(time.Duration(i)*time.Second), graphReading{graphTestUUID: {m: graphMetrics{RssBytes: uint64(i)}}}, nil)
 	}
 	require.Len(t, s.series[0], graphRingSize)
 	assert.InDelta(t, graphRingSize+9, s.series[0][graphRingSize-1].V, 0, "the newest points are kept")
@@ -187,6 +194,9 @@ func TestGraphValidate(t *testing.T) {
 		"one sample of a gauge": {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(1), Metric: []string{"memory"}}},
 		"two samples of a rate": {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(2), Metric: []string{"cpu"}}},
 		"until interrupted":     {cmd: InstancesGraphCmd{Interval: time.Second, Samples: new(0), Metric: []string{"cpu"}}},
+		"quiet output":          {cmd: InstancesGraphCmd{Interval: time.Second, Output: cmd.Printer{Type: cmd.PrinterTypeQuiet}}, wantErr: "--output quiet is not supported here"},
+		"debug output":          {cmd: InstancesGraphCmd{Interval: time.Second, Output: cmd.Printer{Type: cmd.PrintTypeDebug}}, wantErr: "--output debug is not supported here"},
+		"json output":           {cmd: InstancesGraphCmd{Interval: time.Second, Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -241,11 +251,17 @@ func TestGraphFrameKeepsTheLastErrorOffStdout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		script := &graphScript{steps: []graphStep{mem(100), {err: errors.New("bad\x1b[31m gateway\nretry")}}}
 		s := newTestSession(t, script.fetch, "memory")
-		var stdout, stderr bytes.Buffer
+		var stdout, stderr, logs bytes.Buffer
+		ctx := log.WithLogger(t.Context(), logfmt.New(&logs, log.JSONType, log.InfoLevel))
 		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(2)}
-		require.NoError(t, c.run(t.Context(), config.Stdio{Stdout: &stdout, Stderr: &stderr}, s))
+		require.NoError(t, c.run(ctx, config.Stdio{Stdout: &stdout, Stderr: &stderr}, s))
 		assert.NotContains(t, stdout.String(), "error:", "a piped chart stays a chart")
-		assert.Equal(t, "error: bad gateway retry\n", stderr.String())
+		assert.Empty(t, stderr.String(), "the error goes to the logger and not to stderr")
+
+		var record map[string]any
+		require.NoError(t, json.Unmarshal(logs.Bytes(), &record))
+		assert.Equal(t, "warn", record["level"])
+		assert.Equal(t, "the last poll failed: bad gateway retry", record["message"], "escape sequences are cleaned")
 	})
 }
 
@@ -305,7 +321,7 @@ func TestGraphKeepsTheValuesOfAnsweredInstances(t *testing.T) {
 	t.Parallel()
 	s := newTestSessionOf(t, nil, twoTargets(), "conns")
 	cause := errors.New("fra: 503")
-	err := s.observe(graphT0, graphReading{graphTestUUID: {Nconns: 4}}, cause)
+	err := s.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{Nconns: 4}}}, cause)
 	require.ErrorIs(t, err, cause)
 	assert.True(t, s.series[0][0].OK, "the instance that was answered keeps its value")
 	assert.False(t, s.series[1][0].OK)
@@ -316,12 +332,14 @@ func TestReadInstancesReportsTheMessageOfAnAnswer(t *testing.T) {
 	t.Parallel()
 	ok, failed := platform.ResponseStatusSuccess, platform.ResponseStatusError
 	reading := graphReading{}
+	at := graphT0.Add(time.Second)
 	err := readInstances(reading, []graphMetrics{
 		{Status: &ok, Uuid: graphTestUUID, Name: "web-1", RssBytes: 5},
 		{Status: &failed, Uuid: graphTestUUID2, Name: "web-2", Message: new("instance is \x1b[31mnot running\n")},
 		{Status: &failed, Uuid: "other", Name: "web-3"},
-	})
+	}, at)
 	assert.Len(t, reading, 1)
+	assert.Equal(t, at, reading[graphTestUUID].at, "an answer keeps the time at which it arrived")
 	assert.EqualError(t, err, "web-2: instance is not running\nweb-3: no answer from the platform")
 }
 
@@ -405,7 +423,7 @@ func TestGraphSamplesDefault(t *testing.T) {
 		output cmd.Printer
 		want   int
 	}{
-		"rows":        {output: cmd.Printer{Type: cmd.PrinterTypeQuiet}, want: defaultRowSamples},
+		"rows":        {output: cmd.Printer{Type: cmd.PrinterTypeJSON}, want: defaultRowSamples},
 		"plain frame": {want: defaultPlainSamples},
 	}
 	for name, tt := range tests {
@@ -461,7 +479,7 @@ func TestGraphModelResizeDoesNotFetch(t *testing.T) {
 	t.Parallel()
 	script := &graphScript{steps: []graphStep{mem(10)}}
 	m := newTestModel(t, script, 0)
-	_, cmd := m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {RssBytes: 10 << 20}}})
+	_, cmd := m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 10 << 20}}}})
 	assert.Nil(t, cmd, "an answer starts no timer: the ticks run on their own")
 
 	wide := m.View().Content
@@ -494,7 +512,7 @@ func TestGraphModelPollsOnAFixedSchedule(t *testing.T) {
 		assert.Equal(t, []tea.Msg{graphTickMsg{}}, runCmds(cmd), "the tick is armed again at once")
 		assert.Equal(t, 1, script.count(), "one request at a time")
 
-		m.Update(graphSampleMsg{at: time.Now(), reading: graphReading{graphTestUUID: {}}})
+		m.Update(graphSampleMsg{at: time.Now(), reading: graphReading{graphTestUUID: {m: graphMetrics{}}}})
 		assert.False(t, m.fetching)
 
 		// The next tick starts a request and arms the next tick.
@@ -512,7 +530,7 @@ func TestGraphModelKeepsDataOnError(t *testing.T) {
 	t.Parallel()
 	m := newTestModel(t, &graphScript{steps: []graphStep{mem(10)}}, 0)
 	m.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
-	m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {RssBytes: 64 << 20}}})
+	m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 64 << 20}}}})
 	_, cmd := m.Update(graphSampleMsg{at: graphT0.Add(2 * time.Second), err: errors.New("503 \x1b[2Junavailable")})
 	assert.Nil(t, cmd, "a failed poll does not end the chart")
 
@@ -527,9 +545,9 @@ func TestGraphModelKeepsDataOnError(t *testing.T) {
 func TestGraphModelQuits(t *testing.T) {
 	t.Parallel()
 	m := newTestModel(t, &graphScript{steps: []graphStep{mem(1)}}, 2)
-	_, cmd := m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {}}})
+	_, cmd := m.Update(graphSampleMsg{at: graphT0, reading: graphReading{graphTestUUID: {m: graphMetrics{}}}})
 	assert.Nil(t, cmd)
-	_, cmd = m.Update(graphSampleMsg{at: graphT0.Add(time.Second), reading: graphReading{graphTestUUID: {}}})
+	_, cmd = m.Update(graphSampleMsg{at: graphT0.Add(time.Second), reading: graphReading{graphTestUUID: {m: graphMetrics{}}}})
 	assert.Equal(t, tea.QuitMsg{}, cmd(), "the chart ends after the requested samples")
 
 	m = newTestModel(t, &graphScript{steps: []graphStep{mem(1)}}, 0)
@@ -540,9 +558,137 @@ func TestGraphModelQuits(t *testing.T) {
 func TestGraphFrameUsesCeilings(t *testing.T) {
 	t.Parallel()
 	s := newTestSession(t, nil, "cpu")
-	_ = s.observe(graphT0, graphReading{graphTestUUID: {CpuTimeMs: 0}}, nil)
-	_ = s.observe(graphT0.Add(2*time.Second), graphReading{graphTestUUID: {CpuTimeMs: 400}}, nil)
+	_ = s.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{CpuTimeMs: 0}}}, nil)
+	_ = s.observe(graphT0.Add(2*time.Second), graphReading{graphTestUUID: {m: graphMetrics{CpuTimeMs: 400}}}, nil)
 	frame := s.frame(50, 0, graph.Style{})
 	assert.Contains(t, frame, "my-instance  cpu (%)  last 10")
 	assert.Contains(t, frame, "  100┤", "CPU is shown on a fixed 0 to 100 axis")
+}
+
+func TestGraphOutputKeepsEverySample(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		n := graphRingSize + 10
+		steps := make([]graphStep, n)
+		for i := range steps {
+			steps[i] = mem(uint64(i))
+		}
+		script := &graphScript{steps: steps}
+		s := newTestSession(t, script.fetch, "memory")
+		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(n), Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}
+		out, err := runGraph(t, c, s)
+		require.NoError(t, err)
+
+		var rows []struct {
+			Time  time.Time `json:"time"`
+			Value *float64  `json:"value"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out), &rows))
+		require.Len(t, rows, n, "every sample that was polled is printed")
+		assert.InDelta(t, 0, *rows[0].Value, 0, "the oldest sample is kept")
+		assert.True(t, rows[0].Time.Equal(start), "the first row is at the first poll")
+	})
+}
+
+func TestGraphRatesUseTheTimeOfEachAnswer(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "rx")
+	slow := 1500 * time.Millisecond
+
+	// Poll 1: the first metro answers at once and the second after 1.5 s, so
+	// the poll ends at 1.5 s. Poll 2 ends at 2 s, with both answers at once.
+	// The first instance receives 1000 bytes each second.
+	require.NoError(t, s.observe(graphT0.Add(slow), graphReading{
+		graphTestUUID:  {m: graphMetrics{RxBytes: 0}, at: graphT0},
+		graphTestUUID2: {m: graphMetrics{RxBytes: 0}, at: graphT0.Add(slow)},
+	}, nil))
+	require.NoError(t, s.observe(graphT0.Add(2*time.Second), graphReading{
+		graphTestUUID:  {m: graphMetrics{RxBytes: 2000}, at: graphT0.Add(2 * time.Second)},
+		graphTestUUID2: {m: graphMetrics{RxBytes: 500}, at: graphT0.Add(2 * time.Second)},
+	}, nil))
+
+	require.Len(t, s.series[0], 2)
+	assert.InDelta(t, 1000, s.series[0][1].V, 1e-9, "the late metro does not skew the rate of the early one")
+	assert.InDelta(t, 1000, s.series[1][1].V, 1e-9, "500 bytes in 0.5 s")
+	assert.True(t, s.series[0][0].T.Equal(graphT0.Add(slow)), "the points stay at the time of the poll, so the series align")
+	assert.True(t, s.series[0][1].T.Equal(graphT0.Add(2*time.Second)))
+}
+
+func TestGraphFetchReadsAPartialAnswer(t *testing.T) {
+	t.Parallel()
+	for name, code := range map[string]int{"item not found": 8, "other item error": 11} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"status":"partial_success","message":"partial","data":{"instances":[` +
+					`{"status":"success","uuid":"` + graphTestUUID + `","name":"web-1","rss_bytes":5000},` +
+					`{"status":"error","uuid":"` + graphTestUUID2 + `","name":"web-2","error":` + strconv.Itoa(code) + `,"message":"metrics unavailable"}]}}`))
+			}))
+			t.Cleanup(srv.Close)
+
+			g := group.New[multimetro.MetroClient]().WithClient("fra", multimetro.MetroClient{
+				Client: platform.NewClient(platform.WithDefaultMetro(srv.URL)),
+			})
+			keys := multimetro.Keys{{Metro: "fra", UUID: graphTestUUID}, {Metro: "fra", UUID: graphTestUUID2}}
+			reading, err := newGraphFetch(g, keys)(t.Context())
+
+			require.Contains(t, reading, graphTestUUID, "the instance that the platform answered for keeps its metrics")
+			assert.Equal(t, uint64(5000), reading[graphTestUUID].m.RssBytes)
+			assert.False(t, reading[graphTestUUID].at.IsZero(), "the answer has the time at which it arrived")
+			assert.NotContains(t, reading, graphTestUUID2)
+			assert.EqualError(t, err, "web-2: metrics unavailable")
+		})
+	}
+}
+
+func TestGraphStatMatchesTheDrawnWindow(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "conns")
+	// An old spike of 1000 formats as 1k. It scrolls off the sparkline, and
+	// the newest points, 999, are wider than the maximum of all points.
+	for i := range 100 {
+		v := uint64(999)
+		if i == 0 {
+			v = 1000
+		}
+		require.NoError(t, s.observe(graphT0.Add(time.Duration(i)*s.interval), graphReading{
+			graphTestUUID:  {m: graphMetrics{Nconns: v}},
+			graphTestUUID2: {m: graphMetrics{Nconns: v}},
+		}, nil))
+	}
+	frame := s.plainFrame(60)
+	lines := strings.Split(frame, "\n")
+	require.Len(t, lines, 2)
+	for _, line := range lines {
+		assert.Contains(t, line, "last 999 / max 999", "the stat is not cut")
+		assert.LessOrEqual(t, ansi.StringWidth(line), 60)
+	}
+}
+
+func TestGraphModelKeepsEnoughPointsForAWideChart(t *testing.T) {
+	t.Parallel()
+	m := newTestModel(t, &graphScript{steps: []graphStep{mem(1)}}, 0)
+	m.Update(tea.WindowSizeMsg{Width: 400, Height: 20})
+	for i := range 900 {
+		m.Update(graphSampleMsg{at: graphT0.Add(time.Duration(i) * m.session.interval), reading: graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 5 << 20}}}})
+	}
+	assert.Len(t, m.session.series[0], 800, "two points for each column")
+
+	drawn := func(r rune) bool { return r > '\u2800' && r <= '\u28ff' }
+	var plot string
+	for line := range strings.SplitSeq(ansi.Strip(m.View().Content), "\n") {
+		if _, rest, ok := strings.Cut(line, "┤"); ok && strings.IndexFunc(rest, drawn) >= 0 {
+			plot = rest
+			break
+		}
+	}
+	require.NotEmpty(t, plot, "the chart has a plot")
+	first, _ := utf8.DecodeRuneInString(plot)
+	assert.True(t, drawn(first), "the leftmost plot cell is drawn")
+
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	m.Update(graphSampleMsg{at: graphT0.Add(time.Hour), reading: graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 5 << 20}}}})
+	assert.Len(t, m.session.series[0], graphRingSize, "a smaller window trims the series on the next point")
 }
