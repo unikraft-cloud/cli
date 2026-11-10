@@ -63,6 +63,7 @@ type InstancesCmd struct {
 	Restart InstancesRestartCmd `cmd:"" help:"Restart one or more instances."`
 	Tunnel  InstancesTunnelCmd  `cmd:"" aliases:"port-forward" help:"Forward a local port to an unexposed instance."`
 	History InstanceHistoryCmd  `cmd:"" help:"Show checkpoint history for an instance."`
+	Graph   InstancesGraphCmd   `cmd:"" help:"Graph the live metrics of instances."`
 
 	Shell ShellSandboxInstanceCmd `cmd:"" aliases:"sh" help:"Open an interactive shell on a sandbox instance."`
 	Exec  ExecSandboxInstanceCmd  `cmd:"" help:"Execute a command on a sandbox instance."`

@@ -1,0 +1,255 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2026, Unikraft GmbH and The Unikraft CLI Authors.
+// Licensed under the BSD-3-Clause License (the "License").
+// You may not use this file except in compliance with the License.
+
+package cmd
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+	"testing/synctest"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/internal/tui/graph"
+)
+
+func twoTargets() []graphTarget {
+	return []graphTarget{testTarget("web-1", graphTestUUID), testTarget("web-2", graphTestUUID2)}
+}
+
+// observeMemory feeds a session one poll for each value. The second instance
+// has half the memory and ten times the connections of the first.
+func observeMemory(t *testing.T, s *graphSession, mibs ...uint64) {
+	t.Helper()
+	for i, mib := range mibs {
+		at := graphT0.Add(time.Duration(i) * s.interval)
+		reading := graphReading{
+			graphTestUUID:  {m: graphMetrics{RssBytes: mib << 20, Nconns: uint64(i)}},
+			graphTestUUID2: {m: graphMetrics{RssBytes: mib << 19, Nconns: 10 * uint64(i)}},
+		}
+		require.NoError(t, s.observe(at, reading, nil))
+	}
+}
+
+func TestGraphSparkRowsShareOneScalePerField(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "memory", "conns")
+	observeMemory(t, s, 10, 20, 40, 30)
+	want := strings.TrimPrefix(`
+web-1 memory                  ▃▅█▆  last 30 MiB / max 40 MiB
+web-2 memory                  ▂▃▅▄  last 15 MiB / max 20 MiB
+web-1 conns                   ▁▁▁▂  last 3 / max 3
+web-2 conns                   ▁▃▆█  last 30 / max 30
+`, "\n")
+	assert.Equal(t, want, s.plainFrame(60)+"\n", "rows of a field are next to each other and share a scale")
+}
+
+func TestGraphSparkRowsLeaveOutWhatIsTheSame(t *testing.T) {
+	t.Parallel()
+	byTarget := newTestSessionOf(t, nil, twoTargets(), "memory")
+	observeMemory(t, byTarget, 10)
+	assert.Contains(t, byTarget.plainFrame(60), "web-1  ")
+	assert.NotContains(t, byTarget.plainFrame(60), "memory")
+
+	byField := newTestSession(t, nil, "memory", "conns")
+	require.NoError(t, byField.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 1 << 20}}}, nil))
+	assert.Contains(t, byField.plainFrame(60), "memory  ")
+	assert.NotContains(t, byField.plainFrame(60), "my-instance")
+}
+
+func TestGraphSparkRowsCapRows(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "memory", "conns", "rx")
+	observeMemory(t, s, 10, 20)
+	require.Len(t, s.lines, 6)
+
+	lines := strings.Split(s.frame(60, 4, graph.Style{}), "\n")
+	require.Len(t, lines, 4, "the rows and the count of the rest fit the height")
+	assert.Equal(t, "+3 more", lines[3])
+
+	assert.Len(t, strings.Split(s.frame(60, 0, graph.Style{}), "\n"), 6, "no height shows every row up to the limit")
+}
+
+func TestGraphSparkRowsTooNarrow(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "memory")
+	observeMemory(t, s, 10)
+	got := s.frame(minSparkFrame-1, 0, graph.Style{})
+	assert.Contains(t, got, "too small")
+	assert.NotContains(t, got, "\n")
+}
+
+func TestGraphOutputHasRowsForEveryInstanceAndField(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		both := graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 1 << 20, Nconns: 1}}, graphTestUUID2: {m: graphMetrics{RssBytes: 2 << 20, Nconns: 2}}}
+		script := &graphScript{steps: []graphStep{{readings: both}}}
+		s := newTestSessionOf(t, script.fetch, twoTargets(), "memory", "conns")
+		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(2), Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}
+
+		out, err := runGraph(t, c, s)
+		require.NoError(t, err)
+		var rows []struct {
+			Time     time.Time `json:"time"`
+			Instance string    `json:"instance"`
+			Metric   string    `json:"metric"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out), &rows))
+		require.Len(t, rows, 8)
+		for i := 1; i < len(rows); i++ {
+			assert.False(t, rows[i].Time.Before(rows[i-1].Time), "oldest first")
+		}
+		seen := map[string]bool{}
+		for _, row := range rows {
+			seen[row.Instance+"/"+row.Metric] = true
+		}
+		assert.Len(t, seen, 4)
+	})
+}
+
+func TestGraphModelSparklinesUseTheWholeHeight(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "memory", "conns", "rx")
+	observeMemory(t, s, 10, 20)
+	m := &graphModel{ctx: t.Context(), session: s}
+	m.Update(tea.WindowSizeMsg{Width: 70, Height: 30})
+	lines := strings.Split(m.View().Content, "\n")
+	assert.Len(t, lines, 6+1, "six rows and the status line")
+
+	m.Update(tea.WindowSizeMsg{Width: 70, Height: 5})
+	lines = strings.Split(m.View().Content, "\n")
+	assert.Len(t, lines, 4+1, "the rows that fit, the count of the rest and the status line")
+
+	for height := 1; height <= 3; height++ {
+		m.Update(tea.WindowSizeMsg{Width: 70, Height: height})
+		lines = strings.Split(m.View().Content, "\n")
+		assert.Len(t, lines, height, "height %d: the view is not taller than the terminal", height)
+	}
+}
+
+func TestGraphModelChartFitsASmallTerminal(t *testing.T) {
+	t.Parallel()
+	s := newTestSession(t, nil, "memory")
+	observeMemory(t, s, 10, 20)
+	m := &graphModel{ctx: t.Context(), session: s}
+	for height := 1; height <= 4; height++ {
+		m.Update(tea.WindowSizeMsg{Width: 70, Height: height})
+		lines := strings.Split(m.View().Content, "\n")
+		assert.LessOrEqual(t, len(lines), height, "height %d: the view is not taller than the terminal", height)
+	}
+}
+
+func TestGraphSparkRowsFitTheWidth(t *testing.T) {
+	t.Parallel()
+	long := []graphTarget{
+		testTarget("a-rather-long-instance-name-1", graphTestUUID),
+		testTarget("a-rather-long-instance-name-2", graphTestUUID2),
+	}
+	tests := map[string][]string{
+		"one field":      {"rx"},
+		"two fields":     {"rx", "memory"},
+		"three fields":   {"handled", "rx", "memory"},
+		"all the fields": {"cpu", "memory", "rx", "tx", "conns", "reqs", "queued", "handled"},
+	}
+	for name, fields := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			s := newTestSessionOf(t, nil, long, fields...)
+			for i := range 12 {
+				at := graphT0.Add(time.Duration(i) * s.interval)
+				big := uint64(i+1) * 987654321
+				reading := graphReading{
+					graphTestUUID:  {m: graphMetrics{RssBytes: big, RxBytes: big * 3, TxBytes: big, CpuTimeMs: big, Ntotal: big, Nconns: big, Nreqs: big, Nqueued: big}},
+					graphTestUUID2: {m: graphMetrics{RssBytes: big / 7, RxBytes: big, TxBytes: big / 5, CpuTimeMs: big / 3, Ntotal: big / 9, Nconns: big / 3, Nreqs: big / 4, Nqueued: big / 5}},
+				}
+				_ = s.observe(at, reading, nil)
+			}
+			for width := minSparkFrame; width <= 120; width++ {
+				frame := s.frame(width, 0, graph.Style{})
+				rows := strings.Split(frame, "\n")
+				require.Len(t, rows, len(s.lines))
+				for _, line := range rows {
+					assert.LessOrEqual(t, ansi.StringWidth(line), width, "width %d: %q", width, line)
+				}
+				for r, line := range rows {
+					metric := fields[r/len(long)]
+					if len(fields) > 1 {
+						assert.Contains(t, line, " "+metric+" ", "width %d: the metric stays in the label", width)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGraphSparkRowsKeepTheSparklineWhenTheStatWidens(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "memory")
+	// Over every point the stat is "last 1000 MiB / max 1 GiB", but the
+	// newest points alone give "max 1000 MiB", which is wider.
+	for i := range 100 {
+		mib := uint64(1000)
+		if i == 0 {
+			mib = 1024
+		}
+		reading := graphReading{
+			graphTestUUID:  {m: graphMetrics{RssBytes: mib << 20}},
+			graphTestUUID2: {m: graphMetrics{RssBytes: mib << 20}},
+		}
+		require.NoError(t, s.observe(graphT0.Add(time.Duration(i)*s.interval), reading, nil))
+	}
+	isSpark := func(r rune) bool { return r >= '\u2581' && r <= '\u2588' }
+	for width := minSparkFrame; width <= 120; width++ {
+		rows := strings.Split(s.plainFrame(width), "\n")
+		require.Len(t, rows, 2)
+		for _, line := range rows {
+			assert.LessOrEqual(t, ansi.StringWidth(line), width, "width %d: %q", width, line)
+			n := 0
+			for _, r := range line {
+				if isSpark(r) {
+					n++
+				}
+			}
+			assert.GreaterOrEqual(t, n, minSparkWidth, "width %d: %q", width, line)
+		}
+		if width == 41 {
+			for _, line := range rows {
+				assert.Contains(t, line, "last 1000 MiB")
+			}
+		}
+	}
+}
+
+func TestGraphSparkRowsScaleOverTheVisiblePoints(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "conns")
+	for i, v := range []uint64{1000, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24} {
+		reading := graphReading{graphTestUUID: {m: graphMetrics{Nconns: v}}, graphTestUUID2: {m: graphMetrics{Nconns: v}}}
+		require.NoError(t, s.observe(graphT0.Add(time.Duration(i)*s.interval), reading, nil))
+	}
+	frame := s.plainFrame(minSparkFrame)
+	assert.Contains(t, frame, "█  ", "the newest value tops the scale because the spike is off screen")
+	assert.NotContains(t, frame, "1k", "the spike is not in the max that the row shows")
+}
+
+func TestQualifyGraphNames(t *testing.T) {
+	t.Parallel()
+	targets := []graphTarget{
+		{key: multimetro.Key{Metro: "fra", UUID: graphTestUUID}, name: "web"},
+		{key: multimetro.Key{Metro: "was", UUID: graphTestUUID2}, name: "web"},
+		{key: multimetro.Key{Metro: "fra", UUID: "00000000-0000-4000-8000-000000000003"}, name: "db"},
+	}
+	qualifyGraphNames(targets)
+	assert.Equal(t, "web (fra)", targets[0].name)
+	assert.Equal(t, "web (was)", targets[1].name)
+	assert.Equal(t, "db", targets[2].name, "a name that is alone stays")
+}
