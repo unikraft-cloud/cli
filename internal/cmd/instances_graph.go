@@ -495,14 +495,10 @@ func (s *graphSession) add(i int, p graph.Point) {
 	}
 }
 
-// hasValue reports whether any poll gave a value.
+// hasValue reports whether any poll gave a value, also after the value left
+// the ring.
 func (s *graphSession) hasValue() bool {
-	for _, points := range s.series {
-		if slices.ContainsFunc(points, func(p graph.Point) bool { return p.OK }) {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s.seen, true)
 }
 
 // failure returns the last error when no poll gave a value.
@@ -680,10 +676,10 @@ func (s *graphSession) sparkRows(width, height int, style graph.Style) string {
 	}
 
 	rows := make([]sparkRow, len(order))
-	labelW, minLabelW := 0, 0
+	natLabelW, minLabelW := 0, 0
 	for r, i := range order {
 		rows[r] = s.sparkRow(i)
-		labelW = max(labelW, rows[r].width())
+		natLabelW = max(natLabelW, rows[r].width())
 		w := ansi.StringWidth(rows[r].metric)
 		if rows[r].instance != "" {
 			w += minSparkInstance
@@ -693,46 +689,50 @@ func (s *graphSession) sparkRows(width, height int, style graph.Style) string {
 		}
 		minLabelW = max(minLabelW, w)
 	}
-	labelW = min(labelW, maxSparkLabel)
+	natLabelW = min(natLabelW, maxSparkLabel)
 
-	// Pick the longest stat text that leaves a label and a sparkline.
-	mode, statW := statFull, 0
-	for ; mode < statNone; mode++ {
+	// Pick the longest stat text that leaves a label and a sparkline. The
+	// text is first measured over every point; a row shows only the newest
+	// sparkW points, whose text can be wider (999 against 1k), so measure
+	// again over the window and step down a mode if it no longer fits.
+	var mode statMode
+	var labelW, statW, sparkW int
+layout:
+	for mode = statFull; ; mode++ {
 		statW = 0
-		for _, i := range order {
-			statW = max(statW, ansi.StringWidth(s.stat(i, mode, graphRingSize)))
+		if mode < statNone {
+			for _, i := range order {
+				statW = max(statW, ansi.StringWidth(s.stat(i, mode, graphRingSize)))
+			}
+			if width-minSparkWidth-2*sparkGap-statW < minLabelW {
+				continue
+			}
 		}
-		if width-minSparkWidth-2*sparkGap-statW >= minLabelW {
-			break
+		room := width - minSparkWidth - sparkGap
+		if statW > 0 {
+			room -= sparkGap + statW
 		}
-	}
-	if mode == statNone {
-		statW = 0
-	}
-	room := width - minSparkWidth - sparkGap
-	if statW > 0 {
-		room -= sparkGap + statW
-	}
-	labelW = max(min(labelW, room), minLabelW)
-	sparkW := width - labelW - sparkGap
-	if statW > 0 {
-		sparkW -= sparkGap + statW
-		// The text above was measured over every point. The row shows the
-		// newest sparkW points, and their maximum can be wider than the
-		// maximum of all of them (999 against 1k). Take the cells from the
-		// sparkline, and measure again, because a shorter window can change
-		// the text once more.
-		for changed := true; changed; {
+		labelW = max(min(natLabelW, room), minLabelW)
+		sparkW = width - labelW - sparkGap
+		if statW > 0 {
+			sparkW -= sparkGap + statW
+		}
+		for changed := statW > 0; changed; {
 			changed = false
 			for _, i := range order {
 				w := ansi.StringWidth(s.stat(i, mode, sparkW))
-				if w > statW && sparkW-(w-statW) >= 1 {
-					sparkW -= w - statW
-					statW = w
-					changed = true
+				if w <= statW {
+					continue
 				}
+				if sparkW-(w-statW) < minSparkWidth {
+					continue layout
+				}
+				sparkW -= w - statW
+				statW = w
+				changed = true
 			}
 		}
+		break
 	}
 
 	// The scale of a field covers the points that are on screen.

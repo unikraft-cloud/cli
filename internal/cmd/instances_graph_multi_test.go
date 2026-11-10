@@ -191,6 +191,44 @@ func TestGraphSparkRowsFitTheWidth(t *testing.T) {
 	}
 }
 
+func TestGraphSparkRowsKeepTheSparklineWhenTheStatWidens(t *testing.T) {
+	t.Parallel()
+	s := newTestSessionOf(t, nil, twoTargets(), "memory")
+	// Over every point the stat is "last 1000 MiB / max 1 GiB", but the
+	// newest points alone give "max 1000 MiB", which is wider.
+	for i := range 100 {
+		mib := uint64(1000)
+		if i == 0 {
+			mib = 1024
+		}
+		reading := graphReading{
+			graphTestUUID:  {m: graphMetrics{RssBytes: mib << 20}},
+			graphTestUUID2: {m: graphMetrics{RssBytes: mib << 20}},
+		}
+		require.NoError(t, s.observe(graphT0.Add(time.Duration(i)*s.interval), reading, nil))
+	}
+	isSpark := func(r rune) bool { return r >= '\u2581' && r <= '\u2588' }
+	for width := minSparkFrame; width <= 120; width++ {
+		rows := strings.Split(s.plainFrame(width), "\n")
+		require.Len(t, rows, 2)
+		for _, line := range rows {
+			assert.LessOrEqual(t, ansi.StringWidth(line), width, "width %d: %q", width, line)
+			n := 0
+			for _, r := range line {
+				if isSpark(r) {
+					n++
+				}
+			}
+			assert.GreaterOrEqual(t, n, minSparkWidth, "width %d: %q", width, line)
+		}
+		if width == 41 {
+			for _, line := range rows {
+				assert.Contains(t, line, "last 1000 MiB")
+			}
+		}
+	}
+}
+
 func TestGraphSparkRowsScaleOverTheVisiblePoints(t *testing.T) {
 	t.Parallel()
 	s := newTestSessionOf(t, nil, twoTargets(), "conns")

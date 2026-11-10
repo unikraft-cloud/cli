@@ -12,6 +12,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -728,6 +729,61 @@ func TestGraphFetchReadsAPartialAnswer(t *testing.T) {
 			assert.EqualError(t, err, "web-2: metrics unavailable")
 		})
 	}
+}
+
+func TestGraphFetchFailsOnAnErrorWithoutInstances(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"status":"error","message":"metrics backend down","data":{"instances":[]}}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	g := group.New[multimetro.MetroClient]().WithClient("fra", multimetro.MetroClient{
+		Client: platform.NewClient(platform.WithDefaultMetro(srv.URL)),
+	})
+	keys := multimetro.Keys{{Metro: "fra", UUID: graphTestUUID}}
+	reading, err := newGraphFetch(g, keys)(t.Context())
+
+	assert.Empty(t, reading)
+	assert.ErrorContains(t, err, "metrics backend down", "an error for the whole request is not read as an empty partial answer")
+}
+
+func TestGraphRateWaitsForASecondSample(t *testing.T) {
+	t.Parallel()
+	s := newTestSession(t, nil, "cpu")
+	_ = s.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{CpuTimeMs: 1000}}}, nil)
+	assert.Contains(t, s.chart(0, 80, 0, graph.Style{}), "waiting for a second sample")
+
+	g := newTestSession(t, nil, "memory")
+	_ = g.observe(graphT0, graphReading{}, nil)
+	assert.Contains(t, g.chart(0, 80, 0, graph.Style{}), "waiting for the first sample", "a failed first poll is not a value")
+}
+
+func TestGraphFrameKeepsEnoughPointsForAWideFrame(t *testing.T) {
+	t.Setenv("COLUMNS", "400")
+	synctest.Test(t, func(t *testing.T) {
+		script := &graphScript{steps: []graphStep{mem(1)}}
+		s := newTestSession(t, script.fetch, "memory")
+		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(900)}
+		_, err := runGraph(t, c, s)
+		require.NoError(t, err)
+		assert.Len(t, s.series[0], 800, "two points for each column of a wide frame")
+	})
+}
+
+func TestGraphPlainFrameAfterValuesLeftTheRingIsNotAnError(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		script := &graphScript{steps: []graphStep{mem(1), {err: errors.New("instance is not running")}}}
+		s := newTestSession(t, script.fetch, "memory")
+		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(graphRingSize + 89)}
+		out, err := runGraph(t, c, s)
+		require.NoError(t, err, "the run showed a value before it left the ring")
+		assert.Contains(t, out, "last -")
+		assert.False(t, slices.ContainsFunc(s.series[0], func(p graph.Point) bool { return p.OK }), "the value left the ring")
+	})
 }
 
 func TestGraphStatMatchesTheDrawnWindow(t *testing.T) {
