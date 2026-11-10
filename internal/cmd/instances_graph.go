@@ -593,7 +593,7 @@ const (
 // series, or one sparkline row for each series.
 func (s *graphSession) frame(width, height int, style graph.Style) string {
 	if len(s.lines) == 1 {
-		return s.chart(0, width, height, style)
+		return s.chart(width, height, style)
 	}
 	return s.sparkRows(width, height, style)
 }
@@ -603,9 +603,10 @@ func (s *graphSession) plainFrame(width int) string {
 	return s.frame(width, 0, graph.Style{})
 }
 
-// chart draws one series as a line chart.
-func (s *graphSession) chart(i, width, height int, style graph.Style) string {
-	target, f := s.targets[s.lines[i].target], s.fields[s.lines[i].field]
+// chart draws the first series as a line chart. It is used when the session
+// has a single series.
+func (s *graphSession) chart(width, height int, style graph.Style) string {
+	target, f := s.targets[s.lines[0].target], s.fields[s.lines[0].field]
 	o := graph.Options{
 		Title:    target.name + "  " + f.title,
 		Unit:     f.kind,
@@ -614,7 +615,7 @@ func (s *graphSession) chart(i, width, height int, style graph.Style) string {
 		Interval: s.interval,
 		Loc:      s.loc,
 		Empty:    "waiting for the first sample",
-		HadValue: s.seen[i],
+		HadValue: s.seen[0],
 		Style:    style,
 	}
 	if f.counter {
@@ -623,7 +624,7 @@ func (s *graphSession) chart(i, width, height int, style graph.Style) string {
 	if f.ceiling != nil {
 		o.Ceiling = f.ceiling(target)
 	}
-	return graph.Chart(s.series[i], o)
+	return graph.Chart(s.series[0], o)
 }
 
 // sparkRow is a series in the sparkline view.

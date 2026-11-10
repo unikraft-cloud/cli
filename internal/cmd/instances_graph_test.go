@@ -177,13 +177,13 @@ func TestGraphKeepsAtMostTheRingSize(t *testing.T) {
 func TestGraphRemembersValuesLeftTheRing(t *testing.T) {
 	t.Parallel()
 	s := newTestSession(t, nil, "memory")
-	assert.Contains(t, s.chart(0, 80, 0, graph.Style{}), "waiting for the first sample")
+	assert.Contains(t, s.chart(80, 0, graph.Style{}), "waiting for the first sample")
 	_ = s.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 1 << 20}}}, nil)
 	for i := range graphRingSize + 10 {
 		_ = s.observe(graphT0.Add(time.Duration(i+1)*time.Second), graphReading{}, nil)
 	}
 	require.NotContains(t, s.series[0], graph.Point{T: graphT0, V: 1 << 20, OK: true})
-	got := s.chart(0, 80, 0, graph.Style{})
+	got := s.chart(80, 0, graph.Style{})
 	assert.Contains(t, got, "last -")
 	assert.NotContains(t, got, "waiting for")
 }
@@ -792,11 +792,11 @@ func TestGraphRateWaitsForASecondSample(t *testing.T) {
 	t.Parallel()
 	s := newTestSession(t, nil, "cpu")
 	_ = s.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{CpuTimeMs: 1000}}}, nil)
-	assert.Contains(t, s.chart(0, 80, 0, graph.Style{}), "waiting for a second sample")
+	assert.Contains(t, s.chart(80, 0, graph.Style{}), "waiting for a second sample")
 
 	g := newTestSession(t, nil, "memory")
 	_ = g.observe(graphT0, graphReading{}, nil)
-	assert.Contains(t, g.chart(0, 80, 0, graph.Style{}), "waiting for the first sample", "a failed first poll is not a value")
+	assert.Contains(t, g.chart(80, 0, graph.Style{}), "waiting for the first sample", "a failed first poll is not a value")
 }
 
 func TestGraphFrameKeepsEnoughPointsForAWideFrame(t *testing.T) {
