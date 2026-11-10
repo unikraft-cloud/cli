@@ -380,6 +380,7 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 			},
 		}),
 		kong.NamedMapper("optional", wkong.Optional()),
+		kong.NamedMapper("hostenv", wkong.HostEnv()),
 		sandboxKongVars,
 		volumeImportKongVars,
 	}

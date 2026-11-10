@@ -124,7 +124,7 @@ type Instance struct {
 
 	Runtime struct {
 		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set" flag:"args" help:"Command-line arguments passed to the instance at start." placeholder:"arg" example:"--port=8080"`
-		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" short:"e" sep:"none" mapsep:"none" help:"Environment variable as KEY=value." placeholder:"<key>=<value>" example:"DEBUG=true"`
+		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" short:"e" type:"hostenv" help:"Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment." placeholder:"<key>[=<value>]" example:"DEBUG=true"`
 	} `help:"Runtime configuration passed to the instance."`
 
 	Resources struct {

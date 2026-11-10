@@ -323,3 +323,18 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 		})
 	}
 }
+
+func TestInstanceEnvFlagReadsLocalEnvironment(t *testing.T) {
+	t.Setenv("UNIKRAFT_TEST_HOST", "from-host")
+
+	var cli cmd.UnikraftCLI
+	parser, err := cmd.NewParser(&cli)
+	require.NoError(t, err)
+
+	_, err = parser.Parse([]string{"instance", "create", "--image", "nginx:latest", "-e", "UNIKRAFT_TEST_HOST", "-e", "A=1"})
+	require.NoError(t, err)
+
+	spec := patch.PatchSpec{Create: true}
+	require.NoError(t, cli.Instances.Create.GeneratedFlags().Apply(&spec))
+	assert.Equal(t, map[string]string{"UNIKRAFT_TEST_HOST": "from-host", "A": "1"}, spec.SetTyped["runtime.env"])
+}
