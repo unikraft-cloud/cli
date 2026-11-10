@@ -839,12 +839,12 @@ func (cmd *ModelCreateCmd[R]) resolve(ctx context.Context) (fields, patched []mo
 	var empty R
 	fieldsResource := model.Model(empty)
 	if typed, ok := any(empty).(interface {
-		WithType(string) model.Model
+		WithKind(string) model.Model
 	}); ok {
-		if v, ok := spec.SetTyped["type"].(string); ok && v != "" {
-			fieldsResource = typed.WithType(v)
-		} else if values := spec.Set["type"]; len(values) > 0 {
-			fieldsResource = typed.WithType(values[0])
+		if v, ok := spec.SetTyped["kind"].(string); ok && v != "" {
+			fieldsResource = typed.WithKind(v)
+		} else if values := spec.Set["kind"]; len(values) > 0 {
+			fieldsResource = typed.WithKind(values[0])
 		}
 	}
 	fields, err = fieldsResource.Fields(ctx)
