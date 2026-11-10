@@ -185,6 +185,9 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 		Registries: map[string]buildapi.Registry{"*": buildapi.SessionRegistry()},
 		Output:     []buildapi.BuildOutput{buildapi.Image(ref.String())},
 	}
+	if len(c.Metro) > 0 {
+		req.Hints = &buildapi.BuildHints{Metros: c.Metro}
+	}
 	switch {
 	case name == "": // a directory without a Kraftfile builds its Dockerfile
 	case slices.Contains(strings.Split(name, "."), "Dockerfile"): // as x/build tells one
