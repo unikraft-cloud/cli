@@ -20,6 +20,7 @@ import (
 	"unikraft.com/cli/internal/mirror"
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/internal/types"
 )
 
 type BuilderCmd struct {
@@ -201,8 +202,11 @@ func (c *BuilderDeleteCmd) Run(ctx context.Context, stdio config.Stdio) error {
 }
 
 type BuilderCreateCmd struct {
-	Name   string `arg:"" optional:"" default:"default" help:"Name of the builder."`
-	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
+	Name   string              `arg:"" optional:"" default:"default" help:"Name of the builder."`
+	VCPUs  int32               `name:"vcpus" placeholder:"n" help:"Number of vCPUs of the builder, within the range the plan allows. Defaults to the build service's."`
+	Memory types.SizeMebibytes `placeholder:"size" help:"Memory of the builder, within the range the plan allows. Defaults to the build service's."`
+	Cache  types.SizeMebibytes `placeholder:"size" help:"Size of the builder's cache volume. Defaults to the build service's."`
+	Remote string              `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
 }
 
 func (BuilderCreateCmd) Examples() []kingkong.Example {
@@ -247,7 +251,17 @@ func (c *BuilderCreateCmd) Run(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	if _, err := client.CreateBuilder(ctx, buildapi.Builder{Name: &c.Name}); err != nil {
+	b := buildapi.Builder{Name: &c.Name}
+	if c.VCPUs != 0 {
+		b.Vcpus = &c.VCPUs
+	}
+	if c.Memory != 0 {
+		b.MemoryMb = new(int64(c.Memory))
+	}
+	if c.Cache != 0 {
+		b.CacheMb = new(int64(c.Cache))
+	}
+	if _, err := client.CreateBuilder(ctx, b); err != nil {
 		return err
 	}
 	log.G(ctx).Info().Str("name", c.Name).Msg("builder ready")
