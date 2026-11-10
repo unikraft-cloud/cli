@@ -136,6 +136,12 @@ Examples:
   unikraft builder create --remote https://build.example.com
 
 Flags:
+      --vcpus=<n>
+          Number of vCPUs of the builder, within the range the plan allows. Defaults to the build service's.
+      --memory=<size>
+          Memory of the builder, within the range the plan allows. Defaults to the build service's.
+      --cache=<size>
+          Size of the builder's cache volume. Defaults to the build service's.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
           URL of the build service that manages the builder. Defaults to the build_url of the profile.
 
