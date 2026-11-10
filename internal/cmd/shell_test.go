@@ -6,6 +6,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -83,10 +84,11 @@ func TestShellEnvFlagKeepsCommas(t *testing.T) {
 	require.ErrorContains(t, err, "--env", "a record without a value is refused, the same way exec refuses it")
 }
 
-// onePlugin runs a single command: it delivers out on standard output, exits
-// with code, and records the signals it was sent.
+// onePlugin runs a single command: it delivers out on standard output and err
+// on standard error, exits with code, and records the signals it was sent.
 type onePlugin struct {
 	out  string
+	err  string
 	code int32
 	hang chan struct{}
 
@@ -122,6 +124,10 @@ func (f *onePlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			data["stdout"] = base64.StdEncoding.EncodeToString([]byte(f.out[req.Stdout.Offset:]))
 		}
 		data["stdout_available"] = len(f.out)
+		if req.Stderr.Offset < uint64(len(f.err)) {
+			data["stderr"] = base64.StdEncoding.EncodeToString([]byte(f.err[req.Stderr.Offset:]))
+		}
+		data["stderr_available"] = len(f.err)
 
 	case path == "/commands/cmd-1" && r.Method == http.MethodGet:
 		data["exitcode"] = f.code
@@ -196,4 +202,16 @@ func TestExecSurvivesAClosedPipe(t *testing.T) {
 	assert.Equal(t, 3, status.ExitCode())
 	assert.Equal(t, []int{int(syscall.SIGPIPE)}, fake.sent(),
 		"the instance is told the reader has gone, the way a local pipeline tells it")
+}
+
+func TestExecKeepsTheStreamsApart(t *testing.T) {
+	target := fakeSandboxTarget(t, &onePlugin{out: "out\n", err: "err\n"})
+
+	var stdout, stderr bytes.Buffer
+	err := (&ExecSandboxInstanceCmd{Cmd: []string{"sh"}}).runOn(t.Context(), target,
+		config.Stdio{Stdout: &stdout, Stderr: &stderr})
+
+	require.NoError(t, err)
+	assert.Equal(t, "out\n", stdout.String())
+	assert.Equal(t, "err\n", stderr.String())
 }

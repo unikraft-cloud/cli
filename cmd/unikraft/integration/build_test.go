@@ -6,7 +6,10 @@
 package integration
 
 import (
+	"encoding/pem"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/containerd/continuity/fs/fstest"
@@ -315,6 +318,51 @@ cmd: ["sh", "-c", "cat /etc/unikraft-e2e && echo KRAFTFILE_CMD_USED"]
 
 		out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
 		assert.Regexp(t, `UNIKRAFT_E2E_OK`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+	})
+
+	t.Run("remote", func(t *testing.T) {
+		buildURL := os.Getenv("UNIKRAFT_X_TEST_BUILD_URL")
+		if buildURL == "" {
+			t.Skip("remote build test requires UNIKRAFT_X_TEST_BUILD_URL")
+		}
+		r := runner(t, true, []string{staging, stable})
+
+		image := r.Profile.Organization + "/remote-e2e:" + uniq()
+		instName := uniq()
+
+		// The build service's certificate may be self-signed.
+		certFile := filepath.Join(t.TempDir(), "build-service.pem")
+		cert := integ.HTTPGetTLSCerts(t, buildURL, "")[0]
+		require.NoError(t, os.WriteFile(certFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}), 0o644))
+
+		dir := t.TempDir()
+		require.NoError(t, fstest.Apply(
+			fstest.CreateFile("Dockerfile", []byte(`
+FROM busybox:latest
+RUN --mount=type=secret,id=greeting cp /run/secrets/greeting /greeting
+`), 0o644),
+			fstest.CreateFile("Kraftfile", []byte(`
+spec: v0.7
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+cmd: ["sh", "-c", "cat /greeting"]
+`), 0o644),
+			fstest.CreateFile("greeting", []byte("REMOTE_BUILD_OK\n"), 0o644),
+		).Apply(dir))
+
+		// The service reads the project and the secret through the session.
+		r.Run(t, []string{"unikraft", "build", ".", "--remote", buildURL, "--secret", "id=greeting,src=" + filepath.Join(dir, "greeting"), "--output", image},
+			integ.WithWorkDir(dir), integ.WithEnv("SSL_CERT_FILE="+certFile))
+
+		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.MetroName, "--output", "quiet", "--image", image})
+		r.Run(t, []string{"unikraft", "--timeout", "10s", "instance", "wait", "--until", "state==stopped", "test-" + instName})
+
+		out := r.Run(t, []string{"unikraft", "instance", "logs", "test-" + instName})
+		assert.Regexp(t, `REMOTE_BUILD_OK`, out)
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})

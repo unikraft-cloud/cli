@@ -28,11 +28,12 @@ import (
 	xsignal "unikraft.com/x/signal"
 	"unikraft.com/x/version"
 
+	"unikraft.com/cli/internal/branding"
 	"unikraft.com/cli/internal/cmd/login"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/logfmt"
-	"unikraft.com/cli/internal/resource"
-	"unikraft.com/cli/internal/resource/cmd"
+	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/internal/model/cmd"
 	wkong "unikraft.com/cli/internal/w/kong"
 	wmaps "unikraft.com/cli/internal/w/maps"
 )
@@ -40,9 +41,10 @@ import (
 type UnikraftCLI struct {
 	globalFlags
 
-	Run   RunCmd   `cmd:"" group:"cmd-commands" help:"Run an image as an instance." set:"name=instance" set:"names=instances"`
-	Build BuildCmd `cmd:"" group:"cmd-commands" help:"Build a Unikraft project into a container image."`
-	TUI   TUICmd   `cmd:"" group:"cmd-commands" help:"Browse resources in a TUI."`
+	Run     RunCmd     `cmd:"" group:"cmd-commands" help:"Run an image as an instance." set:"name=instance" set:"names=instances"`
+	Build   BuildCmd   `cmd:"" group:"cmd-commands" help:"Build a Unikraft project into a container image."`
+	Builder BuilderCmd `cmd:"" group:"cmd-commands" help:"Manage the builders that remote builds run on." set:"name=builder" set:"names=builders"`
+	TUI     TUICmd     `cmd:"" group:"cmd-commands" help:"Browse resources in a TUI."`
 
 	Metros       MetrosCmd       `cmd:"" group:"cmd-resources" help:"Manage Unikraft Cloud metros." aliases:"metro,metros" set:"name=metro" set:"names=metros"`
 	Quotas       MetroQuotasCmd  `cmd:"" group:"cmd-resources" help:"Display quota usage for metros." aliases:"quota"`
@@ -54,6 +56,7 @@ type UnikraftCLI struct {
 	Resources    AnyResourceCmd  `cmd:"" group:"cmd-resources" hidden:"" help:"Manage any Unikraft Cloud resource." aliases:"resource,resources" set:"name=resource" set:"names=resources"`
 
 	API APICmd `cmd:"" group:"cmd-utilities" help:"Make an authenticated HTTP request to the Unikraft Cloud API."`
+	MCP MCPCmd `cmd:"" group:"cmd-utilities" help:"Serve Unikraft Cloud resources to AI assistants as an MCP server over stdio or HTTP."`
 
 	Login   login.LoginCmd  `cmd:"" group:"cmd-config" help:"Login to Unikraft Cloud."`
 	Logout  login.LogoutCmd `cmd:"" group:"cmd-config" help:"Logout from Unikraft Cloud."`
@@ -130,17 +133,18 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 	kongcompletion.Register(
 		parser,
 		kongcompletion.WithPredictor("resource-key-path", complete.PredictFiles("*")),
-		kongcompletion.WithPredictor("resource-key-profile", cmd.PredictResourceKey[Profile](ctx)),
-		kongcompletion.WithPredictor("resource-key-metro", cmd.PredictResourceKey[Metro](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance", cmd.PredictResourceKey[Instance](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance-template", cmd.PredictResourceKey[InstanceTemplate](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance-checkpoint", cmd.PredictResourceKey[InstanceCheckpoint](ctx)),
-		kongcompletion.WithPredictor("resource-key-volume", cmd.PredictResourceKey[Volume](ctx)),
-		kongcompletion.WithPredictor("resource-key-volume-template", cmd.PredictResourceKey[VolumeTemplate](ctx)),
-		kongcompletion.WithPredictor("resource-key-service", cmd.PredictResourceKey[ServiceGroup](ctx)),
-		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictResourceKey[Certificate](ctx)),
-		kongcompletion.WithPredictor("resource-key-image", cmd.PredictResourceKey[ImageEntry](ctx)),
-		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictResourceKey[AnyResource](ctx)),
+		kongcompletion.WithPredictor("resource-key-profile", cmd.PredictModelKey[Profile](ctx)),
+		kongcompletion.WithPredictor("resource-key-metro", cmd.PredictModelKey[Metro](ctx)),
+		kongcompletion.WithPredictor("resource-key-instance", cmd.PredictModelKey[Instance](ctx)),
+		kongcompletion.WithPredictor("resource-key-instance-template", cmd.PredictModelKey[InstanceTemplate](ctx)),
+		kongcompletion.WithPredictor("resource-key-instance-checkpoint", cmd.PredictModelKey[InstanceCheckpoint](ctx)),
+		kongcompletion.WithPredictor("resource-key-volume", cmd.PredictModelKey[Volume](ctx)),
+		kongcompletion.WithPredictor("resource-key-volume-template", cmd.PredictModelKey[VolumeTemplate](ctx)),
+		kongcompletion.WithPredictor("resource-key-service", cmd.PredictModelKey[ServiceGroup](ctx)),
+		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictModelKey[Certificate](ctx)),
+		kongcompletion.WithPredictor("resource-key-image", cmd.PredictModelKey[ImageEntry](ctx)),
+		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictModelKey[AnyResource](ctx)),
+		kongcompletion.WithPredictor("resource-key-builder", complete.PredictNothing),
 	)
 
 	kctx, err := parser.Parse(args)
@@ -194,22 +198,9 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 			return ctx, nil, nil, nil, jujuerrors.Annotate(err, "getting config file path")
 		}
 	}
-	cfg, err := config.Load(configPath)
+	cfg, err := loadConfig(configPath, cli.globalFlags.Profile)
 	if err != nil {
-		return ctx, nil, nil, nil, jujuerrors.Annotate(err, "loading config")
-	}
-	if cfg == nil {
-		// This is the first time the configuration is being loaded (potentially a
-		// fresh install), so we should set the path to the default location.  This
-		// ensures that when the user eventually saves the configuration, it will be
-		// saved to the expected location, even if they didn't explicitly specify
-		// it.
-		cfg = &config.Config{
-			Path: configPath,
-		}
-	}
-	if cli.globalFlags.Profile != "" {
-		cfg.OverrideCurrentProfile(cli.globalFlags.Profile)
+		return ctx, nil, nil, nil, err
 	}
 	ctx = config.WithConfig(ctx, cfg)
 	kctx.Bind(cfg)
@@ -221,7 +212,7 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 
 	kctx.BindTo(ctx, (*context.Context)(nil))
 
-	partition, err := resource.LoadPartitionFromEnv(PartitionedResources...)
+	partition, err := model.LoadPartitionFromEnv(PartitionedResources...)
 	if err != nil {
 		cancelTimeout()
 		return ctx, nil, nil, nil, jujuerrors.Annotate(err, "loading partition from environment")
@@ -256,6 +247,27 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 		Msg("unikraft CLI")
 
 	return ctx, kctx, &cli, cleanup, nil
+}
+
+func loadConfig(path, profile string) (*config.Config, error) {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return nil, jujuerrors.Annotate(err, "loading config")
+	}
+	if cfg == nil {
+		// This is the first time the configuration is being loaded (potentially a
+		// fresh install), so we should set the path to the default location.  This
+		// ensures that when the user eventually saves the configuration, it will be
+		// saved to the expected location, even if they didn't explicitly specify
+		// it.
+		cfg = &config.Config{
+			Path: path,
+		}
+	}
+	if profile != "" {
+		cfg.OverrideCurrentProfile(profile)
+	}
+	return cfg, nil
 }
 
 func ctxWithLogger(ctx context.Context, out io.Writer, type_ log.Type, level log.Level) context.Context {
@@ -299,13 +311,14 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 	}
 
 	opts := []kong.Option{
-		kong.Name("unikraft"),
+		kong.Name(branding.Name),
 		kong.UsageOnError(),
+		kong.Vars{"docs_url": branding.DocsURL},
 		kong.Description("The Unikraft Command-Line Interface."),
 		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n" +
 			"    _         \n" +
-			"  c'3'o  .-.  Docs:   https://unikraft.com/docs/cli\n" +
-			"  (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues\n" +
+			"  c'3'o  .-.  Docs:   " + branding.DocsURL + "cli\n" +
+			"  (| |)_/     Issues: " + branding.IssuesURL + "\n" +
 			"              "),
 		kong.ConfigureHelp(helpOptions),
 		kong.Help(kingkong.HelpPrinter(version.Version)),
@@ -376,7 +389,7 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 	}))...)
 }
 
-var PartitionedResources = []resource.Resource{
+var PartitionedResources = []model.Model{
 	Image{},
 	Instance{},
 	InstanceTemplate{},

@@ -7,7 +7,6 @@ package multimetro
 
 import (
 	"context"
-	"errors"
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/httpclient"
@@ -15,8 +14,8 @@ import (
 )
 
 func NewControlClient(ctx context.Context, opts ...controlplane.ClientOption) (controlplane.Client, error) {
-	profile, err := config.G(ctx).CurrentProfile()
-	if err != nil && !errors.Is(err, config.ErrNotSetup) {
+	profile, err := config.G(ctx).OptionalProfile()
+	if err != nil {
 		return nil, err
 	}
 	return NewControlClientFromProfile(profile, opts...)

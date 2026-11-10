@@ -17,9 +17,9 @@ import (
 	"unikraft.com/x/kingkong"
 
 	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/muxreader"
-	"unikraft.com/cli/internal/resource"
 )
 
 // InstanceRunCmd is a convenience wrapper around `instance create` that adds
@@ -100,15 +100,21 @@ func (InstanceRunCmd) Examples() []kingkong.Example {
 				`unikraft instance run --metro=fra --image=my-app:latest --plugin 'name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}'`,
 			},
 		},
+		{
+			Description: "Roll every instance in a service group over to a new image",
+			Commands: []string{
+				"unikraft instance run --image=my-app:v2 --service=api --rollout",
+			},
+		},
 	}
 }
 
-func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	// Unlike create, run starts the instance unless told otherwise.
 	if !c.GeneratedFlags().IsSet("autostart") {
 		c.Set = append(c.Set, map[string]string{"autostart": "true"})
 	}
-	created, err := c.RunResources(ctx, stdio, partition)
+	created, err := c.RunModels(ctx, stdio, partition)
 	if err != nil {
 		return err
 	}
@@ -162,7 +168,7 @@ func (RunCmd) Examples() []kingkong.Example {
 	return instanceExamples
 }
 
-func (c *RunCmd) Run(ctx context.Context, stdio config.Stdio, partition *resource.Partition) error {
+func (c *RunCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
 	return c.InstanceRunCmd.Run(ctx, stdio, partition)
 }
 

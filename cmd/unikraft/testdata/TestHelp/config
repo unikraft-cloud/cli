@@ -15,10 +15,10 @@ Fields:
   profiles, profiles.*, profiles.*.name, profiles.*.type, profiles.*.token,
   profiles.*.organization, profiles.*.user-uuid, profiles.*.organization-uuid,
   profiles.*.control-plane, profiles.*.insecure, profiles.*.registry-mirror,
-  profiles.*.metros, profiles.*.metros.*, profiles.*.metros.*.name,
-  profiles.*.metros.*.endpoint, profiles.*.metros.*.proxy,
-  profiles.*.metros.*.location, profiles.*.metros.*.insecure, profiles.*.metro-
-  default
+  profiles.*.build-url, profiles.*.metros, profiles.*.metros.*,
+  profiles.*.metros.*.name, profiles.*.metros.*.endpoint,
+  profiles.*.metros.*.proxy, profiles.*.metros.*.location,
+  profiles.*.metros.*.insecure, profiles.*.metro-default
 
 Global flags:
   -h, --help
@@ -60,10 +60,10 @@ Fields:
   profiles, profiles.*, profiles.*.name, profiles.*.type, profiles.*.token,
   profiles.*.organization, profiles.*.user-uuid, profiles.*.organization-uuid,
   profiles.*.control-plane, profiles.*.insecure, profiles.*.registry-mirror,
-  profiles.*.metros, profiles.*.metros.*, profiles.*.metros.*.name,
-  profiles.*.metros.*.endpoint, profiles.*.metros.*.proxy,
-  profiles.*.metros.*.location, profiles.*.metros.*.insecure, profiles.*.metro-
-  default
+  profiles.*.build-url, profiles.*.metros, profiles.*.metros.*,
+  profiles.*.metros.*.name, profiles.*.metros.*.endpoint,
+  profiles.*.metros.*.proxy, profiles.*.metros.*.location,
+  profiles.*.metros.*.insecure, profiles.*.metro-default
 
 Flags:
   -w, --watch=<duration>

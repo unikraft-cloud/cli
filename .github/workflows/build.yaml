@@ -80,8 +80,6 @@ jobs:
 
     - name: Build
       shell: bash
-      env:
-        TASK_X_REMOTE_TASKFILES: 1
       run: |
         VERSION=pr-${{ github.event.number }} GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} task --yes ${{ matrix.task || 'cli' }}
 

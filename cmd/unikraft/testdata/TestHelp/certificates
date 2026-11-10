@@ -21,6 +21,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -69,6 +70,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -125,6 +127,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -183,6 +186,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -248,6 +252,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
@@ -295,17 +300,19 @@ Global flags:
 
 Create flags:
       --metro=<metro>
-          Metro to create in.
+          Metro to create in. Defaults to the profile's default metro.
           [examples: fra, sfo]
       --name=<name>
-          Certificate name.
+          Certificate name. Generated when omitted.
+      --node=<node>
+          Node to place the certificate on.
       --common-name=<fqdn>, --cn
-          Certificate common name.
+          Common name: the fully qualified domain name the certificate is for, with a trailing dot.
           [example: demo.unikraft.dev.]
       --chain=<file>
-          Certificate chain file.
+          PEM certificate chain: the certificate followed by any intermediates.
       --private-key=<file>, --pkey
-          Certificate private key file.
+          PEM private key matching the certificate chain.
 
 $ unikraft certificate delete --help
 
@@ -326,6 +333,7 @@ Fields:
   metro
   name
   uuid
+  node
   common-name
   subject
   issuer
