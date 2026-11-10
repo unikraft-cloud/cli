@@ -417,6 +417,61 @@ func TestGraphOutputTableMarksMissingValues(t *testing.T) {
 	})
 }
 
+func TestGraphOutputJSONNumbersAreNotExponents(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		script := &graphScript{steps: []graphStep{mem(7)}}
+		s := newTestSession(t, script.fetch, "memory")
+		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(1), Output: cmd.Printer{Type: cmd.PrinterTypeJSON}}
+		out, err := runGraph(t, c, s)
+		require.NoError(t, err)
+
+		var rows []struct {
+			Value *uint64 `json:"value"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out), &rows), "a count of bytes decodes into an integer")
+		require.Len(t, rows, 1)
+		assert.Equal(t, uint64(7<<20), *rows[0].Value)
+		assert.Contains(t, out, "7340032")
+	})
+}
+
+func TestGraphOutputTemplatePrintsText(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		script := &graphScript{steps: []graphStep{mem(1), {err: errors.New("boom")}}}
+		s := newTestSession(t, script.fetch, "memory")
+		c := &InstancesGraphCmd{
+			Interval: time.Second,
+			Samples:  new(2),
+			Output:   cmd.Printer{Type: cmd.PrinterTypeTemplate, Value: "{{.time}} {{.value}}"},
+		}
+		out, err := runGraph(t, c, s)
+		require.NoError(t, err)
+
+		assert.Equal(t, "2000-01-01T00:00:00Z 1048576\n2000-01-01T00:00:02Z -\n", out)
+	})
+}
+
+func TestGraphOutputKVKeepsMissingValues(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		script := &graphScript{steps: []graphStep{mem(0), {err: errors.New("boom")}}}
+		s := newTestSession(t, script.fetch, "memory")
+		c := &InstancesGraphCmd{Interval: time.Second, Samples: new(2), Output: cmd.Printer{Type: cmd.PrinterTypeKeyValue}}
+		out, err := runGraph(t, c, s)
+		require.NoError(t, err)
+
+		var values []string
+		for line := range strings.SplitSeq(out, "\n") {
+			if f := strings.Fields(line); len(f) == 2 && f[0] == "value:" {
+				values = append(values, f[1])
+			}
+		}
+		assert.Equal(t, []string{"0", "-"}, values, "a real zero is 0 and a failed poll is a dash")
+	})
+}
+
 func TestGraphSamplesDefault(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {

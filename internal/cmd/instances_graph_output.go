@@ -7,6 +7,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"strconv"
 	"time"
@@ -22,7 +23,7 @@ type GraphSample struct {
 	Time     GraphTime  `field:"time,short" json:"time"`
 	Instance string     `field:",short" json:"instance"`
 	Metric   string     `field:",short" json:"metric"`
-	Value    GraphValue `field:",short" json:"value"`
+	Value    GraphValue `field:",short,keepzero" json:"value"`
 	Unit     string     `field:",short" json:"unit"`
 
 	key multimetro.Key
@@ -54,6 +55,12 @@ func (t GraphTime) MarshalText() ([]byte, error) {
 	return []byte(time.Time(t).Format(time.RFC3339Nano)), nil
 }
 
+// String is the text that "--output template" prints. It is the same as the
+// JSON time.
+func (t GraphTime) String() string {
+	return time.Time(t).Format(time.RFC3339Nano)
+}
+
 func (t GraphTime) Render(value.RenderOpts) (string, error) {
 	return time.Time(t).Format(time.RFC3339), nil
 }
@@ -73,7 +80,18 @@ func (v GraphValue) MarshalJSON() ([]byte, error) {
 	if v.v == nil {
 		return []byte("null"), nil
 	}
-	return strconv.AppendFloat(nil, *v.v, 'g', -1, 64), nil
+	// encoding/json writes a number as 7340032 and not as 7.340032e+06, so
+	// that a consumer can decode a count of bytes into an integer.
+	return json.Marshal(*v.v)
+}
+
+// String is the text that "--output template" prints: the number, or "-" for
+// a sample without a value, like a table.
+func (v GraphValue) String() string {
+	if v.v == nil {
+		return "-"
+	}
+	return strconv.FormatFloat(*v.v, 'f', -1, 64)
 }
 
 func (v GraphValue) Render(value.RenderOpts) (string, error) {
