@@ -128,6 +128,24 @@ func TestGraphModelSparklinesUseTheWholeHeight(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 70, Height: 5})
 	lines = strings.Split(m.View().Content, "\n")
 	assert.Len(t, lines, 4+1, "the rows that fit, the count of the rest and the status line")
+
+	for height := 1; height <= 3; height++ {
+		m.Update(tea.WindowSizeMsg{Width: 70, Height: height})
+		lines = strings.Split(m.View().Content, "\n")
+		assert.Len(t, lines, height, "height %d: the view is not taller than the terminal", height)
+	}
+}
+
+func TestGraphModelChartFitsASmallTerminal(t *testing.T) {
+	t.Parallel()
+	s := newTestSession(t, nil, "memory")
+	observeMemory(t, s, 10, 20)
+	m := &graphModel{ctx: t.Context(), session: s}
+	for height := 1; height <= 4; height++ {
+		m.Update(tea.WindowSizeMsg{Width: 70, Height: height})
+		lines := strings.Split(m.View().Content, "\n")
+		assert.LessOrEqual(t, len(lines), height, "height %d: the view is not taller than the terminal", height)
+	}
 }
 
 func TestGraphSparkRowsFitTheWidth(t *testing.T) {

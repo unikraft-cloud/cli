@@ -201,10 +201,15 @@ func (c *InstancesGraphCmd) run(ctx context.Context, stdio config.Stdio, s *grap
 	if _, err := fmt.Fprintln(stdio.Stdout, s.plainFrame(width)); err != nil {
 		return err
 	}
+	s.reportLastErr(ctx)
+	return timedOut(ctx)
+}
+
+// reportLastErr logs why the last poll gave no values, if it did not.
+func (s *graphSession) reportLastErr(ctx context.Context) {
 	if s.lastErr != nil {
 		log.G(ctx).Warn().Msg("the last poll failed: " + cleanLine(s.lastErr.Error()))
 	}
-	return timedOut(ctx)
 }
 
 // graphLimit is how many points of a series a frame of the given width can
@@ -658,7 +663,7 @@ func (s *graphSession) sparkRows(width, height int, style graph.Style) string {
 	})
 	budget := maxSparkRows
 	if height > 0 {
-		budget = max(height, 2)
+		budget = max(height, 1)
 	}
 	hidden := 0
 	if len(order) > budget {

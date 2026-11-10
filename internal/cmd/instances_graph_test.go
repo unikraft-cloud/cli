@@ -512,17 +512,35 @@ func TestGraphModelPollsOnAFixedSchedule(t *testing.T) {
 		assert.Equal(t, []tea.Msg{graphTickMsg{}}, runCmds(cmd), "the tick is armed again at once")
 		assert.Equal(t, 1, script.count(), "one request at a time")
 
-		m.Update(graphSampleMsg{at: time.Now(), reading: graphReading{graphTestUUID: {m: graphMetrics{}}}})
-		assert.False(t, m.fetching)
+		// The answer comes after the tick that it missed: it starts the next
+		// request at once, so the samples are not two intervals apart.
+		_, cmd = m.Update(graphSampleMsg{at: time.Now(), reading: graphReading{graphTestUUID: {m: graphMetrics{}}}})
+		require.NotNil(t, cmd, "the missed tick starts a request")
+		assert.True(t, m.fetching)
+		assert.False(t, m.missed)
+		msgs = runCmds(cmd)
+		require.Len(t, msgs, 1)
+		assert.IsType(t, graphSampleMsg{}, msgs[0])
+		assert.Equal(t, 2, script.count(), "one request at a time")
 
-		// The next tick starts a request and arms the next tick.
+		// A tick that finds a request still running only arms the next one.
+		_, cmd = m.Update(graphTickMsg{})
+		require.NotNil(t, cmd)
+		assert.Equal(t, []tea.Msg{graphTickMsg{}}, runCmds(cmd))
+		assert.Equal(t, 2, script.count())
+		assert.True(t, m.missed)
+
+		// With no tick missed, an answer starts nothing and the tick starts a request.
+		m.missed = false
+		_, cmd = m.Update(msgs[0])
+		assert.Nil(t, cmd)
+		assert.False(t, m.fetching)
 		_, cmd = m.Update(graphTickMsg{})
 		require.NotNil(t, cmd)
 		assert.True(t, m.fetching)
-		msgs = runCmds(cmd)
-		assert.Len(t, msgs, 2)
-		assert.Equal(t, 2, script.count())
-		assert.Equal(t, 3*m.session.interval, time.Since(start), "each tick is one interval after the one before it")
+		assert.Len(t, runCmds(cmd), 2)
+		assert.Equal(t, 3, script.count())
+		assert.Equal(t, 4*m.session.interval, time.Since(start), "four ticks were armed, each is one interval after the one before it")
 	})
 }
 

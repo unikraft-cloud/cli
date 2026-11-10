@@ -51,8 +51,10 @@ type (
 
 // graphModel is the live chart. It draws from the samples that it holds at the
 // size of the last tea.WindowSizeMsg. A tick starts a request, unless one is
-// still running, and the ticks come on a fixed schedule. Thus the time between
-// two samples does not grow with the time that a request takes.
+// still running, and the ticks come on a fixed schedule. A tick that comes
+// during a request is remembered, and the answer starts the next request at
+// once. Thus the time between two samples does not grow with the time that a
+// request takes, and a slow request does not cost a whole interval.
 type graphModel struct {
 	ctx     context.Context
 	session *graphSession
@@ -62,7 +64,9 @@ type graphModel struct {
 
 	width, height int
 	fetching      bool
-	taken         int
+	// missed is set when a tick came while a request was running.
+	missed bool
+	taken  int
 	// err is why the last poll gave no values.
 	err error
 }
@@ -97,9 +101,15 @@ func (m *graphModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.samples > 0 && m.taken >= m.samples {
 			return m, tea.Quit
 		}
+		if m.missed {
+			m.missed = false
+			m.fetching = true
+			return m, m.fetchCmd()
+		}
 		return m, nil
 	case graphTickMsg:
 		if m.fetching {
+			m.missed = true
 			return m, m.tickCmd()
 		}
 		m.fetching = true
@@ -114,6 +124,10 @@ func (m *graphModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *graphModel) View() tea.View {
 	width := cmp.Or(m.width, defaultGraphWidth)
+	if m.height == 1 {
+		// Only the status line fits. A chart height of zero means the default.
+		return tea.NewView(m.status(width))
+	}
 	height := 0
 	if m.height > 0 {
 		// Leave one row for the status line. A chart is not taller than it
@@ -154,5 +168,11 @@ func runGraphLive(ctx context.Context, stdio config.Stdio, s *graphSession, samp
 	if err := ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
-	return s.failure()
+	if err := s.failure(); err != nil {
+		return err
+	}
+	// The renderer erases the status line on exit, so the error of the last
+	// poll goes to the log, as it does for a frame without a terminal.
+	s.reportLastErr(ctx)
+	return nil
 }
