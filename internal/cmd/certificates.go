@@ -218,7 +218,7 @@ func (Certificate) Create(ctx context.Context, fields []model.Field) ([]model.Mo
 			case "metro":
 				metro = string(field.Create.Set.(LinkName[Metro]))
 			case "cn":
-				req.Cn = new(field.Create.Set.(string)) //nolint:staticcheck // CommonName not on stable yet
+				req.CommonName = new(field.Create.Set.(string))
 			case "chain":
 				req.Chain = field.Create.Set.(string)
 			case "pkey":
