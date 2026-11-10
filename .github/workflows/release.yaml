@@ -10,9 +10,10 @@ permissions:
   contents: write
   packages: write
 
-# Automatically cancel in-progress actions on the same branch
+# Shared across branches, so stable waits for the staging run that tags its commit
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}
+  queue: max
 
 jobs:
   release:
