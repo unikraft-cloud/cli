@@ -148,6 +148,41 @@ func TestChartWithoutValuesShowsNote(t *testing.T) {
 	assert.Equal(t, "t  waiting for a second sample", strings.SplitN(Chart(series(step2s, math.NaN()), o), "\n", 2)[0])
 }
 
+func TestChartMiddleLabelIsOnItsLine(t *testing.T) {
+	t.Parallel()
+	for _, height := range []int{0, 6, 8, 7} {
+		o := Options{Title: "t", Unit: UnitPercent, Ceiling: 100, Width: 40, Height: height, Interval: step2s, Loc: time.UTC}
+		lines := strings.Split(Chart(series(step2s, 50, 50, 50, 50, 50, 50), o), "\n")
+		var found bool
+		for _, line := range lines {
+			if strings.HasPrefix(line, "   50┤") {
+				found = true
+				assert.NotEmpty(t, plotCells(line), "height %d: the 50 label is on the row of the 50 line", height)
+			}
+		}
+		assert.True(t, found, "height %d: the chart has a 50 label", height)
+	}
+}
+
+func TestChartKeepsLastAfterTheValuesLeftTheWindow(t *testing.T) {
+	t.Parallel()
+	o := small()
+	o.Width, o.Empty = 80, "waiting for the first sample"
+	values := []float64{1, 2, 3}
+	for range 148 {
+		values = append(values, math.NaN())
+	}
+	head, _, _ := strings.Cut(Chart(series(step2s, values...), o), "\n")
+	assert.Equal(t, "t  last -", head)
+
+	// Values that left the points given are remembered by the caller.
+	gaps := series(step2s, math.NaN(), math.NaN())
+	assert.Contains(t, Chart(gaps, o), "waiting for the first sample")
+	o.HadValue = true
+	head, _, _ = strings.Cut(Chart(gaps, o), "\n")
+	assert.Equal(t, "t  last -", head)
+}
+
 func TestChartBytesUseIECLabels(t *testing.T) {
 	t.Parallel()
 	o := Options{Title: "m", Unit: UnitBytes, Width: 40, Height: 7, Interval: 30 * time.Second, Loc: time.UTC}

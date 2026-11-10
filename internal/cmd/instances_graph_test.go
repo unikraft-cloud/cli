@@ -173,6 +173,20 @@ func TestGraphKeepsAtMostTheRingSize(t *testing.T) {
 	assert.InDelta(t, graphRingSize+9, s.series[0][graphRingSize-1].V, 0, "the newest points are kept")
 }
 
+func TestGraphRemembersValuesLeftTheRing(t *testing.T) {
+	t.Parallel()
+	s := newTestSession(t, nil, "memory")
+	assert.Contains(t, s.chart(0, 80, 0, graph.Style{}), "waiting for the first sample")
+	_ = s.observe(graphT0, graphReading{graphTestUUID: {m: graphMetrics{RssBytes: 1 << 20}}}, nil)
+	for i := range graphRingSize + 10 {
+		_ = s.observe(graphT0.Add(time.Duration(i+1)*time.Second), graphReading{}, nil)
+	}
+	require.NotContains(t, s.series[0], graph.Point{T: graphT0, V: 1 << 20, OK: true})
+	got := s.chart(0, 80, 0, graph.Style{})
+	assert.Contains(t, got, "last -")
+	assert.NotContains(t, got, "waiting for")
+}
+
 func TestGraphValidate(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {

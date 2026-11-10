@@ -53,7 +53,10 @@ type Options struct {
 	Loc *time.Location
 	// Empty is shown after the title while no point has a value.
 	Empty string
-	Style Style
+	// HadValue tells that the series had a value before the points given, so
+	// the chart does not wait for a first sample after the values left it.
+	HadValue bool
+	Style    Style
 }
 
 const (
@@ -89,10 +92,11 @@ func Chart(points []Point, o Options) string {
 		plotH = min(PlotHeight, o.Height-2)
 	}
 	subW := 2 * plotW
+	hadValue := o.HadValue || anyOK(points)
 	points = visible(points, o.Interval, subW)
 
 	var lines []string
-	lines = append(lines, o.Style.Note.Render(ansi.Truncate(headline(points, o), o.Width, "…")))
+	lines = append(lines, o.Style.Note.Render(ansi.Truncate(headline(points, hadValue, o), o.Width, "…")))
 
 	top := axisTop(maxValue(points), o.Unit, o.Ceiling)
 	canvas := drawCanvas(points, o, top, plotW, plotH)
@@ -110,9 +114,14 @@ func Chart(points []Point, o Options) string {
 	return strings.Join(lines, "\n")
 }
 
-func headline(points []Point, o Options) string {
-	if len(points) == 0 || !anyOK(points) {
+// headline is the title with the newest value. A series that had a value never
+// goes back to waiting for one, even when the value is out of the window.
+func headline(points []Point, hadValue bool, o Options) string {
+	if !hadValue {
 		return strings.TrimRight(o.Title+"  "+o.Empty, " ")
+	}
+	if len(points) == 0 {
+		return o.Title + "  last -"
 	}
 	last := points[len(points)-1]
 	if !last.OK {
@@ -141,13 +150,14 @@ func maxValue(points []Point) float64 {
 }
 
 // axisLabelRows maps plot rows to the value labels of the top, middle and
-// bottom.
+// bottom. The middle value is drawn on dot row 2*plotH, because the midpoint
+// of the dot rows is always x.5 and rounds up, which is cell row plotH/2.
 func axisLabelRows(top float64, unit Unit, plotH int) map[int]string {
 	labels := axisLabels([]float64{top, top / 2, 0}, unit)
 	return map[int]string{
-		0:                 labels[0],
-		(4*plotH - 1) / 8: labels[1],
-		plotH - 1:         labels[2],
+		0:         labels[0],
+		plotH / 2: labels[1],
+		plotH - 1: labels[2],
 	}
 }
 

@@ -410,6 +410,9 @@ type graphSession struct {
 	lines  []graphLine
 	series [][]graph.Point
 	prev   []rawSample
+	// seen tells for each series that it had a value, also after the value
+	// left the ring.
+	seen []bool
 	// limit bounds the points of a series. Zero means no bound.
 	limit   int
 	lastErr error
@@ -431,6 +434,7 @@ func newGraphSession(targets []graphTarget, fields []graphField, interval time.D
 		lines:    lines,
 		series:   make([][]graph.Point, len(lines)),
 		prev:     make([]rawSample, len(lines)),
+		seen:     make([]bool, len(lines)),
 		limit:    graphRingSize,
 	}
 }
@@ -482,6 +486,9 @@ func (s *graphSession) observe(t time.Time, reading graphReading, fetchErr error
 }
 
 func (s *graphSession) add(i int, p graph.Point) {
+	if p.OK {
+		s.seen[i] = true
+	}
 	s.series[i] = append(s.series[i], p)
 	if s.limit > 0 && len(s.series[i]) > s.limit {
 		s.series[i] = slices.Delete(s.series[i], 0, len(s.series[i])-s.limit)
@@ -593,6 +600,7 @@ func (s *graphSession) chart(i, width, height int, style graph.Style) string {
 		Interval: s.interval,
 		Loc:      s.loc,
 		Empty:    "waiting for the first sample",
+		HadValue: s.seen[i],
 		Style:    style,
 	}
 	if f.counter {
