@@ -205,6 +205,24 @@ func (c *InstancesGraphCmd) run(ctx context.Context, stdio config.Stdio, s *grap
 	return timedOut(ctx)
 }
 
+// finishGraphLive is the result of a live chart that ended with runErr, which
+// is nil for a quit by the user.
+func finishGraphLive(ctx context.Context, s *graphSession, runErr error) error {
+	if runErr != nil {
+		return runErr
+	}
+	if err := ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	if err := s.failure(); err != nil {
+		return err
+	}
+	// The renderer erases the status line on exit, so the error of the last
+	// poll goes to the log, as it does for a frame without a terminal.
+	s.reportLastErr(ctx)
+	return nil
+}
+
 // reportLastErr logs why the last poll gave no values, if it did not.
 func (s *graphSession) reportLastErr(ctx context.Context) {
 	if s.lastErr != nil {

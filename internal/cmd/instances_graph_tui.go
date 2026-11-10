@@ -162,17 +162,5 @@ func runGraphLive(ctx context.Context, stdio config.Stdio, s *graphSession, samp
 	if errors.Is(err, tea.ErrInterrupted) || errors.Is(err, tea.ErrProgramKilled) {
 		err = nil
 	}
-	if err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
-		return err
-	}
-	if err := s.failure(); err != nil {
-		return err
-	}
-	// The renderer erases the status line on exit, so the error of the last
-	// poll goes to the log, as it does for a frame without a terminal.
-	s.reportLastErr(ctx)
-	return nil
+	return finishGraphLive(ctx, s, err)
 }

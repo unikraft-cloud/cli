@@ -280,6 +280,44 @@ func TestGraphFrameKeepsTheLastErrorOffStdout(t *testing.T) {
 	})
 }
 
+func TestFinishGraphLiveLogsTheLastError(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		script := &graphScript{steps: []graphStep{mem(100), {err: errors.New("bad\x1b[31m gateway\nretry")}}}
+		s := newTestSession(t, script.fetch, "memory")
+		s.collect(t.Context(), 2)
+		require.True(t, s.hasValue())
+		require.Error(t, s.lastErr)
+
+		var logs bytes.Buffer
+		ctx := log.WithLogger(t.Context(), logfmt.New(&logs, log.JSONType, log.InfoLevel))
+		require.NoError(t, finishGraphLive(ctx, s, nil))
+
+		var record map[string]any
+		require.NoError(t, json.Unmarshal(logs.Bytes(), &record))
+		assert.Equal(t, "warn", record["level"])
+		assert.Equal(t, "the last poll failed: bad gateway retry", record["message"], "escape sequences are cleaned")
+	})
+}
+
+func TestFinishGraphLiveFailsWhenNoPollGaveAValue(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		cause := errors.New("unauthorized")
+		script := &graphScript{steps: []graphStep{{err: cause}}}
+		s := newTestSession(t, script.fetch, "memory")
+		s.collect(t.Context(), 2)
+
+		var logs bytes.Buffer
+		ctx := log.WithLogger(t.Context(), logfmt.New(&logs, log.JSONType, log.InfoLevel))
+		require.ErrorIs(t, finishGraphLive(ctx, s, nil), cause)
+		assert.Empty(t, logs.String(), "the error is returned and not logged")
+
+		runErr := errors.New("run failed")
+		require.ErrorIs(t, finishGraphLive(ctx, s, runErr), runErr)
+	})
+}
+
 func TestGraphTimeoutPrintsWhatWasCollectedAndFails(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
