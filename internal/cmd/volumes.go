@@ -193,6 +193,7 @@ type Volume struct {
 	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
 	Name  string          `mirror:"volume.name" field:",short" create:"set" flag:"name" short:"n" help:"Volume name, unique per metro among volumes and volume templates. Generated when omitted." placeholder:"name"`
 	UUID  string          `mirror:"volume.uuid" field:",long" help:"Unique identifier assigned at creation."`
+	Node  string          `mirror:"volume.node" field:",long" create:"set" flag:"node" help:"Node to place the volume on." placeholder:"node"`
 
 	Tags []string `mirror:"volume.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-prod"`
 
@@ -393,6 +394,8 @@ func (Volume) Create(ctx context.Context, fields []model.Field) ([]model.Model, 
 			case "name":
 				name := field.Create.Set.(string)
 				req.Name = &name
+			case "node":
+				req.Node = new(field.Create.Set.(string))
 			case "metro":
 				metro = string(field.Create.Set.(LinkName[Metro]))
 			case "tags":

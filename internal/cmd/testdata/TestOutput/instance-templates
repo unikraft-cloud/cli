@@ -21,6 +21,7 @@ timing:
 metro:           fra
 name:            my-template
 uuid:            d4e5f6a7-b8c9-0123-def0-123456789abc
+node:
 tags:            ["env-staging"]
 annotations:
   env:           staging
@@ -79,6 +80,11 @@ fra    my-template  template  nginx        128MiB  1      never
   {
     "name": "uuid",
     "value": "d4e5f6a7-b8c9-0123-def0-123456789abc",
+    "verbosity": "long"
+  },
+  {
+    "name": "node",
+    "value": "",
     "verbosity": "long"
   },
   {

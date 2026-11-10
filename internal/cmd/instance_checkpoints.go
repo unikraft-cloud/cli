@@ -43,6 +43,7 @@ type InstanceCheckpoint struct {
 	MetroName LinkName[Metro] `mirror:"metro.name" field:"metro,short" help:"Metro the checkpoint is in."`
 	Name      string          `mirror:"instance.name" field:",short" help:"Checkpoint name, unique per metro."`
 	UUID      string          `mirror:"instance.uuid" field:",long" help:"Unique identifier assigned at creation."`
+	Node      string          `mirror:"instance.node" field:",long" help:"Node the checkpoint is on."`
 
 	Tags        []string          `mirror:"instance.tags" field:",long" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-dev"`
 	Annotations map[string]string `mirror:"instance.annotations" field:",long" help:"Key-value metadata: up to 256 entries with Kubernetes-style [prefix/]name keys. Unlike tags, annotations reach the guest in its start data."`

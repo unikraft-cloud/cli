@@ -111,6 +111,7 @@ type Instance struct {
 	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to deploy in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
 	Name  string          `mirror:"instance.name" field:",short" create:"set" flag:"name" short:"n" help:"Instance name, unique per metro. Generated when omitted." placeholder:"name"`
 	UUID  string          `mirror:"instance.uuid" field:",long" help:"Unique identifier assigned at creation."`
+	Node  string          `mirror:"instance.node" field:",long" create:"set" flag:"node" help:"Node to place the instance on." placeholder:"node"`
 
 	Tags        []string          `mirror:"instance.tags" field:",long" create:"set" edit:"set,add,del" flag:"tag" sep:"none" help:"Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest." placeholder:"tag" example:"env-prod"`
 	Annotations map[string]string `mirror:"instance.annotations" field:",long" create:"set" edit:"set,add,del=keys" flag:"annotation" sep:"none" mapsep:"none" help:"Key-value metadata: up to 256 entries with Kubernetes-style [prefix/]name keys. Unlike tags, annotations reach the guest in its start data." placeholder:"<key>=<value>" example:"env=production,example.com/team=platform"`
@@ -1260,6 +1261,8 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 		case "name":
 			name := field.Create.Set.(string)
 			req.Name = &name
+		case "node":
+			req.Node = new(field.Create.Set.(string))
 		case "tags":
 			req.Tags = field.Create.Set.([]string)
 		case "annotations":

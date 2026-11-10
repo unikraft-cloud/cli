@@ -35,6 +35,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -90,6 +91,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -153,6 +155,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -218,6 +221,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -284,6 +288,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -342,6 +347,8 @@ Create flags:
           [examples: fra, sfo]
   -n, --name=<name>
           Volume name, unique per metro among volumes and volume templates. Generated when omitted.
+      --node=<node>
+          Node to place the volume on.
       --tag=<tag> ...
           Tags for grouping and filtering: up to 16, each 1 to 256 characters of letters, digits and -+_.:=. Not visible to the guest.
           [example: env-prod]
@@ -574,6 +581,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -664,6 +672,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   state
   usage
@@ -736,6 +745,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -783,6 +793,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -838,6 +849,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -899,6 +911,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -962,6 +975,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state
@@ -1036,6 +1050,7 @@ Fields:
   metro
   name
   uuid
+  node
   tags
   delete-lock
   state

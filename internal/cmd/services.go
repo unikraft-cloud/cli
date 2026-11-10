@@ -43,6 +43,7 @@ type ServiceGroup struct {
 	Metro LinkName[Metro] `field:"metro,short" create:"set,required" flag:"metro" help:"Metro to create in. Defaults to the profile's default metro." placeholder:"metro" example:"fra,sfo"`
 	Name  string          `mirror:"service_group.name" field:",short" create:"set" flag:"name" help:"Service group name. Generated when omitted." placeholder:"name"`
 	UUID  string          `mirror:"service_group.uuid" field:",long" help:"Unique identifier assigned at creation."`
+	Node  string          `mirror:"service_group.node" field:",long" create:"set" flag:"node" help:"Node to place the service group on." placeholder:"node"`
 
 	Persistent bool `mirror:"service_group.persistent" field:",long" help:"False while the group belongs to the instance that created it inline and is deleted with it. Turns true once another instance joins or autoscale is enabled."`
 	Autoscale  bool `mirror:"service_group.autoscale" field:",short" help:"Whether autoscale is enabled for the group."`
@@ -335,6 +336,8 @@ func (ServiceGroup) Create(ctx context.Context, fields []model.Field) ([]model.M
 			case "name":
 				name := field.Create.Set.(string)
 				req.Name = &name
+			case "node":
+				req.Node = new(field.Create.Set.(string))
 			case "limits.soft":
 				limit := field.Create.Set.(uint64)
 				req.SoftLimit = &limit

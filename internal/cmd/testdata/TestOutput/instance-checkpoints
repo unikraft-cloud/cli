@@ -32,6 +32,7 @@ timing:
 metro:              fra
 name:               my-checkpoint
 uuid:               f6a7b8c9-d0e1-2345-f012-3456789abcde
+node:
 tags:               ["env-prod", "team-core"]
 annotations:
   env:              production
@@ -97,6 +98,11 @@ fra    my-checkpoint  checkpoint  nginx  ["arg1", "arg2"]  256MiB  2      never
   {
     "name": "uuid",
     "value": "f6a7b8c9-d0e1-2345-f012-3456789abcde",
+    "verbosity": "long"
+  },
+  {
+    "name": "node",
+    "value": "",
     "verbosity": "long"
   },
   {
