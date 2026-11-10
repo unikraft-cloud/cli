@@ -1862,6 +1862,20 @@ func TestDeleteBulk(t *testing.T) {
 		assert.Len(t, env.Store, 2)
 	})
 
+	t.Run("all_without_input", func(t *testing.T) {
+		env := setupTestEnv()
+		ctx := modelt.WithTestEnv(context.Background(), env)
+
+		var out bytes.Buffer
+		cmd := &ModelBulkRemoveCmd[modelt.TestModel]{
+			All: true,
+		}
+		err := cmd.Run(ctx, testStdio(&out), partition)
+		require.ErrorContains(t, err, "--force")
+
+		assert.Len(t, env.Store, 2)
+	})
+
 	t.Run("empty", func(t *testing.T) {
 		env := modelt.NewTestEnv()
 		ctx := modelt.WithTestEnv(context.Background(), env)

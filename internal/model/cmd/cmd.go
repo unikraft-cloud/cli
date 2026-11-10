@@ -21,6 +21,7 @@ import (
 	"github.com/alecthomas/kong"
 
 	"unikraft.com/x/filters"
+	xio "unikraft.com/x/io"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 
@@ -557,6 +558,9 @@ func (cmd *ModelBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio, p
 				switch strings.ToLower(response) {
 				case "y", "yes":
 				default:
+					if !xio.IsTTYReader(stdio.Stdin) {
+						return errors.New("deletion cancelled: no confirmation on standard input\nhint: use --force to delete without a prompt")
+					}
 					return fmt.Errorf("deletion cancelled")
 				}
 			}
