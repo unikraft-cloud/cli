@@ -23,7 +23,7 @@ vars:
   # svu_bin: "{{.go_bin}} run github.com/caarlos0/svu/v3@{{.svu_version}}"
   svu_bin: "{{.go_bin}} run github.com/caarlos0/svu/v3"
 
-  task_version: v3.48.0
+  task_version: v3.54.0
   task_bin:
     sh: command -v task >/dev/null 2>&1 && echo "task --yes" || echo "{{.go_bin}} run github.com/go-task/task/v3/cmd/task@{{.task_version}} --yes"
 
