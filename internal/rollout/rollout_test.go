@@ -110,7 +110,7 @@ func TestApply(t *testing.T) {
 			calls: []string{
 				"new[0:1].create", "new[0:1].start", "new[0:1].up", "old[0:1].stop",
 				"new[1:2].create", "new[1:2].start", "new[1:2].up",
-				"old[0:1].start", "old[0:1].up", "new[0:1].delete", "new[1:2].delete",
+				"old[0:1].start", "old[0:1].up", "new[0:1].stop", "new[0:1].delete", "new[1:2].stop", "new[1:2].delete",
 			},
 			err: "the new instances did not come up: new[1:2].up failed",
 		},
@@ -121,7 +121,7 @@ func TestApply(t *testing.T) {
 			calls: []string{
 				"new[0:1].create", "new[0:1].start", "new[0:1].up", "old[0:1].stop",
 				"new[1:2].create", "new[1:2].start", "new[1:2].up", "new[0:1].up",
-				"old[0:1].start", "old[0:1].up", "new[0:1].delete", "new[1:2].delete",
+				"old[0:1].start", "old[0:1].up", "new[0:1].stop", "new[0:1].delete", "new[1:2].stop", "new[1:2].delete",
 			},
 			err: "the new instances did not stay up: new[0:1].up failed",
 		},
@@ -135,6 +135,13 @@ func TestApply(t *testing.T) {
 				"new[1:2].create", "old[0:1].start", "new[1:2].start",
 			},
 			err: "the new instances new-0 new-1 are kept",
+		},
+		{
+			name:     "rolling deletes a new batch that does not stop",
+			strategy: rollout.Rolling{},
+			fail:     []string{"new[0:1].up", "new[0:1].stop"},
+			calls:    []string{"new[0:1].create", "new[0:1].start", "new[0:1].up", "new[0:1].stop", "new[0:1].delete"},
+			err:      "stopping the new instances: new[0:1].stop failed",
 		},
 		{
 			name:     "rolling is done when the old set stays",
@@ -155,7 +162,7 @@ func TestApply(t *testing.T) {
 			name:     "rolling undoes an interrupt",
 			strategy: rollout.Rolling{HealthyAfter: time.Hour},
 			cancelAt: "new[0:1].up",
-			calls:    []string{"new[0:1].create", "new[0:1].start", "new[0:1].up cancelled", "new[0:1].delete"},
+			calls:    []string{"new[0:1].create", "new[0:1].start", "new[0:1].up cancelled", "new[0:1].stop", "new[0:1].delete"},
 			err:      "rollout interrupted while the new instances were up",
 		},
 		{

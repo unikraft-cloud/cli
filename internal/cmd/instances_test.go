@@ -260,8 +260,13 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 		},
 		{
 			name: "every key",
-			in:   "type=rolling,by=tags,target=env-prod,batch=3,healthy-after=30s",
-			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, By: cmd.RolloutByTags, Target: []string{"env-prod"}, Batch: 3, HealthyAfter: types.DurationS(30)},
+			in:   "type=rolling,by=tags,target=env-prod,batch=3,healthy-after=30s,drain-timeout=5s",
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, By: cmd.RolloutByTags, Target: []string{"env-prod"}, Batch: 3, HealthyAfter: types.DurationS(30), DrainTimeout: new(types.DurationMS(5000))},
+		},
+		{
+			name: "drain-timeout zero turns off the drain",
+			in:   "drain-timeout=0",
+			want: cmd.InstanceRollout{DrainTimeout: new(types.DurationMS(0))},
 		},
 		{
 			name: "target list",
@@ -292,6 +297,11 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 			name:    "negative healthy-after",
 			in:      "healthy-after=-30s",
 			wantErr: "healthy-after cannot be negative",
+		},
+		{
+			name:    "negative drain-timeout",
+			in:      "drain-timeout=-1s",
+			wantErr: "drain-timeout cannot be negative",
 		},
 		{
 			name:    "negative batch",
