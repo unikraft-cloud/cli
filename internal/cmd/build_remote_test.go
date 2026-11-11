@@ -150,7 +150,7 @@ func TestFollowRemoteCancelsARefusedSession(t *testing.T) {
 	s, err := session.NewSession(t.Context(), "")
 	require.NoError(t, err)
 
-	err = followRemote(t.Context(), client, buildapi.CreateBuildRequest{}, s, nil)
+	err = followRemote(t.Context(), client, buildapi.CreateBuildRequest{}, s)
 	var apiErr *buildapi.APIError
 	require.ErrorAs(t, err, &apiErr)
 	assert.Equal(t, buildapi.ErrorCodeInvalid, apiErr.Code)
