@@ -71,15 +71,7 @@ func (c *ImageBuildCmd) runRemote(ctx context.Context, cfg *config.Config, parti
 	}
 	defer s.Close()
 
-	disp, err := progress.NewDisplay(ctx, os.Stderr, progressui.AutoMode)
-	if err != nil {
-		return err
-	}
-	err = followRemote(ctx, client, req, s, disp)
-	if cerr := disp.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
+	if err := followRemote(ctx, client, req, s); err != nil {
 		return err
 	}
 
@@ -92,12 +84,24 @@ func (c *ImageBuildCmd) runRemote(ctx context.Context, cfg *config.Config, parti
 }
 
 // followRemote creates the build, attaches s to it and draws its progress until it ends.
-func followRemote(ctx context.Context, client *buildapi.Client, req buildapi.CreateBuildRequest, s *session.Session, disp *progress.Display) error {
+func followRemote(ctx context.Context, client *buildapi.Client, req buildapi.CreateBuildRequest, s *session.Session) (err error) {
 	b, err := client.CreateBuild(ctx, req)
 	if err != nil {
 		return err
 	}
 	log.G(ctx).Info().Str("id", b.ID).Msg("created build")
+
+	// A live display draws over a line logged after it starts.
+	disp, err := progress.NewDisplay(ctx, os.Stderr, progressui.AutoMode)
+	if err != nil {
+		return errors.Join(err, cancelRemote(ctx, client, b.ID))
+	}
+	defer func() {
+		if cerr := disp.Close(); err == nil {
+			err = cerr
+		}
+	}()
+
 	if b.Session != nil {
 		if err := client.Attach(ctx, b.ID, s); err != nil {
 			return errors.Join(err, cancelRemote(ctx, client, b.ID))
