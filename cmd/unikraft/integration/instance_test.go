@@ -1556,7 +1556,7 @@ cmd: ["cat", "/marker.txt"]
 		assert.Regexp(t, `replicas\s+:= 1`, out)
 		assert.Regexp(t, `autostart\s+:= false`, out)
 		for _, name := range before {
-			assert.Regexp(t, `replaces := .*`+name, out)
+			assert.Regexp(t, `replaces\s+:= .*`+name, out)
 		}
 		list := r.Run(t, []string{"unikraft", "instance", "list", "--output", "quiet"})
 		for _, name := range before {

@@ -225,13 +225,11 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 	}
 
 	if c.DryRun {
-		if _, err := c.Create(ctx, stdio, partition, fieldsFor(first)); err != nil {
-			return nil, err
-		}
+		patches := fieldsFor(first)
 		if len(oldKeys) > 0 {
-			fmt.Fprintf(stdio.Stdout, "replaces := %s\n", strings.Join(oldKeys.Strings(), " "))
+			patches = append(patches, model.Field{Name: "replaces", Create: &model.Patch{Set: oldKeys.Strings()}})
 		}
-		return nil, nil
+		return nil, cmd.PrintPatches(stdio.Stdout, patches, true)
 	}
 
 	g, err := multimetro.NewClient(ctx)
