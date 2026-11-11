@@ -97,6 +97,7 @@ func followRemote(ctx context.Context, client *buildapi.Client, req buildapi.Cre
 	if err != nil {
 		return err
 	}
+	log.G(ctx).Info().Str("id", b.ID).Msg("created build")
 	if b.Session != nil {
 		if err := client.Attach(ctx, b.ID, s); err != nil {
 			return errors.Join(err, cancelRemote(ctx, client, b.ID))
