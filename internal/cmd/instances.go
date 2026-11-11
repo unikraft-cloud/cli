@@ -77,7 +77,7 @@ type InstanceCreateCmd struct {
 	cmd.ModelCreateCmd[Instance]
 
 	DeleteOnStop bool             `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
-	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | recreate\n  by: service (default) | tags\n  target: the new instance's service, or a subset of its tags, to select by (default: all of them)\n  batch: instances that a rolling rollout replaces at a time (default: 1)\n  healthy-after: time each new batch must keep running before the rollout goes on" placeholder:"<key>=<value>" example:"type=recreate,batch=2\\,healthy-after=30s,by=tags\\,target=env-prod"`
+	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | recreate\n  by: service (default) | tags\n  target: the new instance's service, or a subset of its tags, to select by (default: all of them)\n  batch: instances that a rolling rollout replaces at a time (default: 1)\n  healthy-after: time each new batch must keep running before the rollout goes on\n  drain-timeout: time an instance gets to finish its connections before the rollout stops it (default: 30s, 0 to not drain)" placeholder:"<key>=<value>" example:"type=recreate,batch=2\\,healthy-after=30s,by=tags\\,target=env-prod"`
 }
 
 func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
