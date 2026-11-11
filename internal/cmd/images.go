@@ -43,6 +43,10 @@ type ImagesCmd struct {
 	Delete ImagesDeleteCmd `cmd:"" help:"Remove an image." aliases:"rm,remove"`
 	Copy   ImagesCopyCmd   `cmd:"" help:"Copy images."`
 	List   ImagesListCmd   `cmd:"" help:"List images." aliases:"ls"`
+
+	Edit  cmd.ModelEditCmd[ImageCache] `cmd:"" help:"Pin, unpin or change the autokill of a cached image." set:"name=cached-image" set:"names=cached-images"`
+	Pin   ImagesPinCmd                 `cmd:"" help:"Pull an image on a metro and pin it in the cache."`
+	Unpin ImagesUnpinCmd               `cmd:"" help:"Unpin a cached image on a metro."`
 }
 
 type Image struct {
@@ -232,6 +236,10 @@ func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
 				Description: "Inspect an image by tag",
 				Commands:    []string{"unikraft image get nginx:latest"},
 			},
+			{
+				Description: "Show the metros where an image is cached and pinned",
+				Commands:    []string{"unikraft image get --cache docker.io/library/nginx:1.27"},
+			},
 		},
 		cmd.CmdTypeList: {
 			{
@@ -241,6 +249,14 @@ func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
 			{
 				Description: "Filter images by reference",
 				Commands:    []string{`unikraft image list --filter 'ref~="/nginx"'`},
+			},
+			{
+				Description: "List the images cached on your metros",
+				Commands:    []string{"unikraft image list --cache"},
+			},
+			{
+				Description: "List the images pinned on a metro",
+				Commands:    []string{`unikraft image list --cache --filter 'pinned.*==fra'`},
 			},
 		},
 		cmd.CmdTypeDelete: {
@@ -378,7 +394,7 @@ func listPlatformImages(ctx context.Context) ([]model.Model, error) {
 	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing images from image-store")
 
-		resp, err := c.GetImageStore(ctx, nil, platform.GetImageStoreOpts{})
+		resp, err := c.GetImageStore(ctx, platform.GetImageStoreOpts{})
 		if err != nil {
 			log.G(ctx).Warn().Err(err).Msg("image-store listing failed, falling back to /v1/images")
 			var fallbackErr error
@@ -702,10 +718,19 @@ func (ImageEntry) loadFromPlatform(image platform.Image, metro *config.Metro) ([
 
 type ImagesGetCmd struct {
 	cmd.ModelGetCmd[Image]
-	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
+	Insecure []string `xor:"cache" help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
+	Cache    bool     `xor:"cache" help:"Show the image as the node cache of each metro has it, with the fields active, pinned and autokill."`
 }
 
 func (c *ImagesGetCmd) Run(ctx context.Context, stdio config.Stdio) error {
+	if c.Cache {
+		cached := cmd.ModelGetCmd[ImageCache]{
+			Targets:    c.Targets,
+			Watch:      c.Watch,
+			FormatOpts: c.FormatOpts,
+		}
+		return cached.Run(ctx, stdio, nil)
+	}
 	if c.Insecure != nil {
 		var opts []images.AccessorOpt
 		if len(c.Insecure) > 0 {
@@ -824,10 +849,21 @@ func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *model.Partition) er
 type ImagesListCmd struct {
 	cmd.ModelListCmd[ImageEntry]
 
-	Namespace []string `help:"Only list images in this namespace."`
+	Namespace []string `xor:"cache" help:"Only list images in this namespace."`
+	Cache     bool     `xor:"cache" help:"List the images in the node cache of each metro, with the fields active, pinned and autokill."`
 }
 
 func (c *ImagesListCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+	if c.Cache {
+		cached := cmd.ModelListCmd[ImageCache]{
+			Targets:    c.Targets,
+			Filter:     c.Filter,
+			Watch:      c.Watch,
+			Sort:       c.Sort,
+			FormatOpts: c.FormatOpts,
+		}
+		return cached.Run(ctx, stdio, partition)
+	}
 	return c.ModelListCmd.Run(context.WithValue(ctx, imageNamespacesKey{}, c.Namespace), stdio, partition)
 }
 

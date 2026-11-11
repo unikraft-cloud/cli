@@ -301,7 +301,7 @@ unikraft instances logs my-instance
 | `volumes`      | Manage persistent volumes (list, get, create, edit, delete, clone)             |
 | `services`     | Manage service groups (list, get, create, edit, delete)                        |
 | `certificates` | Manage TLS certificates (list, get, create, delete)                            |
-| `images`       | Manage images (list, get, copy)                                                |
+| `images`       | Manage images (list, get, copy, pin, unpin)                                    |
 | `login`        | Login to Unikraft Cloud                                                        |
 | `logout`       | Logout from Unikraft Cloud                                                     |
 | `profile`      | Manage profiles (list, get, use)                                               |

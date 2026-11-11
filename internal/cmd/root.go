@@ -143,6 +143,7 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 		kongcompletion.WithPredictor("resource-key-service", cmd.PredictModelKey[ServiceGroup](ctx)),
 		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictModelKey[Certificate](ctx)),
 		kongcompletion.WithPredictor("resource-key-image", cmd.PredictModelKey[ImageEntry](ctx)),
+		kongcompletion.WithPredictor("resource-key-cached-image", cmd.PredictModelKey[ImageCache](ctx)),
 		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictModelKey[AnyResource](ctx)),
 		kongcompletion.WithPredictor("resource-key-builder", complete.PredictNothing),
 	)

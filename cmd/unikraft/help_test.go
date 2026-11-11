@@ -192,6 +192,9 @@ func imagesHelpTests(t *testing.T, unikraftPath string) {
 		[]string{"unikraft", "image", "get", "--help"},
 		[]string{"unikraft", "image", "list", "--help"},
 		[]string{"unikraft", "image", "copy", "--help"},
+		[]string{"unikraft", "image", "edit", "--help"},
+		[]string{"unikraft", "image", "pin", "--help"},
+		[]string{"unikraft", "image", "unpin", "--help"},
 	)
 }
 
