@@ -375,6 +375,41 @@ func TestList(t *testing.T) {
 		output := out.String()
 		assert.Equal(t, "test2\ntest1\n", output)
 	})
+
+	t.Run("limit", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			sort   string
+			limit  uint
+			expect string
+		}{
+			{name: "after sort", sort: "-name", limit: 1, expect: "test2\n"},
+			{name: "above count", sort: "name", limit: 5, expect: "test1\ntest2\n"},
+			{name: "zero", sort: "name", limit: 0, expect: "test1\ntest2\n"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				var out bytes.Buffer
+				cmd := &ModelListCmd[modelt.TestModel]{
+					Sort:   wkong.GreedyStrings{tc.sort},
+					Limit:  tc.limit,
+					Output: Printer{Type: PrinterTypeQuiet},
+				}
+				require.NoError(t, cmd.Run(ctx, testStdio(&out), partition))
+				assert.Equal(t, tc.expect, out.String())
+			})
+		}
+	})
+
+	t.Run("limit-after-filter", func(t *testing.T) {
+		var out bytes.Buffer
+		cmd := &ModelListCmd[modelt.TestModel]{
+			Filter: []string{"name==test2"},
+			Limit:  1,
+			Output: Printer{Type: PrinterTypeQuiet},
+		}
+		require.NoError(t, cmd.Run(ctx, testStdio(&out), partition))
+		assert.Equal(t, "test2\n", out.String())
+	})
 }
 
 func TestParseSortSpecs(t *testing.T) {

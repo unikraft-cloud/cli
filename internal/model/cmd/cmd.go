@@ -136,6 +136,7 @@ type ModelListCmd[R model.GettableListableModel] struct {
 	Filter  []string            `help:"Filter output based on a field value." example:"name==my-instance,metro==fra" sep:"none"`
 	Watch   *time.Duration      `short:"w" help:"Watch for changes and refresh output. Defaults to 2s." type:"optional" placeholder:"duration"`
 	Sort    wkong.GreedyStrings `help:"Sort output by field values. Use - prefix for descending, + for ascending." example:"name,-timestamps.created-at"`
+	Limit   uint                `help:"Show at most this many ${names}, after filtering and sorting. 0 shows all."`
 
 	FormatOpts
 
@@ -197,6 +198,10 @@ func (cmd *ModelListCmd[R]) Run(ctx context.Context, stdio config.Stdio, partiti
 			if err != nil {
 				return errors.Join(opErr, err)
 			}
+		}
+
+		if cmd.Limit > 0 {
+			resources = resources[:min(len(resources), int(cmd.Limit))]
 		}
 
 		printErr := cmd.Output.

@@ -252,6 +252,8 @@ Flags:
       --sort
           Sort output by field values. Use - prefix for descending, + for ascending.
           [examples: name, -timestamps.created-at]
+      --limit
+          Show at most this many builders, after filtering and sorting. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
