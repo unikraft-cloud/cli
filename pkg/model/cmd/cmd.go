@@ -789,10 +789,13 @@ func (cmd *ModelEditCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, partiti
 			getKey = res.Key().String()
 		}
 		results, err := r.Get(ctx, []string{getKey})
-		if err != nil {
+		_, gone := errors.AsType[model.ErrNotFound](err)
+		switch {
+		case gone:
+			updated = nil
+		case err != nil:
 			return err
-		}
-		if len(results) > 0 {
+		case len(results) > 0:
 			updated = results[:1]
 		}
 	} else {

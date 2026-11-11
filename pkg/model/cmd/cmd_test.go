@@ -29,6 +29,7 @@ import (
 	"unikraft.com/cli/internal/types"
 	wkong "unikraft.com/cli/internal/w/kong"
 	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/value"
 	xstdio "unikraft.com/x/stdio"
 )
 
@@ -517,6 +518,19 @@ func TestParseSortSpecs(t *testing.T) {
 			assert.Equal(t, tt.expected, specs)
 		})
 	}
+}
+
+type renderedMap map[string]int
+
+func (renderedMap) Render(value.RenderOpts) (string, error) {
+	return "rendered", nil
+}
+
+// TestPrintKVValueRenderer checks that a map which renders itself gives one value.
+func TestPrintKVValueRenderer(t *testing.T) {
+	var out bytes.Buffer
+	require.NoError(t, printKVValue(&out, renderedMap{"a": 1}, 1))
+	assert.Equal(t, " rendered\n", out.String())
 }
 
 func TestListOutput(t *testing.T) {
@@ -1410,6 +1424,28 @@ func TestEditOutput(t *testing.T) {
 	})
 
 	// Other formats are covered in TestListOutput.
+}
+
+// TestEditRemoves checks that an edit after which the resource is not found
+// succeeds and shows the resource as removed.
+func TestEditRemoves(t *testing.T) {
+	env := modelt.NewTestEnv()
+	env.Add(modelt.TestModel{ID: "id-edit", Name: "test-edit", Settings: modelt.TestSettings{Foo: 10}})
+	env.Hooks.Get = func(ctx context.Context, keys []string, next func(context.Context, []string) ([]model.Model, error)) ([]model.Model, error) {
+		if env.Store["test-edit"].Settings.Foo == 999 {
+			return nil, model.ErrNotFound{Err: fmt.Errorf("not found: %v", keys)}
+		}
+		return next(ctx, keys)
+	}
+	ctx := modelt.WithTestEnv(context.Background(), env)
+
+	var out bytes.Buffer
+	cmd := &ModelEditCmd[modelt.TestModel]{
+		Target: "test-edit",
+		Set:    []map[string]string{{"settings.foo": "999"}},
+	}
+	require.NoError(t, cmd.Run(ctx, testStdio(&out), &model.Partition{}))
+	assert.Equal(t, "- id:    id-edit\n- name:  test-edit\n- settings:\n-   foo: 10\n", ansi.Strip(out.String()))
 }
 
 func TestEditDryRun(t *testing.T) {
