@@ -26,7 +26,7 @@ func TestMCPServerTools(t *testing.T) {
 	readOnlyTools := []string{
 		"instance_list", "instance_template_list", "instance_checkpoint_list",
 		"volume_list", "volume_template_list", "service_list", "certificate_list",
-		"image_list", "image_get", "metro_list", "instance_logs", "sandbox_read",
+		"image_list", "image_get", "image_cache_list", "metro_list", "instance_logs", "sandbox_read",
 	}
 	mutatingTools := []string{
 		"instance_create", "instance_edit", "instance_delete", "instance_control",
@@ -35,7 +35,7 @@ func TestMCPServerTools(t *testing.T) {
 		"volume_create", "volume_edit", "volume_delete",
 		"volume_template_create", "volume_template_edit", "volume_template_delete",
 		"service_create", "service_edit", "service_delete",
-		"certificate_create", "certificate_delete", "image_delete",
+		"certificate_create", "certificate_delete", "image_delete", "image_cache_edit",
 		"sandbox_exec", "sandbox_write", "profile_use",
 	}
 
@@ -60,7 +60,7 @@ func TestMCPServerResources(t *testing.T) {
 	assert.Contains(t, session.Instructions, "Only the tools of these resource types are served: instance, metro.")
 
 	_, err = newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "nope"}})
-	assert.EqualError(t, err, "--resources: unknown resource types: nope; known: certificate, image, instance, instance_checkpoint, instance_template, metro, profile, sandbox, service, volume, volume_template")
+	assert.EqualError(t, err, "--resources: unknown resource types: nope; known: certificate, image, image_cache, instance, instance_checkpoint, instance_template, metro, profile, sandbox, service, volume, volume_template")
 }
 
 func TestMCPResourceTypes(t *testing.T) {

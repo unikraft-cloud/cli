@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"slices"
 	"strings"
 	"text/template"
@@ -237,28 +238,31 @@ func printKVValue(out io.Writer, v any, indent int) error {
 
 	// FIXME: should probably be more configurable per-field
 
-	switch v := v.(type) {
-	case map[string]string:
+	if entries := reflect.ValueOf(v); entries.Kind() == reflect.Map && entries.Type().Key().Kind() == reflect.String {
 		_, err := fmt.Fprintln(out)
 		if err != nil {
 			return err
 		}
 		var lines []string
-		for key, val := range v {
-			line := fmt.Sprintf("%s%s: %s\n", strings.Repeat("  ", indent), key, val)
+		for key, val := range entries.Seq2() {
+			rendered, err := value.Render(val.Interface(), value.RenderOpts{})
+			if err != nil {
+				return err
+			}
+			line := fmt.Sprintf("%s%s: %s\n", strings.Repeat("  ", indent), key.String(), rendered)
 			lines = append(lines, line)
 		}
 		slices.Sort(lines)
 		_, err = io.WriteString(out, strings.Join(lines, ""))
 		return err
-	default:
-		line, err := value.Render(v, value.RenderOpts{})
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintf(out, " %s\n", line)
+	}
+
+	line, err := value.Render(v, value.RenderOpts{})
+	if err != nil {
 		return err
 	}
+	_, err = fmt.Fprintf(out, " %s\n", line)
+	return err
 }
 
 func printTable(ctx context.Context, out io.Writer, fieldSpecs []string, base model.Model, resources ...model.Model) error {

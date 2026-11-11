@@ -16,6 +16,12 @@ Resources:
           Copy images.
   list, ls
           List images.
+  edit
+          Pin, unpin or change the autokill of a cached image.
+  pin
+          Pull an image on a metro and pin it in the cache.
+  unpin
+          Unpin a cached image on a metro.
 
 Fields:
   ref
@@ -131,6 +137,9 @@ Examples:
   # Inspect an image by tag
   unikraft image get nginx:latest
 
+  # Show the metros where an image is cached and pinned
+  unikraft image get --cache docker.io/library/nginx:1.27
+
 Fields:
   ref
   digest
@@ -152,6 +161,8 @@ Flags:
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --insecure
           Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all.
+      --cache
+          Show the image as the node cache of each metro has it, with the fields active, pinned and autokill.
 
 Global flags:
   -h, --help
@@ -190,6 +201,12 @@ Examples:
   # Filter images by reference
   unikraft image list --filter 'ref~="/nginx"'
 
+  # List the images cached on your metros
+  unikraft image list --cache
+
+  # List the images pinned on a metro
+  unikraft image list --cache --filter 'pinned.*==fra'
+
 Fields:
   ref
   digest
@@ -210,6 +227,8 @@ Flags:
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --namespace
           Only list images in this namespace.
+      --cache
+          List the images in the node cache of each metro, with the fields active, pinned and autokill.
 
 Global flags:
   -h, --help
@@ -257,6 +276,166 @@ Examples:
 Flags:
       --insecure
           Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft image edit --help
+
+Pin, unpin or change the autokill of a cached image.
+
+Usage:
+  unikraft images edit <target> [flags]
+
+Arguments:
+  <target>
+          Target cached-image to edit.
+
+Examples:
+  # Pin an image on a metro, and unpin it after 24 hours without use
+  unikraft image edit myuser/app:v2 --add pinned=sfo --add autokill=sfo=24h
+
+  # Change the autokill of a pinned image
+  unikraft image edit myuser/app:v2 --add autokill=fra=48h
+
+  # Remove the autokill of a pinned image
+  unikraft image edit myuser/app:v2 --del autokill=fra
+
+  # Unpin an image on a metro
+  unikraft image edit myuser/app:v2 --del pinned=sfo
+
+Fields:
+  ref
+  digest
+  active
+  pinned
+  autokill
+
+Flags:
+      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
+          Key-value pairs to set on the cached-image.
+      --add=<name>=<value> ..., --add-file=<name>=<filename> ...
+          Key-value pairs to add to the cached-image.
+      --del=<name>=<value> ..., --del-file=<name>=<filename> ...
+          Keys to delete from the cached-image.
+      --visual
+          Open an editor to modify fields visually.
+      --cmd
+          Run a command to edit fields (receives YAML on stdin, outputs edited YAML on stdout).
+      --load, --save=<FILE>
+          Load fields from a YAML file.
+      --dry-run
+          Print patches without applying them.
+  -f, --field
+          Specify which fields to include in the output.
+  -o, --output
+          Output format. One of: kv, table, json, yaml, raw, quiet, template.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft image pin --help
+
+Pull an image on a metro and pin it in the cache.
+
+Usage:
+  unikraft images pin --metro=metro <image> [flags]
+
+Arguments:
+  <image>
+          Image reference to pin. The metro pulls it when it is not in the node cache.
+
+Examples:
+  # Pin an image on a metro
+  unikraft image pin myuser/app:v2 --metro fra
+
+  # Pin an image, and unpin it after 24 hours without use
+  unikraft image pin docker.io/library/nginx:1.27 --metro fra --autokill 24h
+
+Flags:
+      --metro=<metro>
+          Metro to pin the image on.
+      --autokill=<duration>
+          Unpin the image after this time without use. A bare number is milliseconds. Without it the image stays pinned.
+          [example: 24h]
+  -f, --field
+          Specify which fields to include in the output.
+  -o, --output
+          Output format. One of: kv, table, json, yaml, raw, quiet, template.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+$ unikraft image unpin --help
+
+Unpin a cached image on a metro.
+
+Usage:
+  unikraft images unpin --metro=metro <image> [flags]
+
+Arguments:
+  <image>
+          Reference of the cached image to unpin.
+
+Examples:
+  # Unpin an image on a metro
+  unikraft image unpin docker.io/library/nginx:1.27 --metro sfo
+
+Flags:
+      --metro=<metro>
+          Metro to unpin the image on.
+  -f, --field
+          Specify which fields to include in the output.
+  -o, --output
+          Output format. One of: kv, table, json, yaml, raw, quiet, template.
 
 Global flags:
   -h, --help

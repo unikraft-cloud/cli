@@ -112,6 +112,9 @@ unikraft services rm <name|uuid>        # Delete a service
 unikraft images list                    # List images
 unikraft images get <ref>               # Inspect image details
 unikraft images copy <src> <dst>        # Copy an image
+unikraft images list --cache            # List the images cached on metros and where they are pinned
+unikraft images pin <ref> --metro <metro>    # Pull and pin an image on a metro
+unikraft images unpin <ref> --metro <metro>  # Unpin an image
 ```
 
 ### Certificate Management
