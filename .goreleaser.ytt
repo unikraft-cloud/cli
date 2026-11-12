@@ -228,8 +228,10 @@ builds:
   env:
   - CGO_ENABLED=0
   #@ end
+  #@ if os != "linux":
   flags:
   - -buildmode=pie
+  #@ end
   ldflags:
   - -s
   - -w
