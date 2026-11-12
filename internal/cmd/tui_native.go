@@ -9,12 +9,10 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 
 	tea "charm.land/bubbletea/v2"
 
 	"unikraft.com/cli/internal/branding"
-	"unikraft.com/cli/internal/tui/uitui"
 	"unikraft.com/cli/pkg/model"
 	modeltui "unikraft.com/cli/pkg/model/tui"
 	xio "unikraft.com/x/io"
@@ -32,37 +30,13 @@ func NewTUIModel(ctx context.Context, resourceArg, nameArg string) (tea.Model, e
 	registry.Register(Metro{}, Metro{})
 	registry.Register(Profile{}, Profile{})
 
-	var panel tea.Model
-	switch {
-	case nameArg != "":
-		if resourceArg == "" {
-			return nil, fmt.Errorf("resource type must be specified when providing a name")
-		}
-		selected, ok := registry.Resolve(resourceArg)
-		if !ok {
-			return nil, fmt.Errorf("unknown resource: %s", resourceArg)
-		}
-		if selected.Get == nil {
-			return nil, fmt.Errorf("resource %s does not support get", selected.Name)
-		}
-		panel = modeltui.NewDetailPanel(ctx, registry, selected, nameArg)
-	case resourceArg != "":
-		selected, ok := registry.Resolve(resourceArg)
-		if !ok {
-			return nil, fmt.Errorf("unknown resource: %s", resourceArg)
-		}
-		panel = modeltui.NewListPanel(ctx, registry, selected)
-	default:
-		panel = modeltui.NewHomePanel(ctx, registry, modeltui.Home{
-			Art: branding.Art,
-			Links: []modeltui.Link{
-				{Label: "Website", URL: branding.WebsiteURL},
-				{Label: "GitHub", URL: branding.RepoURL},
-			},
-		})
-	}
-
-	return uitui.NewModel(panel), nil
+	return modeltui.New(ctx, registry, modeltui.Home{
+		Art: branding.Art,
+		Links: []modeltui.Link{
+			{Label: "Website", URL: branding.WebsiteURL},
+			{Label: "GitHub", URL: branding.RepoURL},
+		},
+	}, resourceArg, nameArg)
 }
 
 func (cmd *TUICmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
