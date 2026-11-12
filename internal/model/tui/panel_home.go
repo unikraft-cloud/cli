@@ -12,7 +12,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/MakeNowJust/heredoc"
 	"github.com/charmbracelet/x/ansi"
 
 	"unikraft.com/cli/internal/model"
@@ -21,19 +20,21 @@ import (
 	"unikraft.com/x/colors"
 )
 
-const (
-	homeWebsiteURL = "https://unikraft.com"
-	homeGitHubURL  = "https://github.com/unikraft-cloud/cli"
-)
+// Home is the branding shown on the home panel.
+type Home struct {
+	Art   string
+	Links []Link
+}
 
-var homeArt = heredoc.Docf(`
-	  __ _____  (_) /__ _______ _/ _/ /_
-	 / // / _ \/ /  '_// __/ _ %[1]s/ _/ __/
-	\_,_/_//_/_/_/\_\/_/  \_,_/_/ \__/`, "`")
+type Link struct {
+	Label string
+	URL   string
+}
 
 type homePanel struct {
 	ctx      context.Context
 	registry *model.Registry
+	home     Home
 
 	entries []*model.ModelDescriptor
 	cursor  int
@@ -45,10 +46,11 @@ type homePanel struct {
 	focused bool
 }
 
-func NewHomePanel(ctx context.Context, registry *model.Registry) tea.Model {
+func NewHomePanel(ctx context.Context, registry *model.Registry, home Home) tea.Model {
 	panel := &homePanel{
 		ctx:      ctx,
 		registry: registry,
+		home:     home,
 		monkey:   monkey.New(),
 	}
 	panel.syncModels()
@@ -116,10 +118,11 @@ func (p *homePanel) View() tea.View {
 		return tea.NewView("")
 	}
 
-	artBlock := lipgloss.PlaceHorizontal(contentWidth, lipgloss.Center, homeArt)
-	monkeyBlock := lipgloss.PlaceHorizontal(contentWidth, lipgloss.Center, p.monkey.View())
-
-	bodyParts := []string{artBlock, monkeyBlock}
+	var bodyParts []string
+	if p.home.Art != "" {
+		bodyParts = append(bodyParts, lipgloss.PlaceHorizontal(contentWidth, lipgloss.Center, p.home.Art))
+	}
+	bodyParts = append(bodyParts, lipgloss.PlaceHorizontal(contentWidth, lipgloss.Center, p.monkey.View()))
 	if linksLine := p.linksLine(); linksLine != "" {
 		bodyParts = append(bodyParts, "", lipgloss.PlaceHorizontal(contentWidth, lipgloss.Center, strings.TrimRight(linksLine, " ")))
 	}
@@ -175,10 +178,11 @@ func (p *homePanel) currentDescriptor() *model.ModelDescriptor {
 
 func (p *homePanel) linksLine() string {
 	linkStyle := lipgloss.NewStyle().Foreground(colors.Primary)
-	return strings.Join([]string{
-		linkStyle.Render(hyperlink("Website", homeWebsiteURL)),
-		linkStyle.Render(hyperlink("GitHub", homeGitHubURL)),
-	}, " • ")
+	links := make([]string, len(p.home.Links))
+	for i, link := range p.home.Links {
+		links[i] = linkStyle.Render(hyperlink(link.Label, link.URL))
+	}
+	return strings.Join(links, " • ")
 }
 
 func (p *homePanel) renderEntries() string {

@@ -13,6 +13,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"unikraft.com/cli/internal/branding"
 	"unikraft.com/cli/internal/model"
 	modeltui "unikraft.com/cli/internal/model/tui"
 	"unikraft.com/cli/internal/tui/uitui"
@@ -52,7 +53,13 @@ func NewTUIModel(ctx context.Context, resourceArg, nameArg string) (tea.Model, e
 		}
 		panel = modeltui.NewListPanel(ctx, registry, selected)
 	default:
-		panel = modeltui.NewHomePanel(ctx, registry)
+		panel = modeltui.NewHomePanel(ctx, registry, modeltui.Home{
+			Art: branding.Art,
+			Links: []modeltui.Link{
+				{Label: "Website", URL: branding.WebsiteURL},
+				{Label: "GitHub", URL: branding.RepoURL},
+			},
+		})
 	}
 
 	return uitui.NewModel(panel), nil
