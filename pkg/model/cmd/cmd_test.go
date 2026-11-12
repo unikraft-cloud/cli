@@ -726,6 +726,41 @@ func TestPartialResultsPrintedBeforeError(t *testing.T) {
 	})
 }
 
+func TestModelRemoveReportsMissingOnce(t *testing.T) {
+	missing := []model.Key{model.StringKey("typo")}
+	for name, getErr := range map[string]error{
+		"not found": model.ErrNotFound{Keys: missing, Err: errors.New("get: typo not found")},
+		"joined":    errors.Join(errors.New("boom"), model.ErrNotFound{Keys: missing, Err: errors.New("get: typo not found")}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			env := modelt.NewTestEnv()
+			env.Add(modelt.TestModel{Name: "ok", ID: "id-ok"})
+			env.Hooks.Get = func(ctx context.Context, keys []string, next func(context.Context, []string) ([]model.Model, error)) ([]model.Model, error) {
+				resources, _ := next(ctx, keys)
+				return resources, getErr
+			}
+			env.Hooks.Delete = func(ctx context.Context, _ []string, _ func(context.Context, []string) error) error {
+				return model.ErrNotFound{Keys: missing, Err: errors.New("delete: typo not found")}
+			}
+			ctx := modelt.WithTestEnv(context.Background(), env)
+
+			var out bytes.Buffer
+			cmd := &ModelRemoveCmd[modelt.TestModel]{
+				Targets: []string{"ok", "typo"},
+				Output:  Printer{Type: PrinterTypeQuiet},
+			}
+			err := cmd.Run(ctx, testStdio(&out), nil)
+			require.Error(t, err)
+			assert.Contains(t, out.String(), "ok")
+			assert.Contains(t, err.Error(), "delete: typo not found")
+			assert.NotContains(t, err.Error(), "get: typo not found")
+			if name == "joined" {
+				assert.Contains(t, err.Error(), "boom")
+			}
+		})
+	}
+}
+
 func TestPartialResultsOrderWhenCallerPrintsError(t *testing.T) {
 	t.Run("list/table", func(t *testing.T) {
 		env := setupTestEnv()

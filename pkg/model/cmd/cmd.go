@@ -464,6 +464,11 @@ func (cmd *ModelRemoveCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, parti
 		}
 	}
 
+	if _, ok := errors.AsType[model.ErrNotFound](deleteErr); ok {
+		// Delete reports the same missing keys, so only report them once.
+		getErr = withoutNotFound(getErr)
+	}
+
 	printErr := cmd.Output.
 		WithDefault(PrinterTypeQuiet).
 		Print(ctx, stdio.Stdout, cmd.Field, empty, toPrint...)
@@ -471,6 +476,22 @@ func (cmd *ModelRemoveCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, parti
 		return errors.Join(getErr, deleteErr, printErr)
 	}
 	return errors.Join(getErr, deleteErr)
+}
+
+// withoutNotFound drops the model.ErrNotFound errors from err, keeping any
+// others joined with them.
+func withoutNotFound(err error) error {
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var errs []error
+		for _, err := range joined.Unwrap() {
+			errs = append(errs, withoutNotFound(err))
+		}
+		return errors.Join(errs...)
+	}
+	if _, ok := errors.AsType[model.ErrNotFound](err); ok {
+		return nil
+	}
+	return err
 }
 
 type ModelBulkRemoveCmd[R interface {
