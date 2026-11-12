@@ -33,6 +33,7 @@ import (
 	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/types"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type ImagesCmd struct {
@@ -705,7 +706,7 @@ type ImagesGetCmd struct {
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 }
 
-func (c *ImagesGetCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *ImagesGetCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	if c.Insecure != nil {
 		var opts []images.AccessorOpt
 		if len(c.Insecure) > 0 {
@@ -723,7 +724,7 @@ type ImagesDeleteCmd struct {
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 }
 
-func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	if c.Insecure != nil {
 		var opts []images.AccessorOpt
 		if len(c.Insecure) > 0 {
@@ -827,7 +828,7 @@ type ImagesListCmd struct {
 	Namespace []string `help:"Only list images in this namespace."`
 }
 
-func (c *ImagesListCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *ImagesListCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	return c.ModelListCmd.Run(context.WithValue(ctx, imageNamespacesKey{}, c.Namespace), stdio, partition)
 }
 

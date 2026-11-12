@@ -21,10 +21,10 @@ import (
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/tui/selector"
+	xstdio "unikraft.com/x/stdio"
 )
 
 const (
@@ -50,7 +50,7 @@ type SandboxPluginOpts struct {
 	PluginImage string `name:"plugin-image" default:"${sandbox_plugin_image}" help:"Image of the sandbox plugin to attach when the instance has none." placeholder:"ref"`
 }
 
-func attachPlugin(ctx context.Context, stdio config.Stdio, partition *model.Partition, instance Instance, opts SandboxPluginOpts) error {
+func attachPlugin(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition, instance Instance, opts SandboxPluginOpts) error {
 	cause := missingPlugin(instance, opts.PluginName)
 	if cause == nil {
 		return nil
@@ -100,7 +100,7 @@ func pendingPlugin(instance Instance, plugin string) (platform.InstancePendingUp
 	return platform.InstancePendingUpdate{}, false
 }
 
-func tryAttachPlugin(ctx context.Context, stdio config.Stdio, partition *model.Partition, instance Instance, opts SandboxPluginOpts, cause error) error {
+func tryAttachPlugin(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition, instance Instance, opts SandboxPluginOpts, cause error) error {
 	plugin, image := opts.PluginName, opts.PluginImage
 	if slices.Contains(instance.Instance.Features, platform.InstanceFeatureDeleteOnStop) {
 		return fmt.Errorf("%w\nhint: the instance is deleted when it stops, so the plugin cannot be attached in place; recreate it with --plugin name=%s,image=%s", cause, plugin, image)
@@ -141,7 +141,7 @@ func tryAttachPlugin(ctx context.Context, stdio config.Stdio, partition *model.P
 	}
 }
 
-func tryLoadPlugin(ctx context.Context, stdio config.Stdio, instance Instance, plugin string, update platform.InstancePendingUpdate) error {
+func tryLoadPlugin(ctx context.Context, stdio xstdio.Stdio, instance Instance, plugin string, update platform.InstancePendingUpdate) error {
 	if update.Status == platform.InstancePendingUpdateStatusFailed {
 		return fmt.Errorf("instance %q has plugin %q attached, but applying it failed: %s\nhint: detach it with `unikraft instance edit %s --del plugins=%s` and attach it again",
 			instance.Name, plugin, ptr.ZeroIfNil(update.Error), instance.Key().String(), plugin)
@@ -170,7 +170,7 @@ func tryLoadPlugin(ctx context.Context, stdio config.Stdio, instance Instance, p
 	return restartInstance(ctx, stdio, instance)
 }
 
-func restartInstance(ctx context.Context, stdio config.Stdio, instance Instance) error {
+func restartInstance(ctx context.Context, stdio xstdio.Stdio, instance Instance) error {
 	stdio.Stdout = io.Discard
 	quiet := cmd.FormatOpts{Output: cmd.Printer{Type: cmd.PrinterTypeQuiet}}
 	targets := []string{instance.Key().String()}
@@ -183,7 +183,7 @@ func restartInstance(ctx context.Context, stdio config.Stdio, instance Instance)
 	return start.Run(ctx, stdio)
 }
 
-func attachInstancePlugin(ctx context.Context, stdio config.Stdio, partition *model.Partition, instance Instance, opts SandboxPluginOpts, restart bool) error {
+func attachInstancePlugin(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition, instance Instance, opts SandboxPluginOpts, restart bool) error {
 	stdio.Stdout = io.Discard
 	edit := cmd.ModelEditCmd[Instance]{
 		Target: instance.Key().String(),

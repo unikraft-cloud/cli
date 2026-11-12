@@ -17,12 +17,12 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"unikraft.com/cli/internal/config"
 	modelmcp "unikraft.com/cli/internal/model/mcp"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type SandboxCommands interface {
-	Exec(ctx context.Context, stdio config.Stdio, instance string, opts SandboxExecOptions) (int, error)
+	Exec(ctx context.Context, stdio xstdio.Stdio, instance string, opts SandboxExecOptions) (int, error)
 	ReadFile(ctx context.Context, instance, path string) ([]byte, error)
 	WriteFile(ctx context.Context, instance, path string, data []byte, opts SandboxWriteOptions) error
 }
@@ -89,7 +89,7 @@ func AddSandboxTools(tools *modelmcp.Tools, commands SandboxCommands) error {
 			Description: "Read a text file from a running sandbox instance. Returns its content.",
 			InputSchema: read,
 			Annotations: modelmcp.ReadOnlyAnnotations(),
-		}, false, func(ctx context.Context, in sandboxReadArgs, stdio config.Stdio) error {
+		}, false, func(ctx context.Context, in sandboxReadArgs, stdio xstdio.Stdio) error {
 			data, err := commands.ReadFile(ctx, in.Key, in.Path)
 			if err != nil {
 				return err
@@ -106,7 +106,7 @@ func AddSandboxTools(tools *modelmcp.Tools, commands SandboxCommands) error {
 			Description: "Run a command inside a running sandbox: an instance with the sandbox plugin loaded, which instance_create makes when plugins holds the plugin. Returns the command's combined output; a non-zero exit status is reported as an error after the output.",
 			InputSchema: exec,
 			Annotations: modelmcp.MutatingAnnotations(),
-		}, false, func(ctx context.Context, in sandboxExecArgs, stdio config.Stdio) error {
+		}, false, func(ctx context.Context, in sandboxExecArgs, stdio xstdio.Stdio) error {
 			opts := SandboxExecOptions{Dir: in.Dir, Env: in.Env, Stdin: in.Stdin}
 			var err error
 			switch in.Command.Kind() {
@@ -147,7 +147,7 @@ func AddSandboxTools(tools *modelmcp.Tools, commands SandboxCommands) error {
 			Description: "Write a text file inside a running sandbox instance, replacing it unless append is set. Returns a confirmation.",
 			InputSchema: write,
 			Annotations: modelmcp.MutatingAnnotations(),
-		}, false, func(ctx context.Context, in sandboxWriteArgs, stdio config.Stdio) error {
+		}, false, func(ctx context.Context, in sandboxWriteArgs, stdio xstdio.Stdio) error {
 			if err := commands.WriteFile(ctx, in.Key, in.Path, []byte(in.Content), SandboxWriteOptions{Append: in.Append, Parents: in.Parents}); err != nil {
 				return err
 			}

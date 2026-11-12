@@ -16,10 +16,10 @@ import (
 	"unikraft.com/cloud/sdk/platform/logs"
 	"unikraft.com/x/kingkong"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/muxreader"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // InstanceRunCmd is a convenience wrapper around `instance create` that adds
@@ -109,7 +109,7 @@ func (InstanceRunCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *InstanceRunCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	// Unlike create, run starts the instance unless told otherwise.
 	if !c.GeneratedFlags().IsSet("autostart") {
 		c.Set = append(c.Set, map[string]string{"autostart": "true"})
@@ -168,7 +168,7 @@ func (RunCmd) Examples() []kingkong.Example {
 	return instanceExamples
 }
 
-func (c *RunCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *RunCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	return c.InstanceRunCmd.Run(ctx, stdio, partition)
 }
 

@@ -25,12 +25,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 	modelt "unikraft.com/cli/internal/model/testing"
 	"unikraft.com/cli/internal/types"
 	wkong "unikraft.com/cli/internal/w/kong"
 	"unikraft.com/cloud/sdk/platform/group"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // setupTestEnv creates a TestEnv with standard test data.
@@ -1600,16 +1600,16 @@ func tempFile(t *testing.T, contents string) string {
 	return file.Name()
 }
 
-func testStdio(out io.Writer) config.Stdio {
-	return config.Stdio{
+func testStdio(out io.Writer) xstdio.Stdio {
+	return xstdio.Stdio{
 		Stdin:  &bytes.Buffer{},
 		Stdout: out,
 		Stderr: out,
 	}
 }
 
-func testStdioWithInput(out io.Writer, in io.Reader) config.Stdio {
-	return config.Stdio{
+func testStdioWithInput(out io.Writer, in io.Reader) xstdio.Stdio {
+	return xstdio.Stdio{
 		Stdin:  in,
 		Stdout: out,
 		Stderr: out,

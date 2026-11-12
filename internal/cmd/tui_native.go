@@ -13,11 +13,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 	modeltui "unikraft.com/cli/internal/model/tui"
 	"unikraft.com/cli/internal/tui/uitui"
 	xio "unikraft.com/x/io"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // NewTUIModel builds the same Bubble Tea model used by `unikraft tui`.
@@ -58,7 +58,7 @@ func NewTUIModel(ctx context.Context, resourceArg, nameArg string) (tea.Model, e
 	return uitui.NewModel(panel), nil
 }
 
-func (cmd *TUICmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (cmd *TUICmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	m, err := NewTUIModel(ctx, cmd.Resource, cmd.Name)
 	if err != nil {
 		return err

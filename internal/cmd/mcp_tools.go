@@ -22,16 +22,17 @@ import (
 	"unikraft.com/cli/internal/model/cmd"
 	modelmcp "unikraft.com/cli/internal/model/mcp"
 	"unikraft.com/cli/internal/types"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // mcpInstanceCommands runs the MCP instance tools with the CLI's own commands.
 type mcpInstanceCommands struct{}
 
-func (mcpInstanceCommands) Start(ctx context.Context, stdio config.Stdio, instances []string) error {
+func (mcpInstanceCommands) Start(ctx context.Context, stdio xstdio.Stdio, instances []string) error {
 	return (&InstancesStartCmd{Targets: instances, FormatOpts: modelmcp.JSONFormat()}).Run(ctx, stdio)
 }
 
-func (mcpInstanceCommands) Stop(ctx context.Context, stdio config.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
+func (mcpInstanceCommands) Stop(ctx context.Context, stdio xstdio.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
 	return (&InstancesStopCmd{
 		Targets:      instances,
 		Force:        opts.Force,
@@ -40,7 +41,7 @@ func (mcpInstanceCommands) Stop(ctx context.Context, stdio config.Stdio, instanc
 	}).Run(ctx, stdio)
 }
 
-func (mcpInstanceCommands) Restart(ctx context.Context, stdio config.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
+func (mcpInstanceCommands) Restart(ctx context.Context, stdio xstdio.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
 	return (&InstancesRestartCmd{
 		Targets:      instances,
 		Force:        opts.Force,
@@ -49,7 +50,7 @@ func (mcpInstanceCommands) Restart(ctx context.Context, stdio config.Stdio, inst
 	}).Run(ctx, stdio)
 }
 
-func (mcpInstanceCommands) Suspend(ctx context.Context, stdio config.Stdio, instances []string, drainTimeout types.DurationMS) error {
+func (mcpInstanceCommands) Suspend(ctx context.Context, stdio xstdio.Stdio, instances []string, drainTimeout types.DurationMS) error {
 	return (&InstancesSuspendCmd{
 		Targets:      instances,
 		DrainTimeout: drainTimeout,
@@ -57,7 +58,7 @@ func (mcpInstanceCommands) Suspend(ctx context.Context, stdio config.Stdio, inst
 	}).Run(ctx, stdio)
 }
 
-func (mcpInstanceCommands) Logs(ctx context.Context, stdio config.Stdio, instance string, tail int) error {
+func (mcpInstanceCommands) Logs(ctx context.Context, stdio xstdio.Stdio, instance string, tail int) error {
 	return (&InstancesLogsCmd{Targets: []string{instance}, Tail: new(tail)}).Run(ctx, stdio)
 }
 
@@ -75,7 +76,7 @@ func addProfileUseTool(ctx context.Context, tools *modelmcp.Tools, partition *mo
 		Title:       "Use a profile",
 		Description: "Without name, list the profiles. With name, switch every tool to that profile. Switching sets the default profile in the configuration file like unikraft profile use, so it also applies to the CLI and to other servers started without --profile. Returns the profiles; active marks the one in use.",
 		Annotations: modelmcp.MutatingAnnotations(),
-	}, true, func(ctx context.Context, in mcpProfileUseArgs, stdio config.Stdio) error {
+	}, true, func(ctx context.Context, in mcpProfileUseArgs, stdio xstdio.Stdio) error {
 		if in.Name != "" {
 			if err := (&UseCmd{Name: in.Name}).Run(ctx, config.G(ctx)); err != nil {
 				return err
@@ -89,7 +90,7 @@ type mcpSandboxCommands struct {
 	partition *model.Partition
 }
 
-func (c mcpSandboxCommands) Exec(ctx context.Context, stdio config.Stdio, instance string, opts mcp.SandboxExecOptions) (int, error) {
+func (c mcpSandboxCommands) Exec(ctx context.Context, stdio xstdio.Stdio, instance string, opts mcp.SandboxExecOptions) (int, error) {
 	target, err := c.target(ctx, instance)
 	if err != nil {
 		return 0, err

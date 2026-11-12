@@ -36,6 +36,7 @@ import (
 	"unikraft.com/cli/internal/model/cmd"
 	wkong "unikraft.com/cli/internal/w/kong"
 	wmaps "unikraft.com/cli/internal/w/maps"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type UnikraftCLI struct {
@@ -117,7 +118,7 @@ type globalFlags struct {
 	Timeout   time.Duration `group:"flag-global" name:"timeout" env:"UNIKRAFT_TIMEOUT" help:"Set a deadline for the command (e.g. 30s, 5m, 1h)." placeholder:"duration" optional:""`
 }
 
-func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals *xsignal.Signals) (context.Context, *kong.Context, *UnikraftCLI, func() error, error) {
+func NewRootCmd(ctx context.Context, args []string, stdio xstdio.Stdio, signals *xsignal.Signals) (context.Context, *kong.Context, *UnikraftCLI, func() error, error) {
 	cli := UnikraftCLI{}
 
 	parser, err := NewParser(&cli)

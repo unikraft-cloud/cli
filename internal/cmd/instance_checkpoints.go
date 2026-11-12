@@ -25,6 +25,7 @@ import (
 	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/types"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type InstanceCheckpointsCmd struct {
@@ -579,7 +580,7 @@ func (cmd InstanceCheckpointHistoryCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstanceCheckpointHistoryCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstanceCheckpointHistoryCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	entries, err := getInstanceHistory(ctx, c.Targets, func(ctx context.Context, mc multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error) {
 		return mc.GetCheckpointHistory(ctx, ids, platform.GetCheckpointHistoryOpts{})
 	})

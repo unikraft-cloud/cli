@@ -27,7 +27,6 @@ import (
 	plugin "unikraft.com/cloud/plugins/sandbox"
 	"unikraft.com/cloud/sdk/platform"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cloud/sdk/plugins/sandbox"
 
 	"unikraft.com/x/shell"
@@ -195,7 +194,7 @@ func TestExecSurvivesAClosedPipe(t *testing.T) {
 	target := fakeSandboxTarget(t, fake)
 
 	err := (&ExecSandboxInstanceCmd{Cmd: []string{"yes"}}).runOn(t.Context(), target,
-		config.Stdio{Stdout: deafWriter{}, Stderr: io.Discard})
+		stdio.Stdio{Stdout: deafWriter{}, Stderr: io.Discard})
 
 	var status ExitStatus
 	require.ErrorAs(t, err, &status, "the command still ran to the end")
@@ -209,7 +208,7 @@ func TestExecKeepsTheStreamsApart(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	err := (&ExecSandboxInstanceCmd{Cmd: []string{"sh"}}).runOn(t.Context(), target,
-		config.Stdio{Stdout: &stdout, Stderr: &stderr})
+		stdio.Stdio{Stdout: &stdout, Stderr: &stderr})
 
 	require.NoError(t, err)
 	assert.Equal(t, "out\n", stdout.String())

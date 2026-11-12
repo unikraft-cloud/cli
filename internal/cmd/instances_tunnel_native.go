@@ -14,12 +14,12 @@ import (
 
 	"unikraft.com/x/log"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/tunnel"
+	xstdio "unikraft.com/x/stdio"
 )
 
-func (cmd *InstancesTunnelCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (cmd *InstancesTunnelCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	targets, err := tunnel.ParseTargets(cmd.Targets, cmd.TunnelProxyPorts)
 	if err != nil {
 		return fmt.Errorf("could not parse targets: %w", err)

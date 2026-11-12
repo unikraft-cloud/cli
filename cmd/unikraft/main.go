@@ -24,6 +24,7 @@ import (
 	"unikraft.com/x/colors"
 	"unikraft.com/x/log"
 	xsignal "unikraft.com/x/signal"
+	xstdio "unikraft.com/x/stdio"
 )
 
 func main() {
@@ -37,7 +38,7 @@ func main() {
 		err error
 
 		args  = os.Args[1:]
-		stdio = config.Stdio{
+		stdio = xstdio.Stdio{
 			Stdin:  os.Stdin,
 			Stdout: colorWriter(os.Stdout),
 			Stderr: colorWriter(os.Stderr),
@@ -129,7 +130,7 @@ func getMethod(value reflect.Value, name string) reflect.Value {
 	return method
 }
 
-func run(ctx context.Context, args []string, stdio config.Stdio, signals *xsignal.Signals) (context.Context, error) {
+func run(ctx context.Context, args []string, stdio xstdio.Stdio, signals *xsignal.Signals) (context.Context, error) {
 	ctx, cli, opts, cleanup, err := cmd.NewRootCmd(ctx, args, stdio, signals)
 	if err != nil {
 		return ctx, err

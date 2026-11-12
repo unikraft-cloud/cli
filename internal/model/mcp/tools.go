@@ -21,10 +21,10 @@ import (
 
 	"unikraft.com/x/log"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/cmd"
 	wjsonschema "unikraft.com/cli/internal/w/jsonschema"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // Options configures the tools registered for model types.
@@ -65,7 +65,7 @@ func (ts *Tools) enabled(name string, mutating bool) bool {
 	return ts.resources == nil || ts.resources[name]
 }
 
-func (ts *Tools) AddTool[In any](typeName string, tool *mcp.Tool, structured bool, run func(context.Context, In, config.Stdio) error) error {
+func (ts *Tools) AddTool[In any](typeName string, tool *mcp.Tool, structured bool, run func(context.Context, In, xstdio.Stdio) error) error {
 	if !ts.enabled(typeName, !tool.Annotations.ReadOnlyHint) {
 		return nil
 	}
@@ -90,7 +90,7 @@ func (ts *Tools) AddListTool[R model.GettableListableModel](ctx context.Context)
 		Description: fmt.Sprintf("List all %s, or fetch specific ones by passing their keys. Narrow with filter and trim the output with fields; both take the field paths listed on those parameters. Returns one JSON object per %s.", typ.Names, typ.Name),
 		InputSchema: listSchema(typ, fields),
 		Annotations: ReadOnlyAnnotations(),
-	}, true, func(ctx context.Context, args listArgs, stdio config.Stdio) error {
+	}, true, func(ctx context.Context, args listArgs, stdio xstdio.Stdio) error {
 		return (&cmd.ModelListCmd[R]{
 			Targets:    args.Keys,
 			Filter:     args.Filter,
@@ -116,7 +116,7 @@ func (ts *Tools) AddGetTool[R model.GettableModel](ctx context.Context, descript
 		Description: description,
 		InputSchema: getSchema(typ, fields),
 		Annotations: ReadOnlyAnnotations(),
-	}, true, func(ctx context.Context, args getArgs, stdio config.Stdio) error {
+	}, true, func(ctx context.Context, args getArgs, stdio xstdio.Stdio) error {
 		return (&cmd.ModelGetCmd[R]{
 			Targets:    args.Keys,
 			FormatOpts: JSONFormat(args.Fields...),
@@ -160,7 +160,7 @@ func (ts *Tools) AddCreateTool[R model.CreatableModel](ctx context.Context, opts
 		Description: createDescription(typ, fields, schema.Properties["set"], defaults, o.createExample),
 		InputSchema: schema,
 		Annotations: MutatingAnnotations(),
-	}, true, func(ctx context.Context, args createArgs, stdio config.Stdio) error {
+	}, true, func(ctx context.Context, args createArgs, stdio xstdio.Stdio) error {
 		if args.Set == nil {
 			args.Set = map[string]jsontext.Value{}
 		}
@@ -196,7 +196,7 @@ func (ts *Tools) AddEditTool[R model.EditableModel](ctx context.Context, opts ..
 		Description: editDescription(typ, newToolOptions(opts).editNote),
 		InputSchema: editSchema(typ, fields),
 		Annotations: MutatingAnnotations(),
-	}, true, func(ctx context.Context, args editArgs, stdio config.Stdio) error {
+	}, true, func(ctx context.Context, args editArgs, stdio xstdio.Stdio) error {
 		return (&cmd.ModelEditCmd[R]{
 			Target:     args.Key,
 			Set:        patchArgs(args.Set),
@@ -221,7 +221,7 @@ func (ts *Tools) AddDeleteTool[R model.DeletableModel](ctx context.Context) erro
 		Description: fmt.Sprintf("Delete %[1]s by key. This cannot be undone. Returns the deleted %[1]s.", typ.Names),
 		InputSchema: deleteSchema(typ),
 		Annotations: destructiveAnnotations(),
-	}, true, func(ctx context.Context, args deleteArgs, stdio config.Stdio) error {
+	}, true, func(ctx context.Context, args deleteArgs, stdio xstdio.Stdio) error {
 		if len(args.Keys) == 0 {
 			return fmt.Errorf("no %s specified", typ.Names)
 		}
@@ -238,7 +238,7 @@ func fieldsOf[R model.GettableModel](ctx context.Context) (model.Type, []model.F
 	return empty.Type(), fields, err
 }
 
-func (ts *Tools) addCommandTool[In any](tool *mcp.Tool, structured bool, run func(context.Context, In, config.Stdio) error) error {
+func (ts *Tools) addCommandTool[In any](tool *mcp.Tool, structured bool, run func(context.Context, In, xstdio.Stdio) error) error {
 	var schema *jsonschema.Schema
 	if tool.InputSchema == nil {
 		var err error
@@ -287,7 +287,7 @@ func (ts *Tools) addCommandTool[In any](tool *mcp.Tool, structured bool, run fun
 			res.SetError(err)
 			return &res, nil
 		}
-		return ts.capture(ctx, structured, func(ctx context.Context, stdio config.Stdio) error {
+		return ts.capture(ctx, structured, func(ctx context.Context, stdio xstdio.Stdio) error {
 			return run(ctx, in, stdio)
 		}), nil
 	})
@@ -310,10 +310,10 @@ func destructiveAnnotations() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{DestructiveHint: new(true), IdempotentHint: true}
 }
 
-func (ts *Tools) capture(ctx context.Context, structured bool, run func(context.Context, config.Stdio) error) *mcp.CallToolResult {
+func (ts *Tools) capture(ctx context.Context, structured bool, run func(context.Context, xstdio.Stdio) error) *mcp.CallToolResult {
 	start := time.Now()
 	var out bytes.Buffer
-	err := run(ctx, config.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: ts.opts.Stderr})
+	err := run(ctx, xstdio.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: ts.opts.Stderr})
 	msg := "tool call complete"
 	if err != nil {
 		msg = "tool call failed"

@@ -18,11 +18,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"unikraft.com/cli/internal/config"
+	xstdio "unikraft.com/x/stdio"
 )
 
-func testStdio() config.Stdio {
-	return config.Stdio{
+func testStdio() xstdio.Stdio {
+	return xstdio.Stdio{
 		Stdin:  &bytes.Buffer{},
 		Stdout: io.Discard,
 		Stderr: io.Discard,

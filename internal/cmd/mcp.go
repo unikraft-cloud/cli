@@ -30,6 +30,7 @@ import (
 	"unikraft.com/cli/internal/mcpserver"
 	"unikraft.com/cli/internal/model"
 	modelmcp "unikraft.com/cli/internal/model/mcp"
+	xstdio "unikraft.com/x/stdio"
 )
 
 const instanceEditNote = "Edits to tags, delete-lock, autokill, scale-to-zero and sched-priority apply at once, even while the instance runs. Other edits to a running instance are queued until it next stops. Adding plugins, roms or volumes takes effect after instance_control suspend followed by start. Changing image, runtime.args, runtime.env, resources.memory, resources.vcpus or annotations, replacing or removing plugins or roms, and removing volumes take effect only after instance_control restart, or stop followed by start. An instance in standby keeps a snapshot of its memory, so those changes stay queued until a stop, which discards the snapshot."
@@ -155,7 +156,7 @@ func (MCPCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *MCPCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *MCPCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	loopback := true
 	if c.Listen != "" {
 		host, port, err := net.SplitHostPort(c.Listen)

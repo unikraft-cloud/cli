@@ -41,6 +41,7 @@ import (
 	"unikraft.com/cli/internal/muxreader"
 	"unikraft.com/cli/internal/types"
 	wshell "unikraft.com/cli/internal/w/shell"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type InstancesCmd struct {
@@ -80,12 +81,12 @@ type InstanceCreateCmd struct {
 	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | recreate\n  by: service (default) | tags\n  target: the new instance's service, or a subset of its tags, to select by (default: all of them)\n  batch: instances that a rolling rollout replaces at a time (default: 1)\n  healthy-after: time each new batch must keep running before the rollout goes on\n  drain-timeout: time an instance gets to finish its connections before the rollout stops it (default: 30s, 0 to not drain)" placeholder:"<key>=<value>" example:"type=recreate,batch=2\\,healthy-after=30s,by=tags\\,target=env-prod"`
 }
 
-func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *InstanceCreateCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	_, err := c.RunModels(ctx, stdio, partition)
 	return err
 }
 
-func (c *InstanceCreateCmd) RunModels(ctx context.Context, stdio config.Stdio, partition *model.Partition) ([]model.Model, error) {
+func (c *InstanceCreateCmd) RunModels(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) ([]model.Model, error) {
 	if c.DeleteOnStop {
 		c.Set = append(c.Set, map[string]string{"features": string(platform.InstanceFeatureDeleteOnStop)})
 	}
@@ -1826,7 +1827,7 @@ func (cmd InstancesLogsCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (cmd *InstancesLogsCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (cmd *InstancesLogsCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	keys := multimetro.ParseKeys(cmd.Targets)
 
 	_, err := Instance{}.Get(ctx, keys.Strings())
@@ -1896,7 +1897,7 @@ func (cmd InstancesStartCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstancesStartCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstancesStartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	keys := multimetro.ParseKeys(c.Targets)
 	before, opErr := Instance{}.Get(ctx, keys.Strings())
 	if opErr != nil && len(before) == 0 {
@@ -1989,7 +1990,7 @@ func (cmd InstancesStopCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstancesStopCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstancesStopCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	keys := multimetro.ParseKeys(c.Targets)
 	before, opErr := Instance{}.Get(ctx, keys.Strings())
 	if opErr != nil && len(before) == 0 {
@@ -2064,7 +2065,7 @@ func (cmd InstancesRestartCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstancesRestartCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstancesRestartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	keys := multimetro.ParseKeys(c.Targets)
 	before, opErr := Instance{}.Get(ctx, keys.Strings())
 	if opErr != nil && len(before) == 0 {
@@ -2155,7 +2156,7 @@ func (cmd InstanceHistoryCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstanceHistoryCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstanceHistoryCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	entries, err := getInstanceHistory(ctx, c.Targets, func(ctx context.Context, mc multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error) {
 		return mc.GetInstanceHistory(ctx, ids, platform.GetInstanceHistoryOpts{})
 	})
@@ -2283,7 +2284,7 @@ func (cmd InstancesSuspendCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstancesSuspendCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstancesSuspendCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	keys := multimetro.ParseKeys(c.Targets)
 	before, opErr := Instance{}.Get(ctx, keys.Strings())
 	if opErr != nil && len(before) == 0 {

@@ -21,6 +21,7 @@ import (
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type BuilderCmd struct {
@@ -179,7 +180,7 @@ type BuilderGetCmd struct {
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
 }
 
-func (c *BuilderGetCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *BuilderGetCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	return c.ModelGetCmd.Run(context.WithValue(ctx, builderRemoteKey{}, c.Remote), stdio, nil)
 }
 
@@ -188,7 +189,7 @@ type BuilderListCmd struct {
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builders. Defaults to the build_url of the profile."`
 }
 
-func (c *BuilderListCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *BuilderListCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	return c.ModelListCmd.Run(context.WithValue(ctx, builderRemoteKey{}, c.Remote), stdio, nil)
 }
 
@@ -197,7 +198,7 @@ type BuilderDeleteCmd struct {
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
 }
 
-func (c *BuilderDeleteCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *BuilderDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	return c.ModelRemoveCmd.Run(context.WithValue(ctx, builderRemoteKey{}, c.Remote), stdio, nil)
 }
 
@@ -268,7 +269,7 @@ func (c *BuilderCreateCmd) Run(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
 
-func (c *BuilderDuCmd) Run(ctx context.Context, cfg *config.Config, stdio config.Stdio) error {
+func (c *BuilderDuCmd) Run(ctx context.Context, cfg *config.Config, stdio xstdio.Stdio) error {
 	client, err := builderClient(cfg, c.Remote)
 	if err != nil {
 		return err

@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcp"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
 	modelmcp "unikraft.com/cli/internal/model/mcp"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type fakeSandbox struct {
@@ -25,7 +25,7 @@ type fakeSandbox struct {
 	data  []byte
 }
 
-func (f *fakeSandbox) Exec(ctx context.Context, stdio config.Stdio, instance string, opts mcp.SandboxExecOptions) (int, error) {
+func (f *fakeSandbox) Exec(ctx context.Context, stdio xstdio.Stdio, instance string, opts mcp.SandboxExecOptions) (int, error) {
 	f.calls = append(f.calls, fmt.Sprintf("exec %s args=%v cmdline=%q dir=%q env=%v stdin=%q", instance, opts.Args, opts.Cmdline, opts.Dir, opts.Env, opts.Stdin))
 	switch opts.Cmdline {
 	case "sleep":

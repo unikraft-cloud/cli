@@ -27,6 +27,7 @@ import (
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/rollout"
 	"unikraft.com/cli/internal/types"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // InstanceRollout holds the options of a rollout.
@@ -112,7 +113,7 @@ const rolloutDrainTimeout = types.DurationMS(30_000)
 
 // runRollout replaces every instance the rollout selects with a new one, and
 // deletes the old set once the new one runs.
-func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, partition *model.Partition) ([]model.Model, error) {
+func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) ([]model.Model, error) {
 	opts := *c.Rollout
 	opts.Type = cmp.Or(opts.Type, RolloutRolling)
 	opts.By = cmp.Or(opts.By, RolloutByService)

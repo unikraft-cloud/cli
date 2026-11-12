@@ -20,7 +20,6 @@ import (
 	xsignal "unikraft.com/x/signal"
 	xstdio "unikraft.com/x/stdio"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
@@ -79,7 +78,7 @@ func (ShellSandboxInstanceCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition, signals *xsignal.Signals) error {
+func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition, signals *xsignal.Signals) error {
 	env, err := parseEnv(c.Env)
 	if err != nil {
 		return err
@@ -106,7 +105,7 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio config.Stdio, p
 		Builtins:       builtins,
 		SuspendSignals: signals.Suspend,
 		Banner:         shellBanner,
-	}, xstdio.Stdio{Stdin: stdio.Stdin, Stdout: stdio.Stdout, Stderr: stdio.Stderr})
+	}, stdio)
 	switch {
 	case err != nil && errors.Is(ctx.Err(), context.Canceled):
 		// Ctrl-C ended the line, so the CLI ends the way a shell does: on the
@@ -125,43 +124,39 @@ type ShellInstance struct {
 }
 
 func (i ShellInstance) Get(ctx context.Context, stdio xstdio.Stdio, format cmd.FormatOpts) error {
-	return (&cmd.ModelGetCmd[Instance]{Targets: []string{i.Key}, FormatOpts: format}).Run(ctx, cliStdio(stdio), i.Partition)
+	return (&cmd.ModelGetCmd[Instance]{Targets: []string{i.Key}, FormatOpts: format}).Run(ctx, stdio, i.Partition)
 }
 
 func (i ShellInstance) Volumes(ctx context.Context, stdio xstdio.Stdio, format cmd.FormatOpts) error {
-	return (&cmd.ModelListCmd[Volume]{FormatOpts: format}).Run(ctx, cliStdio(stdio), i.Partition)
+	return (&cmd.ModelListCmd[Volume]{FormatOpts: format}).Run(ctx, stdio, i.Partition)
 }
 
 func (i ShellInstance) Edit(ctx context.Context, stdio xstdio.Stdio, set map[string]string) error {
-	return (&cmd.ModelEditCmd[Instance]{Target: i.Key, Set: []map[string]string{set}}).Run(ctx, cliStdio(stdio), i.Partition)
+	return (&cmd.ModelEditCmd[Instance]{Target: i.Key, Set: []map[string]string{set}}).Run(ctx, stdio, i.Partition)
 }
 
 func (i ShellInstance) Attach(ctx context.Context, stdio xstdio.Stdio, volume, at string, readonly bool) error {
-	return (&VolumeAttachCmd{Volume: volume, To: i.Key, At: at, Readonly: readonly}).Run(ctx, cliStdio(stdio), i.Partition)
+	return (&VolumeAttachCmd{Volume: volume, To: i.Key, At: at, Readonly: readonly}).Run(ctx, stdio, i.Partition)
 }
 
 func (i ShellInstance) Detach(ctx context.Context, stdio xstdio.Stdio, volume string) error {
-	return (&VolumeDetachCmd{Volume: volume, From: i.Key}).Run(ctx, cliStdio(stdio), i.Partition)
+	return (&VolumeDetachCmd{Volume: volume, From: i.Key}).Run(ctx, stdio, i.Partition)
 }
 
 func (i ShellInstance) Start(ctx context.Context, stdio xstdio.Stdio) error {
-	return (&InstancesStartCmd{Targets: []string{i.Key}}).Run(ctx, cliStdio(stdio))
+	return (&InstancesStartCmd{Targets: []string{i.Key}}).Run(ctx, stdio)
 }
 
 func (i ShellInstance) Stop(ctx context.Context, stdio xstdio.Stdio, opts shellbuiltins.StopOpts) error {
-	return (&InstancesStopCmd{Targets: []string{i.Key}, StopOpts: stopOpts(opts)}).Run(ctx, cliStdio(stdio))
+	return (&InstancesStopCmd{Targets: []string{i.Key}, StopOpts: stopOpts(opts)}).Run(ctx, stdio)
 }
 
 func (i ShellInstance) Restart(ctx context.Context, stdio xstdio.Stdio, opts shellbuiltins.StopOpts) error {
-	return (&InstancesRestartCmd{Targets: []string{i.Key}, StopOpts: stopOpts(opts)}).Run(ctx, cliStdio(stdio))
+	return (&InstancesRestartCmd{Targets: []string{i.Key}, StopOpts: stopOpts(opts)}).Run(ctx, stdio)
 }
 
 func (i ShellInstance) Suspend(ctx context.Context, stdio xstdio.Stdio, drainTimeout types.DurationMS) error {
-	return (&InstancesSuspendCmd{Targets: []string{i.Key}, DrainTimeout: drainTimeout}).Run(ctx, cliStdio(stdio))
-}
-
-func cliStdio(s xstdio.Stdio) config.Stdio {
-	return config.Stdio{Stdin: s.Stdin, Stdout: s.Stdout, Stderr: s.Stderr}
+	return (&InstancesSuspendCmd{Targets: []string{i.Key}, DrainTimeout: drainTimeout}).Run(ctx, stdio)
 }
 
 func stopOpts(o shellbuiltins.StopOpts) StopOpts {

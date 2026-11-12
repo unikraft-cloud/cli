@@ -25,13 +25,13 @@ import (
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/patch"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/tui/watcher"
 	wkong "unikraft.com/cli/internal/w/kong"
 	"unikraft.com/cloud/sdk/platform/group"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type ModelCmdInterface interface {
@@ -159,7 +159,7 @@ func (cmd ModelListCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ModelListCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (cmd *ModelListCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	filter, err := filters.ParseAll(cmd.Filter...)
 	if err != nil {
 		return err
@@ -240,7 +240,7 @@ func (cmd ModelGetCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ModelGetCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (cmd *ModelGetCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	var empty R
 	r := partition.WrapGettable(empty)
 
@@ -300,7 +300,7 @@ func (cmd ModelWaitCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ModelWaitCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (cmd *ModelWaitCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	var empty R
 	if len(cmd.Targets) == 0 {
 		return fmt.Errorf("no %s specified", empty.Type().Names)
@@ -433,7 +433,7 @@ func (cmd ModelRemoveCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ModelRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (cmd *ModelRemoveCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	var empty R
 	r := partition.WrapDeletable(empty)
 
@@ -500,7 +500,7 @@ func (cmd ModelBulkRemoveCmd[R]) Examples() []kingkong.Example {
 	return nil
 }
 
-func (cmd *ModelBulkRemoveCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (cmd *ModelBulkRemoveCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	var empty R
 	var resources []model.Model
 	if cmd.All || len(cmd.Filter) > 0 {
@@ -661,7 +661,7 @@ func (cmd *ModelEditCmd[R]) BuildFlags(opts ...kong.Option) (*FlagSet, error) {
 	return cmd.generated, err
 }
 
-func (cmd *ModelEditCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (cmd *ModelEditCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	spec, err := cmd.toPatchSpec()
 	if err != nil {
 		return err
@@ -832,7 +832,7 @@ func (cmd *ModelCreateCmd[R]) toPatchSpec() (patch.PatchSpec, error) {
 	return spec, cmd.generated.Apply(&spec)
 }
 
-func (cmd *ModelCreateCmd[R]) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (cmd *ModelCreateCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	_, err := cmd.RunModels(ctx, stdio, partition)
 	return err
 }
@@ -904,7 +904,7 @@ func (cmd *ModelCreateCmd[R]) CreateFields(ctx context.Context) ([]model.Field, 
 
 // Create prints the create patches on a dry run, and else creates the
 // resources from them.
-func (cmd *ModelCreateCmd[R]) Create(ctx context.Context, stdio config.Stdio, partition *model.Partition, fields []model.Field) ([]model.Model, error) {
+func (cmd *ModelCreateCmd[R]) Create(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition, fields []model.Field) ([]model.Model, error) {
 	if cmd.DryRun {
 		return nil, PrintPatches(stdio.Stdout, fields, true)
 	}
@@ -923,7 +923,7 @@ func (cmd *ModelCreateCmd[R]) Create(ctx context.Context, stdio config.Stdio, pa
 	return resources, opErr
 }
 
-func (cmd *ModelCreateCmd[R]) RunModels(ctx context.Context, stdio config.Stdio, partition *model.Partition) ([]model.Model, error) {
+func (cmd *ModelCreateCmd[R]) RunModels(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) ([]model.Model, error) {
 	// Handle --save: write YAML to file and exit
 	if cmd.Save != "" {
 		fields, patched, err := cmd.resolve(ctx)
@@ -942,7 +942,7 @@ func (cmd *ModelCreateCmd[R]) RunModels(ctx context.Context, stdio config.Stdio,
 }
 
 // saveYAML writes YAML to a file or stdout (if filename is "-").
-func saveYAML(filename string, stdio config.Stdio, res model.Model, fields, patches []model.Field, create bool) error {
+func saveYAML(filename string, stdio xstdio.Stdio, res model.Model, fields, patches []model.Field, create bool) error {
 	var w io.Writer
 	if filename == "-" {
 		w = stdio.Stdout
