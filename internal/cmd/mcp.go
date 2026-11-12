@@ -255,6 +255,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		tools.AddDeleteTool[ServiceGroup](ctx),
 		tools.AddListTool[Certificate](ctx),
 		tools.AddCreateTool[Certificate](ctx),
+		tools.AddEditTool[Certificate](ctx),
 		tools.AddDeleteTool[Certificate](ctx),
 		tools.AddListTool[ImageEntry](ctx),
 		tools.AddGetTool[Image](ctx, imageGetDescription),

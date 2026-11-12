@@ -32,6 +32,7 @@ type CertificatesCmd struct {
 	cmd.BulkDeletableModelCmd[Certificate]
 
 	Create cmd.ModelCreateCmd[Certificate] `cmd:"" help:"Create a certificate."`
+	Edit   cmd.ModelEditCmd[Certificate]   `cmd:"" help:"Replace the chain and private key of an uploaded certificate."`
 }
 
 type Certificate struct {
@@ -48,13 +49,13 @@ type Certificate struct {
 	State types.CertificateState `mirror:"certificate.state" field:",short" help:"Lifecycle state: pending (being issued or validated), valid or error (issuing failed after several attempts)."`
 
 	CN    string `field:"cn,invisible,valueless" create:"set,required" flag:"common-name" aliases:"cn" help:"Common name: the fully qualified domain name the certificate is for, with a trailing dot." placeholder:"fqdn" example:"demo.unikraft.dev."`
-	Chain string `field:"chain,invisible,valueless" create:"set,required" flag-file:"chain" help:"PEM certificate chain: the certificate followed by any intermediates." placeholder:"file"`
-	Pkey  string `field:"pkey,invisible,valueless" create:"set,required" flag-file:"private-key" aliases:"pkey" help:"PEM private key matching the certificate chain." placeholder:"file"`
+	Chain string `field:"chain,invisible,valueless" create:"set,required" edit:"set" flag-file:"chain" help:"PEM certificate chain: the certificate followed by any intermediates. On edit, set it with pkey. Only uploaded certificates can be edited, and the common name must not change." placeholder:"file"`
+	Pkey  string `field:"pkey,invisible,valueless" create:"set,required" edit:"set" flag-file:"private-key" aliases:"pkey" help:"PEM private key matching the certificate chain. On edit, set it with chain." placeholder:"file"`
 
 	Timestamps struct {
 		Created   types.RelativeTime `mirror:"certificate.created_at" field:",short" help:"Creation time."`
 		NotBefore types.RelativeTime `mirror:"certificate.not_before" field:",long" help:"Start of the validity period."`
-		NotAfter  types.RelativeTime `mirror:"certificate.not_after" field:",short" help:"Expiry. Platform-issued certificates renew automatically, uploaded ones must be replaced before this time."`
+		NotAfter  types.RelativeTime `mirror:"certificate.not_after" field:",short" help:"Expiry. Platform-issued certificates renew automatically, uploaded ones must be replaced with certificate edit before this time."`
 	} `help:"Lifecycle and validity timestamps."`
 
 	Certificate platform.Certificate `field:"-" json:"certificate"`
@@ -218,7 +219,7 @@ func (Certificate) Create(ctx context.Context, fields []model.Field) ([]model.Mo
 			case "metro":
 				metro = string(field.Create.Set.(LinkName[Metro]))
 			case "cn":
-				req.Cn = new(field.Create.Set.(string)) //nolint:staticcheck // CommonName not on stable yet
+				req.CommonName = new(field.Create.Set.(string))
 			case "chain":
 				req.Chain = field.Create.Set.(string)
 			case "pkey":
@@ -261,6 +262,64 @@ func (Certificate) Create(ctx context.Context, fields []model.Field) ([]model.Mo
 	return results, nil
 }
 
+// Edit replaces the chain and private key of an uploaded certificate.
+// The name does not change. The new chain must have the same common name.
+func (Certificate) Edit(ctx context.Context, key string, fields []model.Field) error {
+	var chain, pkey string
+	for path, field := range model.IterFields(fields) {
+		if field.Edit == nil || field.Edit.Set == nil {
+			continue
+		}
+		switch path.String() {
+		case "chain":
+			chain = field.Edit.Set.(string)
+		case "pkey":
+			pkey = field.Edit.Set.(string)
+		}
+	}
+	if chain == "" || pkey == "" {
+		return errors.New("chain and pkey must be set together")
+	}
+
+	ref := multimetro.ParseKey(key).Ref()
+	if ref.Metro == "" {
+		found, err := Certificate{}.Get(ctx, []string{key})
+		if err != nil {
+			return err
+		}
+		if len(found) != 1 {
+			return fmt.Errorf("expected one certificate for %s, found %d", key, len(found))
+		}
+		ref = found[0].(Certificate).key.Ref()
+	}
+
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+	return group.DoRefs(ctx, g, group.Refs{ref}, func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
+		reqs := make([]platform.UpdateCertificatesRequestItem, 0, len(refs))
+		for _, ref := range refs {
+			req := platform.UpdateCertificatesRequestItem{Chain: chain, Pkey: pkey}
+			if ref.UUID != "" {
+				req.Uuid = &ref.UUID
+			} else {
+				req.Name = &ref.Name
+			}
+			reqs = append(reqs, req)
+		}
+		log.G(ctx).Trace().Msg("updating certificate")
+		_, err := c.UpdateCertificates(ctx, reqs)
+		if err != nil {
+			if platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return refs, nil
+	})
+}
+
 func (Certificate) Examples() map[cmd.CmdType][]kingkong.Example {
 	return map[cmd.CmdType][]kingkong.Example{
 		cmd.CmdTypeGet: {
@@ -295,6 +354,16 @@ func (Certificate) Examples() map[cmd.CmdType][]kingkong.Example {
 	  --chain cert.pem \
 	  --pkey cert.key \
 	  --metro fra`,
+				},
+			},
+		},
+		cmd.CmdTypeEdit: {
+			{
+				Description: "Replace a certificate before it expires",
+				Commands: []string{
+					`unikraft certificate edit demo-cert \
+  --chain cert.pem \
+  --pkey cert.key`,
 				},
 			},
 		},
