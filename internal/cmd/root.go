@@ -154,9 +154,9 @@ func NewRootCmd(ctx context.Context, args []string, stdio xstdio.Stdio, signals 
 
 	kctx, err := parser.Parse(args)
 
-	var parseErr *kong.ParseError
+	parseErr, isParseErr := errors.AsType[*kong.ParseError](err)
 	printHelp := false
-	if errors.As(err, &parseErr) {
+	if isParseErr {
 		// we couldn't parse everything, but still try and manually load these
 		// flags, since they're used for help + logging
 		for _, flag := range parseErr.Context.Flags() {

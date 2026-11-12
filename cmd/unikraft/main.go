@@ -70,7 +70,7 @@ func main() {
 		}
 
 		if log.G(ctx).GetLevel() <= log.DebugLevel {
-			if juerr, ok := err.(*jujuerrors.Err); ok {
+			if juerr, ok := errors.AsType[*jujuerrors.Err](err); ok {
 				for _, cause := range juerr.StackTrace() {
 					logErr(ctx, cause)
 				}

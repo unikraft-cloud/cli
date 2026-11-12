@@ -322,8 +322,7 @@ func builderClientOf(ctx context.Context) (*buildapi.Client, *config.Profile, er
 
 // builderError tells how to create the named builder when the service has none.
 func builderError(err error, name string) error {
-	var apiErr *buildapi.APIError
-	if errors.As(err, &apiErr) && apiErr.Code == buildapi.ErrorCodeNotFound {
+	if apiErr, ok := errors.AsType[*buildapi.APIError](err); ok && apiErr.Code == buildapi.ErrorCodeNotFound {
 		return fmt.Errorf("there is no builder %s: create it with unikraft builder create %s", name, name)
 	}
 	return err
