@@ -200,6 +200,51 @@ to install the CLI in your workflow:
 </details>
 
 <details>
+<summary><strong>Docker</strong></summary>
+
+The CLI is published as a container image for `linux/amd64` and `linux/arm64`, with `unikraft` as the entrypoint:
+
+```sh
+docker run --rm \
+  -e UNIKRAFT_PROFILE_ENV=true \
+  -e UKC_TOKEN \
+  -e UKC_METRO=fra \
+  ghcr.io/unikraft-cloud/cli instances list
+```
+
+Or reuse the profiles from your existing config:
+
+```sh
+docker run --rm \
+  -v ~/.config/unikraft:/root/.config/unikraft \
+  ghcr.io/unikraft-cloud/cli instances list
+```
+
+| Tag         | Description                                    |
+| ----------- | ---------------------------------------------- |
+| `latest`    | Latest **stable** release                      |
+| `X.Y`       | Latest **stable** release in the `X.Y` series  |
+| `staging`   | Latest **pre-release** (`-staging`) build      |
+| `<version>` | A specific release, e.g. `0.9.0`               |
+
+The image has a shell, so it also works as a CI job image. GitLab CI runs `script:` through a shell, so it needs the entrypoint cleared:
+
+```yaml
+deploy:
+  image:
+    name: ghcr.io/unikraft-cloud/cli:latest
+    entrypoint: [""]
+  variables:
+    UNIKRAFT_PROFILE_ENV: "true"
+    UKC_METRO: fra
+    # UKC_TOKEN set as a masked CI/CD variable
+  script:
+    - unikraft instances list
+```
+
+</details>
+
+<details>
 <summary><strong>From Source</strong></summary>
 
 - Requires [Go](https://golang.org/dl/);
