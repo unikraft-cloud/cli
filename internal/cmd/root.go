@@ -32,7 +32,6 @@ import (
 	"unikraft.com/cli/internal/cmd/login"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/logfmt"
-	wkong "unikraft.com/cli/internal/w/kong"
 	wmaps "unikraft.com/cli/internal/w/maps"
 	"unikraft.com/cli/pkg/model"
 	"unikraft.com/cli/pkg/model/cmd"
@@ -306,94 +305,26 @@ func ctxWithLogger(ctx context.Context, out io.Writer, type_ log.Type, level log
 }
 
 func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
-	helpOptions := kong.HelpOptions{
-		Compact:             true,
-		FlagsLast:           true,
-		NoExpandSubcommands: true,
+	groups := []kong.Group{
+		{Key: "cmd-commands", Title: kingkong.Underline("Commands") + ":"},
+		{Key: "cmd-resources", Title: kingkong.Underline("Resources") + ":"},
+		{Key: "cmd-templates", Title: kingkong.Underline("Templates") + ":"},
+		{Key: "cmd-checkpoints", Title: kingkong.Underline("Checkpoints") + ":"},
+		{Key: "cmd-config", Title: kingkong.Underline("Config") + ":"},
+		{Key: "cmd-utilities", Title: kingkong.Underline("Utilities") + ":"},
 	}
-	globalFlagGroup := kong.Group{
-		Key:   "flag-global",
-		Title: kingkong.Underline("Global flags") + ":",
-	}
-
-	opts := []kong.Option{
+	return cmd.NewParser(cli, version.Version, groups,
 		kong.Name(branding.Name),
-		kong.UsageOnError(),
 		kong.Vars{"docs_url": branding.DocsURL},
 		kong.Description("The Unikraft Command-Line Interface."),
-		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n" +
-			"    _         \n" +
-			"  c'3'o  .-.  Docs:   " + branding.DocsURL + "cli\n" +
-			"  (| |)_/     Issues: " + branding.IssuesURL + "\n" +
+		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n"+
+			"    _         \n"+
+			"  c'3'o  .-.  Docs:   "+branding.DocsURL+"cli\n"+
+			"  (| |)_/     Issues: "+branding.IssuesURL+"\n"+
 			"              "),
-		kong.ConfigureHelp(helpOptions),
-		kong.Help(kingkong.HelpPrinter(version.Version)),
-		kong.WithBeforeReset(func(value *kong.Path) error {
-			if value == nil || value.App == nil || value.App.Flags == nil {
-				return nil
-			}
-
-			for _, f := range value.App.Flags {
-				if f.Name != "help" {
-					continue
-				}
-
-				f.Group = &kong.Group{
-					Key:   "flag-global",
-					Title: kingkong.Underline("Global flags") + ":",
-				}
-			}
-
-			return nil
-		}),
-		kong.ExplicitGroups([]kong.Group{
-			{
-				Key:   "flag-create",
-				Title: kingkong.Underline("Create flags") + ":",
-			},
-			{
-				Key:   "flag-edit",
-				Title: kingkong.Underline("Edit flags") + ":",
-			},
-			globalFlagGroup,
-			{
-				Key:   "flag-local",
-				Title: kingkong.Underline("Subcommand flags") + ":",
-			},
-			{
-				Key:   "cmd-commands",
-				Title: kingkong.Underline("Commands") + ":",
-			},
-			{
-				Key:   "cmd-resources",
-				Title: kingkong.Underline("Resources") + ":",
-			},
-			{
-				Key:   "cmd-templates",
-				Title: kingkong.Underline("Templates") + ":",
-			},
-			{
-				Key:   "cmd-checkpoints",
-				Title: kingkong.Underline("Checkpoints") + ":",
-			},
-			{
-				Key:   "cmd-config",
-				Title: kingkong.Underline("Config") + ":",
-			},
-			{
-				Key:   "cmd-utilities",
-				Title: kingkong.Underline("Utilities") + ":",
-			},
-		}),
-		kong.NamedMapper("optional", wkong.Optional()),
-		kong.NamedMapper("hostenv", wkong.HostEnv()),
 		sandboxKongVars,
 		volumeImportKongVars,
-	}
-
-	return kong.New(cli, append(opts, kong.PostBuild(func(k *kong.Kong) error {
-		return cmd.AttachGeneratedFlags(k, opts...)
-	}))...)
+	)
 }
 
 var PartitionedResources = []model.Model{
