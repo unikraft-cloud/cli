@@ -6,9 +6,14 @@
 package multimetro
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"unikraft.com/cloud/sdk/platform/group"
+
+	"unikraft.com/cli/internal/model"
 )
 
 const testUUID = "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
@@ -262,4 +267,18 @@ func TestCompleteKey(t *testing.T) {
 			assert.Equal(t, tt.expected, key.Complete(tt.prefix))
 		})
 	}
+}
+
+func TestNotFound(t *testing.T) {
+	sdkErr := group.ErrRefNotFound{Refs: group.Refs{{Metro: "fra", Name: "foo"}}}
+	err := NotFound(sdkErr)
+
+	notFound, ok := errors.AsType[model.ErrNotFound](err)
+	require.True(t, ok)
+	require.Len(t, notFound.Keys, 1)
+	assert.Equal(t, "fra/foo", notFound.Keys[0].String())
+	assert.Equal(t, sdkErr.Error(), err.Error())
+
+	_, ok = errors.AsType[group.ErrRefNotFound](err)
+	assert.True(t, ok)
 }

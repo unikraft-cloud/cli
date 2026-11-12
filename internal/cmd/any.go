@@ -240,7 +240,7 @@ func (a AnyResource) Get(ctx context.Context, keys []string) ([]model.Model, err
 		}
 	}
 	if len(missing) > 0 {
-		err = errors.Join(err, group.ErrRefNotFound{Refs: missing})
+		err = errors.Join(err, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))
 	}
 
 	var results []model.Model

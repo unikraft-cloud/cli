@@ -29,7 +29,6 @@ import (
 	modelt "unikraft.com/cli/internal/model/testing"
 	"unikraft.com/cli/internal/types"
 	wkong "unikraft.com/cli/internal/w/kong"
-	"unikraft.com/cloud/sdk/platform/group"
 	xstdio "unikraft.com/x/stdio"
 )
 
@@ -710,7 +709,7 @@ func TestPartialResultsPrintedBeforeError(t *testing.T) {
 		env.Add(modelt.TestModel{Name: "ok", ID: "id-ok"})
 		env.Add(modelt.TestModel{Name: "fail", ID: "id-fail"})
 		env.Hooks.Delete = func(ctx context.Context, _ []string, _ func(context.Context, []string) error) error {
-			return group.ErrRefNotFound{Refs: group.Refs{{Name: "fail"}}}
+			return model.ErrNotFound{Keys: []model.Key{modelt.TestModel{Name: "fail"}.Key()}}
 		}
 		ctx := modelt.WithTestEnv(context.Background(), env)
 
@@ -783,7 +782,7 @@ func TestPartialResultsOrderWhenCallerPrintsError(t *testing.T) {
 		env.Add(modelt.TestModel{Name: "ok", ID: "id-ok"})
 		env.Add(modelt.TestModel{Name: "fail", ID: "id-fail"})
 		env.Hooks.Delete = func(ctx context.Context, _ []string, _ func(context.Context, []string) error) error {
-			return group.ErrRefNotFound{Refs: group.Refs{{Name: "fail"}}}
+			return model.ErrNotFound{Keys: []model.Key{modelt.TestModel{Name: "fail"}.Key()}}
 		}
 		ctx := modelt.WithTestEnv(context.Background(), env)
 

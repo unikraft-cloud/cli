@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"unikraft.com/cloud/sdk/platform/group"
+
+	"unikraft.com/cli/internal/model"
 )
 
 type Key group.Ref
@@ -185,4 +187,13 @@ func (ks Keys) ByUUID() []string {
 		ss = append(ss, k.String())
 	}
 	return ss
+}
+
+// NotFound converts err into a model.ErrNotFound for its refs, wrapping it.
+func NotFound(err group.ErrRefNotFound) error {
+	keys := make([]model.Key, len(err.Refs))
+	for i, ref := range err.Refs {
+		keys[i] = Key(ref)
+	}
+	return model.ErrNotFound{Keys: keys, Err: err}
 }

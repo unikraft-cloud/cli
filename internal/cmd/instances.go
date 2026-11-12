@@ -1640,7 +1640,7 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, Instance{}.load)
 		results = append(results, recovered...)
 		if len(missing) > 0 {
-			errs = append(errs, group.ErrRefNotFound{Refs: missing})
+			errs = append(errs, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))
 		}
 	} else if getErr != nil {
 		errs = append(errs, getErr)
@@ -2008,7 +2008,7 @@ func (c *InstancesStopCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 
 	updated, getErr := Instance{}.Get(ctx, stopped.Strings())
 	if getErr != nil {
-		if _, ok := getErr.(group.ErrRefNotFound); !ok {
+		if _, ok := errors.AsType[model.ErrNotFound](getErr); !ok {
 			opErr = errors.Join(opErr, getErr)
 			if len(updated) == 0 {
 				return opErr
@@ -2097,7 +2097,7 @@ func (c *InstancesRestartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error
 
 	started, startErr := startInstances(ctx, g, stopped)
 	if len(started) == 0 {
-		if _, ok := startErr.(group.ErrRefNotFound); ok {
+		if _, ok := errors.AsType[model.ErrNotFound](startErr); ok {
 			return errors.Join(opErr, fmt.Errorf("cannot restart: instance(s) were deleted before they could be started (check if %q feature is enabled)", platform.InstanceFeatureDeleteOnStop))
 		}
 		opErr = errors.Join(opErr, startErr)

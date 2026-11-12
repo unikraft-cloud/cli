@@ -13,7 +13,6 @@ import (
 	"os"
 	"slices"
 
-	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/log"
 
 	wmaps "unikraft.com/cli/internal/w/maps"
@@ -134,7 +133,7 @@ func (p *Partition) Teardown(ctx context.Context) (rerr error) {
 
 		err := r.Delete(ctx, targets)
 		if err != nil {
-			if _, ok := errors.AsType[group.ErrRefNotFound](err); !ok {
+			if _, ok := errors.AsType[ErrNotFound](err); !ok {
 				rerr = errors.Join(rerr, fmt.Errorf("failed to delete resources for cleanup: %w", err))
 			}
 			continue

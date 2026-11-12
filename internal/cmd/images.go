@@ -153,7 +153,7 @@ func (Image) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 			}
 			if err != nil {
 				if errdefs.IsNotFound(err) {
-					return group.ErrRefNotFound{Refs: group.Refs{{Name: key}}}
+					return multimetro.NotFound(group.ErrRefNotFound{Refs: group.Refs{{Name: key}}})
 				}
 				return fmt.Errorf("failed to resolve image %q: %w", key, err)
 			}
@@ -215,7 +215,7 @@ func (Image) Delete(ctx context.Context, keys []string) error {
 			}
 			if err := access.Delete(ctx, uri); err != nil {
 				if errdefs.IsNotFound(err) {
-					return group.ErrRefNotFound{Refs: group.Refs{{Name: key}}}
+					return multimetro.NotFound(group.ErrRefNotFound{Refs: group.Refs{{Name: key}}})
 				}
 				return fmt.Errorf("deleting image %q: %w", key, err)
 			}
@@ -505,7 +505,7 @@ func (ImageEntry) Get(ctx context.Context, keys []string) ([]model.Model, error)
 	}
 	var missingErr error
 	if len(missing) > 0 {
-		missingErr = group.ErrRefNotFound{Refs: missing}
+		missingErr = multimetro.NotFound(group.ErrRefNotFound{Refs: missing})
 	}
 	return results, errors.Join(errors.Join(errs...), missingErr)
 }

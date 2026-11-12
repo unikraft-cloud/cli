@@ -433,7 +433,7 @@ func (InstanceCheckpoint) Create(ctx context.Context, fields []model.Field) ([]m
 		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, InstanceCheckpoint{}.load)
 		results = append(results, recovered...)
 		if len(missing) > 0 {
-			errs = append(errs, group.ErrRefNotFound{Refs: missing})
+			errs = append(errs, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))
 		}
 	} else if err != nil {
 		errs = append(errs, err)

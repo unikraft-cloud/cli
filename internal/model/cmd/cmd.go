@@ -27,10 +27,8 @@ import (
 
 	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/model/patch"
-	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/tui/watcher"
 	wkong "unikraft.com/cli/internal/w/kong"
-	"unikraft.com/cloud/sdk/platform/group"
 	xstdio "unikraft.com/x/stdio"
 )
 
@@ -451,10 +449,10 @@ func (cmd *ModelRemoveCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, parti
 
 	toPrint := resources
 	if deleteErr != nil {
-		if notFound, ok := errors.AsType[group.ErrRefNotFound](deleteErr); ok {
-			missing := make(map[string]struct{}, len(notFound.Refs))
-			for _, ref := range notFound.Refs {
-				missing[multimetro.Key(ref).String()] = struct{}{}
+		if notFound, ok := errors.AsType[model.ErrNotFound](deleteErr); ok {
+			missing := make(map[string]struct{}, len(notFound.Keys))
+			for _, key := range notFound.Keys {
+				missing[key.String()] = struct{}{}
 			}
 			toPrint = slices.DeleteFunc(slices.Clone(resources), func(r model.Model) bool {
 				_, ok := missing[r.Key().String()]
