@@ -8,6 +8,7 @@
 package cmd
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -42,6 +43,12 @@ const remoteContext = "context"
 
 // runRemote builds on the build service at c.Remote, which pushes the image.
 func (c *ImageBuildCmd) runRemote(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
+	profile, err := cfg.CurrentProfile()
+	if err != nil {
+		return err
+	}
+	c.Remote = new(cmp.Or(*c.Remote, profile.BuildURL, buildapi.DefaultServer))
+
 	secrets, err := buildflags.ParseSecretSpecs(c.Secret)
 	if err != nil {
 		return err
@@ -55,15 +62,11 @@ func (c *ImageBuildCmd) runRemote(ctx context.Context, cfg *config.Config, parti
 		return err
 	}
 
-	profile, err := cfg.CurrentProfile()
+	client, err := buildapi.New(*c.Remote, buildapi.WithToken(profile.Token))
 	if err != nil {
 		return err
 	}
-	client, err := buildapi.New(c.Remote, buildapi.WithToken(profile.Token))
-	if err != nil {
-		return err
-	}
-	log.G(ctx).Info().Str("url", c.Remote).Msg("building remotely")
+	log.G(ctx).Info().Str("url", *c.Remote).Msg("building remotely")
 
 	s, err := remoteSession(ctx, dir, secrets, ssh)
 	if err != nil {
@@ -143,13 +146,15 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 	if c.Insecure != nil {
 		return buildapi.CreateBuildRequest{}, "", errors.New("--insecure does not apply to a remote build")
 	}
-	u, err := url.Parse(c.Remote)
-	if err != nil {
-		return buildapi.CreateBuildRequest{}, "", err
-	}
 	// The service gets the profile's token, the project and its secrets.
-	if u.Scheme == "http" {
-		return buildapi.CreateBuildRequest{}, "", fmt.Errorf("the build service %s must be https", c.Remote)
+	if c.Remote != nil {
+		u, err := url.Parse(*c.Remote)
+		if err != nil {
+			return buildapi.CreateBuildRequest{}, "", err
+		}
+		if u.Scheme == "http" {
+			return buildapi.CreateBuildRequest{}, "", fmt.Errorf("the build service %s must be https", *c.Remote)
+		}
 	}
 	if c.Output == "" {
 		return buildapi.CreateBuildRequest{}, "", errors.New("a remote build needs --output, the image to push")

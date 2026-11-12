@@ -112,7 +112,7 @@ func TestRemoteRequest(t *testing.T) {
 	for name, cmd := range map[string]ImageBuildCmd{
 		"an output on disk":    {Output: "oci-archive://app.tar"},
 		"insecure registries":  {Output: "my-org/my-app", Insecure: []string{}},
-		"a plain http service": {Remote: "http://localhost:8080", Output: "my-org/my-app"},
+		"a plain http service": {Remote: new("http://localhost:8080"), Output: "my-org/my-app"},
 	} {
 		t.Run("refuses "+name, func(t *testing.T) {
 			t.Parallel()

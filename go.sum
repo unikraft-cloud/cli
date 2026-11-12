@@ -515,8 +515,8 @@ unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c h1:ZNaDV2b
 unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c/go.mod h1:QFvqlzpb/oOceeLG9Rbcy/B8Q6VVVRZcLzH/TZCF2os=
 unikraft.com/cloud/sdk v0.4.1-staging.7 h1:Xl1Ne+REJUyPt6n6hkSACb7/m4UdHE0mHl8AwSkd4lQ=
 unikraft.com/cloud/sdk v0.4.1-staging.7/go.mod h1:fqJuz5qVQraUc+7+o35ejswZc1hRDZlmBGWLdU4pkPQ=
-unikraft.com/cloud/sdk/build v0.0.0-20261111121819-94d1f93b1d54 h1:1hytc8zBR+Qdf4LV6p6TLfKX4nt8NNe79y0ee5GAAzU=
-unikraft.com/cloud/sdk/build v0.0.0-20261111121819-94d1f93b1d54/go.mod h1:donDzooDSHxIveRqivrltY/k2BYf8P1usqxJsR9MlVA=
+unikraft.com/cloud/sdk/build v0.0.0-20261112083743-f904b5bfc966 h1:hJ3PzigJbcAwnD51e8+sNMHULSgosSC62Mm8SraGx4w=
+unikraft.com/cloud/sdk/build v0.0.0-20261112083743-f904b5bfc966/go.mod h1:donDzooDSHxIveRqivrltY/k2BYf8P1usqxJsR9MlVA=
 unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261111121819-94d1f93b1d54 h1:Z/VJ7W4xtVFIqOBcQhydNM62Fh4NXBnVmJbL0eT4gTU=
 unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261111121819-94d1f93b1d54/go.mod h1:291ZbpaaWRAWt8HyzPVVFPGsW3wYzPcRikw0VPQszV0=
 unikraft.com/x/build v0.0.0-20261111120215-5177d0f4c7b6 h1:v6faME7Yc5iVNtPmNTCaO7UxNQA+x7Dtv0kQmMz/GdU=

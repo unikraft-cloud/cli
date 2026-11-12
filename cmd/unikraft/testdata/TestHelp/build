@@ -49,7 +49,7 @@ Flags:
       --insecure
           Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
-          Build on the build service at this URL and push the image from there, instead of building locally. Creates a builder with the default sizes if you have none. To set the sizes, use 'unikraft builder create'.
+          Build on the build service at this URL and push the image from there, instead of building locally. Defaults to the build_url of the profile, or https://controlplane.unikraft.com. Creates a builder with the default sizes if you have none. To set the sizes, use 'unikraft builder create'.
       --metro=<metro> ...
           Metros that a remote build may run in, by name or API URL. Defaults to the build service's choice.
 
