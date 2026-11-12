@@ -44,7 +44,7 @@ type kvDataMsg struct {
 	err      error
 }
 
-func NewDetailPanel(ctx context.Context, registry *model.Registry, desc *model.ModelDescriptor, key string) *detailPanel {
+func newDetailPanel(ctx context.Context, registry *model.Registry, desc *model.ModelDescriptor, key string) *detailPanel {
 	return &detailPanel{
 		ctx:      ctx,
 		registry: registry,
@@ -219,7 +219,7 @@ func (p *detailPanel) openSelected() tea.Cmd {
 		p.err = fmt.Errorf("unknown resource type: %s", linkType)
 		return nil
 	}
-	panel := NewDetailPanel(p.ctx, p.registry, desc, key)
+	panel := newDetailPanel(p.ctx, p.registry, desc, key)
 	return func() tea.Msg {
 		return uitui.OpenPanelMsg{Panel: panel, Collapse: false}
 	}

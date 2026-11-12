@@ -31,15 +31,15 @@ func New(ctx context.Context, registry *model.Registry, home Home, resource, nam
 		if selected.Get == nil {
 			return nil, fmt.Errorf("resource %s does not support get", selected.Name)
 		}
-		panel = NewDetailPanel(ctx, registry, selected, name)
+		panel = newDetailPanel(ctx, registry, selected, name)
 	case resource != "":
 		selected, ok := registry.Resolve(resource)
 		if !ok {
 			return nil, fmt.Errorf("unknown resource: %s", resource)
 		}
-		panel = NewListPanel(ctx, registry, selected)
+		panel = newListPanel(ctx, registry, selected)
 	default:
-		panel = NewHomePanel(ctx, registry, home)
+		panel = newHomePanel(ctx, registry, home)
 	}
 	return uitui.NewModel(panel), nil
 }

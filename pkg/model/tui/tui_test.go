@@ -22,7 +22,6 @@ import (
 	"unikraft.com/cli/internal/cmd"
 	modelt "unikraft.com/cli/internal/model/testing"
 	"unikraft.com/cli/internal/tui/testkit"
-	"unikraft.com/cli/internal/tui/uitui"
 	"unikraft.com/cli/pkg/model"
 	tui "unikraft.com/cli/pkg/model/tui"
 )
@@ -57,8 +56,8 @@ func TestTUIBasic(t *testing.T) {
 
 	registry := model.NewRegistry()
 	desc := registry.Register(modelt.TestModel{}, modelt.TestModel{})
-	panel := tui.NewListPanel(ctx, registry, desc)
-	m := uitui.NewModel(panel)
+	m, err := tui.New(ctx, registry, tui.Home{}, desc.Name, "")
+	require.NoError(t, err)
 
 	runner := testkit.New(m, 80, 18)
 	defer runner.Stop()
@@ -91,8 +90,8 @@ func TestTUIWidePanels(t *testing.T) {
 
 	registry := model.NewRegistry()
 	desc := registry.Register(modelt.TestModel{}, modelt.TestModel{})
-	panel := tui.NewListPanel(ctx, registry, desc)
-	m := uitui.NewModel(panel)
+	m, err := tui.New(ctx, registry, tui.Home{}, desc.Name, "")
+	require.NoError(t, err)
 
 	runner := testkit.New(m, 140, 18)
 	defer runner.Stop()
@@ -148,8 +147,8 @@ func TestTUIDetailWithSubpanel(t *testing.T) {
 
 	registry := model.NewRegistry()
 	desc := registry.Register(subpanelTestModel{}, subpanelTestModel{})
-	listPanel := tui.NewListPanel(ctx, registry, desc)
-	m := uitui.NewModel(listPanel)
+	m, err := tui.New(ctx, registry, tui.Home{}, desc.Name, "")
+	require.NoError(t, err)
 	runner := testkit.New(m, 80, 30)
 	defer runner.Stop()
 

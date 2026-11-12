@@ -41,7 +41,7 @@ type listDataMsg struct {
 	err       error
 }
 
-func NewListPanel(ctx context.Context, registry *model.Registry, desc *model.ModelDescriptor) *listPanel {
+func newListPanel(ctx context.Context, registry *model.Registry, desc *model.ModelDescriptor) *listPanel {
 	return &listPanel{
 		ctx:      ctx,
 		registry: registry,
@@ -215,7 +215,7 @@ func (p *listPanel) openSelected() tea.Cmd {
 	if idx < 0 || idx >= len(p.rowKeys) {
 		return nil
 	}
-	panel := NewDetailPanel(p.ctx, p.registry, p.desc, p.rowKeys[idx])
+	panel := newDetailPanel(p.ctx, p.registry, p.desc, p.rowKeys[idx])
 	return func() tea.Msg {
 		return uitui.OpenPanelMsg{Panel: panel, Collapse: false}
 	}

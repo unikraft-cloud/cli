@@ -46,7 +46,7 @@ type homePanel struct {
 	focused bool
 }
 
-func NewHomePanel(ctx context.Context, registry *model.Registry, home Home) tea.Model {
+func newHomePanel(ctx context.Context, registry *model.Registry, home Home) tea.Model {
 	panel := &homePanel{
 		ctx:      ctx,
 		registry: registry,
@@ -163,7 +163,7 @@ func (p *homePanel) openSelected() tea.Cmd {
 	if entry == nil {
 		return nil
 	}
-	panel := NewListPanel(p.ctx, p.registry, entry)
+	panel := newListPanel(p.ctx, p.registry, entry)
 	return func() tea.Msg {
 		return uitui.OpenPanelMsg{Panel: panel, Collapse: true}
 	}
