@@ -30,6 +30,10 @@ type Config struct {
 	selectedProfile string
 }
 
+// PartitionEnv is the path to the partition file, which tracks the resources
+// created by an integration test.
+const PartitionEnv = "UNIKRAFT_X_PARTITION"
+
 // defaultConfigFilename is the default name of the configuration file used by
 // the Unikraft CLI.
 var defaultConfigFilename = "config.yaml"

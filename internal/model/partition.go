@@ -30,10 +30,14 @@ type Partition struct {
 	Cleanup []Model
 }
 
-const UnikraftPartitionEnv = "UNIKRAFT_X_PARTITION"
-
-func LoadPartitionFromEnv(resources ...Model) (*Partition, error) {
-	path, ok := os.LookupEnv(UnikraftPartitionEnv)
+// LoadPartitionFromEnv loads the partition at the path in the env variable. With
+// no env, or the env unset, it returns a nil Partition, which passes through to
+// the models it wraps.
+func LoadPartitionFromEnv(env string, resources ...Model) (*Partition, error) {
+	if env == "" {
+		return nil, nil
+	}
+	path, ok := os.LookupEnv(env)
 	if !ok {
 		return nil, nil
 	}

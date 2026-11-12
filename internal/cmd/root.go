@@ -218,7 +218,7 @@ func NewRootCmd(ctx context.Context, args []string, stdio xstdio.Stdio, signals 
 
 	kctx.BindTo(ctx, (*context.Context)(nil))
 
-	partition, err := model.LoadPartitionFromEnv(PartitionedResources...)
+	partition, err := model.LoadPartitionFromEnv(config.PartitionEnv, PartitionedResources...)
 	if err != nil {
 		cancelTimeout()
 		return ctx, nil, nil, nil, jujuerrors.Annotate(err, "loading partition from environment")
