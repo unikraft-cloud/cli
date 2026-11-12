@@ -7,6 +7,7 @@ package multimetro
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -281,4 +282,18 @@ func TestNotFound(t *testing.T) {
 
 	_, ok = errors.AsType[group.ErrRefNotFound](err)
 	assert.True(t, ok)
+}
+
+func TestNotFoundRefs(t *testing.T) {
+	refs := group.Refs{{Metro: "fra", Name: "foo"}, {UUID: "6e2b9b4c-0d3c-4a43-9a8e-1b8f7f0a2c11"}}
+	got, ok := NotFoundRefs(fmt.Errorf("getting: %w", NotFound(group.ErrRefNotFound{Refs: refs})))
+	require.True(t, ok)
+	assert.Equal(t, refs, got)
+
+	got, ok = NotFoundRefs(model.ErrNotFound{Keys: []model.Key{model.StringKey("fra/bar")}})
+	require.True(t, ok)
+	assert.Equal(t, group.Refs{{Metro: "fra", Name: "bar"}}, got)
+
+	_, ok = NotFoundRefs(group.ErrRefNotFound{Refs: refs})
+	assert.False(t, ok)
 }

@@ -94,7 +94,7 @@ func (c *ServiceDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio, partitio
 	waiting := make(map[string]int, len(pending))
 	for {
 		current, err := ServiceGroup{}.Get(ctx, slices.Sorted(maps.Keys(pending)))
-		if _, ok := errors.AsType[group.ErrRefNotFound](err); err != nil && !ok {
+		if _, ok := errors.AsType[model.ErrNotFound](err); err != nil && !ok {
 			return errors.Join(append(errs, err)...)
 		}
 		instances := make(map[string]multimetro.Keys, len(current))

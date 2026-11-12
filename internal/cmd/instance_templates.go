@@ -429,8 +429,8 @@ func (InstanceTemplate) Create(ctx context.Context, fields []model.Field) ([]mod
 	}
 
 	results, err := InstanceTemplate{}.Get(ctx, created.Strings())
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
-		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, InstanceTemplate{}.load)
+	if refs, ok := multimetro.NotFoundRefs(err); ok {
+		recovered, missing := recoverCreated(ctx, refs, createdData, InstanceTemplate{}.load)
 		results = append(results, recovered...)
 		if len(missing) > 0 {
 			errs = append(errs, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))

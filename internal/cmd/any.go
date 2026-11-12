@@ -265,8 +265,8 @@ func splitRefNotFound(err error) (group.Refs, error) {
 		}
 		return refs, errors.Join(errs...)
 	}
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
-		return notFound.Refs, nil
+	if refs, ok := multimetro.NotFoundRefs(err); ok {
+		return refs, nil
 	}
 	return nil, err
 }

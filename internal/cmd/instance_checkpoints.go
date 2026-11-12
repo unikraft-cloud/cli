@@ -429,8 +429,8 @@ func (InstanceCheckpoint) Create(ctx context.Context, fields []model.Field) ([]m
 	results, err := InstanceCheckpoint{}.Get(ctx, created.Strings())
 	// Checkpoint creation is asynchronous, so a checkpoint that was just created
 	// may not be listed yet.
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
-		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, InstanceCheckpoint{}.load)
+	if refs, ok := multimetro.NotFoundRefs(err); ok {
+		recovered, missing := recoverCreated(ctx, refs, createdData, InstanceCheckpoint{}.load)
 		results = append(results, recovered...)
 		if len(missing) > 0 {
 			errs = append(errs, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))

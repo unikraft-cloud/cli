@@ -466,11 +466,11 @@ func (s *instanceSet) Start(ctx context.Context) error {
 func (s *instanceSet) Stop(ctx context.Context) error {
 	pending := s.keys
 	_, err := stopInstances(ctx, s.g, s.keys, StopOpts{DrainTimeout: s.drain})
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
+	if refs, ok := multimetro.NotFoundRefs(err); ok {
 		log.G(ctx).Warn().
-			Strs("instances", notFound.Refs.Strings()).
+			Strs("instances", refs.Strings()).
 			Msg("the instances are gone, so they count as stopped")
-		pending = withoutRefs(pending, notFound.Refs)
+		pending = withoutRefs(pending, refs)
 	} else if err != nil {
 		return err
 	}
@@ -529,12 +529,12 @@ func (s *instanceSet) Stop(ctx context.Context) error {
 
 	for {
 		err := ask(ctx, pending)
-		notFound, ok := errors.AsType[group.ErrRefNotFound](err)
+		refs, ok := multimetro.NotFoundRefs(err)
 		if err == nil || !ok {
 			return err
 		}
-		pending = make(multimetro.Keys, 0, len(notFound.Refs))
-		for _, ref := range notFound.Refs {
+		pending = make(multimetro.Keys, 0, len(refs))
+		for _, ref := range refs {
 			pending = append(pending, multimetro.Key(ref))
 		}
 		select {
@@ -555,7 +555,7 @@ func (s *instanceSet) Up(ctx context.Context) error {
 	var last []Instance
 	for {
 		results, err := (Instance{}).Get(ctx, s.running.ByUUID())
-		notFound, ok := errors.AsType[group.ErrRefNotFound](err)
+		notFoundRefs, ok := multimetro.NotFoundRefs(err)
 		if err != nil && !ok {
 			return err
 		}
@@ -577,7 +577,7 @@ func (s *instanceSet) Up(ctx context.Context) error {
 				failed = append(failed, fmt.Errorf("instance %s is %s, not running", name, inst.State))
 			}
 		}
-		for _, ref := range notFound.Refs {
+		for _, ref := range notFoundRefs {
 			name := cmp.Or(ref.Name, ref.UUID)
 			if (ref.UUID != "" && s.seen[ref.UUID]) || (ref.Name != "" && s.seen[ref.Name]) {
 				failed = append(failed, fmt.Errorf("instance %s was deleted", name))
@@ -621,7 +621,7 @@ func (s *instanceSet) Delete(ctx context.Context) error {
 	}
 	var left []string
 	results, getErr := (Instance{}).Get(ctx, s.keys.ByUUID())
-	if _, ok := errors.AsType[group.ErrRefNotFound](getErr); getErr == nil || ok {
+	if _, ok := errors.AsType[model.ErrNotFound](getErr); getErr == nil || ok {
 		for _, r := range results {
 			inst := r.(Instance)
 			left = append(left, cmp.Or(inst.Name, inst.UUID))

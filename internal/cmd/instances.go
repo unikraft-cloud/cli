@@ -1636,8 +1636,8 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 	}
 
 	results, getErr := Instance{}.Get(ctx, keys.Strings())
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](getErr); ok {
-		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, Instance{}.load)
+	if refs, ok := multimetro.NotFoundRefs(getErr); ok {
+		recovered, missing := recoverCreated(ctx, refs, createdData, Instance{}.load)
 		results = append(results, recovered...)
 		if len(missing) > 0 {
 			errs = append(errs, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))

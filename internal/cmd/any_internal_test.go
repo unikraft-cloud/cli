@@ -7,7 +7,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
@@ -93,7 +92,7 @@ func (b fakeBackend) Get(ctx context.Context, keys []string) ([]model.Model, err
 		}
 	}
 	if len(notFound) > 0 {
-		return results, group.ErrRefNotFound{Refs: notFound}
+		return results, multimetro.NotFound(group.ErrRefNotFound{Refs: notFound})
 	}
 	return results, nil
 }
@@ -207,9 +206,9 @@ func TestAnyResourceGet(t *testing.T) {
 				require.NoError(t, err)
 				return
 			}
-			notFound, ok := errors.AsType[group.ErrRefNotFound](err)
-			require.True(t, ok, "expected ErrRefNotFound, got %v", err)
-			assert.Equal(t, tt.missing, notFound.Refs.Strings())
+			refs, ok := multimetro.NotFoundRefs(err)
+			require.True(t, ok, "expected ErrNotFound, got %v", err)
+			assert.Equal(t, tt.missing, refs.Strings())
 		})
 	}
 }
