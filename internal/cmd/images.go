@@ -378,7 +378,7 @@ func listPlatformImages(ctx context.Context) ([]model.Model, error) {
 	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing images from image-store")
 
-		resp, err := c.GetImageStore(ctx, nil, platform.GetImageStoreOpts{})
+		resp, err := c.GetImageStore(ctx, platform.GetImageStoreOpts{})
 		if err != nil {
 			log.G(ctx).Warn().Err(err).Msg("image-store listing failed, falling back to /v1/images")
 			var fallbackErr error
