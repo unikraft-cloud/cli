@@ -107,18 +107,8 @@ func (TestModel) Type() model.Type {
 	}
 }
 
-type staticKey string
-
-func (k staticKey) String() string {
-	return string(k)
-}
-
-func (k staticKey) Canonical() string {
-	return string(k)
-}
-
 func (t TestModel) Key() model.Key {
-	return staticKey(t.Name)
+	return model.StringKey(t.Name)
 }
 
 func (t TestModel) Raw() any {

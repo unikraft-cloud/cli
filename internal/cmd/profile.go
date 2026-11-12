@@ -45,7 +45,7 @@ func (Profile) Type() model.Type {
 }
 
 func (i Profile) Key() model.Key {
-	return staticKey(i.Name)
+	return model.StringKey(i.Name)
 }
 
 func (i Profile) Raw() any {
@@ -81,7 +81,7 @@ func (Profile) List(ctx context.Context) ([]model.Model, error) {
 }
 
 func (Profile) Get(ctx context.Context, keys []string) ([]model.Model, error) {
-	return getFromListable(ctx, Profile{}, keys)
+	return model.GetFromListable(ctx, Profile{}, keys)
 }
 
 func (Profile) Examples() map[cmd.CmdType][]kingkong.Example {

@@ -56,7 +56,7 @@ func (Builder) Type() model.Type {
 }
 
 func (b Builder) Key() model.Key {
-	return staticKey(b.Name)
+	return model.StringKey(b.Name)
 }
 
 func (b Builder) Raw() any {

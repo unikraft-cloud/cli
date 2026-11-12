@@ -34,7 +34,7 @@ func (Config) Type() model.Type {
 }
 
 func (c Config) Key() model.Key {
-	return staticKey(c.Path)
+	return model.StringKey(c.Path)
 }
 
 func (c Config) Raw() any {

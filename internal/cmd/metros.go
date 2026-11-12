@@ -47,7 +47,7 @@ func (Metro) Type() model.Type {
 }
 
 func (i Metro) Key() model.Key {
-	return staticKey(i.Name)
+	return model.StringKey(i.Name)
 }
 
 func (i Metro) Raw() any {
@@ -239,7 +239,7 @@ func (Metro) List(ctx context.Context) ([]model.Model, error) {
 }
 
 func (Metro) Get(ctx context.Context, keys []string) ([]model.Model, error) {
-	return getFromListable(ctx, Metro{}, keys)
+	return model.GetFromListable(ctx, Metro{}, keys)
 }
 
 func (Metro) Examples() map[cmd.CmdType][]kingkong.Example {

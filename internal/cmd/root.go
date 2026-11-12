@@ -420,13 +420,3 @@ func (timedOutError) Unwrap() error { return context.DeadlineExceeded }
 func newTimedOutContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeoutCause(parent, timeout, timedOutError{timeout: timeout})
 }
-
-type staticKey string
-
-func (s staticKey) String() string {
-	return string(s)
-}
-
-func (s staticKey) Canonical() string {
-	return string(s)
-}

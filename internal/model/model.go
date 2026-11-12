@@ -25,6 +25,17 @@ type Key interface {
 	Canonical() string
 }
 
+// StringKey is a Key that's just a string.
+type StringKey string
+
+func (k StringKey) String() string {
+	return string(k)
+}
+
+func (k StringKey) Canonical() string {
+	return string(k)
+}
+
 type Model interface {
 	Type() Type
 	Key() Key

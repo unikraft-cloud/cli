@@ -7,7 +7,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -53,33 +52,6 @@ func linkToConsole(ctx context.Context, fields []model.Field, profile *config.Pr
 	for _, field := range model.GetFieldRefByPathString(fields, "name") {
 		field.Hyperlink = link
 	}
-}
-
-func getFromListable(ctx context.Context, listable model.ListableModel, keys []string) ([]model.Model, error) {
-	all, err := listable.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	found := make([]model.Model, 0, len(keys))
-	var notFound []string
-loop:
-	for _, key := range keys {
-		for _, resource := range all {
-			if resource.Key().String() == key {
-				found = append(found, resource)
-				continue loop
-			}
-		}
-		notFound = append(notFound, key)
-	}
-
-	if len(notFound) == 1 {
-		return nil, fmt.Errorf("%s not found: %s", listable.Type().Name, notFound)
-	} else if len(notFound) > 0 {
-		return nil, fmt.Errorf("%s not found: %s", listable.Type().Names, notFound)
-	}
-	return found, nil
 }
 
 // matchRef finds the best input ref corresponding to a returned resource.

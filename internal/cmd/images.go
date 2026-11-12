@@ -90,7 +90,7 @@ func (Image) Type() model.Type {
 }
 
 func (i Image) Key() model.Key {
-	return staticKey(i.Ref.String())
+	return model.StringKey(i.Ref.String())
 }
 
 func (i Image) Raw() any {
@@ -273,7 +273,7 @@ func (ImageEntry) Type() model.Type {
 }
 
 func (i ImageEntry) Key() model.Key {
-	return staticKey(i.Ref.String())
+	return model.StringKey(i.Ref.String())
 }
 
 func (i ImageEntry) Raw() any {
