@@ -139,6 +139,7 @@ func (Image) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	}
 
 	perKey := make([][]model.Model, len(keys))
+	missing := make([]bool, len(keys))
 	eg := joinerrgroup.Group{}
 	for i, key := range keys {
 		eg.Go(func() error {
@@ -153,7 +154,8 @@ func (Image) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 			}
 			if err != nil {
 				if errdefs.IsNotFound(err) {
-					return multimetro.NotFound(group.ErrRefNotFound{Refs: group.Refs{{Name: key}}})
+					missing[i] = true
+					return nil
 				}
 				return fmt.Errorf("failed to resolve image %q: %w", key, err)
 			}
@@ -196,7 +198,7 @@ func (Image) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 			return nil
 		})
 	}
-	err = eg.Wait()
+	err = errors.Join(eg.Wait(), imagesNotFound(keys, missing))
 	return slices.Concat(perKey...), err
 }
 
@@ -206,8 +208,9 @@ func (Image) Delete(ctx context.Context, keys []string) error {
 		return err
 	}
 
+	missing := make([]bool, len(keys))
 	eg := joinerrgroup.Group{}
-	for _, key := range keys {
+	for i, key := range keys {
 		eg.Go(func() error {
 			uri, err := imagespec.GuessLocation(key)
 			if err != nil {
@@ -215,7 +218,8 @@ func (Image) Delete(ctx context.Context, keys []string) error {
 			}
 			if err := access.Delete(ctx, uri); err != nil {
 				if errdefs.IsNotFound(err) {
-					return multimetro.NotFound(group.ErrRefNotFound{Refs: group.Refs{{Name: key}}})
+					missing[i] = true
+					return nil
 				}
 				return fmt.Errorf("deleting image %q: %w", key, err)
 			}
@@ -223,7 +227,22 @@ func (Image) Delete(ctx context.Context, keys []string) error {
 			return nil
 		})
 	}
-	return eg.Wait()
+	return errors.Join(eg.Wait(), imagesNotFound(keys, missing))
+}
+
+// imagesNotFound returns one not-found error for every missing key, so that
+// errors.As sees all of them rather than only the first.
+func imagesNotFound(keys []string, missing []bool) error {
+	var refs group.Refs
+	for i, key := range keys {
+		if missing[i] {
+			refs = append(refs, group.Ref{Name: key})
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	return multimetro.NotFound(group.ErrRefNotFound{Refs: refs})
 }
 
 func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
