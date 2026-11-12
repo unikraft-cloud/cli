@@ -20,7 +20,8 @@ This repo contains the Go-based Unikraft CLI. Use this file for contributor-faci
 - Core `Model` interface (`pkg/model`) models API objects with `Type`, `Key`, `Fields`, and `Raw`, and is extended by get/list/create/edit/delete behaviors.
 - Model data is expressed as a tree of `Field` nodes: each node has a name, optional value, nested subfields, and an `Elem` template for homogeneous arrays; patch metadata and verbosity drive editing and output.
 - Model utilities live alongside the model layer (inside `pkg/model`): struct↔field conversion, field cloning/merging/deduping, map/slice encoding, path-based filtering/selection, and patch helpers for edits.
-- Core logic lives under `internal/` and is organized by domain: configuration/profile handling, API client communication, model abstractions, output/logging utilities, multi-region support, and shared helpers.
+- `pkg/` is public API, used by other CLIs (like consolectl) to build their own commands, TUI and MCP server on the model layer: `pkg/model` (with `cmd`, `tui`, `mcp`, `patch` and `value`), `pkg/mcpserver` and `pkg/logfmt`. Keep anything specific to Unikraft Cloud out of it, and avoid exposing `internal/` types in its exported API.
+- Everything else lives under `internal/` and is organized by domain: configuration/profile handling, API client communication, the Unikraft Cloud models and commands, output utilities, multi-region support, and shared helpers.
 - Build artifacts and generated docs go to `dist/`; developer tooling/scripts live at the repo root and under `tools/`.
 
 ## Important dependencies
