@@ -201,7 +201,7 @@ func TestGenerateFlags(t *testing.T) {
 }
 
 type defaultFixture struct {
-	Role string `field:",short" create:"set" edit:"set" flag:"role" default:"member" enum:"admin,member" help:"Role."`
+	Role string `field:",short" create:"set" edit:"set" flag:"role" env:"TEST_ROLE" default:"member" enum:"admin,member" help:"Role."`
 }
 
 func TestGeneratedFlagDefaults(t *testing.T) {
@@ -240,6 +240,21 @@ func TestGeneratedFlagDefaults(t *testing.T) {
 		spec := patch.PatchSpec{}
 		parse(t, false, &spec)
 		assert.NotContains(t, spec.SetTyped, "role")
+	})
+
+	t.Run("edit uses the env var", func(t *testing.T) {
+		t.Setenv("TEST_ROLE", "admin")
+		spec := patch.PatchSpec{}
+		set := parse(t, false, &spec)
+		assert.Equal(t, "admin", spec.SetTyped["role"])
+		assert.True(t, set.IsSet("role"))
+	})
+
+	t.Run("create prefers the env var over --set", func(t *testing.T) {
+		t.Setenv("TEST_ROLE", "member")
+		spec := patch.PatchSpec{Create: true, Set: map[string][]string{"role": {"admin"}}}
+		parse(t, true, &spec)
+		assert.Equal(t, "member", spec.SetTyped["role"])
 	})
 
 	t.Run("edit uses the flag", func(t *testing.T) {

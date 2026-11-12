@@ -149,13 +149,13 @@ type flagSlot struct {
 	addr bool
 	// file marks a flag holding a path whose contents are the value.
 	file bool
-	// given marks a value parsed off the command line, rather than from its
-	// default or env, both of which kong also counts as set.
+	// given marks a value from the command line or its env var, rather than
+	// its default, which kong also counts as set.
 	given bool
 }
 
 // Apply copies every given flag's value into spec, typed. On create, a flag's
-// default or env also applies, unless --set covers the same field.
+// default also applies, unless --set covers the same field.
 func (fs *FlagSet) Apply(spec *patch.PatchSpec) error {
 	if fs == nil {
 		return nil
@@ -208,8 +208,21 @@ func (fs *FlagSet) markGiven(kctx *kong.Context) {
 		}
 	}
 	for i := range fs.slots {
-		fs.slots[i].given = given[fs.slots[i].value]
+		value := fs.slots[i].value
+		fs.slots[i].given = given[value] || envSet(value)
 	}
+}
+
+func envSet(value *kong.Value) bool {
+	if value == nil || value.Tag == nil {
+		return false
+	}
+	for _, env := range value.Tag.Envs {
+		if _, ok := os.LookupEnv(env); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (s flagSlot) read() (any, error) {
