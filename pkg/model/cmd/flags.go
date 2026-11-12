@@ -103,7 +103,7 @@ func GenerateFlags(fields []model.Field, create bool, group string, opts ...kong
 		return nil, fmt.Errorf("generating flags: %w", err)
 	}
 
-	set := &FlagSet{Args: donor.Model.Positional}
+	set := &FlagSet{Args: donor.Model.Positional, create: create}
 	for _, flag := range donor.Model.Flags {
 		if flag.Name == "help" {
 			continue
@@ -136,7 +136,8 @@ type FlagSet struct {
 	Flags []*kong.Flag
 	Args  []*kong.Value
 
-	slots []flagSlot
+	create bool
+	slots  []flagSlot
 }
 
 type flagSlot struct {
@@ -148,9 +149,13 @@ type flagSlot struct {
 	addr bool
 	// file marks a flag holding a path whose contents are the value.
 	file bool
+	// given marks a value parsed off the command line, rather than from its
+	// default or env, both of which kong also counts as set.
+	given bool
 }
 
-// Apply copies every explicitly-set flag's value into spec, typed.
+// Apply copies every given flag's value into spec, typed. On create, a flag's
+// default or env also applies, unless --set covers the same field.
 func (fs *FlagSet) Apply(spec *patch.PatchSpec) error {
 	if fs == nil {
 		return nil
@@ -158,6 +163,11 @@ func (fs *FlagSet) Apply(spec *patch.PatchSpec) error {
 	for _, slot := range fs.slots {
 		if slot.value == nil || !slot.value.Set {
 			continue
+		}
+		if !slot.given {
+			if _, ok := spec.Set[slot.path]; ok || !fs.create {
+				continue
+			}
 		}
 		v, err := slot.read()
 		if err != nil {
@@ -178,10 +188,28 @@ func (fs *FlagSet) IsSet(path string) bool {
 	}
 	for _, slot := range fs.slots {
 		if slot.path == path {
-			return slot.value != nil && slot.value.Set
+			return slot.given
 		}
 	}
 	return false
+}
+
+func (fs *FlagSet) markGiven(kctx *kong.Context) {
+	if fs == nil {
+		return
+	}
+	given := make(map[*kong.Value]bool)
+	for _, path := range kctx.Path {
+		switch {
+		case path.Flag != nil:
+			given[path.Flag.Value] = true
+		case path.Positional != nil:
+			given[path.Positional] = true
+		}
+	}
+	for i := range fs.slots {
+		fs.slots[i].given = given[fs.slots[i].value]
+	}
 }
 
 func (s flagSlot) read() (any, error) {

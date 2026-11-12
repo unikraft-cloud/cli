@@ -76,8 +76,12 @@ func parseInto(t *testing.T, set *FlagSet, args ...string) error {
 			return nil
 		}))
 	require.NoError(t, err)
-	_, err = parser.Parse(append([]string{"create"}, args...))
-	return err
+	kctx, err := parser.Parse(append([]string{"create"}, args...))
+	if err != nil {
+		return err
+	}
+	set.markGiven(kctx)
+	return nil
 }
 
 func flagNames(set *FlagSet) []string {
@@ -193,6 +197,55 @@ func TestGenerateFlags(t *testing.T) {
 		metro, ok := model.Field{Subfields: patched}.Get("metro")
 		require.True(t, ok)
 		assert.Equal(t, "fra", metro.Create.Set)
+	})
+}
+
+type defaultFixture struct {
+	Role string `field:",short" create:"set" edit:"set" flag:"role" default:"member" enum:"admin,member" help:"Role."`
+}
+
+func TestGeneratedFlagDefaults(t *testing.T) {
+	parse := func(t *testing.T, create bool, spec *patch.PatchSpec, args ...string) *FlagSet {
+		t.Helper()
+		fields, err := model.FieldsFromStruct(defaultFixture{})
+		require.NoError(t, err)
+		set, err := GenerateFlags(fields, create, "flag")
+		require.NoError(t, err)
+		require.NoError(t, parseInto(t, set, args...))
+		require.NoError(t, set.Apply(spec))
+		return set
+	}
+
+	t.Run("create uses the default", func(t *testing.T) {
+		spec := patch.PatchSpec{Create: true}
+		set := parse(t, true, &spec)
+		assert.Equal(t, "member", spec.SetTyped["role"])
+		assert.False(t, set.IsSet("role"))
+	})
+
+	t.Run("create prefers --set over the default", func(t *testing.T) {
+		spec := patch.PatchSpec{Create: true, Set: map[string][]string{"role": {"admin"}}}
+		parse(t, true, &spec)
+		assert.NotContains(t, spec.SetTyped, "role")
+	})
+
+	t.Run("create prefers the flag over --set", func(t *testing.T) {
+		spec := patch.PatchSpec{Create: true, Set: map[string][]string{"role": {"admin"}}}
+		set := parse(t, true, &spec, "--role=member")
+		assert.Equal(t, "member", spec.SetTyped["role"])
+		assert.True(t, set.IsSet("role"))
+	})
+
+	t.Run("edit ignores the default", func(t *testing.T) {
+		spec := patch.PatchSpec{}
+		parse(t, false, &spec)
+		assert.NotContains(t, spec.SetTyped, "role")
+	})
+
+	t.Run("edit uses the flag", func(t *testing.T) {
+		spec := patch.PatchSpec{}
+		parse(t, false, &spec, "--role=admin")
+		assert.Equal(t, "admin", spec.SetTyped["role"])
 	})
 }
 

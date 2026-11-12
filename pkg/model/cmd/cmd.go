@@ -659,6 +659,11 @@ func (cmd *ModelEditCmd[R]) BuildFlags(opts ...kong.Option) (*FlagSet, error) {
 	return cmd.generated, err
 }
 
+func (cmd *ModelEditCmd[R]) AfterApply(kctx *kong.Context) error {
+	cmd.generated.markGiven(kctx)
+	return nil
+}
+
 func (cmd *ModelEditCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	spec, err := cmd.toPatchSpec()
 	if err != nil {
@@ -812,6 +817,11 @@ func (cmd *ModelCreateCmd[R]) BuildFlags(opts ...kong.Option) (*FlagSet, error) 
 	}
 	cmd.generated, err = GenerateFlags(fields, true, "flag-create", opts...)
 	return cmd.generated, err
+}
+
+func (cmd *ModelCreateCmd[R]) AfterApply(kctx *kong.Context) error {
+	cmd.generated.markGiven(kctx)
+	return nil
 }
 
 // GeneratedFlags returns the flags built from the resource's schema.
