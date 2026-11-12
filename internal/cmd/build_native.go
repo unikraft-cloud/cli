@@ -92,7 +92,7 @@ func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error 
 }
 
 func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
-	if c.Remote != "" {
+	if c.Remote != nil {
 		return c.runRemote(ctx, cfg, partition)
 	}
 	if len(c.Metro) > 0 {
