@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"unikraft.com/cli/internal/mcp"
-	"unikraft.com/cli/internal/mcpserver/mcptest"
+	"unikraft.com/cli/pkg/mcpserver/mcptest"
 	modelmcp "unikraft.com/cli/pkg/model/mcp"
 	xstdio "unikraft.com/x/stdio"
 )

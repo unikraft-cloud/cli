@@ -21,8 +21,8 @@ import (
 
 	"unikraft.com/x/log"
 
-	"unikraft.com/cli/internal/mcpserver/mcptest"
 	modelt "unikraft.com/cli/internal/model/testing"
+	"unikraft.com/cli/pkg/mcpserver/mcptest"
 	modelmcp "unikraft.com/cli/pkg/model/mcp"
 )
 

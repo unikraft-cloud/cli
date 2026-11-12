@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	integ "unikraft.com/cli/internal/integration"
-	"unikraft.com/cli/internal/mcpserver"
-	"unikraft.com/cli/internal/mcpserver/mcptest"
 	modelt "unikraft.com/cli/internal/model/testing"
+	"unikraft.com/cli/pkg/mcpserver"
+	"unikraft.com/cli/pkg/mcpserver/mcptest"
 	modelmcp "unikraft.com/cli/pkg/model/mcp"
 )
 

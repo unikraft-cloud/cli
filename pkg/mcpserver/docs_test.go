@@ -21,8 +21,8 @@ import (
 
 	"unikraft.com/x/log"
 
-	"unikraft.com/cli/internal/mcpserver"
-	"unikraft.com/cli/internal/mcpserver/mcptest"
+	"unikraft.com/cli/pkg/mcpserver"
+	"unikraft.com/cli/pkg/mcpserver/mcptest"
 )
 
 const docsIndex = `# Documentation

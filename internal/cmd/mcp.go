@@ -27,7 +27,7 @@ import (
 	"unikraft.com/cli/internal/branding"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcp"
-	"unikraft.com/cli/internal/mcpserver"
+	"unikraft.com/cli/pkg/mcpserver"
 	"unikraft.com/cli/pkg/model"
 	modelmcp "unikraft.com/cli/pkg/model/mcp"
 	xstdio "unikraft.com/x/stdio"
