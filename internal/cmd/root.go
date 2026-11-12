@@ -131,20 +131,25 @@ func NewRootCmd(ctx context.Context, args []string, stdio xstdio.Stdio, signals 
 	parser.Stdout = stdio.Stdout
 	parser.Stderr = stdio.Stderr
 
+	completionCtx, err := withCompletionConfig(ctx)
+	if err != nil {
+		fmt.Fprintln(stdio.Stderr, "warning: could not load config for autocompletion:", err)
+		completionCtx = ctx
+	}
 	kongcompletion.Register(
 		parser,
 		kongcompletion.WithPredictor("resource-key-path", complete.PredictFiles("*")),
-		kongcompletion.WithPredictor("resource-key-profile", cmd.PredictModelKey[Profile](ctx)),
-		kongcompletion.WithPredictor("resource-key-metro", cmd.PredictModelKey[Metro](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance", cmd.PredictModelKey[Instance](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance-template", cmd.PredictModelKey[InstanceTemplate](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance-checkpoint", cmd.PredictModelKey[InstanceCheckpoint](ctx)),
-		kongcompletion.WithPredictor("resource-key-volume", cmd.PredictModelKey[Volume](ctx)),
-		kongcompletion.WithPredictor("resource-key-volume-template", cmd.PredictModelKey[VolumeTemplate](ctx)),
-		kongcompletion.WithPredictor("resource-key-service", cmd.PredictModelKey[ServiceGroup](ctx)),
-		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictModelKey[Certificate](ctx)),
-		kongcompletion.WithPredictor("resource-key-image", cmd.PredictModelKey[ImageEntry](ctx)),
-		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictModelKey[AnyResource](ctx)),
+		kongcompletion.WithPredictor("resource-key-profile", cmd.PredictModelKey[Profile](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-metro", cmd.PredictModelKey[Metro](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-instance", cmd.PredictModelKey[Instance](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-instance-template", cmd.PredictModelKey[InstanceTemplate](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-instance-checkpoint", cmd.PredictModelKey[InstanceCheckpoint](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-volume", cmd.PredictModelKey[Volume](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-volume-template", cmd.PredictModelKey[VolumeTemplate](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-service", cmd.PredictModelKey[ServiceGroup](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictModelKey[Certificate](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-image", cmd.PredictModelKey[ImageEntry](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictModelKey[AnyResource](completionCtx)),
 		kongcompletion.WithPredictor("resource-key-builder", complete.PredictNothing),
 	)
 
