@@ -13,7 +13,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// GetFromListable gets the models for keys by listing all of them.
+// GetFromListable gets the models for keys by listing all of them. Missing keys
+// are an ErrNotFound, alongside the models that were found.
 func GetFromListable(ctx context.Context, listable ListableModel, keys []string) ([]Model, error) {
 	all, err := listable.List(ctx)
 	if err != nil {
@@ -33,12 +34,18 @@ loop:
 		notFound = append(notFound, key)
 	}
 
-	if len(notFound) == 1 {
-		return nil, fmt.Errorf("%s not found: %s", listable.Type().Name, notFound)
-	} else if len(notFound) > 0 {
-		return nil, fmt.Errorf("%s not found: %s", listable.Type().Names, notFound)
+	if len(notFound) == 0 {
+		return found, nil
 	}
-	return found, nil
+	name := listable.Type().Name
+	if len(notFound) > 1 {
+		name = listable.Type().Names
+	}
+	missing := make([]Key, len(notFound))
+	for i, key := range notFound {
+		missing[i] = StringKey(key)
+	}
+	return found, ErrNotFound{Keys: missing, Err: fmt.Errorf("%s not found: %s", name, notFound)}
 }
 
 // CloneField creates a deep copy of the given Field.

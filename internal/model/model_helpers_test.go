@@ -6,6 +6,7 @@
 package model_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,10 @@ func TestGetFromListable(t *testing.T) {
 	require.Len(t, found, 1)
 	assert.Equal(t, "test2", found[0].Key().String())
 
-	_, err = model.GetFromListable(ctx, modelt.TestModel{}, []string{"test1", "nope"})
-	assert.ErrorContains(t, err, "test not found: [nope]")
+	found, err = model.GetFromListable(ctx, modelt.TestModel{}, []string{"test1", "nope"})
+	require.Len(t, found, 1)
+	assert.Equal(t, "test1", found[0].Key().String())
+	notFound, ok := errors.AsType[model.ErrNotFound](err)
+	require.True(t, ok)
+	assert.Equal(t, []model.Key{model.StringKey("nope")}, notFound.Keys)
 }
