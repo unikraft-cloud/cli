@@ -28,7 +28,7 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/pkg/model"
 )
 
 // TestEnv holds per-test environment for running CLI commands deterministically.

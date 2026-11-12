@@ -11,8 +11,8 @@ import (
 
 	"unikraft.com/cloud/sdk/platform/group"
 
-	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/pkg/model"
 )
 
 // Link models a resource reference using group.Ref-compatible fields.

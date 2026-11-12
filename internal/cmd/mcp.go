@@ -28,8 +28,8 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcp"
 	"unikraft.com/cli/internal/mcpserver"
-	"unikraft.com/cli/internal/model"
-	modelmcp "unikraft.com/cli/internal/model/mcp"
+	"unikraft.com/cli/pkg/model"
+	modelmcp "unikraft.com/cli/pkg/model/mcp"
 	xstdio "unikraft.com/x/stdio"
 )
 

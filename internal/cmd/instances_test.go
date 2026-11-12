@@ -16,8 +16,8 @@ import (
 
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/mirror"
-	"unikraft.com/cli/internal/model/patch"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model/patch"
 )
 
 func TestInstancePluginUnmarshalText(t *testing.T) {

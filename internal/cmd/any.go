@@ -15,10 +15,10 @@ import (
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/joinerrgroup"
 
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
 	wslices "unikraft.com/cli/internal/w/slices"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 )
 
 type AnyResourceCmd struct {

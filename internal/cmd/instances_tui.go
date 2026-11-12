@@ -18,8 +18,8 @@ import (
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/cloud/sdk/platform/logs"
 
-	modeltui "unikraft.com/cli/internal/model/tui"
 	"unikraft.com/cli/internal/multimetro"
+	modeltui "unikraft.com/cli/pkg/model/tui"
 )
 
 // Subpanels returns subpanels for instance detail views.

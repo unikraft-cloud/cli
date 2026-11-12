@@ -15,9 +15,9 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	jujuerrors "github.com/juju/errors"
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/tui/selector"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 )

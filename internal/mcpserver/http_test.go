@@ -24,8 +24,8 @@ import (
 	integ "unikraft.com/cli/internal/integration"
 	"unikraft.com/cli/internal/mcpserver"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
-	modelmcp "unikraft.com/cli/internal/model/mcp"
 	modelt "unikraft.com/cli/internal/model/testing"
+	modelmcp "unikraft.com/cli/pkg/model/mcp"
 )
 
 func newServer(t *testing.T, opts mcpserver.Options) *mcpserver.Server {

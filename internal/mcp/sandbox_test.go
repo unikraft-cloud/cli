@@ -16,7 +16,7 @@ import (
 
 	"unikraft.com/cli/internal/mcp"
 	"unikraft.com/cli/internal/mcpserver/mcptest"
-	modelmcp "unikraft.com/cli/internal/model/mcp"
+	modelmcp "unikraft.com/cli/pkg/model/mcp"
 	xstdio "unikraft.com/x/stdio"
 )
 

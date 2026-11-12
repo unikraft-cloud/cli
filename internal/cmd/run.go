@@ -16,9 +16,9 @@ import (
 	"unikraft.com/cloud/sdk/platform/logs"
 	"unikraft.com/x/kingkong"
 
-	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/muxreader"
+	"unikraft.com/cli/pkg/model"
 	xstdio "unikraft.com/x/stdio"
 )
 

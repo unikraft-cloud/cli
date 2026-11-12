@@ -15,8 +15,8 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/pkg/model"
 )
 
 // defaultMetro returns the metro if non-empty, otherwise falls back to the

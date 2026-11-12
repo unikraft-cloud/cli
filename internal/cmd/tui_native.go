@@ -14,9 +14,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"unikraft.com/cli/internal/branding"
-	"unikraft.com/cli/internal/model"
-	modeltui "unikraft.com/cli/internal/model/tui"
 	"unikraft.com/cli/internal/tui/uitui"
+	"unikraft.com/cli/pkg/model"
+	modeltui "unikraft.com/cli/pkg/model/tui"
 	xio "unikraft.com/x/io"
 	xstdio "unikraft.com/x/stdio"
 )

@@ -14,8 +14,8 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	modelmcp "unikraft.com/cli/internal/model/mcp"
 	"unikraft.com/cli/internal/types"
+	modelmcp "unikraft.com/cli/pkg/model/mcp"
 	xstdio "unikraft.com/x/stdio"
 )
 

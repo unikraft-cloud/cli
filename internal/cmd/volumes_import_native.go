@@ -28,8 +28,8 @@ import (
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
 
-	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/pkg/model"
 	xstdio "unikraft.com/x/stdio"
 )
 

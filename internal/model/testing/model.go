@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
 )
 
 // TestEnv holds all test state for TestModel operations.

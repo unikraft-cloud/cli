@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"unikraft.com/cloud/sdk/platform/group"
 
-	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/pkg/model"
 )
 
 const testUUID = "6ba7b810-9dad-11d1-80b4-00c04fd430c8"

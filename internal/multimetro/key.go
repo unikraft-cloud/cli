@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"unikraft.com/cloud/sdk/platform/group"
 
-	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/pkg/model"
 )
 
 type Key group.Ref

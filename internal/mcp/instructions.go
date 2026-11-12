@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	modelmcp "unikraft.com/cli/internal/model/mcp"
+	modelmcp "unikraft.com/cli/pkg/model/mcp"
 )
 
 func Instructions(readOnly bool, resources []string, docsURL, docsURI string) string {

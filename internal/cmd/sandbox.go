@@ -20,9 +20,9 @@ import (
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/value"
 	"unikraft.com/cloud/sdk/plugins/sandbox"
 	xio "unikraft.com/x/io"
 	"unikraft.com/x/shell"

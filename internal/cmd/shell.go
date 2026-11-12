@@ -20,9 +20,9 @@ import (
 	xsignal "unikraft.com/x/signal"
 	xstdio "unikraft.com/x/stdio"
 
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	"unikraft.com/cli/pkg/shellbuiltins"
 )
 

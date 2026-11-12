@@ -14,7 +14,7 @@ import (
 	"github.com/alecthomas/kong"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/pkg/model"
 	xstdio "unikraft.com/x/stdio"
 )
 

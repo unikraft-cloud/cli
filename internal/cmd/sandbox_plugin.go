@@ -21,9 +21,9 @@ import (
 	"unikraft.com/x/log"
 	"unikraft.com/x/ptr"
 
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/tui/selector"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	xstdio "unikraft.com/x/stdio"
 )
 

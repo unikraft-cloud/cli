@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"unikraft.com/cli/internal/cmd"
-	"unikraft.com/cli/internal/model/patch"
+	"unikraft.com/cli/pkg/model/patch"
 )
 
 // TestCertificateEditNeedsChainAndPkey checks that edit returns an error

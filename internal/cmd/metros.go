@@ -14,10 +14,10 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/httpclient"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
 	wsync "unikraft.com/cli/internal/w/sync"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
