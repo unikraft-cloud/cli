@@ -50,7 +50,7 @@ func NewClient(ctx context.Context) (*group.Group[MetroClient], error) {
 			return nil, err
 		}
 	}
-	g := group.New[MetroClient]()
+	g := group.New[MetroClient]().WithNotFound(NotFound)
 	for _, metro := range metros {
 		httpClient := httpclient.GetClient(ptr.ZeroIfNil(metro.Insecure))
 		copts := []platform.ClientOption{

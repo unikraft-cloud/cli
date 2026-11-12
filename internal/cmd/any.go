@@ -15,10 +15,10 @@ import (
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/joinerrgroup"
 
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
 	wslices "unikraft.com/cli/internal/w/slices"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 )
 
 type AnyResourceCmd struct {
@@ -240,7 +240,7 @@ func (a AnyResource) Get(ctx context.Context, keys []string) ([]model.Model, err
 		}
 	}
 	if len(missing) > 0 {
-		err = errors.Join(err, group.ErrRefNotFound{Refs: missing})
+		err = errors.Join(err, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))
 	}
 
 	var results []model.Model
@@ -265,8 +265,8 @@ func splitRefNotFound(err error) (group.Refs, error) {
 		}
 		return refs, errors.Join(errs...)
 	}
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
-		return notFound.Refs, nil
+	if refs, ok := multimetro.NotFoundRefs(err); ok {
+		return refs, nil
 	}
 	return nil, err
 }

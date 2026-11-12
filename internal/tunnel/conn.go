@@ -131,8 +131,8 @@ func (c *tunnelConnection) handle(ctx context.Context, auth []byte, instance, in
 }
 
 func isNetTimeoutError(err error) bool {
-	var neterr net.Error
-	return errors.As(err, &neterr) && neterr.Timeout()
+	neterr, ok := errors.AsType[net.Error](err)
+	return ok && neterr.Timeout()
 }
 
 func isNetClosedError(err error) bool {

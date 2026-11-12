@@ -28,6 +28,7 @@ import (
 	"unikraft.com/x/colors"
 	xio "unikraft.com/x/io"
 	"unikraft.com/x/log"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // MetroQuotasCmd displays quota usage for metros in an interactive TUI.
@@ -37,7 +38,7 @@ type MetroQuotasCmd struct {
 	Watch *time.Duration `short:"w" help:"Watch for changes and refresh output. Defaults to 2s." type:"optional" placeholder:"duration"`
 }
 
-func (cmd *MetroQuotasCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (cmd *MetroQuotasCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	profile, err := config.G(ctx).CurrentProfile()
 	if err != nil {
 		return fmt.Errorf("failed to load profile: %w", err)

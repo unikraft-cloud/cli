@@ -24,11 +24,12 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
+	"unikraft.com/cli/pkg/model/value"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type ServicesCmd struct {
@@ -52,7 +53,7 @@ type ServiceDeleteCmd struct {
 
 // Run deletes the service groups. With Drain or WaitEmpty, it deletes each
 // group when it has no instances, and finds the groups by UUID.
-func (c *ServiceDeleteCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *ServiceDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	if !c.Drain && !c.WaitEmpty {
 		return c.ModelBulkRemoveCmd.Run(ctx, stdio, partition)
 	}
@@ -93,7 +94,7 @@ func (c *ServiceDeleteCmd) Run(ctx context.Context, stdio config.Stdio, partitio
 	waiting := make(map[string]int, len(pending))
 	for {
 		current, err := ServiceGroup{}.Get(ctx, slices.Sorted(maps.Keys(pending)))
-		if _, ok := errors.AsType[group.ErrRefNotFound](err); err != nil && !ok {
+		if _, ok := errors.AsType[model.ErrNotFound](err); err != nil && !ok {
 			return errors.Join(append(errs, err)...)
 		}
 		instances := make(map[string]multimetro.Keys, len(current))

@@ -22,8 +22,8 @@ import (
 	"unikraft.com/x/ptr"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/logfmt"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/pkg/logfmt"
 )
 
 type LoginCmd struct {

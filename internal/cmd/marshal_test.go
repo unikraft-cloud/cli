@@ -16,10 +16,10 @@ import (
 	"unikraft.com/cloud/sdk/platform"
 
 	"unikraft.com/cli/internal/cmd"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/patch"
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/patch"
+	"unikraft.com/cli/pkg/model/value"
 )
 
 // TestJSONRoundTrip covers types that accept both a compact text form and a

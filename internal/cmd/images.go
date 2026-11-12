@@ -29,10 +29,11 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/images"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type ImagesCmd struct {
@@ -89,7 +90,7 @@ func (Image) Type() model.Type {
 }
 
 func (i Image) Key() model.Key {
-	return staticKey(i.Ref.String())
+	return model.StringKey(i.Ref.String())
 }
 
 func (i Image) Raw() any {
@@ -138,6 +139,7 @@ func (Image) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	}
 
 	perKey := make([][]model.Model, len(keys))
+	missing := make([]bool, len(keys))
 	eg := joinerrgroup.Group{}
 	for i, key := range keys {
 		eg.Go(func() error {
@@ -152,7 +154,8 @@ func (Image) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 			}
 			if err != nil {
 				if errdefs.IsNotFound(err) {
-					return group.ErrRefNotFound{Refs: group.Refs{{Name: key}}}
+					missing[i] = true
+					return nil
 				}
 				return fmt.Errorf("failed to resolve image %q: %w", key, err)
 			}
@@ -195,7 +198,7 @@ func (Image) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 			return nil
 		})
 	}
-	err = eg.Wait()
+	err = errors.Join(eg.Wait(), imagesNotFound(keys, missing))
 	return slices.Concat(perKey...), err
 }
 
@@ -205,8 +208,9 @@ func (Image) Delete(ctx context.Context, keys []string) error {
 		return err
 	}
 
+	missing := make([]bool, len(keys))
 	eg := joinerrgroup.Group{}
-	for _, key := range keys {
+	for i, key := range keys {
 		eg.Go(func() error {
 			uri, err := imagespec.GuessLocation(key)
 			if err != nil {
@@ -214,7 +218,8 @@ func (Image) Delete(ctx context.Context, keys []string) error {
 			}
 			if err := access.Delete(ctx, uri); err != nil {
 				if errdefs.IsNotFound(err) {
-					return group.ErrRefNotFound{Refs: group.Refs{{Name: key}}}
+					missing[i] = true
+					return nil
 				}
 				return fmt.Errorf("deleting image %q: %w", key, err)
 			}
@@ -222,7 +227,22 @@ func (Image) Delete(ctx context.Context, keys []string) error {
 			return nil
 		})
 	}
-	return eg.Wait()
+	return errors.Join(eg.Wait(), imagesNotFound(keys, missing))
+}
+
+// imagesNotFound returns one not-found error for every missing key, so that
+// errors.As sees all of them rather than only the first.
+func imagesNotFound(keys []string, missing []bool) error {
+	var refs group.Refs
+	for i, key := range keys {
+		if missing[i] {
+			refs = append(refs, group.Ref{Name: key})
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	return multimetro.NotFound(group.ErrRefNotFound{Refs: refs})
 }
 
 func (Image) Examples() map[cmd.CmdType][]kingkong.Example {
@@ -272,7 +292,7 @@ func (ImageEntry) Type() model.Type {
 }
 
 func (i ImageEntry) Key() model.Key {
-	return staticKey(i.Ref.String())
+	return model.StringKey(i.Ref.String())
 }
 
 func (i ImageEntry) Raw() any {
@@ -378,7 +398,7 @@ func listPlatformImages(ctx context.Context) ([]model.Model, error) {
 	return group.CollectAllSlices(ctx, g, func(ctx context.Context, c multimetro.MetroClient) ([]model.Model, error) {
 		log.G(ctx).Trace().Msg("listing images from image-store")
 
-		resp, err := c.GetImageStore(ctx, nil, platform.GetImageStoreOpts{})
+		resp, err := c.GetImageStore(ctx, platform.GetImageStoreOpts{})
 		if err != nil {
 			log.G(ctx).Warn().Err(err).Msg("image-store listing failed, falling back to /v1/images")
 			var fallbackErr error
@@ -504,7 +524,7 @@ func (ImageEntry) Get(ctx context.Context, keys []string) ([]model.Model, error)
 	}
 	var missingErr error
 	if len(missing) > 0 {
-		missingErr = group.ErrRefNotFound{Refs: missing}
+		missingErr = multimetro.NotFound(group.ErrRefNotFound{Refs: missing})
 	}
 	return results, errors.Join(errors.Join(errs...), missingErr)
 }
@@ -705,7 +725,7 @@ type ImagesGetCmd struct {
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 }
 
-func (c *ImagesGetCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *ImagesGetCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	if c.Insecure != nil {
 		var opts []images.AccessorOpt
 		if len(c.Insecure) > 0 {
@@ -723,7 +743,7 @@ type ImagesDeleteCmd struct {
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 }
 
-func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	if c.Insecure != nil {
 		var opts []images.AccessorOpt
 		if len(c.Insecure) > 0 {
@@ -827,7 +847,7 @@ type ImagesListCmd struct {
 	Namespace []string `help:"Only list images in this namespace."`
 }
 
-func (c *ImagesListCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *ImagesListCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	return c.ModelListCmd.Run(context.WithValue(ctx, imageNamespacesKey{}, c.Namespace), stdio, partition)
 }
 

@@ -14,9 +14,9 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"unikraft.com/cli/internal/config"
-	modelmcp "unikraft.com/cli/internal/model/mcp"
 	"unikraft.com/cli/internal/types"
+	modelmcp "unikraft.com/cli/pkg/model/mcp"
+	xstdio "unikraft.com/x/stdio"
 )
 
 const (
@@ -27,11 +27,11 @@ const (
 // InstanceCommands runs the CLI's instance commands on behalf of the
 // instance tools, writing their output to the given stdio.
 type InstanceCommands interface {
-	Start(ctx context.Context, stdio config.Stdio, instances []string) error
-	Stop(ctx context.Context, stdio config.Stdio, instances []string, opts InstanceStopOptions) error
-	Restart(ctx context.Context, stdio config.Stdio, instances []string, opts InstanceStopOptions) error
-	Suspend(ctx context.Context, stdio config.Stdio, instances []string, drainTimeout types.DurationMS) error
-	Logs(ctx context.Context, stdio config.Stdio, instance string, tail int) error
+	Start(ctx context.Context, stdio xstdio.Stdio, instances []string) error
+	Stop(ctx context.Context, stdio xstdio.Stdio, instances []string, opts InstanceStopOptions) error
+	Restart(ctx context.Context, stdio xstdio.Stdio, instances []string, opts InstanceStopOptions) error
+	Suspend(ctx context.Context, stdio xstdio.Stdio, instances []string, drainTimeout types.DurationMS) error
+	Logs(ctx context.Context, stdio xstdio.Stdio, instance string, tail int) error
 }
 
 // InstanceStopOptions carries the flags shared by stop and restart; a
@@ -78,7 +78,7 @@ func AddInstanceTools(tools *modelmcp.Tools, commands InstanceCommands) error {
 		Description: "Read the last lines of an instance's console output; the first place to look when an instance fails to start or misbehaves. Returns plain text.",
 		InputSchema: logs,
 		Annotations: modelmcp.ReadOnlyAnnotations(),
-	}, false, func(ctx context.Context, in instanceLogsArgs, stdio config.Stdio) error {
+	}, false, func(ctx context.Context, in instanceLogsArgs, stdio xstdio.Stdio) error {
 		return commands.Logs(ctx, stdio, in.Key, cmp.Or(in.Tail, defaultLogTail))
 	}), tools.AddTool("instance", &mcp.Tool{
 		Name:        "instance_control",
@@ -86,7 +86,7 @@ func AddInstanceTools(tools *modelmcp.Tools, commands InstanceCommands) error {
 		Description: "Start, stop, restart or suspend instances. Stop and restart drain connections first unless force is set; a suspended instance resumes from memory on its next request. Returns the updated instances.",
 		InputSchema: control,
 		Annotations: modelmcp.MutatingAnnotations(),
-	}, true, func(ctx context.Context, in instanceControlArgs, stdio config.Stdio) error {
+	}, true, func(ctx context.Context, in instanceControlArgs, stdio xstdio.Stdio) error {
 		if len(in.Keys) == 0 {
 			return errors.New("no instances specified")
 		}

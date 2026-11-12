@@ -17,14 +17,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/tui/styles"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/x/colors"
 	xio "unikraft.com/x/io"
+	xstdio "unikraft.com/x/stdio"
 )
 
-func runQuotasTUI(ctx context.Context, stdio config.Stdio, cmd *MetroQuotasCmd, watch *time.Duration) error {
+func runQuotasTUI(ctx context.Context, stdio xstdio.Stdio, cmd *MetroQuotasCmd, watch *time.Duration) error {
 	m := newQuotasModel(ctx, cmd.Metro, watch)
 	p := tea.NewProgram(m, tea.WithInput(stdio.Stdin), tea.WithOutput(xio.Unwrap(stdio.Stdout)))
 	_, err := p.Run()

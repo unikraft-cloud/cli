@@ -35,7 +35,7 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/pkg/model"
 )
 
 // remoteContext is the name the session serves the build context under.
