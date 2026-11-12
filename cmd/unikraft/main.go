@@ -19,8 +19,8 @@ import (
 
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/logfmt"
 	"unikraft.com/cli/internal/telemetry"
+	"unikraft.com/cli/pkg/logfmt"
 	"unikraft.com/x/colors"
 	"unikraft.com/x/log"
 	xsignal "unikraft.com/x/signal"

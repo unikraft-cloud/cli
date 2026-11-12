@@ -17,9 +17,10 @@ import (
 	"unikraft.com/x/log"
 )
 
+// LogLevelSymbol prefixes each text log line, colored by its level.
 const LogLevelSymbol = "│"
 
-// New returns a slog.Logger backed by a JSON or text handler.
+// New returns a logger that writes JSON or colored text to sink.
 func New(sink io.Writer, typ log.Type, level log.Level) *log.Logger {
 	var logger log.Logger
 

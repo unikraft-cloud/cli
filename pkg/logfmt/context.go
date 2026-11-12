@@ -13,10 +13,12 @@ import (
 
 type logTypeContextKey struct{}
 
+// WithLogType records the log format the logger was set up with.
 func WithLogType(ctx context.Context, typ log.Type) context.Context {
 	return context.WithValue(ctx, logTypeContextKey{}, typ)
 }
 
+// LogType returns the log format recorded by WithLogType, or text.
 func LogType(ctx any) log.Type {
 	if v, ok := ctx.(context.Context).Value(logTypeContextKey{}).(log.Type); ok {
 		return v
