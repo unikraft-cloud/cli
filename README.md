@@ -4,7 +4,7 @@
 >
 > This is the new **[Unikraft CLI](https://unikraft.com/docs/cli)**. It is actively worked upon to deliver the latest **Unikraft Cloud** features to your CLI. [Feedback appreciated](https://unikraft.link/devsurvey)!
 
-The official command-line interface for [Unikraft Cloud](https://unikraft.cloud) — deploy and manage unikernels globally in milliseconds.
+The official command-line interface for [Unikraft Cloud](https://unikraft.com) — run any Dockerfile as a microVM that cold-starts in milliseconds, scales to zero, and has VM-grade isolation.
 
 ## Development
 
@@ -13,10 +13,11 @@ release process.
 
 ## Features
 
-- **Deploy Instantly** — Run unikernel images as serverless instances with `unikraft run`
+- **Deploy Instantly** — Run any image or Dockerfile as a microVM with `unikraft run`, cold-starting in milliseconds
+- **VM-Grade Isolation** — Every instance runs in its own hardware-isolated microVM, not a shared kernel
+- **Scale-to-Zero** — Instances sleep when idle and resume in milliseconds, so you never pay for idle
 - **Global Infrastructure** — Deploy across multiple metros with automatic multi-region support
 - **Resource Management** — Full CRUD operations for instances, volumes, services, certificates, and images
-- **Scale-to-Zero** — Built-in support for scale-to-zero policies to optimize costs
 - **Multiple Output Formats** — Machine-readable JSON or human-friendly text output
 - **Profile Management** — Switch between multiple accounts and configurations
 - **Shell Completions** — Tab completion for Bash, Zsh, Fish, and PowerShell
@@ -293,7 +294,7 @@ unikraft instances logs my-instance
 | Command        | Description                                                                    |
 | -------------- | ------------------------------------------------------------------------------ |
 | `run`          | Run an image as an instance                                                    |
-| `build`        | Build a Unikraft project into a VM image                                       |
+| `build`        | Build a Dockerfile or Unikraft project into an image                           |
 | `tui`          | Browse resources in a TUI                                                      |
 | `mcp`          | Serve Unikraft Cloud to AI assistants over the Model Context Protocol          |
 | `metros`       | List available metro locations                                                 |

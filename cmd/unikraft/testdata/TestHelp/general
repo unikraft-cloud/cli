@@ -1,6 +1,7 @@
 $ unikraft
 
-The Unikraft Command-Line Interface.
+The Unikraft Cloud CLI.
+Run any Dockerfile as a microVM that cold-starts in milliseconds.
     _
   c'3'o  .-.  Docs:   https://unikraft.com/docs/cli
   (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues
@@ -106,7 +107,8 @@ exit code: 1
 
 $ unikraft --help
 
-The Unikraft Command-Line Interface.
+The Unikraft Cloud CLI.
+Run any Dockerfile as a microVM that cold-starts in milliseconds.
     _
   c'3'o  .-.  Docs:   https://unikraft.com/docs/cli
   (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues
@@ -214,7 +216,8 @@ exit code: 1
 
 $ unikraft --help --bad-flag
 
-The Unikraft Command-Line Interface.
+The Unikraft Cloud CLI.
+Run any Dockerfile as a microVM that cold-starts in milliseconds.
     _
   c'3'o  .-.  Docs:   https://unikraft.com/docs/cli
   (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues
@@ -319,7 +322,8 @@ exit code: 1
 
 $ unikraft --help bad-arg
 
-The Unikraft Command-Line Interface.
+The Unikraft Cloud CLI.
+Run any Dockerfile as a microVM that cold-starts in milliseconds.
     _
   c'3'o  .-.  Docs:   https://unikraft.com/docs/cli
   (| |)_/     Issues: https://github.com/unikraft-cloud/cli/issues
