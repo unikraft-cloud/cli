@@ -85,13 +85,15 @@ func TestShellEnvFlagKeepsCommas(t *testing.T) {
 }
 
 // onePlugin runs a single command: it delivers out on standard output and err
-// on standard error, exits with code, and records the signals it was sent.
+// on standard error, exits with code, and records whether it was asked for a
+// pty and the signals it was sent.
 type onePlugin struct {
 	out  string
 	err  string
 	code int32
 
 	mu      sync.Mutex
+	pty     bool
 	signals []int
 }
 
@@ -99,6 +101,16 @@ func (f *onePlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/v1/instances/inst-1/plugins/sandbox")
 
 	switch {
+	case path == "/commands" && r.Method == http.MethodPost:
+		var req struct {
+			Pty bool `json:"pty"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		f.mu.Lock()
+		f.pty = req.Pty
+		f.mu.Unlock()
+
 	case strings.HasSuffix(path, "/ws"):
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
@@ -207,4 +219,11 @@ func TestExecKeepsTheStreamsApart(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "out\n", stdout.String())
 	assert.Equal(t, "err\n", stderr.String())
+}
+
+func TestExecWithTTYNeedsATerminal(t *testing.T) {
+	err := (&ExecSandboxInstanceCmd{Cmd: []string{"sh"}, TTY: true}).runOn(t.Context(),
+		fakeSandboxTarget(t, &onePlugin{}), stdio.Stdio{Stdout: io.Discard, Stderr: io.Discard})
+
+	require.ErrorContains(t, err, "--tty")
 }

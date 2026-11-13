@@ -2855,9 +2855,7 @@ loaded.
 The environment given with `--env` is the whole environment the
 command sees, not an addition to it.
 
-Standard input is forwarded to the command only when it is
-redirected from a file or a pipe. Run from a terminal, the command
-sees an empty standard input and cannot be typed at.
+Run from a terminal, the command gets a terminal on the instance.
 
 Usage:
   unikraft instances exec <target> <command> ... [flags]
@@ -2890,6 +2888,10 @@ Flags:
   -e, --env=<key>=<value> ...
           Environment variable.
           [example: DEBUG=true]
+  -t, --tty
+          Run the command on a terminal, and fail when not run from one.
+  -T, --no-tty
+          Run the command on pipes, even from a terminal.
 
 Global flags:
   -h, --help
