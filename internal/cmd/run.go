@@ -130,16 +130,7 @@ func (c *InstanceRunCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition 
 
 	fmt.Fprintln(stdio.Stdout)
 
-	keys := make(multimetro.Keys, 0, len(created))
-	for _, res := range created {
-		instance, ok := res.(Instance)
-		if !ok {
-			return fmt.Errorf("unexpected resource type %T", res)
-		}
-		keys = append(keys, instance.key)
-	}
-
-	mux, watch, cancel, err := newInstanceLogMux(ctx, keys, nil, true, true)
+	mux, watch, cancel, err := newInstanceLogMux(ctx, instanceKeys(created), nil, true, true)
 	if err != nil {
 		return err
 	}
@@ -236,6 +227,15 @@ func newInstanceLogMux(ctx context.Context, keys multimetro.Keys, tail *int, fol
 	mux.Seal()
 
 	return mux, func() { watchInstances(ctx, followers) }, cancel, nil
+}
+
+// instanceKeys returns the keys of instances, with their metro set.
+func instanceKeys(instances []model.Model) multimetro.Keys {
+	keys := make(multimetro.Keys, 0, len(instances))
+	for _, m := range instances {
+		keys = append(keys, m.Key().(multimetro.Key))
+	}
+	return keys
 }
 
 // watchInstances gives each follower its instance after the instance is

@@ -1827,14 +1827,12 @@ func (cmd InstancesLogsCmd) Examples() []kingkong.Example {
 }
 
 func (cmd *InstancesLogsCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
-	keys := multimetro.ParseKeys(cmd.Targets)
-
-	_, err := Instance{}.Get(ctx, keys.Strings())
+	found, err := Instance{}.Get(ctx, cmd.Targets)
 	if err != nil {
 		return err
 	}
 
-	mux, watch, cancel, err := newInstanceLogMux(ctx, keys, cmd.Tail, cmd.Follow, cmd.Prefix)
+	mux, watch, cancel, err := newInstanceLogMux(ctx, instanceKeys(found), cmd.Tail, cmd.Follow, cmd.Prefix)
 	if err != nil {
 		return err
 	}
@@ -1891,7 +1889,7 @@ func (c *InstancesStartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 		cancel context.CancelFunc
 	)
 	if c.Follow {
-		mux, watch, cancel, err = newInstanceLogMux(ctx, keys, new(0), true, true)
+		mux, watch, cancel, err = newInstanceLogMux(ctx, instanceKeys(before), new(0), true, true)
 		if err != nil {
 			return err
 		}
