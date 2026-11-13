@@ -109,7 +109,7 @@ Flags:
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --follow
-          Follow instance logs after creation.
+          Follow instance logs after creation, until the instances stop.
 
 Global flags:
   -h, --help

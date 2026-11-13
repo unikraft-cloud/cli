@@ -25,7 +25,6 @@ import (
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
-	"unikraft.com/cloud/sdk/platform/logs"
 	"unikraft.com/cloud/sdk/platform/stop"
 	"unikraft.com/cloud/sdk/platform/timeouts"
 	"unikraft.com/x/kingkong"
@@ -1801,7 +1800,7 @@ type InstancesLogsCmd struct {
 
 	Prefix bool `help:"Prefix log lines with instance name." negatable:"" default:"true"`
 	Tail   *int `help:"Number of lines to show from the end of the logs."`
-	Follow bool `short:"f" help:"Follow log output."`
+	Follow bool `short:"f" help:"Follow log output until the instances stop."`
 }
 
 func (cmd InstancesLogsCmd) Examples() []kingkong.Example {
@@ -1835,36 +1834,14 @@ func (cmd *InstancesLogsCmd) Run(ctx context.Context, stdio xstdio.Stdio) error 
 		return err
 	}
 
-	g, err := multimetro.NewClient(ctx)
+	mux, watch, cancel, err := newInstanceLogMux(ctx, keys, cmd.Tail, cmd.Follow, cmd.Prefix)
 	if err != nil {
 		return err
 	}
-
-	mux := muxreader.New()
-	if !cmd.Prefix {
-		mux.DisablePrefix()
-	}
+	defer cancel()
 	defer mux.Close()
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	err = group.DoRefs(ctx, g, keys.Refs(), func(_ context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
-		for _, ref := range refs {
-			key := multimetro.Key(ref)
-			r, err := logs.InstanceLogs(ctx, c).Reader(ref.NameOrUUID(), cmd.Tail, cmd.Follow)
-			if err != nil {
-				return nil, err
-			}
-			mux.With(key.String(), r)
-		}
-		return refs, nil
-	})
-	if err != nil {
-		return err
-	}
-	mux.Seal()
-
+	go watch()
 	_, err = io.Copy(stdio.Stdout, mux)
 	if cmd.Follow && errors.Is(err, context.Canceled) {
 		return nil
@@ -1875,7 +1852,7 @@ func (cmd *InstancesLogsCmd) Run(ctx context.Context, stdio xstdio.Stdio) error 
 type InstancesStartCmd struct {
 	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instances to start."`
 
-	Follow bool `help:"Follow log output after starting."`
+	Follow bool `help:"Follow log output after starting, until the instances stop."`
 
 	cmd.FormatOpts
 }
@@ -1908,10 +1885,13 @@ func (c *InstancesStartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 		return err
 	}
 
-	var mux *muxreader.Mux
+	var (
+		mux    *muxreader.Mux
+		watch  func()
+		cancel context.CancelFunc
+	)
 	if c.Follow {
-		var cancel context.CancelFunc
-		mux, cancel, err = newInstanceLogMux(ctx, keys, new(0), true)
+		mux, watch, cancel, err = newInstanceLogMux(ctx, keys, new(0), true, true)
 		if err != nil {
 			return err
 		}
@@ -1953,6 +1933,7 @@ func (c *InstancesStartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	}
 	fmt.Fprintln(stdio.Stdout)
 
+	go watch()
 	_, err = io.Copy(stdio.Stdout, mux)
 	if mux != nil && errors.Is(err, context.Canceled) {
 		return nil
@@ -2037,7 +2018,7 @@ type InstancesRestartCmd struct {
 	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instances to restart."`
 	StopOpts
 
-	Follow bool `help:"Follow log output after restarting."`
+	Follow bool `help:"Follow log output after restarting, until the instances stop."`
 
 	cmd.FormatOpts
 }
@@ -2084,10 +2065,11 @@ func (c *InstancesRestartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error
 
 	var (
 		mux    *muxreader.Mux
+		watch  func()
 		cancel context.CancelFunc
 	)
 	if c.Follow {
-		mux, cancel, err = newInstanceLogMux(ctx, stopped, new(0), true)
+		mux, watch, cancel, err = newInstanceLogMux(ctx, stopped, new(0), true, true)
 		if err != nil {
 			return err
 		}
@@ -2133,6 +2115,7 @@ func (c *InstancesRestartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error
 	}
 	fmt.Fprintln(stdio.Stdout)
 
+	go watch()
 	_, err = io.Copy(stdio.Stdout, mux)
 	if errors.Is(err, context.Canceled) {
 		return nil
