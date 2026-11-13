@@ -47,9 +47,34 @@ cmd: ["python3", "/app/server.py"]
 	},
 }
 
-// followArgs counts the boots in /data/n and prints the count. The first boot
-// waits until the test stops it, and the next boots exit with code 0.
-const followArgs = `runtime.args=["sh","-c","n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; [ $n -ge 2 ] || sleep 30s"]`
+// followScript counts the boots in /data/n and prints the count. The first
+// boot waits until the test stops it, and the next boots exit with code 0.
+const followScript = `
+n=$(cat /data/n 2>/dev/null || echo 0)
+n=$((n + 1))
+echo $n > /data/n
+echo starting $n
+if [ $n -lt 2 ]; then
+	sleep 30s
+fi
+`
+
+// restartScript counts the boots in /data/n and prints the count. The first
+// boot fails, and the next boots exit with code 0.
+const restartScript = `
+n=$(cat /data/n 2>/dev/null || echo 0)
+n=$((n + 1))
+echo $n > /data/n
+echo starting $n
+[ $n -ge 2 ]
+`
+
+// scriptArgs returns the value for --set that runs script with sh.
+func scriptArgs(t *testing.T, script string) string {
+	args, err := json.Marshal([]string{"sh", "-c", script})
+	require.NoError(t, err)
+	return "runtime.args=" + string(args)
+}
 
 const sandboxPluginRom = "plugins/sandbox:latest"
 
@@ -488,7 +513,7 @@ func TestInstances(t *testing.T) {
 			"--image", image,
 			"--restart", "on-failure",
 			"--volume", "test-" + volName + ":/data",
-			"--args", `sh -c 'n=$(cat /data/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > /data/n; echo starting $n; [ $n -ge 2 ]'`,
+			"--set", scriptArgs(t, restartScript),
 			"--follow",
 		}, integ.WithTimeout(90*time.Second))
 		assert.Regexp(t, `(?s)starting 1.*starting 2.*instance stopped.*exit-code=0`, out)
@@ -542,7 +567,7 @@ func TestInstances(t *testing.T) {
 			"--set", "resources.memory=128",
 			"--set", "resources.vcpus=1",
 			"--set", "volumes=test-" + volName + ":/data",
-			"--set", followArgs,
+			"--set", scriptArgs(t, followScript),
 		})
 
 		// First boot ("starting 1"): start, wait running, then stop.
@@ -595,7 +620,7 @@ func TestInstances(t *testing.T) {
 			"--set", "resources.memory=128",
 			"--set", "resources.vcpus=1",
 			"--set", "volumes=test-" + volName + ":/data",
-			"--set", followArgs,
+			"--set", scriptArgs(t, followScript),
 		})
 		r.Run(t, []string{"unikraft", "instance", "wait", "--until", "state==running", "--timeout", "30s", "test-" + instName})
 
