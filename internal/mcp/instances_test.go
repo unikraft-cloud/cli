@@ -15,39 +15,39 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcp"
-	"unikraft.com/cli/internal/mcpserver/mcptest"
-	modelmcp "unikraft.com/cli/internal/model/mcp"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/mcpserver/mcptest"
+	modelmcp "unikraft.com/cli/pkg/model/mcp"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type fakeInstances struct {
 	calls []string
 }
 
-func (f *fakeInstances) Start(_ context.Context, stdio config.Stdio, instances []string) error {
+func (f *fakeInstances) Start(_ context.Context, stdio xstdio.Stdio, instances []string) error {
 	f.calls = append(f.calls, "start "+strings.Join(instances, ","))
 	_, err := fmt.Fprintf(stdio.Stdout, `[{"name": %q, "state": "running"}]`, instances[0])
 	return err
 }
 
-func (f *fakeInstances) Stop(_ context.Context, _ config.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
+func (f *fakeInstances) Stop(_ context.Context, _ xstdio.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
 	f.calls = append(f.calls, fmt.Sprintf("stop %s force=%t drain=%d", strings.Join(instances, ","), opts.Force, opts.DrainTimeout))
 	return nil
 }
 
-func (f *fakeInstances) Restart(_ context.Context, _ config.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
+func (f *fakeInstances) Restart(_ context.Context, _ xstdio.Stdio, instances []string, opts mcp.InstanceStopOptions) error {
 	f.calls = append(f.calls, fmt.Sprintf("restart %s force=%t drain=%d", strings.Join(instances, ","), opts.Force, opts.DrainTimeout))
 	return nil
 }
 
-func (f *fakeInstances) Suspend(_ context.Context, _ config.Stdio, instances []string, drainTimeout types.DurationMS) error {
+func (f *fakeInstances) Suspend(_ context.Context, _ xstdio.Stdio, instances []string, drainTimeout types.DurationMS) error {
 	f.calls = append(f.calls, fmt.Sprintf("suspend %s drain=%d", strings.Join(instances, ","), drainTimeout))
 	return nil
 }
 
-func (f *fakeInstances) Logs(_ context.Context, stdio config.Stdio, instance string, tail int) error {
+func (f *fakeInstances) Logs(_ context.Context, stdio xstdio.Stdio, instance string, tail int) error {
 	f.calls = append(f.calls, fmt.Sprintf("logs %s tail=%d", instance, tail))
 	fmt.Fprintln(stdio.Stdout, "line 1\nline 2")
 	return nil

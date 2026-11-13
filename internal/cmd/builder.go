@@ -18,9 +18,10 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type BuilderCmd struct {
@@ -55,7 +56,7 @@ func (Builder) Type() model.Type {
 }
 
 func (b Builder) Key() model.Key {
-	return staticKey(b.Name)
+	return model.StringKey(b.Name)
 }
 
 func (b Builder) Raw() any {
@@ -73,7 +74,7 @@ func (Builder) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	}
 	var results []model.Model
 	for _, name := range keys {
-		s, err := client.GetBuilder(ctx, name)
+		s, err := client.GetBuilder(ctx, name, buildapi.GetBuilderOptions{})
 		if err != nil {
 			return results, builderError(err, name)
 		}
@@ -120,7 +121,7 @@ func (Builder) Delete(ctx context.Context, keys []string) error {
 		return err
 	}
 	for _, name := range keys {
-		if err := client.DeleteBuilder(ctx, name); err != nil {
+		if err := client.DeleteBuilder(ctx, name, buildapi.DeleteBuilderOptions{}); err != nil {
 			return builderError(err, name)
 		}
 	}
@@ -179,7 +180,7 @@ type BuilderGetCmd struct {
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
 }
 
-func (c *BuilderGetCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *BuilderGetCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	return c.ModelGetCmd.Run(context.WithValue(ctx, builderRemoteKey{}, c.Remote), stdio, nil)
 }
 
@@ -188,7 +189,7 @@ type BuilderListCmd struct {
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builders. Defaults to the build_url of the profile."`
 }
 
-func (c *BuilderListCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *BuilderListCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	return c.ModelListCmd.Run(context.WithValue(ctx, builderRemoteKey{}, c.Remote), stdio, nil)
 }
 
@@ -197,7 +198,7 @@ type BuilderDeleteCmd struct {
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
 }
 
-func (c *BuilderDeleteCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *BuilderDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	return c.ModelRemoveCmd.Run(context.WithValue(ctx, builderRemoteKey{}, c.Remote), stdio, nil)
 }
 
@@ -261,19 +262,19 @@ func (c *BuilderCreateCmd) Run(ctx context.Context, cfg *config.Config) error {
 	if c.Cache != 0 {
 		b.CacheMb = new(int64(c.Cache))
 	}
-	if _, err := client.CreateBuilder(ctx, b); err != nil {
+	if _, err := client.CreateBuilder(ctx, b, buildapi.CreateBuilderOptions{}); err != nil {
 		return err
 	}
 	log.G(ctx).Info().Str("name", c.Name).Msg("builder ready")
 	return nil
 }
 
-func (c *BuilderDuCmd) Run(ctx context.Context, cfg *config.Config, stdio config.Stdio) error {
+func (c *BuilderDuCmd) Run(ctx context.Context, cfg *config.Config, stdio xstdio.Stdio) error {
 	client, err := builderClient(cfg, c.Remote)
 	if err != nil {
 		return err
 	}
-	u, err := client.GetBuilderUsage(ctx, c.Name)
+	u, err := client.GetBuilderUsage(ctx, c.Name, buildapi.GetBuilderUsageOptions{})
 	if err != nil {
 		return builderError(err, c.Name)
 	}
@@ -286,7 +287,7 @@ func (c *BuilderPruneCmd) Run(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	resp, err := client.PruneBuilder(ctx, c.Name)
+	resp, err := client.PruneBuilder(ctx, c.Name, buildapi.PruneBuilderOptions{})
 	if err != nil {
 		return builderError(err, c.Name)
 	}
@@ -321,8 +322,7 @@ func builderClientOf(ctx context.Context) (*buildapi.Client, *config.Profile, er
 
 // builderError tells how to create the named builder when the service has none.
 func builderError(err error, name string) error {
-	var apiErr *buildapi.APIError
-	if errors.As(err, &apiErr) && apiErr.Code == buildapi.ErrorCodeNotFound {
+	if apiErr, ok := errors.AsType[*buildapi.APIError](err); ok && apiErr.Code == buildapi.ErrorCodeNotFound {
 		return fmt.Errorf("there is no builder %s: create it with unikraft builder create %s", name, name)
 	}
 	return err

@@ -49,6 +49,7 @@ func TestRemoteRequest(t *testing.T) {
 				NoCache:  true,
 				Secret:   []string{"id=npm,src=/home/me/.npmrc"},
 				SSH:      []string{"default"},
+				Metro:    []string{"fra"},
 			},
 			want: `{
 				"kraftfile": {"session": "context", "filename": "kraft.yaml"},
@@ -56,6 +57,7 @@ func TestRemoteRequest(t *testing.T) {
 				"platforms": ["arm64"],
 				"build_args": {"VERSION": "1.2.3"},
 				"no_cache": true,
+				"hints": {"metros": ["fra"]},
 				"secrets": {"npm": {"session": "npm"}},
 				"ssh": {"default": {"session": "default"}},
 				"registries": {"*": {"session": true}},
@@ -110,7 +112,7 @@ func TestRemoteRequest(t *testing.T) {
 	for name, cmd := range map[string]ImageBuildCmd{
 		"an output on disk":    {Output: "oci-archive://app.tar"},
 		"insecure registries":  {Output: "my-org/my-app", Insecure: []string{}},
-		"a plain http service": {Remote: "http://localhost:8080", Output: "my-org/my-app"},
+		"a plain http service": {Remote: new("http://localhost:8080"), Output: "my-org/my-app"},
 	} {
 		t.Run("refuses "+name, func(t *testing.T) {
 			t.Parallel()
@@ -148,7 +150,7 @@ func TestFollowRemoteCancelsARefusedSession(t *testing.T) {
 	s, err := session.NewSession(t.Context(), "")
 	require.NoError(t, err)
 
-	err = followRemote(t.Context(), client, buildapi.CreateBuildRequest{}, s, nil)
+	err = followRemote(t.Context(), client, buildapi.CreateBuildRequest{}, s)
 	var apiErr *buildapi.APIError
 	require.ErrorAs(t, err, &apiErr)
 	assert.Equal(t, buildapi.ErrorCodeInvalid, apiErr.Code)

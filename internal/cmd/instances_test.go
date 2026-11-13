@@ -16,8 +16,8 @@ import (
 
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/mirror"
-	"unikraft.com/cli/internal/model/patch"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model/patch"
 )
 
 func TestInstancePluginUnmarshalText(t *testing.T) {
@@ -260,8 +260,13 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 		},
 		{
 			name: "every key",
-			in:   "type=rolling,by=tags,target=env-prod,batch=3,healthy-after=30s",
-			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, By: cmd.RolloutByTags, Target: []string{"env-prod"}, Batch: 3, HealthyAfter: types.DurationS(30)},
+			in:   "type=rolling,by=tags,target=env-prod,batch=3,healthy-after=30s,drain-timeout=5s",
+			want: cmd.InstanceRollout{Type: cmd.RolloutRolling, By: cmd.RolloutByTags, Target: []string{"env-prod"}, Batch: 3, HealthyAfter: types.DurationS(30), DrainTimeout: new(types.DurationMS(5000))},
+		},
+		{
+			name: "drain-timeout zero turns off the drain",
+			in:   "drain-timeout=0",
+			want: cmd.InstanceRollout{DrainTimeout: new(types.DurationMS(0))},
 		},
 		{
 			name: "target list",
@@ -294,6 +299,11 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 			wantErr: "healthy-after cannot be negative",
 		},
 		{
+			name:    "negative drain-timeout",
+			in:      "drain-timeout=-1s",
+			wantErr: "drain-timeout cannot be negative",
+		},
+		{
 			name:    "negative batch",
 			in:      "batch=-1",
 			wantErr: "batch cannot be negative",
@@ -322,4 +332,19 @@ func TestInstanceRolloutUnmarshalText(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestInstanceEnvFlagReadsLocalEnvironment(t *testing.T) {
+	t.Setenv("UNIKRAFT_TEST_HOST", "from-host")
+
+	var cli cmd.UnikraftCLI
+	parser, err := cmd.NewParser(&cli)
+	require.NoError(t, err)
+
+	_, err = parser.Parse([]string{"instance", "create", "--image", "nginx:latest", "-e", "UNIKRAFT_TEST_HOST", "-e", "A=1"})
+	require.NoError(t, err)
+
+	spec := patch.PatchSpec{Create: true}
+	require.NoError(t, cli.Instances.Create.GeneratedFlags().Apply(&spec))
+	assert.Equal(t, map[string]string{"UNIKRAFT_TEST_HOST": "from-host", "A": "1"}, spec.SetTyped["runtime.env"])
 }

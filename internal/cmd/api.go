@@ -24,6 +24,7 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/httpclient"
 	"unikraft.com/cli/internal/jason"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type APICmd struct {
@@ -36,7 +37,7 @@ type APICmd struct {
 	Args     []string `arg:"" optional:"" name:"data" help:"Request body data. Can be JSON (e.g. '{\"key\":\"val\"}'), nested JSON (e.g. key=val or \"key=line value\"), @file, or @- (stdin)."`
 }
 
-func (c *APICmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *APICmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	profile, err := config.G(ctx).CurrentProfile()
 	if err != nil {
 		return err
@@ -187,7 +188,7 @@ func (c *APICmd) Run(ctx context.Context, stdio config.Stdio) error {
 	return nil
 }
 
-func (c *APICmd) resolveBody(ctx context.Context, stdio config.Stdio) ([]byte, error) {
+func (c *APICmd) resolveBody(ctx context.Context, stdio xstdio.Stdio) ([]byte, error) {
 	var body bytes.Buffer
 	var wroteSource bool
 	legacyOnly := c.Data != "" && len(c.Args) == 0
@@ -229,7 +230,7 @@ func (c *APICmd) resolveBody(ctx context.Context, stdio config.Stdio) ([]byte, e
 }
 
 // readBodySource reads a body source from stdin, file, or inline text
-func readBodySource(source string, stdio config.Stdio) ([]byte, error) {
+func readBodySource(source string, stdio xstdio.Stdio) ([]byte, error) {
 	var raw []byte
 	var err error
 	switch {

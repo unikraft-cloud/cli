@@ -279,6 +279,8 @@ Flags:
       --sort
           Sort output by field values. Use - prefix for descending, + for ascending.
           [examples: name, -timestamps.created-at]
+      --limit
+          Show at most this many instances, after filtering and sorting. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -567,8 +569,8 @@ Create flags:
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
-  -e, --env=<key>=<value> ...
-          Environment variable as KEY=value.
+  -e, --env=<key>[=<value>] ...
+          Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment.
           [example: DEBUG=true]
   -m, --memory=<size>
           Memory for the instance, within the range the plan allows (see quotas.limits.memory on the metro). Defaults to 128MiB on create.
@@ -657,7 +659,8 @@ Create flags:
             by: service (default) | tags
             target: the new instance's service, or a subset of its tags, to select by (default: all of them)
             batch: instances that a rolling rollout replaces at a time (default: 1)
-            healthy-after: time each new batch must keep running before the rollout goes on.
+            healthy-after: time each new batch must keep running before the rollout goes on
+            drain-timeout: time an instance gets to finish its connections before the rollout stops it (default: 30s, 0 to not drain).
           [examples: type=recreate, batch=2,healthy-after=30s, by=tags,target=env-prod]
 
 $ unikraft instance new --help
@@ -835,8 +838,8 @@ Create flags:
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
-  -e, --env=<key>=<value> ...
-          Environment variable as KEY=value.
+  -e, --env=<key>[=<value>] ...
+          Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment.
           [example: DEBUG=true]
   -m, --memory=<size>
           Memory for the instance, within the range the plan allows (see quotas.limits.memory on the metro). Defaults to 128MiB on create.
@@ -925,7 +928,8 @@ Create flags:
             by: service (default) | tags
             target: the new instance's service, or a subset of its tags, to select by (default: all of them)
             batch: instances that a rolling rollout replaces at a time (default: 1)
-            healthy-after: time each new batch must keep running before the rollout goes on.
+            healthy-after: time each new batch must keep running before the rollout goes on
+            drain-timeout: time an instance gets to finish its connections before the rollout stops it (default: 30s, 0 to not drain).
           [examples: type=recreate, batch=2,healthy-after=30s, by=tags,target=env-prod]
 
 $ unikraft instance run --help
@@ -1040,7 +1044,7 @@ Flags:
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --follow
-          Follow instance logs after creation.
+          Follow instance logs after creation, until the instances stop.
 
 Global flags:
   -h, --help
@@ -1089,8 +1093,8 @@ Create flags:
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
-  -e, --env=<key>=<value> ...
-          Environment variable as KEY=value.
+  -e, --env=<key>[=<value>] ...
+          Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment.
           [example: DEBUG=true]
   -m, --memory=<size>
           Memory for the instance, within the range the plan allows (see quotas.limits.memory on the metro). Defaults to 128MiB on create.
@@ -1179,7 +1183,8 @@ Create flags:
             by: service (default) | tags
             target: the new instance's service, or a subset of its tags, to select by (default: all of them)
             batch: instances that a rolling rollout replaces at a time (default: 1)
-            healthy-after: time each new batch must keep running before the rollout goes on.
+            healthy-after: time each new batch must keep running before the rollout goes on
+            drain-timeout: time an instance gets to finish its connections before the rollout stops it (default: 30s, 0 to not drain).
           [examples: type=recreate, batch=2,healthy-after=30s, by=tags,target=env-prod]
 
 $ unikraft instance edit --help
@@ -1313,8 +1318,8 @@ Edit flags:
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
-  -e, --env=<key>=<value> ...
-          Environment variable as KEY=value.
+  -e, --env=<key>[=<value>] ...
+          Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment.
           [example: DEBUG=true]
   -m, --memory=<size>
           Memory for the instance, within the range the plan allows (see quotas.limits.memory on the metro). Defaults to 128MiB on create.
@@ -1616,6 +1621,8 @@ Flags:
       --sort
           Sort output by field values. Use - prefix for descending, + for ascending.
           [examples: name, -timestamps.created-at]
+      --limit
+          Show at most this many instance-templates, after filtering and sorting. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -2060,6 +2067,8 @@ Flags:
       --sort
           Sort output by field values. Use - prefix for descending, + for ascending.
           [examples: name, -timestamps.created-at]
+      --limit
+          Show at most this many instance-checkpoints, after filtering and sorting. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -2458,7 +2467,7 @@ Flags:
       --tail
           Number of lines to show from the end of the logs.
   -f, --follow
-          Follow log output.
+          Follow log output until the instances stop.
 
 Global flags:
   -h, --help
@@ -2499,7 +2508,7 @@ Examples:
 
 Flags:
       --follow
-          Follow log output after starting.
+          Follow log output after starting, until the instances stop.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -2649,7 +2658,7 @@ Flags:
           Timeout in milliseconds for draining connections before stopping.
           [default: -1]
       --follow
-          Follow log output after restarting.
+          Follow log output after restarting, until the instances stop.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -2846,9 +2855,7 @@ loaded.
 The environment given with `--env` is the whole environment the
 command sees, not an addition to it.
 
-Standard input is forwarded to the command only when it is
-redirected from a file or a pipe. Run from a terminal, the command
-sees an empty standard input and cannot be typed at.
+Run from a terminal, the command gets a terminal on the instance.
 
 Usage:
   unikraft instances exec <target> <command> ... [flags]
@@ -2881,6 +2888,10 @@ Flags:
   -e, --env=<key>=<value> ...
           Environment variable.
           [example: DEBUG=true]
+  -t, --tty
+          Run the command on a terminal, and fail when not run from one.
+  -T, --no-tty
+          Run the command on pipes, even from a terminal.
 
 Global flags:
   -h, --help

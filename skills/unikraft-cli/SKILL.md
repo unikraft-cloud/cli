@@ -120,6 +120,7 @@ unikraft images copy <src> <dst>        # Copy an image
 unikraft certificates list              # List certificates
 unikraft certificates get <name|uuid>   # Inspect certificate details
 unikraft certificates create            # Create a certificate
+unikraft certificates edit <name|uuid>  # Replace an uploaded certificate
 unikraft certificates rm <name|uuid>    # Delete a certificate
 ```
 

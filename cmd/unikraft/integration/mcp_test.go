@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	integ "unikraft.com/cli/internal/integration"
-	"unikraft.com/cli/internal/mcpserver/mcptest"
+	"unikraft.com/cli/pkg/mcpserver/mcptest"
 )
 
 func TestMCP(t *testing.T) {

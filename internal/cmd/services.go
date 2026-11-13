@@ -11,8 +11,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
@@ -21,11 +24,12 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
+	"unikraft.com/cli/pkg/model/value"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type ServicesCmd struct {
@@ -33,10 +37,130 @@ type ServicesCmd struct {
 	cmd.GettableModelCmd[ServiceGroup]
 	cmd.WaitableModelCmd[ServiceGroup]
 	cmd.ListableModelCmd[ServiceGroup]
-	cmd.BulkDeletableModelCmd[ServiceGroup]
 
+	Delete ServiceDeleteCmd                 `cmd:"" help:"Remove a ${name}." aliases:"rm,remove"`
 	Create cmd.ModelCreateCmd[ServiceGroup] `cmd:"" help:"Create a service group."`
 	Edit   cmd.ModelEditCmd[ServiceGroup]   `cmd:"" help:"Edit a service group."`
+}
+
+type ServiceDeleteCmd struct {
+	cmd.ModelBulkRemoveCmd[ServiceGroup]
+
+	Drain        bool             `xor:"empty" short:"D" help:"Stop the instances in the ${name}, which drains their connections, then delete them and the ${name}. Cannot be used with --all or --filter."`
+	DrainTimeout types.DurationMS `help:"Time each instance gets to finish its connections before --drain stops it. 0 to not drain." default:"30s"`
+	WaitEmpty    bool             `xor:"empty" help:"Wait for the ${name} to have no instances before removing it. Waits with no limit unless --timeout is set. Cannot be used with --all or --filter."`
+}
+
+// Run deletes the service groups. With Drain or WaitEmpty, it deletes each
+// group when it has no instances, and finds the groups by UUID.
+func (c *ServiceDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
+	if !c.Drain && !c.WaitEmpty {
+		return c.ModelBulkRemoveCmd.Run(ctx, stdio, partition)
+	}
+	if c.All || len(c.Filter) > 0 {
+		return fmt.Errorf("--drain and --wait-empty cannot be used with --all or --filter")
+	}
+	if len(c.Targets) == 0 {
+		return fmt.Errorf("no resources specified for deletion")
+	}
+	if c.Drain && c.DrainTimeout < 0 {
+		return fmt.Errorf("--drain-timeout cannot be negative")
+	}
+
+	r := partition.WrapDeletable(ServiceGroup{})
+	found, err := r.Get(ctx, c.Targets)
+	if err != nil {
+		return err
+	}
+	g, err := multimetro.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	pending := make(map[string]ServiceGroup, len(found))
+	for _, m := range found {
+		sg := m.(ServiceGroup)
+		if sg.Autoscale {
+			return fmt.Errorf("autoscaling enabled, can't empty service group %q", cmp.Or(sg.Name, sg.UUID))
+		}
+		pending[multimetro.Key{Metro: sg.key.Metro, UUID: sg.UUID}.String()] = sg
+	}
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	var deleted []model.Model
+	var errs []error
+	waiting := make(map[string]int, len(pending))
+	for {
+		current, err := ServiceGroup{}.Get(ctx, slices.Sorted(maps.Keys(pending)))
+		if _, ok := errors.AsType[model.ErrNotFound](err); err != nil && !ok {
+			return errors.Join(append(errs, err)...)
+		}
+		instances := make(map[string]multimetro.Keys, len(current))
+		for _, m := range current {
+			sg := m.(ServiceGroup)
+			key := multimetro.Key{Metro: sg.key.Metro, UUID: sg.UUID}.String()
+			instances[key] = multimetro.Keys{}
+			for _, instance := range sg.ServiceGroup.Instances {
+				instances[key] = append(instances[key], multimetro.Key{Metro: sg.key.Metro, Name: instance.Name, UUID: instance.Uuid})
+			}
+		}
+
+		for _, key := range slices.Sorted(maps.Keys(pending)) {
+			sg := pending[key]
+			name := cmp.Or(sg.Name, sg.UUID)
+			keys, exists := instances[key]
+			switch {
+			case !exists:
+				deleted = append(deleted, sg)
+			case len(keys) == 0:
+				if err := r.Delete(ctx, []string{key}); err != nil {
+					errs = append(errs, fmt.Errorf("service group %q: %w", name, err))
+				} else {
+					deleted = append(deleted, sg)
+				}
+			case c.Drain:
+				log.G(ctx).Info().
+					Str("service", name).
+					Strs("instances", keys.Strings()).
+					Msg("draining and deleting instances")
+				set := &instanceSet{g: g, partition: partition, drain: c.DrainTimeout, keys: keys}
+				err := set.Stop(ctx)
+				if err == nil {
+					err = set.Delete(ctx)
+				}
+				if err == nil {
+					continue
+				}
+				errs = append(errs, fmt.Errorf("service group %q: %w", name, err))
+			default:
+				if waiting[key] != len(keys) {
+					waiting[key] = len(keys)
+					log.G(ctx).Info().
+						Str("service", name).
+						Strs("instances", keys.Strings()).
+						Msg("waiting for instances to leave")
+				}
+				continue
+			}
+			delete(pending, key)
+		}
+		if len(pending) == 0 {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return errors.Join(append(errs, ctx.Err())...)
+		case <-ticker.C:
+		}
+	}
+
+	printErr := c.Output.
+		WithDefault(cmd.PrinterTypeQuiet).
+		Print(ctx, stdio.Stdout, []string(c.Field), ServiceGroup{}, deleted...)
+	return errors.Join(append(errs, printErr)...)
 }
 
 type ServiceGroup struct {
@@ -494,6 +618,14 @@ func (ServiceGroup) Examples() map[cmd.CmdType][]kingkong.Example {
 			{
 				Description: "Delete a service group by name or UUID",
 				Commands:    []string{"unikraft service delete demo-service"},
+			},
+			{
+				Description: "Drain and delete the instances of a service group, then delete it",
+				Commands:    []string{"unikraft service delete demo-service --drain"},
+			},
+			{
+				Description: "Delete a service group once its instances are gone",
+				Commands:    []string{"unikraft service delete demo-service --wait-empty"},
 			},
 		},
 	}

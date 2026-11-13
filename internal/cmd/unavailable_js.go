@@ -14,7 +14,8 @@ import (
 	"github.com/alecthomas/kong"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/pkg/model"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // notAvailable reports that a command needs the native CLI.
@@ -37,18 +38,18 @@ func (c *CompletionCmd) Run(ctx *kong.Context) error {
 	return notAvailable("completion")
 }
 
-func (cmd *InstancesTunnelCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (cmd *InstancesTunnelCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	return notAvailable("instance tunnel")
 }
 
-func (cmd *TUICmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (cmd *TUICmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	return notAvailable("the TUI")
 }
 
-func (cmd *UpgradeCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (cmd *UpgradeCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	return notAvailable("upgrade")
 }
 
-func (c *VolumeImportCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *VolumeImportCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	return notAvailable("volume import")
 }

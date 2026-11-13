@@ -7,19 +7,13 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"strings"
 
-	"unikraft.com/cloud/sdk/platform/group"
-	"unikraft.com/cloud/sdk/platform/logs"
 	"unikraft.com/x/kingkong"
 
-	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/muxreader"
+	"unikraft.com/cli/pkg/model"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // InstanceRunCmd is a convenience wrapper around `instance create` that adds
@@ -29,7 +23,7 @@ type InstanceRunCmd struct {
 	InstanceCreateCmd
 
 	// Follow is the only run-specific flag; it tails logs after creation.
-	Follow bool `help:"Follow instance logs after creation."`
+	Follow bool `help:"Follow instance logs after creation, until the instances stop."`
 }
 
 func (InstanceRunCmd) Examples() []kingkong.Example {
@@ -109,7 +103,7 @@ func (InstanceRunCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *InstanceRunCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	// Unlike create, run starts the instance unless told otherwise.
 	if !c.GeneratedFlags().IsSet("autostart") {
 		c.Set = append(c.Set, map[string]string{"autostart": "true"})
@@ -124,27 +118,13 @@ func (c *InstanceRunCmd) Run(ctx context.Context, stdio config.Stdio, partition 
 
 	fmt.Fprintln(stdio.Stdout)
 
-	keys := make(multimetro.Keys, 0, len(created))
-	for _, res := range created {
-		instance, ok := res.(Instance)
-		if !ok {
-			return fmt.Errorf("unexpected resource type %T", res)
-		}
-		keys = append(keys, instance.key)
-	}
-
-	mux, cancel, err := newInstanceLogMux(ctx, keys, nil, c.Follow)
+	l, err := newInstanceLogs(ctx, instanceKeys(created), nil, true, true)
 	if err != nil {
 		return err
 	}
-	defer cancel()
-	defer mux.Close()
+	defer l.Close()
 
-	_, err = io.Copy(stdio.Stdout, mux)
-	if errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
+	return l.Copy(stdio.Stdout)
 }
 
 // RunCmd is a top-level alias for `instance run`.
@@ -168,36 +148,6 @@ func (RunCmd) Examples() []kingkong.Example {
 	return instanceExamples
 }
 
-func (c *RunCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *RunCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	return c.InstanceRunCmd.Run(ctx, stdio, partition)
-}
-
-func newInstanceLogMux(ctx context.Context, keys multimetro.Keys, tail *int, follow bool) (*muxreader.Mux, context.CancelFunc, error) {
-	g, err := multimetro.NewClient(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	mux := muxreader.New()
-
-	ctx, cancel := context.WithCancel(ctx)
-
-	err = group.DoRefs(ctx, g, keys.Refs(), func(_ context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
-		for _, ref := range refs {
-			r, err := logs.InstanceLogs(ctx, c).Reader(ref.NameOrUUID(), tail, follow)
-			if err != nil {
-				return nil, err
-			}
-			mux.With(multimetro.Key(ref).String(), r)
-		}
-		return refs, nil
-	})
-	if err != nil {
-		cancel()
-		mux.Close()
-		return nil, nil, err
-	}
-	mux.Seal()
-
-	return mux, cancel, nil
 }

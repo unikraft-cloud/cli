@@ -28,7 +28,7 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/images"
-	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/pkg/model"
 )
 
 // localBuildkit is the buildkitd that builds run on.
@@ -92,8 +92,11 @@ func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error 
 }
 
 func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
-	if c.Remote != "" {
+	if c.Remote != nil {
 		return c.runRemote(ctx, cfg, partition)
+	}
+	if len(c.Metro) > 0 {
+		return errors.New("--metro applies only to a remote build, with --remote")
 	}
 
 	buildOpts, err := build.LoadBuildOpts(ctx, c.Input)

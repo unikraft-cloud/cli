@@ -381,8 +381,7 @@ func assignAtSlice(s []any, seg string, rest []string, val any) (any, error) {
 	}
 	idx64, err := strconv.ParseInt(seg, 10, 64)
 	if err != nil {
-		var numErr *strconv.NumError
-		if errors.As(err, &numErr) && errors.Is(numErr.Err, strconv.ErrRange) {
+		if numErr, ok := errors.AsType[*strconv.NumError](err); ok && errors.Is(numErr.Err, strconv.ErrRange) {
 			return nil, fmt.Errorf("array index %q exceeds maximum allowed index %d", seg, maxArrayIndex)
 		}
 		return nil, fmt.Errorf("type error: cannot perform key-based access on array at segment %q", seg)

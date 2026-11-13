@@ -300,7 +300,7 @@ unikraft instances logs my-instance
 | `instances`    | Manage instances (list, get, create, edit, delete, logs, start, stop, restart) |
 | `volumes`      | Manage persistent volumes (list, get, create, edit, delete, clone)             |
 | `services`     | Manage service groups (list, get, create, edit, delete)                        |
-| `certificates` | Manage TLS certificates (list, get, create, delete)                            |
+| `certificates` | Manage TLS certificates (list, get, create, edit, delete)                      |
 | `images`       | Manage images (list, get, copy)                                                |
 | `login`        | Login to Unikraft Cloud                                                        |
 | `logout`       | Logout from Unikraft Cloud                                                     |

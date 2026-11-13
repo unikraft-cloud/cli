@@ -355,7 +355,7 @@ cmd: ["sh", "-c", "cat /greeting"]
 		).Apply(dir))
 
 		// The service reads the project and the secret through the session.
-		r.Run(t, []string{"unikraft", "build", ".", "--remote", buildURL, "--secret", "id=greeting,src=" + filepath.Join(dir, "greeting"), "--output", image},
+		r.Run(t, []string{"unikraft", "build", ".", "--remote=" + buildURL, "--secret", "id=greeting,src=" + filepath.Join(dir, "greeting"), "--output", image},
 			integ.WithWorkDir(dir), integ.WithEnv("SSL_CERT_FILE="+certFile))
 
 		r.Run(t, []string{"unikraft", "run", "--name", "test-" + instName, "--metro", r.MetroName, "--output", "quiet", "--image", image})

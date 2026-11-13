@@ -228,8 +228,10 @@ builds:
   env:
   - CGO_ENABLED=0
   #@ end
+  #@ if os != "linux":
   flags:
   - -buildmode=pie
+  #@ end
   ldflags:
   - -s
   - -w
@@ -267,6 +269,37 @@ archives:
   #@ end
 #@ end
 #@ end
+
+dockers_v2:
+- id: unikraft
+  dockerfile: .goreleaser.Dockerfile
+  ids:
+#@ for arch in oses["linux"]:
+  - #@ "unikraft-linux-{}".format(arch)
+#@ end
+  platforms:
+#@ for arch in oses["linux"]:
+  - #@ "linux/{}".format(arch)
+#@ end
+  images:
+  - ghcr.io/unikraft-cloud/cli
+  tags:
+  - "{{ .Version }}"
+  #@ if getattr(data.values, "PRERELEASE", "true") == "true":
+  - staging
+  #@ else:
+  - "{{ .Major }}.{{ .Minor }}"
+  - latest
+  #@ end
+  labels:
+    org.opencontainers.image.title: unikraft-cli
+    org.opencontainers.image.description: The official CLI for Unikraft Cloud.
+    org.opencontainers.image.url: https://unikraft.com/docs/cli
+    org.opencontainers.image.source: https://github.com/unikraft-cloud/cli
+    org.opencontainers.image.licenses: BSD-3-Clause
+    org.opencontainers.image.version: "{{ .Version }}"
+    org.opencontainers.image.revision: "{{ .FullCommit }}"
+    org.opencontainers.image.created: "{{ .Date }}"
 
 nfpms:
 - id: deb

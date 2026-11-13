@@ -105,3 +105,50 @@ func TestOptional(t *testing.T) {
 		})
 	}
 }
+
+func TestHostEnv(t *testing.T) {
+	type CLI struct {
+		Env map[string]string `short:"e" type:"hostenv"`
+	}
+	t.Setenv("UNIKRAFT_TEST_HOST", "from-host")
+	t.Setenv("UNIKRAFT_TEST_EMPTY", "")
+
+	tests := []struct {
+		name    string
+		args    []string
+		want    map[string]string
+		wantErr string
+	}{
+		{
+			name: "key from the local environment",
+			args: []string{"-e", "UNIKRAFT_TEST_HOST", "-e", "UNIKRAFT_TEST_EMPTY", "-e", "A=1", "-e", "EMPTY="},
+			want: map[string]string{"UNIKRAFT_TEST_HOST": "from-host", "UNIKRAFT_TEST_EMPTY": "", "A": "1", "EMPTY": ""},
+		},
+		{
+			name:    "key not in the local environment",
+			args:    []string{"-e", "UNIKRAFT_TEST_UNSET"},
+			wantErr: "UNIKRAFT_TEST_UNSET is not set in the local environment",
+		},
+		{
+			name:    "no key",
+			args:    []string{"-e", "=value"},
+			wantErr: "expected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var cli CLI
+			parser, err := kong.New(&cli, kong.NamedMapper("hostenv", wkong.HostEnv()))
+			require.NoError(t, err)
+
+			_, err = parser.Parse(tt.args)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cli.Env)
+		})
+	}
+}

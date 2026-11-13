@@ -31,11 +31,11 @@ import (
 	"unikraft.com/cli/internal/branding"
 	"unikraft.com/cli/internal/cmd/login"
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/logfmt"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
-	wkong "unikraft.com/cli/internal/w/kong"
 	wmaps "unikraft.com/cli/internal/w/maps"
+	"unikraft.com/cli/pkg/logfmt"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type UnikraftCLI struct {
@@ -117,7 +117,7 @@ type globalFlags struct {
 	Timeout   time.Duration `group:"flag-global" name:"timeout" env:"UNIKRAFT_TIMEOUT" help:"Set a deadline for the command (e.g. 30s, 5m, 1h)." placeholder:"duration" optional:""`
 }
 
-func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals *xsignal.Signals) (context.Context, *kong.Context, *UnikraftCLI, func() error, error) {
+func NewRootCmd(ctx context.Context, args []string, stdio xstdio.Stdio, signals *xsignal.Signals) (context.Context, *kong.Context, *UnikraftCLI, func() error, error) {
 	cli := UnikraftCLI{}
 
 	parser, err := NewParser(&cli)
@@ -130,28 +130,33 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 	parser.Stdout = stdio.Stdout
 	parser.Stderr = stdio.Stderr
 
+	completionCtx, err := withCompletionConfig(ctx)
+	if err != nil {
+		fmt.Fprintln(stdio.Stderr, "warning: could not load config for autocompletion:", err)
+		completionCtx = ctx
+	}
 	kongcompletion.Register(
 		parser,
 		kongcompletion.WithPredictor("resource-key-path", complete.PredictFiles("*")),
-		kongcompletion.WithPredictor("resource-key-profile", cmd.PredictModelKey[Profile](ctx)),
-		kongcompletion.WithPredictor("resource-key-metro", cmd.PredictModelKey[Metro](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance", cmd.PredictModelKey[Instance](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance-template", cmd.PredictModelKey[InstanceTemplate](ctx)),
-		kongcompletion.WithPredictor("resource-key-instance-checkpoint", cmd.PredictModelKey[InstanceCheckpoint](ctx)),
-		kongcompletion.WithPredictor("resource-key-volume", cmd.PredictModelKey[Volume](ctx)),
-		kongcompletion.WithPredictor("resource-key-volume-template", cmd.PredictModelKey[VolumeTemplate](ctx)),
-		kongcompletion.WithPredictor("resource-key-service", cmd.PredictModelKey[ServiceGroup](ctx)),
-		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictModelKey[Certificate](ctx)),
-		kongcompletion.WithPredictor("resource-key-image", cmd.PredictModelKey[ImageEntry](ctx)),
-		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictModelKey[AnyResource](ctx)),
+		kongcompletion.WithPredictor("resource-key-profile", cmd.PredictModelKey[Profile](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-metro", cmd.PredictModelKey[Metro](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-instance", cmd.PredictModelKey[Instance](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-instance-template", cmd.PredictModelKey[InstanceTemplate](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-instance-checkpoint", cmd.PredictModelKey[InstanceCheckpoint](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-volume", cmd.PredictModelKey[Volume](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-volume-template", cmd.PredictModelKey[VolumeTemplate](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-service", cmd.PredictModelKey[ServiceGroup](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-certificate", cmd.PredictModelKey[Certificate](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-image", cmd.PredictModelKey[ImageEntry](completionCtx)),
+		kongcompletion.WithPredictor("resource-key-resource", cmd.PredictModelKey[AnyResource](completionCtx)),
 		kongcompletion.WithPredictor("resource-key-builder", complete.PredictNothing),
 	)
 
 	kctx, err := parser.Parse(args)
 
-	var parseErr *kong.ParseError
+	parseErr, isParseErr := errors.AsType[*kong.ParseError](err)
 	printHelp := false
-	if errors.As(err, &parseErr) {
+	if isParseErr {
 		// we couldn't parse everything, but still try and manually load these
 		// flags, since they're used for help + logging
 		for _, flag := range parseErr.Context.Flags() {
@@ -212,7 +217,7 @@ func NewRootCmd(ctx context.Context, args []string, stdio config.Stdio, signals 
 
 	kctx.BindTo(ctx, (*context.Context)(nil))
 
-	partition, err := model.LoadPartitionFromEnv(PartitionedResources...)
+	partition, err := model.LoadPartitionFromEnv(config.PartitionEnv, PartitionedResources...)
 	if err != nil {
 		cancelTimeout()
 		return ctx, nil, nil, nil, jujuerrors.Annotate(err, "loading partition from environment")
@@ -300,93 +305,26 @@ func ctxWithLogger(ctx context.Context, out io.Writer, type_ log.Type, level log
 }
 
 func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
-	helpOptions := kong.HelpOptions{
-		Compact:             true,
-		FlagsLast:           true,
-		NoExpandSubcommands: true,
+	groups := []kong.Group{
+		{Key: "cmd-commands", Title: kingkong.Underline("Commands") + ":"},
+		{Key: "cmd-resources", Title: kingkong.Underline("Resources") + ":"},
+		{Key: "cmd-templates", Title: kingkong.Underline("Templates") + ":"},
+		{Key: "cmd-checkpoints", Title: kingkong.Underline("Checkpoints") + ":"},
+		{Key: "cmd-config", Title: kingkong.Underline("Config") + ":"},
+		{Key: "cmd-utilities", Title: kingkong.Underline("Utilities") + ":"},
 	}
-	globalFlagGroup := kong.Group{
-		Key:   "flag-global",
-		Title: kingkong.Underline("Global flags") + ":",
-	}
-
-	opts := []kong.Option{
+	return cmd.NewParser(cli, version.Version, groups,
 		kong.Name(branding.Name),
-		kong.UsageOnError(),
 		kong.Vars{"docs_url": branding.DocsURL},
 		kong.Description("The Unikraft Command-Line Interface."),
-		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n" +
-			"    _         \n" +
-			"  c'3'o  .-.  Docs:   " + branding.DocsURL + "cli\n" +
-			"  (| |)_/     Issues: " + branding.IssuesURL + "\n" +
+		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n"+
+			"    _         \n"+
+			"  c'3'o  .-.  Docs:   "+branding.DocsURL+"cli\n"+
+			"  (| |)_/     Issues: "+branding.IssuesURL+"\n"+
 			"              "),
-		kong.ConfigureHelp(helpOptions),
-		kong.Help(kingkong.HelpPrinter(version.Version)),
-		kong.WithBeforeReset(func(value *kong.Path) error {
-			if value == nil || value.App == nil || value.App.Flags == nil {
-				return nil
-			}
-
-			for _, f := range value.App.Flags {
-				if f.Name != "help" {
-					continue
-				}
-
-				f.Group = &kong.Group{
-					Key:   "flag-global",
-					Title: kingkong.Underline("Global flags") + ":",
-				}
-			}
-
-			return nil
-		}),
-		kong.ExplicitGroups([]kong.Group{
-			{
-				Key:   "flag-create",
-				Title: kingkong.Underline("Create flags") + ":",
-			},
-			{
-				Key:   "flag-edit",
-				Title: kingkong.Underline("Edit flags") + ":",
-			},
-			globalFlagGroup,
-			{
-				Key:   "flag-local",
-				Title: kingkong.Underline("Subcommand flags") + ":",
-			},
-			{
-				Key:   "cmd-commands",
-				Title: kingkong.Underline("Commands") + ":",
-			},
-			{
-				Key:   "cmd-resources",
-				Title: kingkong.Underline("Resources") + ":",
-			},
-			{
-				Key:   "cmd-templates",
-				Title: kingkong.Underline("Templates") + ":",
-			},
-			{
-				Key:   "cmd-checkpoints",
-				Title: kingkong.Underline("Checkpoints") + ":",
-			},
-			{
-				Key:   "cmd-config",
-				Title: kingkong.Underline("Config") + ":",
-			},
-			{
-				Key:   "cmd-utilities",
-				Title: kingkong.Underline("Utilities") + ":",
-			},
-		}),
-		kong.NamedMapper("optional", wkong.Optional()),
 		sandboxKongVars,
 		volumeImportKongVars,
-	}
-
-	return kong.New(cli, append(opts, kong.PostBuild(func(k *kong.Kong) error {
-		return cmd.AttachGeneratedFlags(k, opts...)
-	}))...)
+	)
 }
 
 var PartitionedResources = []model.Model{
@@ -412,14 +350,4 @@ func (timedOutError) Unwrap() error { return context.DeadlineExceeded }
 
 func newTimedOutContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeoutCause(parent, timeout, timedOutError{timeout: timeout})
-}
-
-type staticKey string
-
-func (s staticKey) String() string {
-	return string(s)
-}
-
-func (s staticKey) Canonical() string {
-	return string(s)
 }

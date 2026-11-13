@@ -16,6 +16,8 @@ Resources:
           Remove a certificate.
   create
           Create a certificate.
+  edit
+          Replace the chain and private key of an uploaded certificate.
 
 Fields:
   metro
@@ -147,6 +149,8 @@ Flags:
       --sort
           Sort output by field values. Use - prefix for descending, + for ascending.
           [examples: name, -timestamps.created-at]
+      --limit
+          Show at most this many certificates, after filtering and sorting. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -310,9 +314,86 @@ Create flags:
           Common name: the fully qualified domain name the certificate is for, with a trailing dot.
           [example: demo.unikraft.dev.]
       --chain=<file>
-          PEM certificate chain: the certificate followed by any intermediates.
+          PEM certificate chain: the certificate followed by any intermediates. On edit, set it with pkey. Only uploaded certificates can be edited, and the common name must not change.
       --private-key=<file>, --pkey
-          PEM private key matching the certificate chain.
+          PEM private key matching the certificate chain. On edit, set it with chain.
+
+$ unikraft certificate edit --help
+
+Replace the chain and private key of an uploaded certificate.
+
+Usage:
+  unikraft certificates edit <target> [flags]
+
+Arguments:
+  <target>
+          Target certificate to edit.
+
+Examples:
+  # Replace a certificate before it expires
+  unikraft certificate edit demo-cert \
+    --chain cert.pem \
+    --pkey cert.key
+
+Fields:
+  metro
+  name
+  uuid
+  node
+  common-name
+  subject
+  issuer
+  serial-number
+  state
+  cn
+  chain
+  pkey
+  timestamps, timestamps.created, timestamps.not-before, timestamps.not-after
+
+Flags:
+      --set=<name>=<value> ..., --set-file=<name>=<filename> ...
+          Key-value pairs to set on the certificate.
+      --add=<name>=<value> ..., --add-file=<name>=<filename> ...
+          Key-value pairs to add to the certificate.
+      --del=<name>=<value> ..., --del-file=<name>=<filename> ...
+          Keys to delete from the certificate.
+      --visual
+          Open an editor to modify fields visually.
+      --cmd
+          Run a command to edit fields (receives YAML on stdin, outputs edited YAML on stdout).
+      --load, --save=<FILE>
+          Load fields from a YAML file.
+      --dry-run
+          Print patches without applying them.
+  -f, --field
+          Specify which fields to include in the output.
+  -o, --output
+          Output format. One of: kv, table, json, yaml, raw, quiet, template.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
+Edit flags:
+      --chain=<file>
+          PEM certificate chain: the certificate followed by any intermediates. On edit, set it with pkey. Only uploaded certificates can be edited, and the common name must not change.
+      --private-key=<file>, --pkey
+          PEM private key matching the certificate chain. On edit, set it with chain.
 
 $ unikraft certificate delete --help
 

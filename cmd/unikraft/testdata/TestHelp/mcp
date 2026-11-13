@@ -80,7 +80,7 @@ Flags:
       --listen=<host:port>
           Serve the protocol over HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set.
       --allow-remote
-          Let --listen bind a non-loopback address. Every client then acts with this profile's credentials, so only do this behind an authenticating proxy or on a private network.
+          Let --listen bind a non-loopback address. Every client then acts with the server's credentials, so only do this behind an authenticating proxy or on a private network.
       --tls-cert=<file>
           Serve --listen over HTTPS with this PEM certificate chain.
       --tls-key=<file>

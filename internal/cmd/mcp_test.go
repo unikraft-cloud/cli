@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/mcpserver/mcptest"
+	"unikraft.com/cli/pkg/mcpserver/mcptest"
 )
 
 func TestMCPServerTools(t *testing.T) {
@@ -35,7 +35,7 @@ func TestMCPServerTools(t *testing.T) {
 		"volume_create", "volume_edit", "volume_delete",
 		"volume_template_create", "volume_template_edit", "volume_template_delete",
 		"service_create", "service_edit", "service_delete",
-		"certificate_create", "certificate_delete", "image_delete",
+		"certificate_create", "certificate_edit", "certificate_delete", "image_delete",
 		"sandbox_exec", "sandbox_write", "profile_use",
 	}
 

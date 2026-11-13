@@ -24,7 +24,8 @@ type ImageBuildCmd struct {
 
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 
-	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"Build on the build service at this URL and push the image from there, instead of building locally."`
+	Remote *string  `env:"UNIKRAFT_BUILD_URL" type:"optional" placeholder:"url" help:"Build on the build service at this URL and push the image from there, instead of building locally. Defaults to the build_url of the profile, or https://controlplane.unikraft.com. Creates a builder with the default sizes if you have none. To set the sizes, use 'unikraft builder create'."`
+	Metro  []string `placeholder:"metro" help:"Metros that a remote build may run in, by name or API URL. Defaults to the build service's choice."`
 }
 
 func (ImageBuildCmd) Examples() []kingkong.Example {

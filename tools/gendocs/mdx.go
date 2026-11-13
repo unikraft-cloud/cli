@@ -21,9 +21,9 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"sigs.k8s.io/yaml"
 
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/tablewriter"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 )

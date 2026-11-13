@@ -152,6 +152,8 @@ Flags:
       --sort
           Sort output by field values. Use - prefix for descending, + for ascending.
           [examples: name, -timestamps.created-at]
+      --limit
+          Show at most this many services, after filtering and sorting. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -438,6 +440,12 @@ Examples:
   # Delete a service group by name or UUID
   unikraft service delete demo-service
 
+  # Drain and delete the instances of a service group, then delete it
+  unikraft service delete demo-service --drain
+
+  # Delete a service group once its instances are gone
+  unikraft service delete demo-service --wait-empty
+
 Fields:
   metro
   name
@@ -466,6 +474,13 @@ Flags:
           Specify which fields to include in the output.
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
+  -D, --drain
+          Stop the instances in the service, which drains their connections, then delete them and the service. Cannot be used with --all or --filter.
+      --drain-timeout
+          Time each instance gets to finish its connections before --drain stops it. 0 to not drain.
+          [default: 30s]
+      --wait-empty
+          Wait for the service to have no instances before removing it. Waits with no limit unless --timeout is set. Cannot be used with --all or --filter.
 
 Global flags:
   -h, --help
