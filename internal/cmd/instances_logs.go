@@ -27,15 +27,27 @@ import (
 // statePollInterval is the time between two state checks of followed instances.
 const statePollInterval = 2 * time.Second
 
-// errLogsEnd tells a log reader that no more logs come.
-var errLogsEnd = errors.New("no more logs")
+// instanceLogs merges the logs of instances. Only Copy starts to watch them,
+// thus start and restart can make instanceLogs before the instances boot.
+type instanceLogs struct {
+	mux      *muxreader.Mux
+	ctx      context.Context
+	cancel   context.CancelFunc
+	follow   bool
+	followed []*followedInstance
+}
 
-// newInstanceLogMux merges the logs of instances. Run watch after the
-// instances start, so that the logs of each instance end after it stops.
-func newInstanceLogMux(ctx context.Context, keys multimetro.Keys, tail *int, follow, prefix bool) (*muxreader.Mux, func(), context.CancelFunc, error) {
+// followedInstance is an instance whose logs end after it stops.
+type followedInstance struct {
+	key     multimetro.Key
+	r       *logs.FollowReader
+	stopped atomic.Pointer[Instance]
+}
+
+func newInstanceLogs(ctx context.Context, keys multimetro.Keys, tail *int, follow, prefix bool) (*instanceLogs, error) {
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	mux := muxreader.New()
@@ -44,68 +56,92 @@ func newInstanceLogMux(ctx context.Context, keys multimetro.Keys, tail *int, fol
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
+	l := &instanceLogs{mux: mux, ctx: ctx, cancel: cancel, follow: follow}
 
-	var (
-		mu        sync.Mutex
-		followers []*logFollower
-	)
+	var mu sync.Mutex
 	err = group.DoRefs(ctx, g, keys.Refs(), func(_ context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
 		for _, ref := range refs {
-			var f *logFollower
-			var client platform.Client = c
-			if follow {
-				f = &logFollower{Client: c, ctx: ctx, key: multimetro.Key(ref)}
-				f.key.Metro = c.Metro.Name
-				client = f
-			}
-			r, err := logs.InstanceLogs(ctx, client).Reader(ref.NameOrUUID(), tail, follow)
+			r, err := logs.InstanceLogs(ctx, c).Reader(ref.NameOrUUID(), tail, follow)
 			if err != nil {
 				return nil, err
 			}
-			if f != nil {
-				f.r = r
-				r = f
+			var end func(error) error
+			if follow {
+				f := &followedInstance{key: multimetro.Key(ref), r: r}
+				f.key.Metro = c.Metro.Name
 				mu.Lock()
-				followers = append(followers, f)
+				l.followed = append(l.followed, f)
 				mu.Unlock()
+				end = func(err error) error {
+					if err != nil {
+						if ctx.Err() != nil {
+							return err
+						}
+						log.G(ctx).Warn().Err(err).Str("instance", f.key.String()).Msg("stopped following the logs")
+						return nil
+					}
+					inst := f.stopped.Load()
+					if inst == nil {
+						return nil
+					}
+					event := log.G(ctx).Info().Str("instance", f.key.String())
+					if inst.Stop.Reason != "" {
+						event = event.Str("reason", inst.Stop.Reason)
+					}
+					if inst.Stop.ExitCode != nil {
+						event = event.Uint32("exit-code", *inst.Stop.ExitCode)
+					}
+					event.Msg("instance stopped")
+					return nil
+				}
 			}
-			mux.With(multimetro.Key(ref).String(), r)
+			mux.With(multimetro.Key(ref).String(), r, end)
 		}
 		return refs, nil
 	})
 	if err != nil {
-		cancel()
-		mux.Close()
-		return nil, nil, nil, err
+		l.Close()
+		return nil, err
 	}
 	mux.Seal()
 
-	return mux, func() { watchInstances(ctx, followers) }, cancel, nil
+	return l, nil
 }
 
-// instanceKeys returns the keys of instances, with their metro set.
-func instanceKeys(instances []model.Model) multimetro.Keys {
-	keys := make(multimetro.Keys, 0, len(instances))
-	for _, m := range instances {
-		keys = append(keys, m.Key().(multimetro.Key))
+// Copy writes the logs to w until they end. When it follows the logs, the
+// logs of each instance end after the instance stops.
+func (l *instanceLogs) Copy(w io.Writer) error {
+	if l.follow {
+		go l.watch()
 	}
-	return keys
+	_, err := io.Copy(w, l.mux)
+	if l.follow && errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
 }
 
-// watchInstances gives each follower its instance after the instance is
-// deleted, or after it stops and the platform has no restart of it scheduled.
-func watchInstances(ctx context.Context, pending []*logFollower) {
+// Close stops the logs of all instances.
+func (l *instanceLogs) Close() {
+	l.cancel()
+	l.mux.Close()
+}
+
+// watch ends the logs of each instance after it is deleted, or after it stops
+// and the platform has no restart of it scheduled.
+func (l *instanceLogs) watch() {
+	pending := l.followed
 	for len(pending) > 0 {
 		keys := make([]string, len(pending))
 		for i, f := range pending {
 			keys[i] = f.key.Canonical()
 		}
-		found, err := Instance{}.Get(ctx, keys)
+		found, err := Instance{}.Get(l.ctx, keys)
 		if err != nil {
-			log.G(ctx).Debug().Err(err).Msg("could not get the followed instances")
+			log.G(l.ctx).Debug().Err(err).Msg("could not get the followed instances")
 		}
 
-		var next []*logFollower
+		var next []*followedInstance
 		for _, f := range pending {
 			i := slices.IndexFunc(found, func(m model.Model) bool {
 				inst, ok := m.(Instance)
@@ -117,6 +153,7 @@ func watchInstances(ctx context.Context, pending []*logFollower) {
 				scheduled := inst.Instance.Restart != nil && inst.Instance.Restart.NextAt != nil
 				if state == platform.InstanceStateDeleted || state == platform.InstanceStateStopped && !scheduled {
 					f.stopped.Store(&inst)
+					f.r.StopFollowing()
 					continue
 				}
 			}
@@ -125,62 +162,18 @@ func watchInstances(ctx context.Context, pending []*logFollower) {
 		pending = next
 
 		select {
-		case <-ctx.Done():
+		case <-l.ctx.Done():
 			return
 		case <-time.After(statePollInterval):
 		}
 	}
 }
 
-// logFollower follows the logs of one instance. After watch gives it the
-// stopped instance, the first log request without new logs ends the logs.
-type logFollower struct {
-	platform.Client
-	ctx     context.Context
-	key     multimetro.Key
-	r       io.Reader
-	stopped atomic.Pointer[Instance]
-	partial bool
-}
-
-// GetInstanceLogs reads the stop state before the request, so that an empty
-// response after the stop is the end of the logs.
-func (f *logFollower) GetInstanceLogs(ctx context.Context, request []platform.GetInstancesLogsRequestItem, opts platform.GetInstanceLogsOpts) (*platform.Response[platform.GetInstancesLogsResponseData], error) {
-	stopped := f.stopped.Load() != nil
-	resp, err := f.Client.GetInstanceLogs(ctx, request, opts)
-	if !stopped || err != nil {
-		return resp, err
+// instanceKeys returns the keys of instances, with their metro set.
+func instanceKeys(instances []model.Model) multimetro.Keys {
+	keys := make(multimetro.Keys, 0, len(instances))
+	for _, m := range instances {
+		keys = append(keys, m.Key().(multimetro.Key))
 	}
-	if resp == nil || resp.Data == nil || len(resp.Data.Instances) == 0 || resp.Data.Instances[0].Output == "" {
-		return nil, errLogsEnd
-	}
-	return resp, nil
-}
-
-// Read ends the logs after the instance stops or its logs are deleted. It
-// ends an incomplete last line first, so that the stop notice comes last.
-func (f *logFollower) Read(p []byte) (int, error) {
-	n, err := f.r.Read(p)
-	if n > 0 {
-		f.partial = p[n-1] != '\n'
-	}
-	if err == nil || (!errors.Is(err, errLogsEnd) && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound)) {
-		return n, err
-	}
-	if f.partial {
-		f.partial = false
-		return n + copy(p[n:], "\n"), nil
-	}
-
-	if inst := f.stopped.Load(); inst != nil {
-		event := log.G(f.ctx).Info().Str("instance", f.key.String())
-		if inst.Stop.Reason != "" {
-			event = event.Str("reason", inst.Stop.Reason)
-		}
-		if inst.Stop.ExitCode != nil {
-			event = event.Uint32("exit-code", *inst.Stop.ExitCode)
-		}
-		event.Msg("instance stopped")
-	}
-	return n, io.EOF
+	return keys
 }

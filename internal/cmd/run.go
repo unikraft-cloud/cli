@@ -7,9 +7,7 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"unikraft.com/x/kingkong"
@@ -120,19 +118,13 @@ func (c *InstanceRunCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition 
 
 	fmt.Fprintln(stdio.Stdout)
 
-	mux, watch, cancel, err := newInstanceLogMux(ctx, instanceKeys(created), nil, true, true)
+	l, err := newInstanceLogs(ctx, instanceKeys(created), nil, true, true)
 	if err != nil {
 		return err
 	}
-	defer cancel()
-	defer mux.Close()
+	defer l.Close()
 
-	go watch()
-	_, err = io.Copy(stdio.Stdout, mux)
-	if errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
+	return l.Copy(stdio.Stdout)
 }
 
 // RunCmd is a top-level alias for `instance run`.
