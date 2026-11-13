@@ -1,0 +1,5 @@
+spec: v0.7
+name: unikraft-cli
+runtime: base-compat:latest
+rootfs: ./Dockerfile
+cmd: ["/usr/local/bin/unikraft"]

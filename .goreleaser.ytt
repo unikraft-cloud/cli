@@ -272,6 +272,7 @@ archives:
 
 dockers_v2:
 - id: unikraft
+  dockerfile: .goreleaser.Dockerfile
   ids:
 #@ for arch in oses["linux"]:
   - #@ "unikraft-linux-{}".format(arch)
