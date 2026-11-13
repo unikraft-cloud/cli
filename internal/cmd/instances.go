@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,7 +33,6 @@ import (
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/muxreader"
 	"unikraft.com/cli/internal/types"
 	wshell "unikraft.com/cli/internal/w/shell"
 	"unikraft.com/cli/pkg/model"
@@ -1827,26 +1825,18 @@ func (cmd InstancesLogsCmd) Examples() []kingkong.Example {
 }
 
 func (cmd *InstancesLogsCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
-	keys := multimetro.ParseKeys(cmd.Targets)
-
-	_, err := Instance{}.Get(ctx, keys.Strings())
+	found, err := Instance{}.Get(ctx, cmd.Targets)
 	if err != nil {
 		return err
 	}
 
-	mux, watch, cancel, err := newInstanceLogMux(ctx, keys, cmd.Tail, cmd.Follow, cmd.Prefix)
+	l, err := newInstanceLogs(ctx, instanceKeys(found), cmd.Tail, cmd.Follow, cmd.Prefix)
 	if err != nil {
 		return err
 	}
-	defer cancel()
-	defer mux.Close()
+	defer l.Close()
 
-	go watch()
-	_, err = io.Copy(stdio.Stdout, mux)
-	if cmd.Follow && errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
+	return l.Copy(stdio.Stdout)
 }
 
 type InstancesStartCmd struct {
@@ -1885,18 +1875,13 @@ func (c *InstancesStartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 		return err
 	}
 
-	var (
-		mux    *muxreader.Mux
-		watch  func()
-		cancel context.CancelFunc
-	)
+	var l *instanceLogs
 	if c.Follow {
-		mux, watch, cancel, err = newInstanceLogMux(ctx, keys, new(0), true, true)
+		l, err = newInstanceLogs(ctx, instanceKeys(before), new(0), true, true)
 		if err != nil {
 			return err
 		}
-		defer mux.Close()
-		defer cancel()
+		defer l.Close()
 	}
 
 	started, startErr := startInstances(ctx, g, keys)
@@ -1933,12 +1918,7 @@ func (c *InstancesStartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	}
 	fmt.Fprintln(stdio.Stdout)
 
-	go watch()
-	_, err = io.Copy(stdio.Stdout, mux)
-	if mux != nil && errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
+	return l.Copy(stdio.Stdout)
 }
 
 type InstancesStopCmd struct {
@@ -2063,18 +2043,13 @@ func (c *InstancesRestartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error
 		return opErr
 	}
 
-	var (
-		mux    *muxreader.Mux
-		watch  func()
-		cancel context.CancelFunc
-	)
+	var l *instanceLogs
 	if c.Follow {
-		mux, watch, cancel, err = newInstanceLogMux(ctx, stopped, new(0), true, true)
+		l, err = newInstanceLogs(ctx, stopped, new(0), true, true)
 		if err != nil {
 			return err
 		}
-		defer mux.Close()
-		defer cancel()
+		defer l.Close()
 	}
 
 	started, startErr := startInstances(ctx, g, stopped)
@@ -2115,12 +2090,7 @@ func (c *InstancesRestartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error
 	}
 	fmt.Fprintln(stdio.Stdout)
 
-	go watch()
-	_, err = io.Copy(stdio.Stdout, mux)
-	if errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
+	return l.Copy(stdio.Stdout)
 }
 
 // InstanceHistoryCmd shows the checkpoint history for an instance.
