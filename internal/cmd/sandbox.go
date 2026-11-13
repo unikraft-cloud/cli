@@ -7,6 +7,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -15,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/charmbracelet/x/term"
 
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/kingkong"
@@ -36,8 +38,10 @@ type ExecSandboxInstanceCmd struct {
 	Cmd    []string `arg:"" name:"command" help:"Command to pass to the instance." placeholder:"cmd"`
 
 	SandboxPluginOpts
-	Dir string   `name:"dir" short:"w" help:"Directory to execute the command from." placeholder:"dir"`
-	Env []string `name:"env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
+	Dir   string   `name:"dir" short:"w" help:"Directory to execute the command from." placeholder:"dir"`
+	Env   []string `name:"env" short:"e" sep:"none" help:"Environment variable." placeholder:"<key>=<value>" example:"DEBUG=true"`
+	TTY   bool     `name:"tty" short:"t" xor:"tty" help:"Run the command on a terminal, and fail when not run from one."`
+	NoTTY bool     `name:"no-tty" short:"T" xor:"tty" help:"Run the command on pipes, even from a terminal."`
 }
 
 func (ExecSandboxInstanceCmd) Help() string {
@@ -48,9 +52,7 @@ func (ExecSandboxInstanceCmd) Help() string {
 		The environment given with %[1]s--env%[1]s is the whole environment the
 		command sees, not an addition to it.
 
-		Standard input is forwarded to the command only when it is
-		redirected from a file or a pipe. Run from a terminal, the command
-		sees an empty standard input and cannot be typed at.
+		Run from a terminal, the command gets a terminal on the instance.
 	`, "`")
 }
 
@@ -87,18 +89,45 @@ func (c *ExecSandboxInstanceCmd) Run(ctx context.Context, stdio xstdio.Stdio, pa
 // runOn runs the command on target and reports what it ended as.
 func (c *ExecSandboxInstanceCmd) runOn(ctx context.Context, target sandbox.Target, stdio xstdio.Stdio) error {
 	in := stdio.Stdin
-	if in == nil || xio.IsTTYReader(in) {
-		in = strings.NewReader("")
-	}
+	out := xio.Unwrap(stdio.Stdout)
 
 	cmd := target.CommandArgs(ctx, c.Cmd)
 	cmd.Dir = c.Dir
 	cmd.Env = sandbox.EnvMap(c.Env)
-	cmd.Stdin = in
-	cmd.Stdout = xio.Unwrap(stdio.Stdout)
+	cmd.Stdout = out
 	cmd.Stderr = xio.Unwrap(stdio.Stderr)
 
-	code, err := shell.ExitStatus(cmd.Run())
+	tin, _ := in.(interface{ Fd() uintptr })
+	tout, _ := out.(interface{ Fd() uintptr })
+	onTerminal := tin != nil && tout != nil && term.IsTerminal(tin.Fd()) && term.IsTerminal(tout.Fd())
+	switch {
+	case c.TTY && !onTerminal:
+		return errors.New("--tty needs standard input and output on a terminal")
+	case !c.NoTTY && onTerminal:
+		cols, rows, _ := term.GetSize(tout.Fd())
+		cmd.Terminal = &sandbox.Terminal{Cols: uint16(cols), Rows: uint16(rows)}
+
+		was, err := term.MakeRaw(tin.Fd())
+		if err != nil {
+			return fmt.Errorf("putting the terminal in raw mode: %w", err)
+		}
+		defer func() { _ = term.Restore(tin.Fd(), was) }()
+
+	case in == nil || xio.IsTTYReader(in):
+		in = strings.NewReader("")
+	}
+	cmd.Stdin = in
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if cmd.Terminal != nil {
+		defer shell.FollowSize(tout.Fd(), func(size shell.WinSize) {
+			_ = cmd.Resize(uint16(size.Cols), uint16(size.Rows))
+		})()
+	}
+
+	code, err := shell.ExitStatus(cmd.Wait())
 	if err != nil {
 		return err
 	}

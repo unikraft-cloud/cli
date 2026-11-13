@@ -14,12 +14,15 @@ require (
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.9
+	github.com/charmbracelet/x/term v0.2.2
+	github.com/coder/websocket v1.8.15
 	github.com/containerd/containerd/v2 v2.4.2
 	github.com/containerd/continuity v0.5.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/log v0.2.0
 	github.com/containerd/platforms v1.0.0-rc.5
 	github.com/cpuguy83/go-md2man/v2 v2.0.7
+	github.com/creack/pty v1.1.24
 	github.com/docker/cli v29.9.3+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/ettle/strcase v0.2.0
@@ -51,10 +54,10 @@ require (
 	gotest.tools/v3 v3.5.2
 	mvdan.cc/sh/v3 v3.14.1
 	sigs.k8s.io/yaml v1.6.0
-	unikraft.com/cloud/plugins/sandbox v0.0.0-20260916204449-fe2a902ae04c
+	unikraft.com/cloud/plugins/sandbox v0.0.0-20261110115830-def4e9d2e457
 	unikraft.com/cloud/sdk v0.4.1-staging.14
 	unikraft.com/cloud/sdk/build v0.0.0-20261112083743-f904b5bfc966
-	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261111121819-94d1f93b1d54
+	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261113085313-a2a9f94fc300
 	unikraft.com/x/build v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/colors v0.0.0-20261111120215-5177d0f4c7b6
@@ -68,7 +71,7 @@ require (
 	unikraft.com/x/kraftfile v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/log v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/ptr v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/shell v0.0.0-20261111120215-5177d0f4c7b6
+	unikraft.com/x/shell v0.0.0-20261113145058-65fc641f4af8
 	unikraft.com/x/signal v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/stdio v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/version v0.0.0-20261111120215-5177d0f4c7b6
@@ -90,12 +93,10 @@ require (
 	github.com/charmbracelet/harmonica v0.2.0 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4 // indirect
 	github.com/charmbracelet/x/exp/charmtone v0.0.0-20250603201427-c31516f43444 // indirect
-	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/coder/websocket v1.8.15 // indirect
 	github.com/containerd/console v1.0.5 // indirect
 	github.com/containerd/containerd/api v1.12.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect

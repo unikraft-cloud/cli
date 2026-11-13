@@ -26,8 +26,6 @@ import (
 	"unikraft.com/cli/pkg/shellbuiltins"
 )
 
-const shellBanner = "⚠︎ this shell is experimental"
-
 type ShellSandboxInstanceCmd struct {
 	Target string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instance to open a shell on."`
 
@@ -104,7 +102,6 @@ func (c *ShellSandboxInstanceCmd) Run(ctx context.Context, stdio xstdio.Stdio, p
 		}.Shell(),
 		Builtins:       builtins,
 		SuspendSignals: signals.Suspend,
-		Banner:         shellBanner,
 	}, stdio)
 	switch {
 	case err != nil && errors.Is(ctx.Err(), context.Canceled):
