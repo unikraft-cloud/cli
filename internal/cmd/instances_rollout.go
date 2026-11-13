@@ -90,7 +90,8 @@ type InstanceRolloutSelector string
 const (
 	// RolloutByService selects the instances in the service group of the new one.
 	RolloutByService InstanceRolloutSelector = "service"
-	// RolloutByTags selects the instances that have every tag of the new one.
+	// RolloutByTags selects the instances in the service group of the new one
+	// that have every tag of it.
 	RolloutByTags InstanceRolloutSelector = "tags"
 )
 
@@ -250,6 +251,7 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio xstdio.Stdio, 
 		Str(string(opts.By), selected).
 		Str("mode", string(opts.Type)).
 		Int("instances", len(oldKeys)).
+		Strs("replaces", oldKeys.Strings()).
 		Msg("rolling out")
 
 	quiet := stdio
@@ -342,11 +344,25 @@ func rolloutTargetService(ctx context.Context, metro string, svc *InstanceServic
 	return []ServiceGroup{svcGroup}, old, nil
 }
 
-// rolloutTargetTags reads back the instances that have every tag, and the
-// service groups that the old and the new instances are in.
+// rolloutTargetTags reads back the service group of the new instance, and the
+// instances in it that have every tag. Without a group, it reads those in none.
 func rolloutTargetTags(ctx context.Context, metro string, svc *InstanceService, tags []string) ([]ServiceGroup, []Instance, error) {
 	if metro == "" {
 		return nil, nil, fmt.Errorf("--rollout=by=tags requires --metro")
+	}
+	var groups []ServiceGroup
+	var svcUUID string
+	if svc != nil && (svc.Name != "" || svc.UUID != "") {
+		key := serviceGroupKey(svc, metro)
+		results, err := (ServiceGroup{}).Get(ctx, []string{key})
+		if err != nil {
+			return nil, nil, fmt.Errorf("looking up service group %q: %w", key, err)
+		}
+		if len(results) == 0 {
+			return nil, nil, fmt.Errorf("service group %q not found", key)
+		}
+		groups = []ServiceGroup{results[0].(ServiceGroup)}
+		svcUUID = groups[0].UUID
 	}
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
@@ -373,7 +389,11 @@ func rolloutTargetTags(ctx context.Context, metro string, svc *InstanceService, 
 			missing := slices.ContainsFunc(tags, func(tag string) bool {
 				return !slices.Contains(inst.Tags, tag)
 			})
-			if !missing {
+			var instSvcUUID string
+			if inst.Service != nil {
+				instSvcUUID = inst.Service.UUID
+			}
+			if !missing && instSvcUUID == svcUUID {
 				found = append(found, inst)
 			}
 		}
@@ -381,31 +401,6 @@ func rolloutTargetTags(ctx context.Context, metro string, svc *InstanceService, 
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("listing the instances with tags %s: %w", strings.Join(tags, ","), err)
-	}
-
-	links := []*InstanceService{svc}
-	for _, inst := range old {
-		links = append(links, inst.Service)
-	}
-	var keys []string
-	for _, link := range links {
-		if link == nil || (link.Name == "" && link.UUID == "") {
-			continue
-		}
-		keys = append(keys, serviceGroupKey(link, metro))
-	}
-	slices.Sort(keys)
-	keys = slices.Compact(keys)
-	if len(keys) == 0 {
-		return nil, old, nil
-	}
-	results, err := (ServiceGroup{}).Get(ctx, keys)
-	if err != nil {
-		return nil, nil, fmt.Errorf("reading the service groups of the instances with tags %s: %w", strings.Join(tags, ","), err)
-	}
-	groups := make([]ServiceGroup, len(results))
-	for i, r := range results {
-		groups[i] = r.(ServiceGroup)
 	}
 	return groups, old, nil
 }

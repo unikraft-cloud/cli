@@ -1759,6 +1759,16 @@ cmd: ["cat", "/marker.txt"]
 			"--image", "nginx:latest",
 		}, common...))
 
+		otherName := "test-" + uniq()
+		r.Run(t, append([]string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--name", otherName,
+			"--image", "nginx:latest",
+			"--tag", tag,
+			"--publish", "443:8080/http+tls",
+		}, common...))
+
 		rolled := strings.Fields(r.Run(t, append([]string{
 			"unikraft", "--log-level=error", "instance", "create",
 			"--output", "template={{ .name }}",
@@ -1774,6 +1784,7 @@ cmd: ["cat", "/marker.txt"]
 			assert.NotContains(t, list, name)
 		}
 		assert.Contains(t, list, controlName)
+		assert.Contains(t, list, otherName)
 		for _, name := range rolled {
 			inspected := r.Run(t, []string{"unikraft", "instance", "inspect", name})
 			assert.Regexp(t, `state:\s+running`, inspected)
@@ -1814,7 +1825,7 @@ cmd: ["cat", "/marker.txt"]
 			assert.Regexp(t, `tags:.*`+version, inspected)
 		}
 
-		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName}, versioned...))
+		r.Run(t, append([]string{"unikraft", "instance", "delete", controlName, otherName}, versioned...))
 	})
 
 	t.Run("rollout-rollback", func(t *testing.T) {
