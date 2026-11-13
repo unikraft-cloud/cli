@@ -1,3 +1,5 @@
+![Unikraft Cloud CLI: run any Dockerfile as a microVM that cold-starts in milliseconds and scales to zero](.github/pictures/banner.svg)
+
 # [Unikraft CLI](https://unikraft.com/docs/cli)
 
 > [!NOTE]
