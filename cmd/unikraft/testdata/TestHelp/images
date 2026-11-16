@@ -84,6 +84,8 @@ Flags:
           [examples: x86_64, arm64]
       --build-arg
           Set build-time variables.
+      --build-context
+          Set additional build contexts (format: name=path|url).
       --no-cache
           Do not use cache when building the image.
       --secret
