@@ -479,8 +479,8 @@ github.com/transparency-dev/merkle v0.0.2 h1:Q9nBoQcZcgPamMkGn7ghV8XiTZ/kRxn1yCG
 github.com/transparency-dev/merkle v0.0.2/go.mod h1:pqSy+OXefQ1EDUVmAJ8MUhHB9TXGuzVAT58PqBoHz1A=
 github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507 h1:Pshbef+pR9j+qiRihFkbpBZK5ptj6ikk70uO0MJj1D8=
 github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507/go.mod h1:wwfOgrNqUA9yjL8nmG6BIO0qQnmkEgJ8ISptbme83gI=
-github.com/unikraft/go-archivefs v0.0.0-20261106133356-c81ad57e55c4 h1:Do8BfD6VM6bYg44KYvaB+xd9Q+BQs10QDziwMkMqdQk=
-github.com/unikraft/go-archivefs v0.0.0-20261106133356-c81ad57e55c4/go.mod h1:NLWtSTdsTRLGQN87zqm9+vN01Ei9JX+FWwuOme2wJXw=
+github.com/unikraft/go-archivefs v0.0.0-20261124155100-7c53c03d86ce h1:iDLanVjLs39hVbWid8dkIWCmcCihhfq0M0OOUY6EQao=
+github.com/unikraft/go-archivefs v0.0.0-20261124155100-7c53c03d86ce/go.mod h1:NLWtSTdsTRLGQN87zqm9+vN01Ei9JX+FWwuOme2wJXw=
 github.com/vbatts/tar-split v0.12.3 h1:Cd46rkGXI3Td4yrVNwU8ripbxFaQbmesqhjBUUYAJSw=
 github.com/vbatts/tar-split v0.12.3/go.mod h1:sQOc6OlqGCr7HkGx/IDBeKiTIvqhmj8KffNhEXG4Nq0=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
@@ -611,8 +611,8 @@ unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6 h1:ZJ3Pzaej6zNGKQ6
 unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:A49h7MGEJpnhuqXONsNMI7OMHgz2HpD4o3UmJnrM8i4=
 unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6 h1:9XUQLejScr6+iKixqZFMPg+NmGYQJCc8O8BFjzcfpns=
 unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:Ottq5zN7Zuge2ySDoWllICAVudREPmCvv00d0FPx35w=
-unikraft.com/x/image-spec v0.0.0-20261118100745-28172ae5f28c h1:elFIU1+WfpddUjduhY32pUsvNf4IXVxZ0NLpjnsmBhc=
-unikraft.com/x/image-spec v0.0.0-20261118100745-28172ae5f28c/go.mod h1:YIkqwG7NBIMVwPKm2GUB0eMp5DGpk5cVBVD4AGuWAJA=
+unikraft.com/x/image-spec v0.0.0-20261124155313-85c0a0fe8c4e h1:hK775KBjbzrALPR4tZ6me5/30XhxxHjPUg/nqnAmpoM=
+unikraft.com/x/image-spec v0.0.0-20261124155313-85c0a0fe8c4e/go.mod h1:YIkqwG7NBIMVwPKm2GUB0eMp5DGpk5cVBVD4AGuWAJA=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8 h1:R48wpvUv46CfArM0GdTKWxhDlkagFnRtAaFmRu45O7g=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8/go.mod h1:yUzpOnSm68CH1Ujou0bTEJimecGiAjyqfCPiRrFWQI4=
 unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6 h1:PGFwRBtzJzxgyuLb4uNk0Ucs3i1U/bY9tZmp/kB+bqs=
