@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/containerd/continuity/fs/fstest"
@@ -167,6 +168,40 @@ cmd: ["sh", "/entrypoint.sh"]
 				}
 			})
 		}
+	})
+
+	// --compress writes the initrd of the rootfs as a zstd layer, and keeps the kernel of the runtime.
+	t.Run("compress", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		dir := t.TempDir()
+		require.NoError(t, fstest.Apply(
+			fstest.CreateFile("Dockerfile", []byte("FROM busybox:latest\n"), 0o644),
+			fstest.CreateFile("Kraftfile", []byte(`
+spec: v0.7
+name: compress-e2e
+runtime: base-compat:latest
+rootfs: ./Dockerfile
+cmd: ["/bin/sh"]
+`), 0o644),
+		).Apply(dir))
+
+		var kernels [][2]string
+		for _, tc := range []struct {
+			args   []string
+			initrd string
+		}{
+			{nil, "application/vnd.oci.image.layer.v1.tar"},
+			{[]string{"--compress"}, "application/vnd.oci.image.layer.v1.tar+zstd"},
+		} {
+			image := r.Profile.Organization + "/compress-e2e:" + uniq()
+			r.Run(t, append([]string{"unikraft", "build", ".", "--output", image}, tc.args...), integ.WithWorkDir(dir))
+
+			out := r.Run(t, []string{"unikraft", "image", "inspect", image})
+			kernels = append(kernels, [2]string{partField(t, out, "kernel", "digest"), partField(t, out, "kernel", "media-type")})
+			assert.Equal(t, tc.initrd, partField(t, out, "initrd", "media-type"), tc.args)
+			r.Run(t, []string{"unikraft", "image", "delete", image})
+		}
+		assert.Equal(t, kernels[0], kernels[1], "the kernel layer of the runtime changed")
 	})
 
 	// A project with only a Dockerfile builds without a Kraftfile. The
@@ -367,4 +402,12 @@ cmd: ["sh", "-c", "cat /greeting"]
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
+}
+
+// partField returns a field of the layer of a part in the output of image inspect.
+func partField(t *testing.T, out, part, field string) string {
+	t.Helper()
+	m := regexp.MustCompile(`(?m)^` + part + `:\n(?:  .*\n)*?  ` + field + `:\s+(\S+)`).FindStringSubmatch(out)
+	require.NotNil(t, m, "no %s of %s in:\n%s", field, part, out)
+	return m[1]
 }
