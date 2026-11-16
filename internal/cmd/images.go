@@ -827,7 +827,7 @@ func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *model.Partition) er
 		}
 	}()
 
-	_, err = access.Save(ctx, dest, imgs...)
+	_, err = access.SaveAll(ctx, dest, imgs)
 	if err != nil {
 		return fmt.Errorf("saving image to destination: %w", err)
 	}

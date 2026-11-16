@@ -93,6 +93,9 @@ func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error 
 
 func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
 	if c.Remote != nil {
+		if c.Compress {
+			return errors.New("--compress applies only to a local build")
+		}
 		return c.runRemote(ctx, cfg, partition)
 	}
 	if len(c.Metro) > 0 {
@@ -171,11 +174,16 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 		}
 	}
 
+	var saveOpts []imagespec.SaveOpt
+	if c.Compress {
+		saveOpts = append(saveOpts, imagespec.WithCompression(imagespec.CompressionZstd))
+	}
+
 	access, err := images.Accessor(ctx, opts...)
 	if err != nil {
 		return err
 	}
-	_, err = access.Save(ctx, output, imgs...)
+	_, err = access.SaveAll(ctx, output, imgs, saveOpts...)
 	if err != nil {
 		return err
 	}
