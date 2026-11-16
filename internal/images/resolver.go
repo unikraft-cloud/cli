@@ -109,8 +109,8 @@ func resolverOptions(profile *config.Profile, insecureRegistries []string, allIn
 			return s, nil
 		}))...),
 	)
-	if profile != nil && profile.RegistryMirror != "" {
-		hosts = mirrorHosts(hosts, profile.RegistryMirror)
+	if profile != nil && profile.Registry.Mirror != "" {
+		hosts = mirrorHosts(hosts, profile.Registry.Mirror)
 	}
 
 	return docker.ResolverOptions{
