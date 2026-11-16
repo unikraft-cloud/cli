@@ -12,10 +12,16 @@ domains:
 services:
 - source:      443
   destination: 8080
+  protocol:    tcp
   handlers:    ["tls", "http"]
 - source:      80
   destination: 443
+  protocol:    tcp
   handlers:    ["http", "redirect"]
+- source:      53
+  destination: 53
+  protocol:    udp
+  ip:          203.0.113.10
 
 ==================================== kv-all ====================================
 metro:         fra
@@ -40,14 +46,23 @@ instances:
 services:
 - source:      443
   destination: 8080
+  protocol:    tcp
+  ip:
   handlers:    ["tls", "http"]
 - source:      80
   destination: 443
+  protocol:    tcp
+  ip:
   handlers:    ["http", "redirect"]
+- source:      53
+  destination: 53
+  protocol:    udp
+  ip:          203.0.113.10
+  handlers:
 
 ==================================== table =====================================
-METRO  NAME        AUTOSCALE  CREATED  FQDN                  SOURCE  DESTINATION  HANDLERS         SOURCE  DESTINATION  HANDLERS
-fra    my-service  true       never    example.unikraft.app  443     8080         ["tls", "http"]  80      443          ["http", "redirect"]
+METRO  NAME        AUTOSCALE  CREATED  FQDN                  SOURCE  DESTINATION  PROTOCOL  IP  HANDLERS         SOURCE  DESTINATION  PROTOCOL  IP  HANDLERS              SOURCE  DESTINATION  PROTOCOL  IP            HANDLERS
+fra    my-service  true       never    example.unikraft.app  443     8080         tcp           ["tls", "http"]  80      443          tcp           ["http", "redirect"]  53      53           udp       203.0.113.10
 
 ==================================== debug =====================================
 [
@@ -266,6 +281,16 @@ fra    my-service  true       never    example.unikraft.app  443     8080       
             "verbosity": "short"
           },
           {
+            "name": "protocol",
+            "value": "tcp",
+            "verbosity": "short"
+          },
+          {
+            "name": "ip",
+            "value": "",
+            "verbosity": "short"
+          },
+          {
             "name": "handlers",
             "value": [
               "tls",
@@ -290,11 +315,52 @@ fra    my-service  true       never    example.unikraft.app  443     8080       
             "verbosity": "short"
           },
           {
+            "name": "protocol",
+            "value": "tcp",
+            "verbosity": "short"
+          },
+          {
+            "name": "ip",
+            "value": "",
+            "verbosity": "short"
+          },
+          {
             "name": "handlers",
             "value": [
               "http",
               "redirect"
             ],
+            "verbosity": "short"
+          }
+        ],
+        "verbosity": "short"
+      },
+      {
+        "name": "2",
+        "subfields": [
+          {
+            "name": "source",
+            "value": 53,
+            "verbosity": "short"
+          },
+          {
+            "name": "destination",
+            "value": 53,
+            "verbosity": "short"
+          },
+          {
+            "name": "protocol",
+            "value": "udp",
+            "verbosity": "short"
+          },
+          {
+            "name": "ip",
+            "value": "203.0.113.10",
+            "verbosity": "short"
+          },
+          {
+            "name": "handlers",
+            "value": null,
             "verbosity": "short"
           }
         ],
@@ -315,6 +381,16 @@ fra    my-service  true       never    example.unikraft.app  443     8080       
           "verbosity": "short"
         },
         {
+          "name": "protocol",
+          "value": "",
+          "verbosity": "short"
+        },
+        {
+          "name": "ip",
+          "value": "",
+          "verbosity": "short"
+        },
+        {
           "name": "handlers",
           "value": null,
           "verbosity": "short"
@@ -328,6 +404,7 @@ fra    my-service  true       never    example.unikraft.app  443     8080       
         {
           "source": 443,
           "destination": 8080,
+          "protocol": "tcp",
           "handlers": [
             "tls",
             "http"
@@ -336,10 +413,18 @@ fra    my-service  true       never    example.unikraft.app  443     8080       
         {
           "source": 80,
           "destination": 443,
+          "protocol": "tcp",
           "handlers": [
             "http",
             "redirect"
           ]
+        },
+        {
+          "source": 53,
+          "destination": 53,
+          "protocol": "udp",
+          "ip": "203.0.113.10",
+          "handlers": null
         }
       ],
       "required": true
@@ -349,6 +434,7 @@ fra    my-service  true       never    example.unikraft.app  443     8080       
         {
           "source": 443,
           "destination": 8080,
+          "protocol": "tcp",
           "handlers": [
             "tls",
             "http"
@@ -357,10 +443,18 @@ fra    my-service  true       never    example.unikraft.app  443     8080       
         {
           "source": 80,
           "destination": 443,
+          "protocol": "tcp",
           "handlers": [
             "http",
             "redirect"
           ]
+        },
+        {
+          "source": 53,
+          "destination": 53,
+          "protocol": "udp",
+          "ip": "203.0.113.10",
+          "handlers": null
         }
       ],
       "add": null,
