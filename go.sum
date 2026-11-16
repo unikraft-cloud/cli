@@ -295,8 +295,8 @@ github.com/jotaen/kong-completion v0.0.15 h1:ygxUE1S2Ec4OOnJxQEXDf8UdSQryrQzYksg
 github.com/jotaen/kong-completion v0.0.15/go.mod h1:dyIG20e3qq128SUBtF8jzI7YtkfzjWMlgbqkAJd6xHQ=
 github.com/juju/errors v1.0.0 h1:yiq7kjCLll1BiaRuNY53MGI0+EQ3rF6GB+wvboZDefM=
 github.com/juju/errors v1.0.0/go.mod h1:B5x9thDqx0wIMH3+aLIMP9HjItInYWObRovoCFM5Qe8=
-github.com/klauspost/compress v1.20.3 h1:zWNoFqq/lSuYQRim3dUXlXeA0IqwuZGicdG5ZTfY5j4=
-github.com/klauspost/compress v1.20.3/go.mod h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=
+github.com/klauspost/compress v1.20.4 h1:dD0v/bvxtjCBqQu6sx1TNWkalEY5lNTIe+HY9w8TeNI=
+github.com/klauspost/compress v1.20.4/go.mod h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
@@ -308,8 +308,8 @@ github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBql
 github.com/lucasb-eyer/go-colorful v1.4.1/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 h1:6E+4a0GO5zZEnZ81pIr0yLvtUWk2if982qA3F3QD6H4=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0/go.mod h1:zJYVVT2jmtg6P3p1VtQj7WsuWi/y4VnjVBn7F8KPB3I=
-github.com/mattn/go-colorable v0.1.15 h1:+u9SLTRGnXv73cEsnsmoZBom+dMU88B2M0aDcWy0/jY=
-github.com/mattn/go-colorable v0.1.15/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
+github.com/mattn/go-colorable v0.1.16 h1:+2YjeAe7xP1OQbZW1jERPWWCDLlNqFNCvjiqGiAt84A=
+github.com/mattn/go-colorable v0.1.16/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
 github.com/mattn/go-runewidth v0.0.10/go.mod h1:RAqKPSqVFrSLVXbA8x7dzmKdmGzieGRCM46jaSJTDAk=
@@ -477,8 +477,8 @@ github.com/transparency-dev/merkle v0.0.2 h1:Q9nBoQcZcgPamMkGn7ghV8XiTZ/kRxn1yCG
 github.com/transparency-dev/merkle v0.0.2/go.mod h1:pqSy+OXefQ1EDUVmAJ8MUhHB9TXGuzVAT58PqBoHz1A=
 github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507 h1:Pshbef+pR9j+qiRihFkbpBZK5ptj6ikk70uO0MJj1D8=
 github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507/go.mod h1:wwfOgrNqUA9yjL8nmG6BIO0qQnmkEgJ8ISptbme83gI=
-github.com/unikraft/go-archivefs v0.0.0-20261106133356-c81ad57e55c4 h1:Do8BfD6VM6bYg44KYvaB+xd9Q+BQs10QDziwMkMqdQk=
-github.com/unikraft/go-archivefs v0.0.0-20261106133356-c81ad57e55c4/go.mod h1:NLWtSTdsTRLGQN87zqm9+vN01Ei9JX+FWwuOme2wJXw=
+github.com/unikraft/go-archivefs v0.0.0-20261109165216-6df91ed79bb6 h1:mVWinpv6PJ+uvOkEB/MAqhAe0NPXw0VaEM6edSSEBh0=
+github.com/unikraft/go-archivefs v0.0.0-20261109165216-6df91ed79bb6/go.mod h1:NLWtSTdsTRLGQN87zqm9+vN01Ei9JX+FWwuOme2wJXw=
 github.com/vbatts/tar-split v0.12.3 h1:Cd46rkGXI3Td4yrVNwU8ripbxFaQbmesqhjBUUYAJSw=
 github.com/vbatts/tar-split v0.12.3/go.mod h1:sQOc6OlqGCr7HkGx/IDBeKiTIvqhmj8KffNhEXG4Nq0=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
@@ -607,8 +607,8 @@ unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6 h1:ZJ3Pzaej6zNGKQ6
 unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:A49h7MGEJpnhuqXONsNMI7OMHgz2HpD4o3UmJnrM8i4=
 unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6 h1:9XUQLejScr6+iKixqZFMPg+NmGYQJCc8O8BFjzcfpns=
 unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:Ottq5zN7Zuge2ySDoWllICAVudREPmCvv00d0FPx35w=
-unikraft.com/x/image-spec v0.0.0-20261111120215-5177d0f4c7b6 h1:t6u3lNymtj7tL1XledsXYv4mTfgyqRSdEhkll55hJE8=
-unikraft.com/x/image-spec v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:0WpdrxA0kZEzzkZiwjMpWJSo3/xbZwhnOIwnc0tDyBc=
+unikraft.com/x/image-spec v0.0.0-20261116151751-153c84c77385 h1:184icTJzoDVDv4sL8J8etBtOJIGphwr2O81KyWGr36o=
+unikraft.com/x/image-spec v0.0.0-20261116151751-153c84c77385/go.mod h1:YIkqwG7NBIMVwPKm2GUB0eMp5DGpk5cVBVD4AGuWAJA=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8 h1:R48wpvUv46CfArM0GdTKWxhDlkagFnRtAaFmRu45O7g=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8/go.mod h1:yUzpOnSm68CH1Ujou0bTEJimecGiAjyqfCPiRrFWQI4=
 unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6 h1:PGFwRBtzJzxgyuLb4uNk0Ucs3i1U/bY9tZmp/kB+bqs=
@@ -619,8 +619,8 @@ unikraft.com/x/kingkong v0.0.0-20261111120215-5177d0f4c7b6 h1:sWT5GFDU1F7bu5XE7q
 unikraft.com/x/kingkong v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:zmUUwkpfQBJaz99ErDMpef0ABijcnwpOcW02plhJxOM=
 unikraft.com/x/kraftfile v0.0.0-20261111120215-5177d0f4c7b6 h1:8hLPDvncyC4bwhX8td+C2q/b5pjLKo9zqSism14rR08=
 unikraft.com/x/kraftfile v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:QK+7/geX7b/Dwiy3CVbsI/+9Ys5m/r+RRu/BG6qX5tk=
-unikraft.com/x/log v0.0.0-20261111120215-5177d0f4c7b6 h1:tTlHiTnp8FgfAV/UPv2ddaV7vH2IUsT1sbOzc2KgSm4=
-unikraft.com/x/log v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:XCwOFKbAMvfdyLfU/pRVtW5lqHu60urteiLHDmsj7tc=
+unikraft.com/x/log v0.0.0-20261113145058-65fc641f4af8 h1:bWuK++umow5Ua8JRjD5TWkB0H0hbiupmGQvl1d9Iq1M=
+unikraft.com/x/log v0.0.0-20261113145058-65fc641f4af8/go.mod h1:XCwOFKbAMvfdyLfU/pRVtW5lqHu60urteiLHDmsj7tc=
 unikraft.com/x/ptr v0.0.0-20261111120215-5177d0f4c7b6 h1:MSng9itL6/GROsKNwiSBScXwjda16wdTegJphP5zjQw=
 unikraft.com/x/ptr v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:IZpTTnftvOzfw7QT9SBZKBhPfPcbJ0VgXmDQIjuHUOM=
 unikraft.com/x/shell v0.0.0-20261113145058-65fc641f4af8 h1:WfoTFZuyXmEJMOwedM1pGxyvyMo5lHOlqLW8xZM940o=

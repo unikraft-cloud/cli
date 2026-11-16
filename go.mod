@@ -45,7 +45,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/tidwall/gjson v1.20.2
 	github.com/tonistiigi/fsutil v0.0.0-20261103125000-e075fd9305eb
-	github.com/unikraft/go-archivefs v0.0.0-20261106133356-c81ad57e55c4
+	github.com/unikraft/go-archivefs v0.0.0-20261109165216-6df91ed79bb6
 	golang.org/x/mod v0.43.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.50.0
@@ -64,12 +64,12 @@ require (
 	unikraft.com/x/filters v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/image-spec v0.0.0-20261111120215-5177d0f4c7b6
+	unikraft.com/x/image-spec v0.0.0-20261116151751-153c84c77385
 	unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/joinerrgroup v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/kingkong v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/kraftfile v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/log v0.0.0-20261111120215-5177d0f4c7b6
+	unikraft.com/x/log v0.0.0-20261113145058-65fc641f4af8
 	unikraft.com/x/ptr v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/shell v0.0.0-20261113145058-65fc641f4af8
 	unikraft.com/x/signal v0.0.0-20261111120215-5177d0f4c7b6
@@ -131,10 +131,10 @@ require (
 	github.com/in-toto/in-toto-golang v0.11.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
-	github.com/klauspost/compress v1.20.3 // indirect
+	github.com/klauspost/compress v1.20.4 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
