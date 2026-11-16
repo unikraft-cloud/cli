@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.4-alpine AS build
 WORKDIR /src
 ARG TARGETOS TARGETARCH
 RUN --mount=type=bind,target=. \
