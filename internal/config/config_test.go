@@ -483,7 +483,9 @@ profiles:
     type: cloud
     token: test-token
     registry:
+      host: harbor.example:8083
       mirror: https://console.example.com/proxy/registry
+      insecure: true
   plain:
     type: cloud
     token: test-token
@@ -496,7 +498,9 @@ profiles:
 	require.NoError(t, err)
 
 	assert.Equal(t, Registry{
-		Mirror: "https://console.example.com/proxy/registry",
+		Host:     "harbor.example:8083",
+		Mirror:   "https://console.example.com/proxy/registry",
+		Insecure: true,
 	}, config.Profiles["default"].Registry)
 
 	require.NoError(t, config.Save())

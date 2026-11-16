@@ -7,6 +7,7 @@ package images
 
 import (
 	"crypto/x509"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,7 +15,56 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"unikraft.com/cli/internal/config"
+	"unikraft.com/cli/internal/httpclient"
 )
+
+func TestHostCredsRegistryHost(t *testing.T) {
+	profile := &config.Profile{
+		Token:    base64.StdEncoding.EncodeToString([]byte("user:pass")),
+		Registry: config.Registry{Host: "harbor.example:8083"},
+	}
+
+	username, password, err := hostCreds(profile, "harbor.example:8083")
+	require.NoError(t, err)
+	assert.Equal(t, "user", username)
+	assert.Equal(t, "pass", password)
+}
+
+func TestResolverOptionsRegistry(t *testing.T) {
+	t.Setenv("DOCKER_CONFIG", t.TempDir())
+
+	t.Run("mirror", func(t *testing.T) {
+		profile := &config.Profile{Registry: config.Registry{
+			Host:   "harbor.example:8083",
+			Mirror: "https://console.example.com/proxy/registry",
+		}}
+
+		hosts, err := resolverOptions(profile, nil, false).Hosts("harbor.example:8083")
+		require.NoError(t, err)
+		require.NotEmpty(t, hosts)
+		assert.Equal(t, "console.example.com", hosts[0].Host)
+	})
+
+	t.Run("insecure", func(t *testing.T) {
+		profile := &config.Profile{Registry: config.Registry{
+			Host:     "harbor.example:8083",
+			Insecure: true,
+		}}
+		options := resolverOptions(profile, nil, false)
+
+		hosts, err := options.Hosts("harbor.example:8083")
+		require.NoError(t, err)
+		require.NotEmpty(t, hosts)
+		assert.Same(t, httpclient.InsecureRegistryHTTPClient, hosts[0].Client)
+
+		hosts, err = options.Hosts("ghcr.io")
+		require.NoError(t, err)
+		require.NotEmpty(t, hosts)
+		assert.Same(t, httpclient.RegistryHTTPClient, hosts[0].Client)
+	})
+}
 
 func TestInsecureTransport(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))

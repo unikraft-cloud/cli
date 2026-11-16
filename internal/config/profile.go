@@ -93,8 +93,12 @@ type Profile struct {
 
 // Registry is the Unikraft image registry configuration of a profile.
 type Registry struct {
+	// Host is the host of the Unikraft image registry.
+	Host string `json:"host,omitempty" field:",long" help:"Host of the Unikraft image registry. Login sets it from the control plane."`
 	// Mirror is the endpoint that gets the requests for the Unikraft image registry.
 	Mirror string `json:"mirror,omitempty" field:",long" help:"Endpoint that serves requests for the Unikraft image registry."`
+	// Insecure skips TLS verification when connecting to the Unikraft image registry.
+	Insecure bool `json:"insecure,omitempty" field:",long" help:"Skip TLS verification when connecting to the Unikraft image registry."`
 }
 
 func (p Profile) GetDefaultMetro() string {

@@ -58,6 +58,9 @@ func resolverOptions(profile *config.Profile, insecureRegistries []string, allIn
 		if isInsecureRegistry(host) {
 			return true, nil
 		}
+		if profile != nil && profile.Registry.Insecure && isUnikraftRegistry(profile, host) {
+			return true, nil
+		}
 		for _, index := range indexes {
 			if host == index.Host {
 				return index.Insecure, nil
@@ -111,7 +114,7 @@ func resolverOptions(profile *config.Profile, insecureRegistries []string, allIn
 		}))...),
 	)
 	if profile != nil && profile.Registry.Mirror != "" {
-		hosts = mirrorHosts(hosts, profile.Registry.Mirror)
+		hosts = mirrorHosts(hosts, profile)
 	}
 
 	return docker.ResolverOptions{
@@ -120,8 +123,10 @@ func resolverOptions(profile *config.Profile, insecureRegistries []string, allIn
 	}
 }
 
-// mirrorHosts sends the requests for the Unikraft registry to mirror.
-func mirrorHosts(hosts docker.RegistryHosts, mirror string) docker.RegistryHosts {
+// mirrorHosts sends the requests for the Unikraft registry to the mirror of
+// profile.
+func mirrorHosts(hosts docker.RegistryHosts, profile *config.Profile) docker.RegistryHosts {
+	mirror := profile.Registry.Mirror
 	return func(host string) ([]docker.RegistryHost, error) {
 		u, err := url.Parse(mirror)
 		if err != nil {
@@ -132,7 +137,7 @@ func mirrorHosts(hosts docker.RegistryHosts, mirror string) docker.RegistryHosts
 			return nil, err
 		}
 		for i, host := range hosts {
-			if slices.Contains(defaultRegistries, host.Host) {
+			if isUnikraftRegistry(profile, host.Host) {
 				host.Scheme = u.Scheme
 				host.Host = u.Host
 				host.Path = path.Join("/", u.Path, "v2")
@@ -141,6 +146,15 @@ func mirrorHosts(hosts docker.RegistryHosts, mirror string) docker.RegistryHosts
 		}
 		return hosts, nil
 	}
+}
+
+// isUnikraftRegistry returns true if host is a default Unikraft registry host
+// or the registry host of profile.
+func isUnikraftRegistry(profile *config.Profile, host string) bool {
+	if slices.Contains(defaultRegistries, host) {
+		return true
+	}
+	return profile != nil && profile.Registry.Host != "" && host == profile.Registry.Host
 }
 
 // insecureTransport sends a request through the insecure registry client if
@@ -203,7 +217,7 @@ func hostCreds(profile *config.Profile, hostname string) (string, string, error)
 	}
 
 	// FIXME: why are there two different auth schemes?
-	if slices.Contains(defaultRegistries, hostname) {
+	if isUnikraftRegistry(profile, hostname) {
 		return decodeAuth(profile.Token)
 	}
 	for _, metro := range profile.Metros {
