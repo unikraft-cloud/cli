@@ -177,7 +177,7 @@ brews:
     email: monkey@unikraft.io
   commit_msg_template: "Bump {{ .ProjectName }} to version {{ .Tag }}"
   homepage: "https://unikraft.com"
-  description: "The official CLI for Unikraft Cloud — deploy and manage unikernels globally in milliseconds."
+  description: "The official CLI for Unikraft Cloud — run any Dockerfile as a microVM that cold-starts in milliseconds."
   license: "BSD-3-Clause"
   extra_install: |
     man1.install Dir["docs/man/*.1.gz"]
@@ -206,7 +206,7 @@ nix:
     name: nur
     token: "{{ .Env.GITHUB_TOKEN_UNIKRAFT }}"
   homepage: "https://unikraft.com"
-  description: "The official CLI for Unikraft Cloud — deploy and manage unikernels globally in milliseconds."
+  description: "The official CLI for Unikraft Cloud — run any Dockerfile as a microVM that cold-starts in milliseconds."
   license: bsd3
   main_program: "unikraft"
   install: |-

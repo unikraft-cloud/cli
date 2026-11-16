@@ -316,8 +316,9 @@ func NewParser(cli *UnikraftCLI) (*kong.Kong, error) {
 	return cmd.NewParser(cli, version.Version, groups,
 		kong.Name(branding.Name),
 		kong.Vars{"docs_url": branding.DocsURL},
-		kong.Description("The Unikraft Command-Line Interface."),
-		kingkong.DescriptionDetail("The Unikraft Command-Line Interface.\n"+
+		kong.Description("The Unikraft Cloud CLI: run any Dockerfile as a microVM that cold-starts in milliseconds."),
+		kingkong.DescriptionDetail("The Unikraft Cloud CLI.\n"+
+			"Run any Dockerfile as a microVM that cold-starts in milliseconds.\n"+
 			"    _         \n"+
 			"  c'3'o  .-.  Docs:   "+branding.DocsURL+"cli\n"+
 			"  (| |)_/     Issues: "+branding.IssuesURL+"\n"+
