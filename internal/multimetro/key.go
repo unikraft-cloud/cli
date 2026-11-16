@@ -7,10 +7,13 @@ package multimetro
 
 import (
 	"cmp"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
 	"unikraft.com/cloud/sdk/platform/group"
+
+	"unikraft.com/cli/pkg/model"
 )
 
 type Key group.Ref
@@ -185,4 +188,31 @@ func (ks Keys) ByUUID() []string {
 		ss = append(ss, k.String())
 	}
 	return ss
+}
+
+// NotFoundRefs returns the refs of the keys in a model.ErrNotFound in err.
+func NotFoundRefs(err error) (group.Refs, bool) {
+	notFound, ok := errors.AsType[model.ErrNotFound](err)
+	if !ok {
+		return nil, false
+	}
+	refs := make(group.Refs, len(notFound.Keys))
+	for i, key := range notFound.Keys {
+		k, ok := key.(Key)
+		if !ok {
+			k = ParseKey(key.Canonical())
+			k.Display = ""
+		}
+		refs[i] = group.Ref(k)
+	}
+	return refs, true
+}
+
+// NotFound converts err into a model.ErrNotFound for its refs, wrapping it.
+func NotFound(err group.ErrRefNotFound) error {
+	keys := make([]model.Key, len(err.Refs))
+	for i, ref := range err.Refs {
+		keys[i] = Key(ref)
+	}
+	return model.ErrNotFound{Keys: keys, Err: err}
 }

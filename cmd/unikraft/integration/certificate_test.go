@@ -83,6 +83,50 @@ func TestCertificates(t *testing.T) {
 		r.Run(t, []string{"unikraft", "certificate", "delete", "test-" + certName})
 	})
 
+	t.Run("edit", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		certName := "test-" + uniq()
+		old := integ.GenerateCert(t, "")
+		renewed := integ.GenerateCert(t, strings.TrimSuffix(old.CN, "."))
+		other := integ.GenerateCert(t, "")
+		dir := t.TempDir()
+		renewedChain := filepath.Join(dir, "renewed-chain.pem")
+		renewedKey := filepath.Join(dir, "renewed-key.pem")
+		otherChain := filepath.Join(dir, "other-chain.pem")
+		otherKey := filepath.Join(dir, "other-key.pem")
+		require.NoError(t, os.WriteFile(renewedChain, []byte(renewed.Chain), 0o600))
+		require.NoError(t, os.WriteFile(renewedKey, []byte(renewed.Key), 0o600))
+		require.NoError(t, os.WriteFile(otherChain, []byte(other.Chain), 0o600))
+		require.NoError(t, os.WriteFile(otherKey, []byte(other.Key), 0o600))
+
+		r.Run(t, []string{
+			"unikraft", "certificate", "create",
+			"--set", "name=" + certName,
+			"--set", "cn=" + old.CN,
+			"--set", "chain=" + old.Chain,
+			"--set", "pkey=" + old.Key,
+			"--set", "metro=" + r.MetroName,
+		})
+
+		r.Run(t, []string{
+			"unikraft", "certificate", "edit", certName,
+			"--output", "quiet",
+			"--chain", renewedChain,
+			"--pkey", renewedKey,
+		})
+		out := r.Run(t, []string{"unikraft", "certificate", "inspect", certName})
+		assert.Regexp(t, `(?i)serial-number:\s+0*`+renewed.X509Cert.SerialNumber.Text(16)+`\b`, out)
+
+		out = r.Run(t, []string{
+			"unikraft", "certificate", "edit", certName,
+			"--chain", otherChain,
+			"--pkey", otherKey,
+		}, integ.ExpectFail())
+		assert.Contains(t, out, "common name of the provided certificate does not match")
+
+		r.Run(t, []string{"unikraft", "certificate", "delete", certName})
+	})
+
 	t.Run("serve", func(t *testing.T) {
 		r := runner(t, true, []string{staging, stable})
 		certName := uniq()

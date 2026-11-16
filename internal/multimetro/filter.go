@@ -10,7 +10,7 @@ import (
 
 	"unikraft.com/x/filters"
 
-	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/pkg/model"
 )
 
 func filterMetrosFromCtx(ctx context.Context, names []string) []string {

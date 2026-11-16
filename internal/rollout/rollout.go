@@ -195,7 +195,16 @@ func (p *progress) undo(ctx context.Context, cause error) error {
 	log.G(ctx).Warn().
 		Strs("instances", created).
 		Msg("unwinding the rollout, deleting the new instances")
-	for _, set := range p.news {
+	running := p.news[:p.started]
+	if p.stopFirst && p.stopped > 0 {
+		running = nil
+	}
+	for i, set := range p.news {
+		if i < len(running) {
+			if err := within(ctx, set.Stop); err != nil {
+				errs = append(errs, fmt.Errorf("stopping the new instances: %w", err))
+			}
+		}
 		if err := within(ctx, set.Delete); err != nil {
 			errs = append(errs, fmt.Errorf("deleting the new instances: %w", err))
 		}

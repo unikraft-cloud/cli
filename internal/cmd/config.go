@@ -11,8 +11,8 @@ import (
 	"fmt"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	"unikraft.com/x/kingkong"
 )
 
@@ -34,7 +34,7 @@ func (Config) Type() model.Type {
 }
 
 func (c Config) Key() model.Key {
-	return staticKey(c.Path)
+	return model.StringKey(c.Path)
 }
 
 func (c Config) Raw() any {

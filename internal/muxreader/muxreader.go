@@ -44,7 +44,9 @@ func (m *Mux) DisablePrefix() {
 	m.disablePrefix = true
 }
 
-func (m *Mux) With(name string, r io.Reader) {
+// With adds the lines of r under name. When r ends, end gets its error (nil on
+// io.EOF) after the last line is read, and returns the error that ends the mux.
+func (m *Mux) With(name string, r io.Reader, end func(error) error) {
 	m.mu.Lock()
 	if m.sealed {
 		m.mu.Unlock()
@@ -53,7 +55,7 @@ func (m *Mux) With(name string, r io.Reader) {
 	m.width = max(m.width, len(name))
 	m.wg.Add(1)
 	m.mu.Unlock()
-	go m.run(name, r)
+	go m.run(name, r, end)
 }
 
 func (m *Mux) Seal() {
@@ -86,43 +88,52 @@ const (
 	markerPipe = '│'
 )
 
-func (m *Mux) run(name string, r io.Reader) {
+func (m *Mux) run(name string, r io.Reader, end func(error) error) {
 	defer m.wg.Done()
 	br := bufio.NewReader(r)
 	for {
 		line, err := br.ReadBytes('\n')
-		if len(line) == 0 && err != nil {
-			return
-		}
-		if err == io.EOF && len(line) > 0 && line[len(line)-1] != '\n' {
-			line = append(line, '\n')
-		}
-
-		m.mu.Lock()
-		switched := name != m.last
-		m.last = name
-		width := m.width
-		m.mu.Unlock()
-
-		var werr error
-
-		if !m.disablePrefix {
-			marker := markerPipe
-			if switched {
-				marker = markerNew
+		if len(line) > 0 {
+			if line[len(line)-1] != '\n' {
+				line = append(line, '\n')
 			}
-			prefix := prefixStyle.Render(fmt.Sprintf("%*s %c ", width, name, marker))
-			_, werr = m.w.Write([]byte(prefix))
-		}
-		if werr == nil {
-			_, werr = m.w.Write(line)
-		}
-		if werr != nil {
-			return
+
+			m.mu.Lock()
+			switched := name != m.last
+			m.last = name
+			width := m.width
+			m.mu.Unlock()
+
+			var werr error
+
+			if !m.disablePrefix {
+				marker := markerPipe
+				if switched {
+					marker = markerNew
+				}
+				prefix := prefixStyle.Render(fmt.Sprintf("%*s %c ", width, name, marker))
+				_, werr = m.w.Write([]byte(prefix))
+			}
+			if werr == nil {
+				_, werr = m.w.Write(line)
+			}
+			if werr != nil {
+				return
+			}
 		}
 
 		if err != nil {
-			if err != io.EOF {
+			if err == io.EOF {
+				err = nil
+			}
+			if end != nil {
+				// An empty write waits until the reader of the mux reads again.
+				if _, werr := m.w.Write(nil); werr != nil {
+					return
+				}
+				err = end(err)
+			}
+			if err != nil {
 				m.closeWriter(err)
 			}
 			return

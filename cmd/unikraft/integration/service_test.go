@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	integ "unikraft.com/cli/internal/integration"
 )
 
 func TestServices(t *testing.T) {
@@ -139,5 +141,67 @@ func TestServices(t *testing.T) {
 		assert.NotRegexp(t, `source:\s+8443`, out)
 
 		r.Run(t, []string{"unikraft", "service", "delete", "test-" + svcName})
+	})
+
+	t.Run("delete-drain", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+		instName := "test-" + uniq()
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.MetroName,
+			"--service", "443:8080/tls+http",
+		})
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--name", instName,
+			"--metro", r.MetroName,
+			"--image", "nginx:latest",
+			"--service", svcName,
+			"--autostart",
+		})
+
+		out := r.Run(t, []string{"unikraft", "service", "delete", "--all", "--force", "--drain"}, integ.ExpectFail())
+		assert.Contains(t, out, "cannot be used with --all or --filter")
+		out = r.Run(t, []string{"unikraft", "service", "delete", svcName, "--drain", "--drain-timeout=-1s"}, integ.ExpectFail())
+		assert.Contains(t, out, "--drain-timeout cannot be negative")
+
+		r.Run(t, []string{"unikraft", "--timeout", "120s", "service", "delete", svcName, "--drain"})
+
+		r.Run(t, []string{"unikraft", "instance", "inspect", instName}, integ.WithNoPartition(), integ.ExpectFail())
+		r.Run(t, []string{"unikraft", "service", "inspect", svcName}, integ.WithNoPartition(), integ.ExpectFail())
+	})
+
+	t.Run("delete-wait-empty", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		svcName := "test-" + uniq()
+		instName := "test-" + uniq()
+
+		r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--output", "quiet",
+			"--name", svcName,
+			"--metro", r.MetroName,
+			"--service", "443:8080/tls+http",
+		})
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--name", instName,
+			"--metro", r.MetroName,
+			"--image", "nginx:latest",
+			"--service", svcName,
+		})
+
+		r.Run(t, []string{"unikraft", "--timeout", "5s", "service", "delete", svcName, "--wait-empty"}, integ.ExpectFail())
+		r.Run(t, []string{"unikraft", "instance", "inspect", instName})
+		r.Run(t, []string{"unikraft", "service", "inspect", svcName})
+
+		r.Run(t, []string{"unikraft", "instance", "delete", instName})
+		r.Run(t, []string{"unikraft", "--timeout", "60s", "service", "delete", svcName, "--wait-empty"})
 	})
 }

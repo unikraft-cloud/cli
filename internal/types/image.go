@@ -9,9 +9,9 @@ import (
 	"unikraft.com/x/image-spec/reference"
 
 	"unikraft.com/cli/internal/images"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/value"
 )
 
 // ImageRef is a resource field holding an image reference, which is either an

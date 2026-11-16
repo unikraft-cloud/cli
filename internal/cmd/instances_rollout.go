@@ -21,12 +21,13 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/rollout"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
+	"unikraft.com/cli/pkg/model/value"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // InstanceRollout holds the options of a rollout.
@@ -36,6 +37,7 @@ type InstanceRollout struct {
 	Target       []string                `name:"target" json:"target,omitempty"`
 	Batch        int                     `name:"batch" json:"batch,omitempty"`
 	HealthyAfter types.DurationS         `name:"healthy-after" json:"healthy-after,omitempty"`
+	DrainTimeout *types.DurationMS       `name:"drain-timeout" json:"drain-timeout,omitempty"`
 }
 
 // UnmarshalText reads the rollout options as <key>=<value> pairs or as JSON.
@@ -47,6 +49,9 @@ func (r *InstanceRollout) UnmarshalText(data []byte) error {
 	}
 	if parsed.HealthyAfter < 0 {
 		return fmt.Errorf("rollout healthy-after cannot be negative")
+	}
+	if parsed.DrainTimeout != nil && *parsed.DrainTimeout < 0 {
+		return fmt.Errorf("rollout drain-timeout cannot be negative")
 	}
 	if parsed.Batch < 0 {
 		return fmt.Errorf("rollout batch cannot be negative")
@@ -102,9 +107,13 @@ func (b *InstanceRolloutSelector) UnmarshalText(data []byte) error {
 // rolloutPollInterval is how long a rollout leaves between two reads.
 const rolloutPollInterval = 2 * time.Second
 
+// rolloutDrainTimeout is how long an instance drains its connections before
+// a rollout stops it, when the rollout sets no drain-timeout.
+const rolloutDrainTimeout = types.DurationMS(30_000)
+
 // runRollout replaces every instance the rollout selects with a new one, and
 // deletes the old set once the new one runs.
-func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, partition *model.Partition) ([]model.Model, error) {
+func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) ([]model.Model, error) {
 	opts := *c.Rollout
 	opts.Type = cmp.Or(opts.Type, RolloutRolling)
 	opts.By = cmp.Or(opts.By, RolloutByService)
@@ -203,6 +212,7 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 	}
 
 	healthyAfter := time.Duration(opts.HealthyAfter) * time.Second
+	drain := *cmp.Or(opts.DrainTimeout, new(rolloutDrainTimeout))
 	var strategy rollout.Strategy = rollout.Rolling{Batch: opts.Batch, HealthyAfter: healthyAfter}
 	first := min(opts.Batch, len(oldKeys))
 	if opts.Type == RolloutRecreate {
@@ -225,13 +235,11 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 	}
 
 	if c.DryRun {
-		if _, err := c.Create(ctx, stdio, partition, fieldsFor(first)); err != nil {
-			return nil, err
-		}
+		patches := fieldsFor(first)
 		if len(oldKeys) > 0 {
-			fmt.Fprintf(stdio.Stdout, "replaces := %s\n", strings.Join(oldKeys.Strings(), " "))
+			patches = append(patches, model.Field{Name: "replaces", Create: &model.Patch{Set: oldKeys.Strings()}})
 		}
-		return nil, nil
+		return nil, cmd.PrintPatches(stdio.Stdout, patches, true)
 	}
 
 	g, err := multimetro.NewClient(ctx)
@@ -248,12 +256,12 @@ func (c *InstanceCreateCmd) runRollout(ctx context.Context, stdio config.Stdio, 
 	quiet.Stdout = io.Discard
 	var created []*instanceSet
 	done, err := strategy.Apply(ctx,
-		&instanceSet{g: g, partition: partition, keys: oldKeys, running: running},
+		&instanceSet{g: g, partition: partition, drain: drain, keys: oldKeys, running: running},
 		func(ctx context.Context, replaces rollout.Set) (rollout.Set, error) {
 			old := replaces.(*instanceSet)
 			n := len(old.keys)
 			res, err := c.Create(ctx, quiet, partition, fieldsFor(n))
-			set := &instanceSet{g: g, partition: partition}
+			set := &instanceSet{g: g, partition: partition, drain: drain}
 			for _, r := range res {
 				set.keys = append(set.keys, r.(Instance).key)
 			}
@@ -417,6 +425,7 @@ func serviceGroupKey(link *InstanceService, metro string) string {
 type instanceSet struct {
 	g         *group.Group[multimetro.MetroClient]
 	partition *model.Partition
+	drain     types.DurationMS
 	keys      multimetro.Keys
 	running   multimetro.Keys
 	seen      map[string]bool
@@ -429,8 +438,8 @@ func (s *instanceSet) Len() int {
 
 func (s *instanceSet) Take(n int) (rollout.Set, rollout.Set) {
 	n = min(n, len(s.keys))
-	batch := &instanceSet{g: s.g, partition: s.partition, keys: s.keys[:n:n]}
-	rest := &instanceSet{g: s.g, partition: s.partition, keys: s.keys[n:]}
+	batch := &instanceSet{g: s.g, partition: s.partition, drain: s.drain, keys: s.keys[:n:n]}
+	rest := &instanceSet{g: s.g, partition: s.partition, drain: s.drain, keys: s.keys[n:]}
 	for _, key := range s.running {
 		if slices.Contains(batch.keys, key) {
 			batch.running = append(batch.running, key)
@@ -453,14 +462,15 @@ func (s *instanceSet) Start(ctx context.Context) error {
 	return err
 }
 
+// Stop drains the connections of the instances before they stop.
 func (s *instanceSet) Stop(ctx context.Context) error {
 	pending := s.keys
-	_, err := stopInstances(ctx, s.g, s.keys, StopOpts{DrainTimeout: -1})
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
+	_, err := stopInstances(ctx, s.g, s.keys, StopOpts{DrainTimeout: s.drain})
+	if refs, ok := multimetro.NotFoundRefs(err); ok {
 		log.G(ctx).Warn().
-			Strs("instances", notFound.Refs.Strings()).
+			Strs("instances", refs.Strings()).
 			Msg("the instances are gone, so they count as stopped")
-		pending = withoutRefs(pending, notFound.Refs)
+		pending = withoutRefs(pending, refs)
 	} else if err != nil {
 		return err
 	}
@@ -519,12 +529,12 @@ func (s *instanceSet) Stop(ctx context.Context) error {
 
 	for {
 		err := ask(ctx, pending)
-		notFound, ok := errors.AsType[group.ErrRefNotFound](err)
+		refs, ok := multimetro.NotFoundRefs(err)
 		if err == nil || !ok {
 			return err
 		}
-		pending = make(multimetro.Keys, 0, len(notFound.Refs))
-		for _, ref := range notFound.Refs {
+		pending = make(multimetro.Keys, 0, len(refs))
+		for _, ref := range refs {
 			pending = append(pending, multimetro.Key(ref))
 		}
 		select {
@@ -545,7 +555,7 @@ func (s *instanceSet) Up(ctx context.Context) error {
 	var last []Instance
 	for {
 		results, err := (Instance{}).Get(ctx, s.running.ByUUID())
-		notFound, ok := errors.AsType[group.ErrRefNotFound](err)
+		notFoundRefs, ok := multimetro.NotFoundRefs(err)
 		if err != nil && !ok {
 			return err
 		}
@@ -567,7 +577,7 @@ func (s *instanceSet) Up(ctx context.Context) error {
 				failed = append(failed, fmt.Errorf("instance %s is %s, not running", name, inst.State))
 			}
 		}
-		for _, ref := range notFound.Refs {
+		for _, ref := range notFoundRefs {
 			name := cmp.Or(ref.Name, ref.UUID)
 			if (ref.UUID != "" && s.seen[ref.UUID]) || (ref.Name != "" && s.seen[ref.Name]) {
 				failed = append(failed, fmt.Errorf("instance %s was deleted", name))
@@ -611,7 +621,7 @@ func (s *instanceSet) Delete(ctx context.Context) error {
 	}
 	var left []string
 	results, getErr := (Instance{}).Get(ctx, s.keys.ByUUID())
-	if _, ok := errors.AsType[group.ErrRefNotFound](getErr); getErr == nil || ok {
+	if _, ok := errors.AsType[model.ErrNotFound](getErr); getErr == nil || ok {
 		for _, r := range results {
 			inst := r.(Instance)
 			left = append(left, cmp.Or(inst.Name, inst.UUID))

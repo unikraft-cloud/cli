@@ -104,6 +104,9 @@ fra    my-cert  example.unikraft.app  valid  never    never
     "create": {
       "set": "",
       "required": true
+    },
+    "edit": {
+      "set": ""
     }
   },
   {
@@ -112,6 +115,9 @@ fra    my-cert  example.unikraft.app  valid  never    never
     "create": {
       "set": "",
       "required": true
+    },
+    "edit": {
+      "set": ""
     }
   },
   {

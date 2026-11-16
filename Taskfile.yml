@@ -23,10 +23,6 @@ vars:
   # svu_bin: "{{.go_bin}} run github.com/caarlos0/svu/v3@{{.svu_version}}"
   svu_bin: "{{.go_bin}} run github.com/caarlos0/svu/v3"
 
-  task_version: v3.48.0
-  task_bin:
-    sh: command -v task >/dev/null 2>&1 && echo "task --yes" || echo "{{.go_bin}} run github.com/go-task/task/v3/cmd/task@{{.task_version}} --yes"
-
   cli_name: unikraft-cli
   cli_docs: https://unikraft.com/docs/cli
   cli_issues: https://github.com/unikraft-cloud/cli/issues
@@ -195,12 +191,17 @@ tasks:
       {{.svu_bin}} current
 
   next-stable:
-    desc: Show the next stable version of the CLI.
+    desc: Show the next stable version of the CLI, from the staging tag on REF (default HEAD).
     silent: true
     cmds:
     - |
-      PRERELEASE="${PRERELEASE:-}"
-      {{.svu_bin}} next --always --v0 --tag.prefix "v" --tag.pattern "v[0-9]*.[0-9]*.[0-9]*" --prerelease "$PRERELEASE"
+      REF="${REF:-HEAD}"
+      STAGING=$(git tag --points-at "$REF" --list 'v*-staging.*' --sort=-v:refname | head -n1)
+      if [[ -z "$STAGING" ]]; then
+        echo "No staging tag on $(git rev-parse --short "$REF")" >&2
+        exit 1
+      fi
+      echo "${STAGING%%-*}"
 
   next-staging:
     desc: Show the next staging version of the CLI.
@@ -211,7 +212,7 @@ tasks:
       if [[ "$NEXT" == *"staging"* ]]; then
         NEXT=$(echo "$NEXT" | awk -F. '{print $1 "." $2 "." $3 "." $4 + 1}')
       else
-        NEXT=$(PRERELEASE=staging.1 {{.task_bin}} next-stable)
+        NEXT=$({{.svu_bin}} next --always --v0 --tag.prefix "v" --tag.pattern "v[0-9]*.[0-9]*.[0-9]*" --prerelease staging.1)
       fi
       echo $NEXT
 

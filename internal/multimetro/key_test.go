@@ -6,9 +6,15 @@
 package multimetro
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"unikraft.com/cloud/sdk/platform/group"
+
+	"unikraft.com/cli/pkg/model"
 )
 
 const testUUID = "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
@@ -262,4 +268,32 @@ func TestCompleteKey(t *testing.T) {
 			assert.Equal(t, tt.expected, key.Complete(tt.prefix))
 		})
 	}
+}
+
+func TestNotFound(t *testing.T) {
+	sdkErr := group.ErrRefNotFound{Refs: group.Refs{{Metro: "fra", Name: "foo"}}}
+	err := NotFound(sdkErr)
+
+	notFound, ok := errors.AsType[model.ErrNotFound](err)
+	require.True(t, ok)
+	require.Len(t, notFound.Keys, 1)
+	assert.Equal(t, "fra/foo", notFound.Keys[0].String())
+	assert.Equal(t, sdkErr.Error(), err.Error())
+
+	_, ok = errors.AsType[group.ErrRefNotFound](err)
+	assert.True(t, ok)
+}
+
+func TestNotFoundRefs(t *testing.T) {
+	refs := group.Refs{{Metro: "fra", Name: "foo"}, {UUID: "6e2b9b4c-0d3c-4a43-9a8e-1b8f7f0a2c11"}}
+	got, ok := NotFoundRefs(fmt.Errorf("getting: %w", NotFound(group.ErrRefNotFound{Refs: refs})))
+	require.True(t, ok)
+	assert.Equal(t, refs, got)
+
+	got, ok = NotFoundRefs(model.ErrNotFound{Keys: []model.Key{model.StringKey("fra/bar")}})
+	require.True(t, ok)
+	assert.Equal(t, group.Refs{{Metro: "fra", Name: "bar"}}, got)
+
+	_, ok = NotFoundRefs(group.ErrRefNotFound{Refs: refs})
+	assert.False(t, ok)
 }

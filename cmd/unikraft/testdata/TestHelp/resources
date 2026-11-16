@@ -18,7 +18,7 @@ Resources:
           Remove a resource.
 
 Fields:
-  type
+  kind
   key
 
 Global flags:
@@ -52,7 +52,7 @@ Arguments:
           Target resources to remove.
 
 Fields:
-  type
+  kind
   key
 
 Flags:

@@ -23,7 +23,7 @@ import (
 	xstdio "unikraft.com/x/stdio"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/pkg/model/cmd"
 	"unikraft.com/cli/pkg/types"
 )
 

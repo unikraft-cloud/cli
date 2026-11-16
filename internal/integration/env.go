@@ -28,7 +28,7 @@ import (
 	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
+	"unikraft.com/cli/pkg/model"
 )
 
 // TestEnv holds per-test environment for running CLI commands deterministically.
@@ -196,7 +196,7 @@ func (env *TestEnv) command(ctx context.Context, args []string, cfg cmdConfig) *
 	c.Env = append(c.Env, "NO_COLOR=1", "UNIKRAFT_CONFIG="+env.configPath, "BUILDKIT_PROGRESS=quiet")
 	c.Env = append(c.Env, cfg.env...)
 	if !cfg.noPartition {
-		c.Env = append(c.Env, model.UnikraftPartitionEnv+"="+env.partitionPath)
+		c.Env = append(c.Env, config.PartitionEnv+"="+env.partitionPath)
 	}
 	return c
 }

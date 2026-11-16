@@ -15,8 +15,8 @@ import (
 	"unikraft.com/cloud/sdk/platform/group"
 
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/pkg/model"
 )
 
 func TestRecoverCreatedFallsBackToCreateResponse(t *testing.T) {

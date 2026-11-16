@@ -1,0 +1,5 @@
+/dist/
+/unikraft
+.task/
+.goreleaser.yaml
+.goreleaser-docs/

@@ -20,9 +20,9 @@ import (
 	"unikraft.com/cloud/sdk/platform"
 
 	"unikraft.com/cli/internal/cmd"
-	"unikraft.com/cli/internal/model"
-	modelcmd "unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	modelcmd "unikraft.com/cli/pkg/model/cmd"
 )
 
 // sectionHeader returns a header line centered within 80 characters.

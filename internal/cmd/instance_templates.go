@@ -20,10 +20,10 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 )
 
 type InstanceTemplatesCmd struct {
@@ -429,11 +429,11 @@ func (InstanceTemplate) Create(ctx context.Context, fields []model.Field) ([]mod
 	}
 
 	results, err := InstanceTemplate{}.Get(ctx, created.Strings())
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
-		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, InstanceTemplate{}.load)
+	if refs, ok := multimetro.NotFoundRefs(err); ok {
+		recovered, missing := recoverCreated(ctx, refs, createdData, InstanceTemplate{}.load)
 		results = append(results, recovered...)
 		if len(missing) > 0 {
-			errs = append(errs, group.ErrRefNotFound{Refs: missing})
+			errs = append(errs, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))
 		}
 	} else if err != nil {
 		errs = append(errs, err)

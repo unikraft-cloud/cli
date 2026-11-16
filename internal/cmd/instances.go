@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -25,7 +24,6 @@ import (
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
-	"unikraft.com/cloud/sdk/platform/logs"
 	"unikraft.com/cloud/sdk/platform/stop"
 	"unikraft.com/cloud/sdk/platform/timeouts"
 	"unikraft.com/x/kingkong"
@@ -34,13 +32,13 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
-	"unikraft.com/cli/internal/muxreader"
 	"unikraft.com/cli/internal/types"
 	wshell "unikraft.com/cli/internal/w/shell"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
+	"unikraft.com/cli/pkg/model/value"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type InstancesCmd struct {
@@ -77,15 +75,15 @@ type InstanceCreateCmd struct {
 	cmd.ModelCreateCmd[Instance]
 
 	DeleteOnStop bool             `group:"flag-create" name:"rm" help:"Automatically delete the instance when it stops."`
-	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | recreate\n  by: service (default) | tags\n  target: the new instance's service, or a subset of its tags, to select by (default: all of them)\n  batch: instances that a rolling rollout replaces at a time (default: 1)\n  healthy-after: time each new batch must keep running before the rollout goes on" placeholder:"<key>=<value>" example:"type=recreate,batch=2\\,healthy-after=30s,by=tags\\,target=env-prod"`
+	Rollout      *InstanceRollout `group:"flag-create" name:"rollout" type:"optional" help:"Replace every instance the rollout selects with a new one and delete the old ones. Requires --autostart.\n  type: rolling (default) | recreate\n  by: service (default) | tags\n  target: the new instance's service, or a subset of its tags, to select by (default: all of them)\n  batch: instances that a rolling rollout replaces at a time (default: 1)\n  healthy-after: time each new batch must keep running before the rollout goes on\n  drain-timeout: time an instance gets to finish its connections before the rollout stops it (default: 30s, 0 to not drain)" placeholder:"<key>=<value>" example:"type=recreate,batch=2\\,healthy-after=30s,by=tags\\,target=env-prod"`
 }
 
-func (c *InstanceCreateCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *InstanceCreateCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	_, err := c.RunModels(ctx, stdio, partition)
 	return err
 }
 
-func (c *InstanceCreateCmd) RunModels(ctx context.Context, stdio config.Stdio, partition *model.Partition) ([]model.Model, error) {
+func (c *InstanceCreateCmd) RunModels(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) ([]model.Model, error) {
 	if c.DeleteOnStop {
 		c.Set = append(c.Set, map[string]string{"features": string(platform.InstanceFeatureDeleteOnStop)})
 	}
@@ -124,7 +122,7 @@ type Instance struct {
 
 	Runtime struct {
 		Args InstanceArgs      `mirror:"instance.args" field:",short" create:"set" edit:"set" flag:"args" help:"Command-line arguments passed to the instance at start." placeholder:"arg" example:"--port=8080"`
-		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" short:"e" sep:"none" mapsep:"none" help:"Environment variable as KEY=value." placeholder:"<key>=<value>" example:"DEBUG=true"`
+		Env  map[string]string `mirror:"instance.env" field:",long" create:"set" edit:"set,add,del=keys" flag:"env" short:"e" type:"hostenv" help:"Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment." placeholder:"<key>[=<value>]" example:"DEBUG=true"`
 	} `help:"Runtime configuration passed to the instance."`
 
 	Resources struct {
@@ -1635,11 +1633,11 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 	}
 
 	results, getErr := Instance{}.Get(ctx, keys.Strings())
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](getErr); ok {
-		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, Instance{}.load)
+	if refs, ok := multimetro.NotFoundRefs(getErr); ok {
+		recovered, missing := recoverCreated(ctx, refs, createdData, Instance{}.load)
 		results = append(results, recovered...)
 		if len(missing) > 0 {
-			errs = append(errs, group.ErrRefNotFound{Refs: missing})
+			errs = append(errs, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))
 		}
 	} else if getErr != nil {
 		errs = append(errs, getErr)
@@ -1800,7 +1798,7 @@ type InstancesLogsCmd struct {
 
 	Prefix bool `help:"Prefix log lines with instance name." negatable:"" default:"true"`
 	Tail   *int `help:"Number of lines to show from the end of the logs."`
-	Follow bool `short:"f" help:"Follow log output."`
+	Follow bool `short:"f" help:"Follow log output until the instances stop."`
 }
 
 func (cmd InstancesLogsCmd) Examples() []kingkong.Example {
@@ -1826,55 +1824,25 @@ func (cmd InstancesLogsCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (cmd *InstancesLogsCmd) Run(ctx context.Context, stdio config.Stdio) error {
-	keys := multimetro.ParseKeys(cmd.Targets)
-
-	_, err := Instance{}.Get(ctx, keys.Strings())
+func (cmd *InstancesLogsCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
+	found, err := Instance{}.Get(ctx, cmd.Targets)
 	if err != nil {
 		return err
 	}
 
-	g, err := multimetro.NewClient(ctx)
+	l, err := newInstanceLogs(ctx, instanceKeys(found), cmd.Tail, cmd.Follow, cmd.Prefix)
 	if err != nil {
 		return err
 	}
+	defer l.Close()
 
-	mux := muxreader.New()
-	if !cmd.Prefix {
-		mux.DisablePrefix()
-	}
-	defer mux.Close()
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	err = group.DoRefs(ctx, g, keys.Refs(), func(_ context.Context, c multimetro.MetroClient, refs group.Refs) (group.Refs, error) {
-		for _, ref := range refs {
-			key := multimetro.Key(ref)
-			r, err := logs.InstanceLogs(ctx, c).Reader(ref.NameOrUUID(), cmd.Tail, cmd.Follow)
-			if err != nil {
-				return nil, err
-			}
-			mux.With(key.String(), r)
-		}
-		return refs, nil
-	})
-	if err != nil {
-		return err
-	}
-	mux.Seal()
-
-	_, err = io.Copy(stdio.Stdout, mux)
-	if cmd.Follow && errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
+	return l.Copy(stdio.Stdout)
 }
 
 type InstancesStartCmd struct {
 	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instances to start."`
 
-	Follow bool `help:"Follow log output after starting."`
+	Follow bool `help:"Follow log output after starting, until the instances stop."`
 
 	cmd.FormatOpts
 }
@@ -1896,7 +1864,7 @@ func (cmd InstancesStartCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstancesStartCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstancesStartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	keys := multimetro.ParseKeys(c.Targets)
 	before, opErr := Instance{}.Get(ctx, keys.Strings())
 	if opErr != nil && len(before) == 0 {
@@ -1907,15 +1875,13 @@ func (c *InstancesStartCmd) Run(ctx context.Context, stdio config.Stdio) error {
 		return err
 	}
 
-	var mux *muxreader.Mux
+	var l *instanceLogs
 	if c.Follow {
-		var cancel context.CancelFunc
-		mux, cancel, err = newInstanceLogMux(ctx, keys, new(0), true)
+		l, err = newInstanceLogs(ctx, instanceKeys(before), new(0), true, true)
 		if err != nil {
 			return err
 		}
-		defer mux.Close()
-		defer cancel()
+		defer l.Close()
 	}
 
 	started, startErr := startInstances(ctx, g, keys)
@@ -1952,11 +1918,7 @@ func (c *InstancesStartCmd) Run(ctx context.Context, stdio config.Stdio) error {
 	}
 	fmt.Fprintln(stdio.Stdout)
 
-	_, err = io.Copy(stdio.Stdout, mux)
-	if mux != nil && errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
+	return l.Copy(stdio.Stdout)
 }
 
 type InstancesStopCmd struct {
@@ -1989,7 +1951,7 @@ func (cmd InstancesStopCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstancesStopCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstancesStopCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	keys := multimetro.ParseKeys(c.Targets)
 	before, opErr := Instance{}.Get(ctx, keys.Strings())
 	if opErr != nil && len(before) == 0 {
@@ -2007,7 +1969,7 @@ func (c *InstancesStopCmd) Run(ctx context.Context, stdio config.Stdio) error {
 
 	updated, getErr := Instance{}.Get(ctx, stopped.Strings())
 	if getErr != nil {
-		if _, ok := getErr.(group.ErrRefNotFound); !ok {
+		if _, ok := errors.AsType[model.ErrNotFound](getErr); !ok {
 			opErr = errors.Join(opErr, getErr)
 			if len(updated) == 0 {
 				return opErr
@@ -2036,7 +1998,7 @@ type InstancesRestartCmd struct {
 	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instances to restart."`
 	StopOpts
 
-	Follow bool `help:"Follow log output after restarting."`
+	Follow bool `help:"Follow log output after restarting, until the instances stop."`
 
 	cmd.FormatOpts
 }
@@ -2064,7 +2026,7 @@ func (cmd InstancesRestartCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstancesRestartCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstancesRestartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	keys := multimetro.ParseKeys(c.Targets)
 	before, opErr := Instance{}.Get(ctx, keys.Strings())
 	if opErr != nil && len(before) == 0 {
@@ -2081,22 +2043,18 @@ func (c *InstancesRestartCmd) Run(ctx context.Context, stdio config.Stdio) error
 		return opErr
 	}
 
-	var (
-		mux    *muxreader.Mux
-		cancel context.CancelFunc
-	)
+	var l *instanceLogs
 	if c.Follow {
-		mux, cancel, err = newInstanceLogMux(ctx, stopped, new(0), true)
+		l, err = newInstanceLogs(ctx, stopped, new(0), true, true)
 		if err != nil {
 			return err
 		}
-		defer mux.Close()
-		defer cancel()
+		defer l.Close()
 	}
 
 	started, startErr := startInstances(ctx, g, stopped)
 	if len(started) == 0 {
-		if _, ok := startErr.(group.ErrRefNotFound); ok {
+		if _, ok := errors.AsType[model.ErrNotFound](startErr); ok {
 			return errors.Join(opErr, fmt.Errorf("cannot restart: instance(s) were deleted before they could be started (check if %q feature is enabled)", platform.InstanceFeatureDeleteOnStop))
 		}
 		opErr = errors.Join(opErr, startErr)
@@ -2132,11 +2090,7 @@ func (c *InstancesRestartCmd) Run(ctx context.Context, stdio config.Stdio) error
 	}
 	fmt.Fprintln(stdio.Stdout)
 
-	_, err = io.Copy(stdio.Stdout, mux)
-	if errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
+	return l.Copy(stdio.Stdout)
 }
 
 // InstanceHistoryCmd shows the checkpoint history for an instance.
@@ -2155,7 +2109,7 @@ func (cmd InstanceHistoryCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstanceHistoryCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstanceHistoryCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	entries, err := getInstanceHistory(ctx, c.Targets, func(ctx context.Context, mc multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error) {
 		return mc.GetInstanceHistory(ctx, ids, platform.GetInstanceHistoryOpts{})
 	})
@@ -2283,7 +2237,7 @@ func (cmd InstancesSuspendCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstancesSuspendCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstancesSuspendCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	keys := multimetro.ParseKeys(c.Targets)
 	before, opErr := Instance{}.Get(ctx, keys.Strings())
 	if opErr != nil && len(before) == 0 {

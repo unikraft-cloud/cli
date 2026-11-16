@@ -32,15 +32,15 @@ import (
 	"unikraft.com/x/version"
 
 	"unikraft.com/cli/internal/binorigin"
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/httpclient"
 	"unikraft.com/cli/internal/tui/progdl"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // ErrChecksumNotAvailable indicates the checksum file could not be fetched.
 var ErrChecksumNotAvailable = errors.New("checksum file not available")
 
-func (cmd *UpgradeCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (cmd *UpgradeCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	// Detect if running with sudo and warn
 	if os.Getenv("SUDO_UID") != "" || os.Getenv("SUDO_GID") != "" || os.Getenv("SUDO_USER") != "" {
 		if !cmd.Force {
@@ -179,7 +179,7 @@ func fetchLatestVersion(ctx context.Context, baseURL, channel string) (string, e
 }
 
 // downloadAndInstall downloads the CLI binary and installs it.
-func downloadAndInstall(ctx context.Context, stdio config.Stdio, force bool, baseURL, ver, plat, arch, destDir string) error {
+func downloadAndInstall(ctx context.Context, stdio xstdio.Stdio, force bool, baseURL, ver, plat, arch, destDir string) error {
 	// Windows releases are zip archives, as Windows tools expect.
 	ext := ".tar.gz"
 	if plat == "windows" {
@@ -285,7 +285,7 @@ func downloadAndInstall(ctx context.Context, stdio config.Stdio, force bool, bas
 }
 
 // downloadFile downloads a file from a URL to the specified path with a progress bar.
-func downloadFile(ctx context.Context, stdio config.Stdio, url, destPath string) error {
+func downloadFile(ctx context.Context, stdio xstdio.Stdio, url, destPath string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return jujuerrors.Annotate(err, "creating request")

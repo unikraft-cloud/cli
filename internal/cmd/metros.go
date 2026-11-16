@@ -14,10 +14,10 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/httpclient"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/types"
 	wsync "unikraft.com/cli/internal/w/sync"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
@@ -47,7 +47,7 @@ func (Metro) Type() model.Type {
 }
 
 func (i Metro) Key() model.Key {
-	return staticKey(i.Name)
+	return model.StringKey(i.Name)
 }
 
 func (i Metro) Raw() any {
@@ -239,7 +239,7 @@ func (Metro) List(ctx context.Context) ([]model.Model, error) {
 }
 
 func (Metro) Get(ctx context.Context, keys []string) ([]model.Model, error) {
-	return getFromListable(ctx, Metro{}, keys)
+	return model.GetFromListable(ctx, Metro{}, keys)
 }
 
 func (Metro) Examples() map[cmd.CmdType][]kingkong.Example {

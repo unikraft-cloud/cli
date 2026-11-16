@@ -7,9 +7,9 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,13 +21,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	plugin "unikraft.com/cloud/plugins/sandbox"
 	"unikraft.com/cloud/sdk/platform"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cloud/sdk/plugins/sandbox"
 
 	"unikraft.com/x/shell"
@@ -85,26 +85,46 @@ func TestShellEnvFlagKeepsCommas(t *testing.T) {
 }
 
 // onePlugin runs a single command: it delivers out on standard output and err
-// on standard error, exits with code, and records the signals it was sent.
+// on standard error, exits with code, and records whether it was asked for a
+// pty and the signals it was sent.
 type onePlugin struct {
 	out  string
 	err  string
 	code int32
-	hang chan struct{}
 
-	waiting sync.Once
 	mu      sync.Mutex
+	pty     bool
 	signals []int
 }
 
 func (f *onePlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/v1/instances/inst-1/plugins/sandbox")
 
-	data := map[string]any{"uuid": "cmd-1"}
 	switch {
-	case f.hang != nil && strings.HasSuffix(path, "/wait"):
-		f.waiting.Do(func() { close(f.hang) })
-		<-r.Context().Done()
+	case path == "/commands" && r.Method == http.MethodPost:
+		var req struct {
+			Pty bool `json:"pty"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		f.mu.Lock()
+		f.pty = req.Pty
+		f.mu.Unlock()
+
+	case strings.HasSuffix(path, "/ws"):
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.CloseNow() }()
+		if f.out != "" {
+			_ = conn.Write(r.Context(), websocket.MessageBinary, append([]byte{1}, f.out...))
+		}
+		if f.err != "" {
+			_ = conn.Write(r.Context(), websocket.MessageBinary, append([]byte{2}, f.err...))
+		}
+		_ = conn.Write(r.Context(), websocket.MessageText, fmt.Appendf(nil, `{"event":"exit","exitcode":%d}`, f.code))
+		_ = conn.Close(websocket.StatusNormalClosure, "")
 		return
 
 	case strings.HasSuffix(path, "/signal"):
@@ -116,25 +136,10 @@ func (f *onePlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.signals = append(f.signals, req.Signal)
 		f.mu.Unlock()
-
-	case strings.HasSuffix(path, "/logs"):
-		var req plugin.CommandLogsRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		if req.Stdout.Offset < uint64(len(f.out)) {
-			data["stdout"] = base64.StdEncoding.EncodeToString([]byte(f.out[req.Stdout.Offset:]))
-		}
-		data["stdout_available"] = len(f.out)
-		if req.Stderr.Offset < uint64(len(f.err)) {
-			data["stderr"] = base64.StdEncoding.EncodeToString([]byte(f.err[req.Stderr.Offset:]))
-		}
-		data["stderr_available"] = len(f.err)
-
-	case path == "/commands/cmd-1" && r.Method == http.MethodGet:
-		data["exitcode"] = f.code
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"uuid": "cmd-1"}})
 }
 
 func (f *onePlugin) sent() []int {
@@ -195,7 +200,7 @@ func TestExecSurvivesAClosedPipe(t *testing.T) {
 	target := fakeSandboxTarget(t, fake)
 
 	err := (&ExecSandboxInstanceCmd{Cmd: []string{"yes"}}).runOn(t.Context(), target,
-		config.Stdio{Stdout: deafWriter{}, Stderr: io.Discard})
+		stdio.Stdio{Stdout: deafWriter{}, Stderr: io.Discard})
 
 	var status ExitStatus
 	require.ErrorAs(t, err, &status, "the command still ran to the end")
@@ -209,9 +214,16 @@ func TestExecKeepsTheStreamsApart(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	err := (&ExecSandboxInstanceCmd{Cmd: []string{"sh"}}).runOn(t.Context(), target,
-		config.Stdio{Stdout: &stdout, Stderr: &stderr})
+		stdio.Stdio{Stdout: &stdout, Stderr: &stderr})
 
 	require.NoError(t, err)
 	assert.Equal(t, "out\n", stdout.String())
 	assert.Equal(t, "err\n", stderr.String())
+}
+
+func TestExecWithTTYNeedsATerminal(t *testing.T) {
+	err := (&ExecSandboxInstanceCmd{Cmd: []string{"sh"}, TTY: true}).runOn(t.Context(),
+		fakeSandboxTarget(t, &onePlugin{}), stdio.Stdio{Stdout: io.Discard, Stderr: io.Discard})
+
+	require.ErrorContains(t, err, "--tty")
 }

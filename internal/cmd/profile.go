@@ -15,9 +15,9 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	jujuerrors "github.com/juju/errors"
 	"unikraft.com/cli/internal/config"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/tui/selector"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 )
@@ -45,7 +45,7 @@ func (Profile) Type() model.Type {
 }
 
 func (i Profile) Key() model.Key {
-	return staticKey(i.Name)
+	return model.StringKey(i.Name)
 }
 
 func (i Profile) Raw() any {
@@ -81,7 +81,7 @@ func (Profile) List(ctx context.Context) ([]model.Model, error) {
 }
 
 func (Profile) Get(ctx context.Context, keys []string) ([]model.Model, error) {
-	return getFromListable(ctx, Profile{}, keys)
+	return model.GetFromListable(ctx, Profile{}, keys)
 }
 
 func (Profile) Examples() map[cmd.CmdType][]kingkong.Example {

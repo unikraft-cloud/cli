@@ -24,12 +24,13 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
-	"unikraft.com/cli/internal/model/patch"
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
+	"unikraft.com/cli/pkg/model/patch"
+	"unikraft.com/cli/pkg/model/value"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type VolumesCmd struct {
@@ -72,7 +73,7 @@ func (VolumesCloneCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumesCloneCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *VolumesCloneCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	spec := patch.PatchSpec{
 		Set: make(map[string][]string),
 	}
@@ -590,7 +591,7 @@ func (VolumeAttachCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumeAttachCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *VolumeAttachCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	vol := &InstanceVolume{At: c.At, Readonly: c.Readonly}
 	link, err := ParseLink[Volume]([]byte(c.Volume))
 	if err != nil {
@@ -626,7 +627,7 @@ func (VolumeDetachCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *VolumeDetachCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
+func (c *VolumeDetachCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
 	editCmd := &cmd.ModelEditCmd[Instance]{
 		Target:     c.From,
 		Del:        []map[string]string{{"volumes": c.Volume}},

@@ -21,10 +21,11 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type InstanceCheckpointsCmd struct {
@@ -428,11 +429,11 @@ func (InstanceCheckpoint) Create(ctx context.Context, fields []model.Field) ([]m
 	results, err := InstanceCheckpoint{}.Get(ctx, created.Strings())
 	// Checkpoint creation is asynchronous, so a checkpoint that was just created
 	// may not be listed yet.
-	if notFound, ok := errors.AsType[group.ErrRefNotFound](err); ok {
-		recovered, missing := recoverCreated(ctx, notFound.Refs, createdData, InstanceCheckpoint{}.load)
+	if refs, ok := multimetro.NotFoundRefs(err); ok {
+		recovered, missing := recoverCreated(ctx, refs, createdData, InstanceCheckpoint{}.load)
 		results = append(results, recovered...)
 		if len(missing) > 0 {
-			errs = append(errs, group.ErrRefNotFound{Refs: missing})
+			errs = append(errs, multimetro.NotFound(group.ErrRefNotFound{Refs: missing}))
 		}
 	} else if err != nil {
 		errs = append(errs, err)
@@ -579,7 +580,7 @@ func (cmd InstanceCheckpointHistoryCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *InstanceCheckpointHistoryCmd) Run(ctx context.Context, stdio config.Stdio) error {
+func (c *InstanceCheckpointHistoryCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 	entries, err := getInstanceHistory(ctx, c.Targets, func(ctx context.Context, mc multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error) {
 		return mc.GetCheckpointHistory(ctx, ids, platform.GetCheckpointHistoryOpts{})
 	})

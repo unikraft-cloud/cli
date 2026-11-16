@@ -18,8 +18,9 @@ import (
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/cloud/sdk/platform/logs"
 
-	modeltui "unikraft.com/cli/internal/model/tui"
 	"unikraft.com/cli/internal/multimetro"
+	"unikraft.com/cli/pkg/model"
+	modeltui "unikraft.com/cli/pkg/model/tui"
 )
 
 // Subpanels returns subpanels for instance detail views.
@@ -82,7 +83,7 @@ func instanceClient(ctx context.Context, ref group.Ref) (platform.Client, error)
 		return nil, nil, nil
 	})
 	if err != nil {
-		if _, ok := errors.AsType[group.ErrRefNotFound](err); ok {
+		if _, ok := errors.AsType[model.ErrNotFound](err); ok {
 			return nil, fmt.Errorf("instance not found")
 		}
 		return nil, err

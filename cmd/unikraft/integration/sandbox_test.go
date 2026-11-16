@@ -6,6 +6,7 @@
 package integration
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/containerd/continuity/fs/fstest"
+	"github.com/creack/pty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -74,45 +76,55 @@ func TestSandbox(t *testing.T) {
 		instName := newSandboxInstance(t, r)
 
 		// Both output streams come back, stdout and stderr alike.
-		out := r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "echo to-stdout; echo to-stderr >&2"})
+		out := r.Run(t, []string{"unikraft", "instance", "exec", instName, "--no-tty", "--", "sh", "-c", "echo to-stdout; echo to-stderr >&2"})
 		assert.Contains(t, out, "to-stdout")
 		assert.Contains(t, out, "to-stderr")
 
 		// A command that fails on the instance is not this CLI failing: the
 		// status it exited with is reported as our own, with nothing said over
 		// whatever the command printed.
-		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "exit 3"},
+		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--no-tty", "--", "sh", "-c", "exit 3"},
 			integ.ExpectExitCode(3))
-		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "kill -KILL $$"},
+		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--no-tty", "--", "sh", "-c", "kill -KILL $$"},
 			integ.ExpectExitCode(137))
 
 		// The command is a command line by the time it reaches the plugin, so
 		// arguments the shell would otherwise split or expand are quoted first.
-		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "echo", "two words", "*"})
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--no-tty", "--", "echo", "two words", "*"})
 		assert.Contains(t, out, "two words *")
 
 		// Naming the plugin explicitly addresses the same one the default does.
-		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--plugin-name", sandboxPlugin, "--", "echo", "named-plugin"})
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--no-tty", "--plugin-name", sandboxPlugin, "--", "echo", "named-plugin"})
 		assert.Contains(t, out, "named-plugin")
 
 		// --dir runs the command from that directory, and --env is the whole
 		// environment it sees.
-		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--dir", "/etc", "--", "pwd"})
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--no-tty", "--dir", "/etc", "--", "pwd"})
 		assert.Contains(t, out, "/etc")
 
-		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "-e", "GREETING=hi", "-e", "WHO=exec", "--", "sh", "-c", "echo $GREETING-$WHO"})
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--no-tty", "-e", "GREETING=hi", "-e", "WHO=exec", "--", "sh", "-c", "echo $GREETING-$WHO"})
 		assert.Contains(t, out, "hi-exec")
 
 		// Local standard input is fed to the remote command, and closing it is
 		// what lets a command reading to EOF finish.
-		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "cat"}, integ.WithStdin("fed-by-stdin\n"))
+		out = r.Run(t, []string{"unikraft", "instance", "exec", instName, "--no-tty", "--", "cat"}, integ.WithStdin("fed-by-stdin\n"))
 		assert.Contains(t, out, "fed-by-stdin")
 
 		// A file written by the shell is the same file the plugin reads, so both
 		// see one filesystem.
 		remote := "/sb-exec-" + uniq() + ".txt"
-		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "echo written-by-the-shell > " + remote})
+		r.Run(t, []string{"unikraft", "instance", "exec", instName, "--no-tty", "--", "sh", "-c", "echo written-by-the-shell > " + remote})
 		assert.Equal(t, "written-by-the-shell\n", remoteContents(t, r, instName, remote))
+
+		// Run from a terminal, the command gets one on the instance, as large
+		// as the local one.
+		c := r.Command(t.Context(), []string{"unikraft", "instance", "exec", instName, "--", "sh", "-c", "test -t 0 && stty size"})
+		ptmx, err := pty.StartWithSize(c, &pty.Winsize{Rows: 33, Cols: 91})
+		require.NoError(t, err)
+		defer ptmx.Close()
+		seen, _ := io.ReadAll(ptmx)
+		require.NoError(t, c.Wait(), "%s", seen)
+		assert.Contains(t, string(seen), "33 91")
 
 		r.Run(t, []string{"unikraft", "instance", "delete", instName})
 	})

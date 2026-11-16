@@ -5,10 +5,18 @@
 
 package branding
 
+import "github.com/MakeNowJust/heredoc"
+
 const (
 	Name       = "unikraft"
 	Product    = "Unikraft Cloud"
 	WebsiteURL = "https://unikraft.com"
 	DocsURL    = "https://unikraft.com/docs/"
-	IssuesURL  = "https://github.com/unikraft-cloud/cli/issues"
+	RepoURL    = "https://github.com/unikraft-cloud/cli"
+	IssuesURL  = RepoURL + "/issues"
 )
+
+var Art = heredoc.Docf(`
+	  __ _____  (_) /__ _______ _/ _/ /_
+	 / // / _ \/ /  '_// __/ _ %[1]s/ _/ __/
+	\_,_/_//_/_/_/\_\/_/  \_,_/_/ \__/`, "`")

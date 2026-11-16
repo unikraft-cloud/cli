@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"unikraft.com/cli/internal/model/value"
 	"unikraft.com/cli/internal/tui/meter"
+	"unikraft.com/cli/pkg/model/value"
 )
 
 // Usage represents a used/limit pair for quota tracking.

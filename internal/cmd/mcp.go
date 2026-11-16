@@ -11,10 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
-	"net/netip"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -27,9 +24,10 @@ import (
 	"unikraft.com/cli/internal/branding"
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mcp"
-	"unikraft.com/cli/internal/mcpserver"
-	"unikraft.com/cli/internal/model"
-	modelmcp "unikraft.com/cli/internal/model/mcp"
+	"unikraft.com/cli/pkg/mcpserver"
+	"unikraft.com/cli/pkg/model"
+	modelmcp "unikraft.com/cli/pkg/model/mcp"
+	xstdio "unikraft.com/x/stdio"
 )
 
 const instanceEditNote = "Edits to tags, delete-lock, autokill, scale-to-zero and sched-priority apply at once, even while the instance runs. Other edits to a running instance are queued until it next stops. Adding plugins, roms or volumes takes effect after instance_control suspend followed by start. Changing image, runtime.args, runtime.env, resources.memory, resources.vcpus or annotations, replacing or removing plugins or roms, and removing volumes take effect only after instance_control restart, or stop followed by start. An instance in standby keeps a snapshot of its memory, so those changes stay queued until a stop, which discards the snapshot."
@@ -51,13 +49,11 @@ var mcpResourceTypes = []string{
 const imageGetDescription = "Inspect images by reference, resolving each one from its registry, so public images such as nginx:latest work as well as your own. image_list only covers the images already in your account. Returns one JSON object per image."
 
 type MCPCmd struct {
-	ReadOnly    bool     `help:"Expose only the tools that cannot change anything: list, image_get, instance_logs and sandbox_read."`
-	Resources   []string `name:"resources" placeholder:"type,..." help:"Serve only the tools of these resource types. The names are the prefixes of the tool names. Defaults to every type."`
-	DocsURL     string   `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"${docs_url}" placeholder:"url" hidden:"" help:"Documentation site served as resources. Pass an empty value to serve none."`
-	Listen      string   `name:"listen" placeholder:"host:port" help:"Serve the protocol over HTTP at this address, at /mcp, instead of stdio. Loopback addresses only unless --allow-remote is set."`
-	AllowRemote bool     `name:"allow-remote" help:"Let --listen bind a non-loopback address. Every client then acts with this profile's credentials, so only do this behind an authenticating proxy or on a private network."`
-	TLSCert     string   `name:"tls-cert" and:"tls" type:"path" placeholder:"file" help:"Serve --listen over HTTPS with this PEM certificate chain."`
-	TLSKey      string   `name:"tls-key" and:"tls" type:"path" placeholder:"file" help:"PEM private key of --tls-cert."`
+	ReadOnly  bool     `help:"Expose only the tools that cannot change anything: list, image_get, instance_logs and sandbox_read."`
+	Resources []string `name:"resources" placeholder:"type,..." help:"Serve only the tools of these resource types. The names are the prefixes of the tool names. Defaults to every type."`
+	DocsURL   string   `name:"docs-url" env:"UNIKRAFT_DOCS_URL" default:"${docs_url}" placeholder:"url" hidden:"" help:"Documentation site served as resources. Pass an empty value to serve none."`
+
+	mcpserver.Flags
 }
 
 func (MCPCmd) Help() string {
@@ -155,45 +151,16 @@ func (MCPCmd) Examples() []kingkong.Example {
 	}
 }
 
-func (c *MCPCmd) Run(ctx context.Context, stdio config.Stdio, partition *model.Partition) error {
-	loopback := true
-	if c.Listen != "" {
-		host, port, err := net.SplitHostPort(c.Listen)
-		if err != nil {
-			return fmt.Errorf("invalid listen address %q: %w", c.Listen, err)
-		}
-		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
-			return fmt.Errorf("invalid listen address %q: port must be a number from 0 to 65535", c.Listen)
-		}
-		if ip, err := netip.ParseAddr(host); err == nil {
-			loopback = ip.IsLoopback()
-		} else {
-			loopback = host == "localhost"
-		}
-		if !loopback && !c.AllowRemote {
-			return fmt.Errorf("--listen %s binds a non-loopback address and the server has no authentication, so every client would act with this profile's credentials; pass --allow-remote to accept that", c.Listen)
-		}
+func (c *MCPCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition) error {
+	if err := c.Check(); err != nil {
+		return err
 	}
-
 	srv, err := newMCPServer(ctx, stdio.Stderr, partition, *c)
 	if err != nil {
 		return err
 	}
-
-	if c.Listen == "" {
-		log.G(ctx).Info().Bool("read-only", c.ReadOnly).Msg("serving MCP over stdio")
-		err = srv.Run(ctx)
-	} else {
-		if !loopback {
-			log.G(ctx).Warn().Str("listen", c.Listen).Msg("serving MCP without authentication on a non-loopback address: every client acts with this profile's credentials")
-		}
-		log.G(ctx).Info().Bool("read-only", c.ReadOnly).Str("listen", c.Listen).Bool("tls", c.TLSCert != "").Msg("serving MCP over HTTP")
-		err = srv.ListenAndServe(ctx, c.Listen)
-	}
-	if err != nil && !errors.Is(err, context.Canceled) {
-		return err
-	}
-	return nil
+	log.G(ctx).Debug().Bool("read-only", c.ReadOnly).Msg("starting MCP server")
+	return c.Serve(ctx, srv)
 }
 
 func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partition, c MCPCmd) (*mcpserver.Server, error) {
@@ -204,7 +171,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 	if log.G(ctx).GetLevel() <= log.DebugLevel {
 		logger = slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	}
-	srv, err := mcpserver.New(mcpserver.Options{
+	srv, err := c.Server(mcpserver.Options{
 		Name:         branding.Name,
 		Title:        branding.Product,
 		WebsiteURL:   branding.WebsiteURL,
@@ -212,8 +179,6 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		Instructions: mcp.Instructions(c.ReadOnly, c.Resources, c.DocsURL, mcpserver.DocsURI(branding.Name)),
 		Logger:       logger,
 		DocsURL:      c.DocsURL,
-		TLSCertFile:  c.TLSCert,
-		TLSKeyFile:   c.TLSKey,
 	})
 	if err != nil {
 		return nil, err
@@ -255,6 +220,7 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		tools.AddDeleteTool[ServiceGroup](ctx),
 		tools.AddListTool[Certificate](ctx),
 		tools.AddCreateTool[Certificate](ctx),
+		tools.AddEditTool[Certificate](ctx),
 		tools.AddDeleteTool[Certificate](ctx),
 		tools.AddListTool[ImageEntry](ctx),
 		tools.AddGetTool[Image](ctx, imageGetDescription),

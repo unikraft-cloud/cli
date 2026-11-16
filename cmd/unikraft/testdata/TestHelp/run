@@ -109,7 +109,7 @@ Flags:
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --follow
-          Follow instance logs after creation.
+          Follow instance logs after creation, until the instances stop.
 
 Global flags:
   -h, --help
@@ -158,8 +158,8 @@ Create flags:
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
-  -e, --env=<key>=<value> ...
-          Environment variable as KEY=value.
+  -e, --env=<key>[=<value>] ...
+          Environment variable as KEY=value. With -e, a KEY with no value takes it from the local environment.
           [example: DEBUG=true]
   -m, --memory=<size>
           Memory for the instance, within the range the plan allows (see quotas.limits.memory on the metro). Defaults to 128MiB on create.
@@ -248,5 +248,6 @@ Create flags:
             by: service (default) | tags
             target: the new instance's service, or a subset of its tags, to select by (default: all of them)
             batch: instances that a rolling rollout replaces at a time (default: 1)
-            healthy-after: time each new batch must keep running before the rollout goes on.
+            healthy-after: time each new batch must keep running before the rollout goes on
+            drain-timeout: time an instance gets to finish its connections before the rollout stops it (default: 30s, 0 to not drain).
           [examples: type=recreate, batch=2,healthy-after=30s, by=tags,target=env-prod]

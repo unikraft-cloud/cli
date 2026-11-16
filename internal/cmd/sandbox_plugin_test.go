@@ -16,9 +16,9 @@ import (
 
 	"unikraft.com/cloud/sdk/platform"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/internal/types"
+	xstdio "unikraft.com/x/stdio"
 )
 
 // TestMissingPlugin pins what an instance is told about the plugin it lacks:
@@ -61,7 +61,7 @@ func TestTryAttachPluginWithoutTTY(t *testing.T) {
 
 	t.Run("hint", func(t *testing.T) {
 		// A yes on a pipe is not an answer: it was not given to a question.
-		stdio := config.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
+		stdio := xstdio.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
 
 		err := tryAttachPlugin(t.Context(), stdio, nil, instance, opts, cause)
 
@@ -72,7 +72,7 @@ func TestTryAttachPluginWithoutTTY(t *testing.T) {
 	t.Run("delete-on-stop", func(t *testing.T) {
 		doomed := instance
 		doomed.Instance.Features = []platform.InstanceFeature{platform.InstanceFeatureDeleteOnStop}
-		stdio := config.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
+		stdio := xstdio.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
 
 		err := tryAttachPlugin(t.Context(), stdio, nil, doomed, opts, cause)
 
@@ -128,7 +128,7 @@ func TestTryLoadPluginWithoutTTY(t *testing.T) {
 	}
 
 	t.Run("running", func(t *testing.T) {
-		stdio := config.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
+		stdio := xstdio.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
 
 		err := tryLoadPlugin(t.Context(), stdio, instance, "sandbox", pending)
 
@@ -139,7 +139,7 @@ func TestTryLoadPluginWithoutTTY(t *testing.T) {
 	t.Run("stopped", func(t *testing.T) {
 		stopped := instance
 		stopped.State = types.InstanceState(platform.InstanceStateStopped)
-		stdio := config.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
+		stdio := xstdio.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
 
 		err := tryLoadPlugin(t.Context(), stdio, stopped, "sandbox", pending)
 
@@ -151,7 +151,7 @@ func TestTryLoadPluginWithoutTTY(t *testing.T) {
 		failed := pending
 		failed.Status = platform.InstancePendingUpdateStatusFailed
 		failed.Error = new("image not found")
-		stdio := config.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
+		stdio := xstdio.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
 
 		err := tryLoadPlugin(t.Context(), stdio, instance, "sandbox", failed)
 

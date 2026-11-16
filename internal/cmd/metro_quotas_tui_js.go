@@ -12,11 +12,11 @@ import (
 	"io"
 	"time"
 
-	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/tui/watcher"
+	xstdio "unikraft.com/x/stdio"
 )
 
-func runQuotasTUI(ctx context.Context, stdio config.Stdio, cmd *MetroQuotasCmd, watch *time.Duration) error {
+func runQuotasTUI(ctx context.Context, stdio xstdio.Stdio, cmd *MetroQuotasCmd, watch *time.Duration) error {
 	if watch == nil {
 		return cmd.renderOnce(ctx, stdio.Stdout)
 	}

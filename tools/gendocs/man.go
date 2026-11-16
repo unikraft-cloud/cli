@@ -24,8 +24,8 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/cpuguy83/go-md2man/v2/md2man"
-	"unikraft.com/cli/internal/model"
-	"unikraft.com/cli/internal/model/cmd"
+	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
 )

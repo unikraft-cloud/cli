@@ -45,8 +45,13 @@ func GenerateCert(t *testing.T, cn string) *Cert {
 		cn = "test-" + hex.EncodeToString(b[:]) + ".unikraft.io"
 	}
 
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 64))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	template := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
+		SerialNumber: serial,
 		Subject: pkix.Name{
 			CommonName: cn,
 		},
