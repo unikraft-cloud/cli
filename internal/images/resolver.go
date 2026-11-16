@@ -66,10 +66,11 @@ func resolverOptions(profile *config.Profile, insecureRegistries []string, allIn
 		return false, nil
 	}
 
+	authClient := &http.Client{Transport: insecureTransport(insecureHost)}
 	dockerConfig := dockerconfig.LoadDefaultConfigFile(os.Stderr)
 	opts := []docker.RegistryOpt{
 		docker.WithClient(httpclient.RegistryHTTPClient),
-		docker.WithAuthorizer(docker.NewDockerAuthorizer(docker.WithAuthCreds(func(hostname string) (string, string, error) {
+		docker.WithAuthorizer(docker.NewDockerAuthorizer(docker.WithAuthClient(authClient), docker.WithAuthCreds(func(hostname string) (string, string, error) {
 			username, password, err := hostCreds(profile, hostname)
 			if err != nil {
 				return "", "", err
@@ -140,6 +141,24 @@ func mirrorHosts(hosts docker.RegistryHosts, mirror string) docker.RegistryHosts
 		}
 		return hosts, nil
 	}
+}
+
+// insecureTransport sends a request through the insecure registry client if
+// the function accepts its host. Else, it uses the registry client.
+type insecureTransport func(host string) (bool, error)
+
+func (t insecureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ok, err := t(req.URL.Host)
+	if err != nil {
+		if req.Body != nil {
+			req.Body.Close()
+		}
+		return nil, err
+	}
+	if ok {
+		return httpclient.InsecureRegistryHTTPClient.Transport.RoundTrip(req)
+	}
+	return httpclient.RegistryHTTPClient.Transport.RoundTrip(req)
 }
 
 func fallbackHost(registryHosts ...docker.RegistryHosts) docker.RegistryHosts {
