@@ -49,7 +49,7 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 	}
 
 	// Get the token either from file or via browser authentication
-	var token, organization, userUUID, orgUUID string
+	var token, organization, userUUID, orgUUID, registry string
 	if cmd.Token != nil {
 		log.G(ctx).Info().
 			Msg("reading authentication token from file")
@@ -80,6 +80,7 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 		organization = cmp.Or(resp.Data.OrganizationName, cmd.Organization)
 		userUUID = resp.Data.UserUuid
 		orgUUID = resp.Data.OrganizationUuid
+		registry = resp.Data.Registry
 	}
 	tempProfile.Token = token
 
@@ -102,6 +103,7 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 			}
 			organization = cmp.Or(organization, auth.OrganizationName)
 			orgUUID = auth.OrganizationUuid
+			registry = cmp.Or(registry, auth.Registry)
 		}
 	}
 
@@ -125,6 +127,9 @@ func (cmd *LoginCmd) Run(ctx context.Context, cfg *config.Config) error {
 	}
 	if orgUUID != "" {
 		profile.OrganizationUUID = orgUUID
+	}
+	if registry != "" || profile.ControlPlane != loginControlPlane {
+		profile.Registry.Host = registry
 	}
 	profile.ControlPlane = loginControlPlane
 	profile.Insecure = cmd.AllowInsecure
