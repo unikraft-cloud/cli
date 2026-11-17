@@ -39,11 +39,11 @@ func TestMCPServerTools(t *testing.T) {
 		"sandbox_exec", "sandbox_write", "profile_use",
 	}
 
-	srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{})
+	srv, err := NewMCPServer(ctx, io.Discard, nil, MCPCmd{})
 	require.NoError(t, err)
 	assert.ElementsMatch(t, append(readOnlyTools, mutatingTools...), mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames())
 
-	srv, err = newMCPServer(ctx, io.Discard, nil, MCPCmd{ReadOnly: true})
+	srv, err = NewMCPServer(ctx, io.Discard, nil, MCPCmd{ReadOnly: true})
 	require.NoError(t, err)
 	assert.ElementsMatch(t, readOnlyTools, mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames())
 }
@@ -51,7 +51,7 @@ func TestMCPServerTools(t *testing.T) {
 func TestMCPServerResources(t *testing.T) {
 	ctx := config.WithConfig(t.Context(), &config.Config{})
 
-	srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "metro"}})
+	srv, err := NewMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "metro"}})
 	require.NoError(t, err)
 	session := mcptest.ConnectServer(t, ctx, srv.MCP())
 	assert.ElementsMatch(t, []string{
@@ -59,14 +59,14 @@ func TestMCPServerResources(t *testing.T) {
 	}, session.ToolNames())
 	assert.Contains(t, session.Instructions, "Only the tools of these resource types are served: instance, metro.")
 
-	_, err = newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "nope"}})
+	_, err = NewMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{"instance", "nope"}})
 	assert.EqualError(t, err, "--resources: unknown resource types: nope; known: certificate, image, instance, instance_checkpoint, instance_template, metro, profile, sandbox, service, volume, volume_template")
 }
 
 func TestMCPResourceTypes(t *testing.T) {
 	ctx := config.WithConfig(t.Context(), &config.Config{})
 
-	srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{})
+	srv, err := NewMCPServer(ctx, io.Discard, nil, MCPCmd{})
 	require.NoError(t, err)
 	for _, tool := range mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames() {
 		assert.Truef(t, slices.ContainsFunc(mcpResourceTypes, func(typ string) bool {
@@ -75,7 +75,7 @@ func TestMCPResourceTypes(t *testing.T) {
 	}
 
 	for _, typ := range mcpResourceTypes {
-		srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{typ}})
+		srv, err := NewMCPServer(ctx, io.Discard, nil, MCPCmd{Resources: []string{typ}})
 		require.NoError(t, err)
 		assert.NotEmptyf(t, mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames(), "type %s serves no tools", typ)
 	}
@@ -94,7 +94,7 @@ profiles:
 	cfg, err := loadConfig(path, "")
 	require.NoError(t, err)
 	ctx := config.WithConfig(t.Context(), cfg)
-	srv, err := newMCPServer(ctx, io.Discard, nil, MCPCmd{})
+	srv, err := NewMCPServer(ctx, io.Discard, nil, MCPCmd{})
 	require.NoError(t, err)
 	session := mcptest.ConnectServer(t, ctx, srv.MCP())
 
@@ -125,7 +125,7 @@ profiles:
 	cfg, err = loadConfig(path, "b")
 	require.NoError(t, err)
 	pinned := config.WithConfig(t.Context(), cfg)
-	srv, err = newMCPServer(pinned, io.Discard, nil, MCPCmd{})
+	srv, err = NewMCPServer(pinned, io.Discard, nil, MCPCmd{})
 	require.NoError(t, err)
 	session = mcptest.ConnectServer(t, pinned, srv.MCP())
 	assert.NotContains(t, session.ToolNames(), "profile_use")
@@ -133,7 +133,21 @@ profiles:
 	assert.Equal(t, []map[string]any{{"name": "was"}}, mcptest.Resources(t, res))
 
 	t.Setenv("UNIKRAFT_PROFILE_ENV", "1")
-	srv, err = newMCPServer(ctx, io.Discard, nil, MCPCmd{})
+	srv, err = NewMCPServer(ctx, io.Discard, nil, MCPCmd{})
 	require.NoError(t, err)
 	assert.NotContains(t, mcptest.ConnectServer(t, ctx, srv.MCP()).ToolNames(), "profile_use")
+}
+
+func TestMCPConfigWithoutFile(t *testing.T) {
+	cfg := &config.Config{Profiles: map[string]config.Profile{
+		"a": {Name: "a", Type: config.ProfileTypeCloud, Token: "a", Metros: []config.Metro{{Name: "fra", Endpoint: "https://api.fra.unikraft.cloud"}}},
+	}}
+	cfg.OverrideCurrentProfile("a")
+	ctx := config.WithConfig(t.Context(), cfg)
+	srv, err := NewMCPServer(ctx, io.Discard, nil, MCPCmd{})
+	require.NoError(t, err)
+
+	res := mcptest.CallTool(t, ctx, mcptest.ConnectServer(t, ctx, srv.MCP()), "metro_list", map[string]any{"fields": []string{"name"}})
+	require.False(t, res.IsError, mcptest.Text(res))
+	assert.Equal(t, []map[string]any{{"name": "fra"}}, mcptest.Resources(t, res))
 }

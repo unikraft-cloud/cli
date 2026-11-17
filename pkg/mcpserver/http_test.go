@@ -3,7 +3,7 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
-package mcpserver_test
+package mcpserver
 
 import (
 	"context"
@@ -23,27 +23,26 @@ import (
 
 	integ "unikraft.com/cli/internal/integration"
 	modelt "unikraft.com/cli/internal/model/testing"
-	"unikraft.com/cli/pkg/mcpserver"
 	"unikraft.com/cli/pkg/mcpserver/mcptest"
 	modelmcp "unikraft.com/cli/pkg/model/mcp"
 )
 
-func newServer(t *testing.T, opts mcpserver.Options) *mcpserver.Server {
+func newServer(t *testing.T, opts Options) *Server {
 	t.Helper()
 	opts.Name, opts.Title = "unikraft", "Unikraft Cloud"
-	srv, err := mcpserver.New(opts)
+	srv, err := New(opts)
 	require.NoError(t, err)
 	return srv
 }
 
 func TestServe(t *testing.T) {
 	t.Run("http", func(t *testing.T) {
-		testServe(t, mcpserver.Options{}, "http", http.DefaultClient)
+		testServe(t, Options{}, "http", http.DefaultClient)
 	})
 	t.Run("https", func(t *testing.T) {
 		cert := integ.GenerateCert(t, "localhost")
 		dir := t.TempDir()
-		opts := mcpserver.Options{TLSCertFile: filepath.Join(dir, "cert.pem"), TLSKeyFile: filepath.Join(dir, "key.pem")}
+		opts := Options{TLSCertFile: filepath.Join(dir, "cert.pem"), TLSKeyFile: filepath.Join(dir, "key.pem")}
 		require.NoError(t, os.WriteFile(opts.TLSCertFile, []byte(cert.Chain), 0o600))
 		require.NoError(t, os.WriteFile(opts.TLSKeyFile, []byte(cert.Key), 0o600))
 		client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
@@ -51,7 +50,7 @@ func TestServe(t *testing.T) {
 	})
 }
 
-func testServe(t *testing.T, opts mcpserver.Options, scheme string, client *http.Client) {
+func testServe(t *testing.T, opts Options, scheme string, client *http.Client) {
 	env := modelt.NewTestEnv()
 	env.Add(modelt.TestModel{ID: "1", Name: "a"})
 	ctx, cancel := context.WithCancel(modelt.WithTestEnv(t.Context(), env))
@@ -63,7 +62,7 @@ func testServe(t *testing.T, opts mcpserver.Options, scheme string, client *http
 	require.NoError(t, err)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ctx, l) }()
-	url := scheme + "://" + l.Addr().String() + mcpserver.HTTPPath
+	url := scheme + "://" + l.Addr().String() + HTTPPath
 
 	session := mcptest.Connect(t, &mcp.StreamableClientTransport{Endpoint: url, HTTPClient: client})
 	res := mcptest.CallTool(t, ctx, session, "test_list", map[string]any{"fields": []string{"name"}})
