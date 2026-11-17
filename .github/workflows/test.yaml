@@ -99,18 +99,18 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
+      - name: Login to Docker Hub
+        uses: unikraft-cloud/x/.github/actions/login-docker-hub@prod-staging
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       # Multi-platform rootfs builds run the target architecture's binaries,
       # which needs a binfmt handler registered with the kernel.
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
-
-      - name: Login to Docker Hub
-        uses: unikraft-cloud/x/.github/actions/login-docker-hub@prod-staging
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set Go variables
         id: goenv
@@ -195,6 +195,12 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
+      - name: Login to Docker Hub
+        uses: unikraft-cloud/x/.github/actions/login-docker-hub@prod-staging
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       # Multi-platform rootfs builds run the target architecture's binaries,
       # which needs a binfmt handler registered with the kernel.
       - name: Set up QEMU
@@ -202,12 +208,6 @@ jobs:
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
-
-      - name: Login to Docker Hub
-        uses: unikraft-cloud/x/.github/actions/login-docker-hub@prod-staging
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set Go variables
         id: goenv
