@@ -3,7 +3,7 @@
 // Licensed under the BSD-3-Clause License (the "License").
 // You may not use this file except in compliance with the License.
 
-package mcpserver_test
+package mcpserver
 
 import (
 	"bytes"
@@ -21,11 +21,10 @@ import (
 
 	"unikraft.com/x/log"
 
-	"unikraft.com/cli/pkg/mcpserver"
 	"unikraft.com/cli/pkg/mcpserver/mcptest"
 )
 
-const docsIndex = `# Documentation
+const testDocsIndex = `# Documentation
 
 > Documentation files for Large Language Models
 
@@ -53,7 +52,7 @@ func newDocsSite(t *testing.T, indexStatus int) (*httptest.Server, *atomic.Int32
 		switch r.URL.Path {
 		case "/docs/llms.txt":
 			w.WriteHeader(indexStatus)
-			fmt.Fprint(w, docsIndex)
+			fmt.Fprint(w, testDocsIndex)
 		case "/docs/cli/fields.md":
 			pageRequests.Add(1)
 			fmt.Fprint(w, "# Fields\n\nBody.\n")
@@ -80,7 +79,7 @@ func TestDocsResources(t *testing.T) {
 	var logs bytes.Buffer
 	logger := zerolog.New(&logs).Level(zerolog.DebugLevel)
 	ctx := log.WithLogger(t.Context(), &logger)
-	session := mcptest.ConnectServer(t, ctx, newServer(t, mcpserver.Options{DocsURL: site.URL + "/docs", HTTPClient: site.Client()}).MCP())
+	session := mcptest.ConnectServer(t, ctx, newServer(t, Options{DocsURL: site.URL + "/docs", HTTPClient: site.Client()}).MCP())
 
 	templates, err := session.ListResourceTemplates(ctx, nil)
 	require.NoError(t, err)
@@ -132,7 +131,7 @@ func TestDocsResources(t *testing.T) {
 func TestDocsIndexUnavailable(t *testing.T) {
 	site, _ := newDocsSite(t, http.StatusInternalServerError)
 	ctx := t.Context()
-	session := mcptest.ConnectServer(t, ctx, newServer(t, mcpserver.Options{DocsURL: site.URL + "/docs/", HTTPClient: site.Client()}).MCP())
+	session := mcptest.ConnectServer(t, ctx, newServer(t, Options{DocsURL: site.URL + "/docs/", HTTPClient: site.Client()}).MCP())
 
 	page, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "unikraft://docs/introduction"})
 	require.NoError(t, err)
@@ -144,11 +143,11 @@ func TestDocsIndexUnavailable(t *testing.T) {
 
 func TestDocsDisabledAndInvalid(t *testing.T) {
 	ctx := t.Context()
-	session := mcptest.ConnectServer(t, ctx, newServer(t, mcpserver.Options{}).MCP())
+	session := mcptest.ConnectServer(t, ctx, newServer(t, Options{}).MCP())
 	res, err := session.ListResources(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, res.Resources)
 
-	_, err = mcpserver.New(mcpserver.Options{DocsURL: "unikraft.com/docs"})
+	_, err = New(Options{DocsURL: "unikraft.com/docs"})
 	require.ErrorContains(t, err, "invalid documentation URL")
 }
