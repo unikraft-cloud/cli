@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/containerd/continuity/fs/fstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,5 +58,27 @@ func TestImageCache(t *testing.T) {
 		r.Run(t, []string{"unikraft", "image", "unpin", image, "--metro", r.MetroName})
 		out = r.Run(t, []string{"unikraft", "image", "list", "--cache", "--filter", "pinned.*==" + r.MetroName})
 		assert.NotContains(t, out, image)
+	})
+
+	t.Run("build-pin", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+
+		image := r.Profile.Organization + "/build-pin:" + uniq()
+		dir := t.TempDir()
+		require.NoError(t, fstest.Apply(
+			fstest.CreateFile("Dockerfile", []byte("FROM busybox:latest\n"), 0o644),
+		).Apply(dir))
+		t.Cleanup(func() {
+			r.Run(t, []string{"unikraft", "image", "unpin", image, "--metro", r.MetroName}, integ.WithoutCancel(), integ.AllowFail())
+		})
+
+		out, err := r.RunRaw(t, []string{"unikraft", "build", ".", "--arch", "x86_64", "--output", image, "--pin", r.MetroName}, integ.WithWorkDir(dir))
+		if err != nil && strings.Contains(out, "No API endpoint") {
+			t.Skip("image pinning is not available on " + r.MetroName)
+		}
+		require.NoError(t, err, out)
+
+		out = r.Run(t, []string{"unikraft", "image", "get", "--cache", image})
+		assert.Regexp(t, `pinned:\s+\["`+r.MetroName+`"\]`, out)
 	})
 }

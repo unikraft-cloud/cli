@@ -58,6 +58,7 @@ unikraft build [flags] [<path>]
 - `--no-cache`: Do not use cache when building the image.
 - `--secret <spec>`: Secret to expose to the build (format: `id=mysecret[,src=/local/secret]`).
 - `--ssh <spec>`: SSH agent socket or keys to expose to the build (format: `default|<id>[=<socket>|<key>[,<key>]]`).
+- `--pin <metro>`: After the push, pull the image on these metros and pin it in their node cache.
 
 ### Deployment (`unikraft run`)
 
