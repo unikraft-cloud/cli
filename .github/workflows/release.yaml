@@ -142,7 +142,7 @@ jobs:
         UNIKRAFT_POSTHOG_API_KEY: ${{ secrets.UNIKRAFT_POSTHOG_API_KEY }}
         UNIKRAFT_POSTHOG_HOST: ${{ secrets.UNIKRAFT_POSTHOG_HOST }}
       with:
-        version: latest
+        version: v2.20.2
         args: release --clean
 
     - name: Publish to APT repository
