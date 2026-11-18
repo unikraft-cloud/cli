@@ -23,6 +23,24 @@ import (
 	"unikraft.com/x/build/buildflags"
 )
 
+func TestRunRemoteBuildURL(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("profile: a\nprofiles:\n  a: {type: cloud, token: a, build_url: http://profile.invalid}\n"), 0o600))
+	cfg, err := loadConfig(path, "")
+	require.NoError(t, err)
+
+	run := func(remote string) error {
+		cmd := ImageBuildCmd{Remote: &remote, Output: "my-org/my-app:1"}
+		return cmd.runRemote(t.Context(), cfg, nil)
+	}
+
+	t.Setenv("UNIKRAFT_BUILD_URL", "")
+	require.ErrorContains(t, run(""), "http://profile.invalid")
+	t.Setenv("UNIKRAFT_BUILD_URL", "http://env.invalid")
+	require.ErrorContains(t, run(""), "http://env.invalid")
+	require.ErrorContains(t, run("http://flag.invalid"), "http://flag.invalid")
+}
+
 func TestRemoteRequest(t *testing.T) {
 	t.Parallel()
 

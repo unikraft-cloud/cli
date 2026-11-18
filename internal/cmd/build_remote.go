@@ -47,7 +47,7 @@ func (c *ImageBuildCmd) runRemote(ctx context.Context, cfg *config.Config, parti
 	if err != nil {
 		return err
 	}
-	c.Remote = new(cmp.Or(*c.Remote, profile.BuildURL, buildapi.DefaultServer))
+	c.Remote = new(cmp.Or(*c.Remote, os.Getenv("UNIKRAFT_BUILD_URL"), profile.BuildURL, buildapi.DefaultServer))
 
 	secrets, err := buildflags.ParseSecretSpecs(c.Secret)
 	if err != nil {
