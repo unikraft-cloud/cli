@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -174,6 +175,9 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 	}
 
 	fi, err := os.Stat(c.Input)
+	if errors.Is(err, fs.ErrNotExist) {
+		return buildapi.CreateBuildRequest{}, "", fmt.Errorf("build input %q does not exist", c.Input)
+	}
 	if err != nil {
 		return buildapi.CreateBuildRequest{}, "", err
 	}

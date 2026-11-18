@@ -140,6 +140,14 @@ func TestRemoteRequest(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+
+	t.Run("names a missing input", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := ImageBuildCmd{Input: filepath.Join(t.TempDir(), "missing"), Output: "my-org/my-app:1"}
+		_, _, err := cmd.remoteRequest(nil, nil)
+		require.EqualError(t, err, fmt.Sprintf("build input %q does not exist", cmd.Input))
+	})
 }
 
 func TestFollowRemoteCancelsARefusedSession(t *testing.T) {
