@@ -63,7 +63,7 @@ func TestRemoteRequest(t *testing.T) {
 			cmd: ImageBuildCmd{
 				Output:   "my-org/my-app:latest",
 				Arch:     []string{"arm64"},
-				BuildArg: []string{"VERSION=1.2.3"},
+				BuildArg: []string{"VERSION=1.2.3", "NOT_IN_THE_ENVIRONMENT"},
 				NoCache:  true,
 				Secret:   []string{"id=npm,src=/home/me/.npmrc"},
 				SSH:      []string{"default"},

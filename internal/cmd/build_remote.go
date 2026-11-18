@@ -215,7 +215,9 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 			return buildapi.CreateBuildRequest{}, "", fmt.Errorf("invalid build-arg %q", arg)
 		}
 		if !ok {
-			val, _ = os.LookupEnv(key)
+			if val, ok = os.LookupEnv(key); !ok {
+				continue
+			}
 		}
 		if req.BuildArgs == nil {
 			req.BuildArgs = map[string]string{}
