@@ -17,7 +17,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/tonistiigi/fsutil"
 	buildapi "unikraft.com/cloud/sdk/build"
+	"unikraft.com/x/build"
 	"unikraft.com/x/build/buildflags"
 	"unikraft.com/x/build/progress"
 	imagespec "unikraft.com/x/image-spec"
@@ -206,8 +206,7 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 	}
 	switch {
 	case name == "": // a directory without a Kraftfile builds its Dockerfile
-	case slices.Contains(strings.Split(name, "."), "Dockerfile"): // as x/build tells one
-
+	case build.IsDockerfile(name):
 		req.Contexts.Dockerfile = new(src.WithFilename(name))
 	default:
 		req.Kraftfile = buildapi.KraftfileFrom(src.WithFilename(name))

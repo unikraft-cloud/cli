@@ -92,6 +92,20 @@ func TestRemoteRequest(t *testing.T) {
 				"output": [{"image": "ghcr.io/acme/app:1"}]
 			}`,
 		},
+		"a Containerfile is built as a Dockerfile": {
+			files: []string{"Containerfile"},
+			input: "Containerfile",
+			cmd:   ImageBuildCmd{Output: "ghcr.io/acme/app:1"},
+			want: `{
+				"contexts": {
+					"context": {"session": "context"},
+					"dockerfile": {"session": "context", "filename": "Containerfile"}
+				},
+				"no_cache": false,
+				"registries": {"*": {"session": true}},
+				"output": [{"image": "ghcr.io/acme/app:1"}]
+			}`,
+		},
 		"a Dockerfile is built from its directory": {
 			files: []string{"app.Dockerfile"},
 			input: "app.Dockerfile",
