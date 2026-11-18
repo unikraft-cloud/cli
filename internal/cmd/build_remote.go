@@ -96,23 +96,30 @@ func followRemote(ctx context.Context, client *buildapi.Client, req buildapi.Cre
 	// A live display draws over a line logged after it starts.
 	disp, err := progress.NewDisplay(ctx, os.Stderr, progressui.AutoMode)
 	if err != nil {
-		return errors.Join(err, cancelRemote(ctx, client, b.ID))
+		cancelRemote(ctx, client, b.ID)
+		return err
 	}
+	cancel := false
 	defer func() {
 		if cerr := disp.Close(); err == nil {
 			err = cerr
+		}
+		if cancel {
+			cancelRemote(ctx, client, b.ID)
 		}
 	}()
 
 	if b.Session != nil {
 		if err := client.Attach(ctx, b.ID, s); err != nil {
-			return errors.Join(err, cancelRemote(ctx, client, b.ID))
+			cancel = true
+			return err
 		}
 	}
 
 	for ev, err := range client.Logs(ctx, b.ID) {
 		if err != nil {
-			return errors.Join(err, cancelRemote(ctx, client, b.ID))
+			cancel = true
+			return err
 		}
 		if ev.SolveStatus != nil {
 			disp.Write(ev.SolveStatus)
@@ -130,11 +137,14 @@ func followRemote(ctx context.Context, client *buildapi.Client, req buildapi.Cre
 }
 
 // cancelRemote cancels the remote build id, also once ctx has ended, waiting at most 10 seconds.
-func cancelRemote(ctx context.Context, client *buildapi.Client, id string) error {
+func cancelRemote(ctx context.Context, client *buildapi.Client, id string) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	_, err := client.CancelBuild(ctx, id)
-	return err
+	if _, err := client.CancelBuild(ctx, id); err != nil {
+		log.G(ctx).Warn().Err(err).Str("id", id).Msg("could not cancel build, it may still run")
+		return
+	}
+	log.G(ctx).Info().Str("id", id).Msg("cancelled build")
 }
 
 // remoteRequest returns the request for a remote build of c, and the directory its session serves.
