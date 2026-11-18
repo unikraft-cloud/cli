@@ -95,6 +95,7 @@ Commands:
 
 Fields:
   name
+  metro
   default
   running
   waiting
@@ -146,6 +147,8 @@ Flags:
           Size of the builder's cache volume. Defaults to the build service's.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
           URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
+      --metro=<metro>
+          Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in.
 
 Global flags:
   -h, --help
@@ -183,6 +186,7 @@ Examples:
 
 Fields:
   name
+  metro
   default
   running
   waiting
@@ -199,6 +203,8 @@ Flags:
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
           URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
+      --metro=<metro>
+          Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in.
 
 Global flags:
   -h, --help
@@ -236,6 +242,7 @@ Examples:
 
 Fields:
   name
+  metro
   default
   running
   waiting
@@ -297,6 +304,7 @@ Examples:
 
 Fields:
   name
+  metro
   default
   running
   waiting
@@ -311,6 +319,8 @@ Flags:
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
           URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
+      --metro=<metro>
+          Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in.
 
 Global flags:
   -h, --help
@@ -350,6 +360,8 @@ Examples:
 Flags:
       --remote=<url> ($UNIKRAFT_BUILD_URL)
           URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
+      --metro=<metro>
+          Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in.
 
 Global flags:
   -h, --help
@@ -389,6 +401,8 @@ Examples:
 Flags:
       --remote=<url> ($UNIKRAFT_BUILD_URL)
           URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
+      --metro=<metro>
+          Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in.
 
 Global flags:
   -h, --help

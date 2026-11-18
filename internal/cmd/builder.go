@@ -39,6 +39,7 @@ type BuilderCmd struct {
 // Builder is a builder of the build service, and the builds the service runs on it.
 type Builder struct {
 	Name      string         `mirror:"status.name" field:",short" help:"Name of the builder."`
+	Metro     string         `field:",short" help:"Metro the builder runs in."`
 	IsDefault bool           `mirror:"status.default" field:"default,short" help:"Whether builds that name no builder run on it."`
 	Running   int            `mirror:"status.builds.#" field:",short" help:"Number of builds running on the builder."`
 	Waiting   int32          `mirror:"status.waiting_builds" field:",short" help:"Number of builds waiting for the builder, or for any builder of the pool for default."`
@@ -73,11 +74,12 @@ func (Builder) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	if err != nil {
 		return nil, err
 	}
+	metro, _ := ctx.Value(builderMetroKey{}).(string)
 	var results []model.Model
 	for _, name := range keys {
-		s, err := client.GetBuilder(ctx, name, buildapi.GetBuilderOptions{})
+		s, err := client.GetBuilder(ctx, name, buildapi.GetBuilderOptions{Metro: builderMetro(metro)})
 		if err != nil {
-			return results, builderError(err, name)
+			return results, builderError(err, name, metro)
 		}
 		b, err := builderOf(profile, *s)
 		if err != nil {
@@ -121,9 +123,10 @@ func (Builder) Delete(ctx context.Context, keys []string) error {
 	if err != nil {
 		return err
 	}
+	metro, _ := ctx.Value(builderMetroKey{}).(string)
 	for _, name := range keys {
-		if err := client.DeleteBuilder(ctx, name, buildapi.DeleteBuilderOptions{}); err != nil {
-			return builderError(err, name)
+		if err := client.DeleteBuilder(ctx, name, buildapi.DeleteBuilderOptions{Metro: builderMetro(metro)}); err != nil {
+			return builderError(err, name, metro)
 		}
 	}
 	return nil
@@ -158,9 +161,11 @@ func builderOf(profile *config.Profile, s buildapi.BuilderStatus) (Builder, erro
 	if err := mirror.Mirror(b, &b); err != nil {
 		return Builder{}, fmt.Errorf("could not mirror builder data: %w", err)
 	}
+	b.Metro = s.Instance.Metro
 	for _, metro := range profile.Metros {
 		if metro.Endpoint == s.Instance.Metro {
 			b.Instance.Metro = metro.Name
+			b.Metro = metro.Name
 		}
 	}
 	for _, build := range s.Builds {
@@ -176,13 +181,24 @@ func builderOf(profile *config.Profile, s buildapi.BuilderStatus) (Builder, erro
 // builderRemoteKey holds the URL of the build service for the methods of Builder.
 type builderRemoteKey struct{}
 
+type builderMetroKey struct{}
+
+func builderMetro(metro string) *string {
+	if metro == "" {
+		return nil
+	}
+	return &metro
+}
+
 type BuilderGetCmd struct {
 	cmd.ModelGetCmd[Builder]
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
+	Metro  string `placeholder:"metro" help:"Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in."`
 }
 
 func (c *BuilderGetCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
-	return c.ModelGetCmd.Run(context.WithValue(ctx, builderRemoteKey{}, c.Remote), stdio, nil)
+	ctx = context.WithValue(ctx, builderRemoteKey{}, c.Remote)
+	return c.ModelGetCmd.Run(context.WithValue(ctx, builderMetroKey{}, c.Metro), stdio, nil)
 }
 
 type BuilderListCmd struct {
@@ -197,10 +213,12 @@ func (c *BuilderListCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 type BuilderDeleteCmd struct {
 	cmd.ModelRemoveCmd[Builder]
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
+	Metro  string `placeholder:"metro" help:"Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in."`
 }
 
 func (c *BuilderDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
-	return c.ModelRemoveCmd.Run(context.WithValue(ctx, builderRemoteKey{}, c.Remote), stdio, nil)
+	ctx = context.WithValue(ctx, builderRemoteKey{}, c.Remote)
+	return c.ModelRemoveCmd.Run(context.WithValue(ctx, builderMetroKey{}, c.Metro), stdio, nil)
 }
 
 type BuilderCreateCmd struct {
@@ -209,6 +227,7 @@ type BuilderCreateCmd struct {
 	Memory types.SizeMebibytes `placeholder:"size" help:"Memory of the builder, within the range the plan allows. Defaults to the build service's."`
 	Cache  types.SizeMebibytes `placeholder:"size" help:"Size of the builder's cache volume. Defaults to the build service's."`
 	Remote string              `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
+	Metro  string              `placeholder:"metro" help:"Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in."`
 }
 
 func (BuilderCreateCmd) Examples() []kingkong.Example {
@@ -223,6 +242,7 @@ func (BuilderCreateCmd) Examples() []kingkong.Example {
 type BuilderDuCmd struct {
 	Name   string `arg:"" optional:"" default:"default" help:"Name of the builder."`
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
+	Metro  string `placeholder:"metro" help:"Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in."`
 }
 
 func (BuilderDuCmd) Examples() []kingkong.Example {
@@ -237,6 +257,7 @@ func (BuilderDuCmd) Examples() []kingkong.Example {
 type BuilderPruneCmd struct {
 	Name   string `arg:"" optional:"" default:"default" help:"Name of the builder."`
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
+	Metro  string `placeholder:"metro" help:"Metro of the builder, by name or API URL. Defaults to the first metro that your builds may run in."`
 }
 
 func (BuilderPruneCmd) Examples() []kingkong.Example {
@@ -263,7 +284,7 @@ func (c *BuilderCreateCmd) Run(ctx context.Context, cfg *config.Config) error {
 	if c.Cache != 0 {
 		b.CacheMb = new(int64(c.Cache))
 	}
-	if _, err := client.CreateBuilder(ctx, b, buildapi.CreateBuilderOptions{}); err != nil {
+	if _, err := client.CreateBuilder(ctx, b, buildapi.CreateBuilderOptions{Metro: builderMetro(c.Metro)}); err != nil {
 		return err
 	}
 	log.G(ctx).Info().Str("name", c.Name).Msg("builder ready")
@@ -275,9 +296,9 @@ func (c *BuilderDuCmd) Run(ctx context.Context, cfg *config.Config, stdio xstdio
 	if err != nil {
 		return err
 	}
-	u, err := client.GetBuilderUsage(ctx, c.Name, buildapi.GetBuilderUsageOptions{})
+	u, err := client.GetBuilderUsage(ctx, c.Name, buildapi.GetBuilderUsageOptions{Metro: builderMetro(c.Metro)})
 	if err != nil {
-		return builderError(err, c.Name)
+		return builderError(err, c.Name, c.Metro)
 	}
 	_, err = fmt.Fprintf(stdio.Stdout, "Reclaimable: %s\nTotal:       %s\n", units.BytesSize(float64(u.ReclaimableBytes)), units.BytesSize(float64(u.TotalBytes)))
 	return err
@@ -288,9 +309,9 @@ func (c *BuilderPruneCmd) Run(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	resp, err := client.PruneBuilder(ctx, c.Name, buildapi.PruneBuilderOptions{})
+	resp, err := client.PruneBuilder(ctx, c.Name, buildapi.PruneBuilderOptions{Metro: builderMetro(c.Metro)})
 	if err != nil {
-		return builderError(err, c.Name)
+		return builderError(err, c.Name, c.Metro)
 	}
 	log.G(ctx).Info().Str("freed", units.BytesSize(float64(resp.FreedBytes))).Msg("pruned the builder's cache")
 	return nil
@@ -333,8 +354,11 @@ func builderClientOf(ctx context.Context) (*buildapi.Client, *config.Profile, er
 }
 
 // builderError tells how to create the named builder when the service has none.
-func builderError(err error, name string) error {
+func builderError(err error, name, metro string) error {
 	if apiErr, ok := errors.AsType[*buildapi.APIError](err); ok && apiErr.Code == buildapi.ErrorCodeNotFound {
+		if metro != "" {
+			return fmt.Errorf("there is no builder %s in metro %s: create it with unikraft builder create %s --metro %s", name, metro, name, metro)
+		}
 		return fmt.Errorf("there is no builder %s: create it with unikraft builder create %s", name, name)
 	}
 	return err
