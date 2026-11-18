@@ -14,7 +14,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -148,12 +147,8 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 	}
 	// The service gets the profile's token, the project and its secrets.
 	if c.Remote != nil {
-		u, err := url.Parse(*c.Remote)
-		if err != nil {
+		if err := checkBuildURL(*c.Remote); err != nil {
 			return buildapi.CreateBuildRequest{}, "", err
-		}
-		if u.Scheme == "http" {
-			return buildapi.CreateBuildRequest{}, "", fmt.Errorf("the build service %s must be https", *c.Remote)
 		}
 	}
 	if c.Output == "" {

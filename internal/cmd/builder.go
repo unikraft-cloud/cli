@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/docker/go-units"
 	buildapi "unikraft.com/cloud/sdk/build"
@@ -301,7 +302,22 @@ func builderClient(cfg *config.Config, url string) (*buildapi.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return buildapi.New(cmp.Or(url, profile.BuildURL, buildapi.DefaultServer), buildapi.WithToken(profile.Token))
+	url = cmp.Or(url, profile.BuildURL, buildapi.DefaultServer)
+	if err := checkBuildURL(url); err != nil {
+		return nil, err
+	}
+	return buildapi.New(url, buildapi.WithToken(profile.Token))
+}
+
+func checkBuildURL(remote string) error {
+	u, err := url.Parse(remote)
+	if err != nil {
+		return err
+	}
+	if u.Scheme == "http" {
+		return fmt.Errorf("the build service %s must be https", remote)
+	}
+	return nil
 }
 
 // builderClientOf returns the client of the build service in ctx, and the current profile.
