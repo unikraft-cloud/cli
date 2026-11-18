@@ -78,7 +78,7 @@ Examples:
 
 Flags:
   -o, --output
-          Output destination.
+          Output destination. A remote build needs an image with a tag, such as my-org/my-app:latest.
       --arch
           Only build the Kraftfile targets of these architectures. Defaults to every declared target, or x86_64 when only a runtime is declared. A local build requires it when the project declares no targets and no runtime, such as a bare Dockerfile. A remote build of such a project defaults to x86_64.
           [examples: x86_64, arm64]

@@ -13,7 +13,7 @@ import (
 
 type ImageBuildCmd struct {
 	Input  string   `arg:"" default:"." help:"Path to the project directory, Kraftfile, or Dockerfile. A directory without a Kraftfile is built from its Dockerfile."`
-	Output string   `short:"o" help:"Output destination"`
+	Output string   `short:"o" help:"Output destination. A remote build needs an image with a tag, such as my-org/my-app:latest."`
 	Arch   []string `help:"Only build the Kraftfile targets of these architectures. Defaults to every declared target, or x86_64 when only a runtime is declared. A local build requires it when the project declares no targets and no runtime, such as a bare Dockerfile. A remote build of such a project defaults to x86_64." example:"x86_64,arm64"`
 
 	// similar to docker compose build
