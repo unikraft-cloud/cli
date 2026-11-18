@@ -58,18 +58,18 @@ require (
 	unikraft.com/cloud/sdk v0.4.1-staging.14
 	unikraft.com/cloud/sdk/build v0.0.0-20261112083743-f904b5bfc966
 	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261113085313-a2a9f94fc300
-	unikraft.com/x/build v0.0.0-20261111120215-5177d0f4c7b6
+	unikraft.com/x/build v0.0.0-20261118100745-28172ae5f28c
 	unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/colors v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/filters v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/image-spec v0.0.0-20261111120215-5177d0f4c7b6
+	unikraft.com/x/image-spec v0.0.0-20261118100745-28172ae5f28c
 	unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/joinerrgroup v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/kingkong v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/kraftfile v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/log v0.0.0-20261111120215-5177d0f4c7b6
+	unikraft.com/x/log v0.0.0-20261113145058-65fc641f4af8
 	unikraft.com/x/ptr v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/shell v0.0.0-20261113145058-65fc641f4af8
 	unikraft.com/x/signal v0.0.0-20261111120215-5177d0f4c7b6
@@ -131,10 +131,10 @@ require (
 	github.com/in-toto/in-toto-golang v0.11.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
-	github.com/klauspost/compress v1.20.3 // indirect
+	github.com/klauspost/compress v1.20.4 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -199,17 +199,18 @@ require (
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	go.yaml.in/yaml/v4 v4.0.0 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/term v0.47.0 // indirect
+	golang.org/x/term v0.48.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/grpc v1.85.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	tailscale.com v1.104.5 // indirect
+	unikraft.com/x/dockerfile v0.0.0-20261118100745-28172ae5f28c // indirect
 )
 
 // Use the fork with charmbracelet/lipgloss#746 until a release has it.
