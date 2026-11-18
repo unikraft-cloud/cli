@@ -112,10 +112,7 @@ func followRemote(ctx context.Context, client *buildapi.Client, req buildapi.Cre
 
 	for ev, err := range client.Logs(ctx, b.ID) {
 		if err != nil {
-			if ctx.Err() != nil {
-				return errors.Join(err, cancelRemote(ctx, client, b.ID))
-			}
-			return err
+			return errors.Join(err, cancelRemote(ctx, client, b.ID))
 		}
 		if ev.SolveStatus != nil {
 			disp.Write(ev.SolveStatus)

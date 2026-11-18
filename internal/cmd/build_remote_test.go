@@ -174,3 +174,36 @@ func TestFollowRemoteCancelsARefusedSession(t *testing.T) {
 	assert.Equal(t, buildapi.ErrorCodeInvalid, apiErr.Code)
 	assert.Len(t, cancelled, 1)
 }
+
+func TestFollowRemoteCancelsALostProgressStream(t *testing.T) {
+	t.Parallel()
+
+	cancelled := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/builds":
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"id": "b1", "status": "waiting"}`)
+		case "/v1/builds/b1/logs":
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"error": {"code": "forbidden", "message": "no access"}}`)
+		case "/v1/builds/b1/cancel":
+			cancelled <- struct{}{}
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprint(w, `{"id": "b1", "status": "waiting"}`)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := buildapi.New(srv.URL)
+	require.NoError(t, err)
+	s, err := session.NewSession(t.Context(), "")
+	require.NoError(t, err)
+
+	err = followRemote(t.Context(), client, buildapi.CreateBuildRequest{}, s)
+	var apiErr *buildapi.APIError
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+	assert.Len(t, cancelled, 1)
+}
