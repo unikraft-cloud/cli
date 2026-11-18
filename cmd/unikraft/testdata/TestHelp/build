@@ -145,7 +145,7 @@ Flags:
       --cache=<size>
           Size of the builder's cache volume. Defaults to the build service's.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
-          URL of the build service that manages the builder. Defaults to the build_url of the profile.
+          URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
 
 Global flags:
   -h, --help
@@ -198,7 +198,7 @@ Flags:
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
-          URL of the build service that manages the builder. Defaults to the build_url of the profile.
+          URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
 
 Global flags:
   -h, --help
@@ -259,7 +259,7 @@ Flags:
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
-          URL of the build service that manages the builders. Defaults to the build_url of the profile.
+          URL of the build service that manages the builders. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
 
 Global flags:
   -h, --help
@@ -310,7 +310,7 @@ Flags:
   -o, --output
           Output format. One of: kv, table, json, yaml, raw, quiet, template.
       --remote=<url> ($UNIKRAFT_BUILD_URL)
-          URL of the build service that manages the builder. Defaults to the build_url of the profile.
+          URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
 
 Global flags:
   -h, --help
@@ -349,7 +349,7 @@ Examples:
 
 Flags:
       --remote=<url> ($UNIKRAFT_BUILD_URL)
-          URL of the build service that manages the builder. Defaults to the build_url of the profile.
+          URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
 
 Global flags:
   -h, --help
@@ -388,7 +388,7 @@ Examples:
 
 Flags:
       --remote=<url> ($UNIKRAFT_BUILD_URL)
-          URL of the build service that manages the builder. Defaults to the build_url of the profile.
+          URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com.
 
 Global flags:
   -h, --help

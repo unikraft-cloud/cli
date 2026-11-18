@@ -30,12 +30,8 @@ func TestBuilderBuildURL(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	list := func(buildURL, remote string) error {
-		profile := "{type: cloud, token: a}"
-		if buildURL != "" {
-			profile = "{type: cloud, token: a, build_url: " + buildURL + "}"
-		}
 		path := filepath.Join(t.TempDir(), "config.yaml")
-		require.NoError(t, os.WriteFile(path, []byte("profile: a\nprofiles:\n  a: "+profile+"\n"), 0o600))
+		require.NoError(t, os.WriteFile(path, []byte("profile: a\nprofiles:\n  a: {type: cloud, token: a, build_url: "+buildURL+"}\n"), 0o600))
 		cfg, err := loadConfig(path, "")
 		require.NoError(t, err)
 		ctx := context.WithValue(config.WithConfig(t.Context(), cfg), builderRemoteKey{}, remote)
@@ -45,5 +41,4 @@ func TestBuilderBuildURL(t *testing.T) {
 
 	assert.NoError(t, list(srv.URL, ""))
 	assert.NoError(t, list("http://127.0.0.1:1", srv.URL))
-	assert.ErrorContains(t, list("", ""), "set build_url in profile a, or pass --remote")
 }

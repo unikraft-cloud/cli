@@ -177,7 +177,7 @@ type builderRemoteKey struct{}
 
 type BuilderGetCmd struct {
 	cmd.ModelGetCmd[Builder]
-	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
+	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
 }
 
 func (c *BuilderGetCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
@@ -186,7 +186,7 @@ func (c *BuilderGetCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 
 type BuilderListCmd struct {
 	cmd.ModelListCmd[Builder]
-	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builders. Defaults to the build_url of the profile."`
+	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builders. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
 }
 
 func (c *BuilderListCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
@@ -195,7 +195,7 @@ func (c *BuilderListCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 
 type BuilderDeleteCmd struct {
 	cmd.ModelRemoveCmd[Builder]
-	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
+	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
 }
 
 func (c *BuilderDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
@@ -207,7 +207,7 @@ type BuilderCreateCmd struct {
 	VCPUs  int32               `name:"vcpus" placeholder:"n" help:"Number of vCPUs of the builder, within the range the plan allows. Defaults to the build service's."`
 	Memory types.SizeMebibytes `placeholder:"size" help:"Memory of the builder, within the range the plan allows. Defaults to the build service's."`
 	Cache  types.SizeMebibytes `placeholder:"size" help:"Size of the builder's cache volume. Defaults to the build service's."`
-	Remote string              `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
+	Remote string              `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
 }
 
 func (BuilderCreateCmd) Examples() []kingkong.Example {
@@ -221,7 +221,7 @@ func (BuilderCreateCmd) Examples() []kingkong.Example {
 
 type BuilderDuCmd struct {
 	Name   string `arg:"" optional:"" default:"default" help:"Name of the builder."`
-	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
+	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
 }
 
 func (BuilderDuCmd) Examples() []kingkong.Example {
@@ -235,7 +235,7 @@ func (BuilderDuCmd) Examples() []kingkong.Example {
 
 type BuilderPruneCmd struct {
 	Name   string `arg:"" optional:"" default:"default" help:"Name of the builder."`
-	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile."`
+	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builder. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
 }
 
 func (BuilderPruneCmd) Examples() []kingkong.Example {
@@ -301,11 +301,7 @@ func builderClient(cfg *config.Config, url string) (*buildapi.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	url = cmp.Or(url, profile.BuildURL)
-	if url == "" {
-		return nil, fmt.Errorf("no build service: set build_url in profile %s, or pass --remote", profile.Name)
-	}
-	return buildapi.New(url, buildapi.WithToken(profile.Token))
+	return buildapi.New(cmp.Or(url, profile.BuildURL, buildapi.DefaultServer), buildapi.WithToken(profile.Token))
 }
 
 // builderClientOf returns the client of the build service in ctx, and the current profile.
