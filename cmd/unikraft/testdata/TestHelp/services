@@ -33,7 +33,7 @@ Fields:
   domains.*.certificate.name, domains.*.certificate.uuid
   instances, instances.*, instances.*.name, instances.*.uuid
   services, services.*, services.*.source, services.*.destination,
-  services.*.handlers
+  services.*.protocol, services.*.ip, services.*.handlers
 
 Global flags:
   -h, --help
@@ -83,7 +83,7 @@ Fields:
   domains.*.certificate.name, domains.*.certificate.uuid
   instances, instances.*, instances.*.name, instances.*.uuid
   services, services.*, services.*.source, services.*.destination,
-  services.*.handlers
+  services.*.protocol, services.*.ip, services.*.handlers
 
 Flags:
   -w, --watch=<duration>
@@ -141,7 +141,7 @@ Fields:
   domains.*.certificate.name, domains.*.certificate.uuid
   instances, instances.*, instances.*.name, instances.*.uuid
   services, services.*, services.*.source, services.*.destination,
-  services.*.handlers
+  services.*.protocol, services.*.ip, services.*.handlers
 
 Flags:
       --filter
@@ -203,7 +203,7 @@ Fields:
   domains.*.certificate.name, domains.*.certificate.uuid
   instances, instances.*, instances.*.name, instances.*.uuid
   services, services.*, services.*.source, services.*.destination,
-  services.*.handlers
+  services.*.protocol, services.*.ip, services.*.handlers
 
 Flags:
       --until, --filter
@@ -251,6 +251,12 @@ Examples:
   	--domain demo \
   	--service 443:8080/tls+http
 
+  # Create a service group with a UDP port on a dedicated IP
+  unikraft service create \
+  	--name dns \
+  	--metro fra \
+  	--service 53:53/udp@203.0.113.10
+
 Fields:
   metro
   name
@@ -265,7 +271,7 @@ Fields:
   domains.*.certificate.name, domains.*.certificate.uuid
   instances, instances.*, instances.*.name, instances.*.uuid
   services, services.*, services.*.source, services.*.destination,
-  services.*.handlers
+  services.*.protocol, services.*.ip, services.*.handlers
 
 Flags:
       --set=<name>=<value> ..., --set-file=<name>=<filename> ...
@@ -325,12 +331,15 @@ Create flags:
             myapp: a bare label becomes a subdomain of the metro
             example.com: a dotted name is a custom domain, with a certificate issued automatically unless given as fqdn=example.com,certificate=my-cert.
           [examples: example.com, myapp]
-      --service=<src>:<dest>[/<handlers>] ...
-          Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.
+      --service=<src>:<dest>[/<options>][@<ip>] ...
+          Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.
             http: load balance per HTTP request instead of per TCP connection
             tls: terminate TLS at the platform
-            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect.
-          [examples: 443:8080/http+tls, 80:443/http+redirect]
+            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect
+            tcp: publish a TCP port, the default
+            udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10
+            @IP: public IP assigned to you on the group's node.
+          [examples: 443:8080/http+tls, 80:443/http+redirect, 53:53/udp@203.0.113.10]
 
 $ unikraft service edit --help
 
@@ -361,7 +370,7 @@ Fields:
   domains.*.certificate.name, domains.*.certificate.uuid
   instances, instances.*, instances.*.name, instances.*.uuid
   services, services.*, services.*.source, services.*.destination,
-  services.*.handlers
+  services.*.protocol, services.*.ip, services.*.handlers
 
 Flags:
       --set=<name>=<value> ..., --set-file=<name>=<filename> ...
@@ -418,12 +427,15 @@ Edit flags:
             myapp: a bare label becomes a subdomain of the metro
             example.com: a dotted name is a custom domain, with a certificate issued automatically unless given as fqdn=example.com,certificate=my-cert.
           [examples: example.com, myapp]
-      --service=<src>:<dest>[/<handlers>] ...
-          Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.
+      --service=<src>:<dest>[/<options>][@<ip>] ...
+          Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.
             http: load balance per HTTP request instead of per TCP connection
             tls: terminate TLS at the platform
-            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect.
-          [examples: 443:8080/http+tls, 80:443/http+redirect]
+            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect
+            tcp: publish a TCP port, the default
+            udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10
+            @IP: public IP assigned to you on the group's node.
+          [examples: 443:8080/http+tls, 80:443/http+redirect, 53:53/udp@203.0.113.10]
 
 $ unikraft service delete --help
 
@@ -460,7 +472,7 @@ Fields:
   domains.*.certificate.name, domains.*.certificate.uuid
   instances, instances.*, instances.*.name, instances.*.uuid
   services, services.*, services.*.source, services.*.destination,
-  services.*.handlers
+  services.*.protocol, services.*.ip, services.*.handlers
 
 Flags:
       --all
