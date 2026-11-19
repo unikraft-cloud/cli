@@ -1,0 +1,46 @@
+====================================== kv ======================================
+time:     2026-01-02T12:00:00Z
+instance: my-instance
+metric:   cpu
+value:    12.5
+unit:     percent
+
+==================================== kv-all ====================================
+time:     2026-01-02T12:00:00Z
+instance: my-instance
+metric:   cpu
+value:    12.5
+unit:     percent
+
+==================================== table =====================================
+TIME                  INSTANCE     METRIC  VALUE  UNIT
+2026-01-02T12:00:00Z  my-instance  cpu     12.5   percent
+
+==================================== debug =====================================
+[
+  {
+    "name": "time",
+    "value": "2026-01-02T12:00:00Z",
+    "verbosity": "short"
+  },
+  {
+    "name": "instance",
+    "value": "my-instance",
+    "verbosity": "short"
+  },
+  {
+    "name": "metric",
+    "value": "cpu",
+    "verbosity": "short"
+  },
+  {
+    "name": "value",
+    "value": 12.5,
+    "verbosity": "short"
+  },
+  {
+    "name": "unit",
+    "value": "percent",
+    "verbosity": "short"
+  }
+]
