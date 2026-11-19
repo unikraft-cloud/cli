@@ -366,4 +366,57 @@ cmd: ["sh", "-c", "cat /greeting"]
 
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
+	t.Run("named-context", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+
+		image := r.Profile.Organization + "/named-context-e2e:" + uniq()
+		instName := uniq()
+
+		dir := t.TempDir()
+		contextDir := filepath.Join(t.TempDir(), "assets")
+
+		require.NoError(t, os.MkdirAll(contextDir, 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(contextDir, "hello.txt"),
+			[]byte("NAMED_CONTEXT_OK\n"),
+			0o644,
+		))
+
+		require.NoError(t, fstest.Apply(
+			fstest.CreateFile("Dockerfile", []byte(`
+FROM busybox:latest
+COPY --from=assets /hello.txt /hello.txt
+CMD ["sh", "-c", "cat /hello.txt"]
+`), 0o644),
+		).Apply(dir))
+
+		r.Run(t, []string{
+			"unikraft", "build", ".",
+			"--arch", "x86_64",
+			"--build-context", "assets=" + contextDir,
+			"--output", image,
+		}, integ.WithWorkDir(dir))
+
+		r.Run(t, []string{
+			"unikraft", "run",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--output", "quiet",
+			"--image", image,
+		})
+
+		r.Run(t, []string{
+			"unikraft", "--timeout", "10s",
+			"instance", "wait", "--until", "state==stopped",
+			"test-" + instName,
+		})
+
+		out := r.Run(t, []string{
+			"unikraft", "instance", "logs", "test-" + instName,
+		})
+		assert.Contains(t, out, "NAMED_CONTEXT_OK")
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+		r.Run(t, []string{"unikraft", "image", "delete", image})
+	})
 }
