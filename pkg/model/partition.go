@@ -351,6 +351,9 @@ func (r partitionedEditableModel) Edit(ctx context.Context, key string, fields [
 	// re-fetch, since we may have found new strongly linked dependencies (e.g.
 	// by creating a certificate)
 	resources, err := r.EditableModel.Get(ctx, []string{key})
+	if _, gone := errors.AsType[ErrNotFound](err); gone {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

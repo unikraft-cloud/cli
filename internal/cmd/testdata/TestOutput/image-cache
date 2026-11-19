@@ -1,0 +1,69 @@
+====================================== kv ======================================
+ref:      docker.io/library/nginx:1.27
+digest:   sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
+active:   ["fra", "sfo"]
+pinned:   ["fra"]
+autokill:
+  fra:    24h0m0s
+
+==================================== kv-all ====================================
+ref:      docker.io/library/nginx:1.27
+digest:   sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
+active:   ["fra", "sfo"]
+pinned:   ["fra"]
+autokill:
+  fra:    24h0m0s
+
+==================================== table =====================================
+REF                           DIGEST                                                                   ACTIVE          PINNED
+docker.io/library/nginx:1.27  sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4  ["fra", "sfo"]  ["fra"]
+
+==================================== debug =====================================
+[
+  {
+    "name": "ref",
+    "value": "docker.io/library/nginx:1.27",
+    "links": [
+      {
+        "type": "image",
+        "key": "docker.io/library/nginx:1.27"
+      }
+    ],
+    "verbosity": "short"
+  },
+  {
+    "name": "digest",
+    "value": "sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4",
+    "verbosity": "short"
+  },
+  {
+    "name": "active",
+    "value": [
+      "fra",
+      "sfo"
+    ],
+    "verbosity": "short"
+  },
+  {
+    "name": "pinned",
+    "value": [
+      "fra"
+    ],
+    "verbosity": "short",
+    "edit": {
+      "add": null,
+      "del": null
+    }
+  },
+  {
+    "name": "autokill",
+    "value": {
+      "fra": "24h0m0s"
+    },
+    "verbosity": "long",
+    "edit": {
+      "add": null,
+      "del": null
+    }
+  }
+]
