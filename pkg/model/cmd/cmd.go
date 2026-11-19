@@ -464,6 +464,17 @@ func (cmd *ModelRemoveCmd[R]) Run(ctx context.Context, stdio xstdio.Stdio, parti
 		}
 	}
 
+	// A key can name more than one resource, like the platforms of an image, and Delete removes it once.
+	seen := make(map[string]struct{}, len(toPrint))
+	toPrint = slices.DeleteFunc(slices.Clone(toPrint), func(r model.Model) bool {
+		key := r.Key().String()
+		if _, ok := seen[key]; ok {
+			return true
+		}
+		seen[key] = struct{}{}
+		return false
+	})
+
 	if _, ok := errors.AsType[model.ErrNotFound](deleteErr); ok {
 		// Delete reports the same missing keys, so only report them once.
 		getErr = withoutNotFound(getErr)

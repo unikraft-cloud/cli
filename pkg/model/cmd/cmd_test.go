@@ -761,6 +761,25 @@ func TestModelRemoveReportsMissingOnce(t *testing.T) {
 	}
 }
 
+func TestModelRemovePrintsKeyOnce(t *testing.T) {
+	env := modelt.NewTestEnv()
+	env.Add(modelt.TestModel{Name: "web", ID: "id-1"})
+	// Like the platforms of one image, the key names two resources.
+	env.Hooks.Get = func(ctx context.Context, keys []string, next func(context.Context, []string) ([]model.Model, error)) ([]model.Model, error) {
+		resources, err := next(ctx, keys)
+		return append(resources, resources...), err
+	}
+	ctx := modelt.WithTestEnv(context.Background(), env)
+
+	var out bytes.Buffer
+	cmd := &ModelRemoveCmd[modelt.TestModel]{
+		Targets: []string{"web"},
+		Output:  Printer{Type: PrinterTypeQuiet},
+	}
+	require.NoError(t, cmd.Run(ctx, testStdio(&out), nil))
+	assert.Equal(t, 1, strings.Count(out.String(), "web"), out.String())
+}
+
 func TestPartialResultsOrderWhenCallerPrintsError(t *testing.T) {
 	t.Run("list/table", func(t *testing.T) {
 		env := setupTestEnv()
