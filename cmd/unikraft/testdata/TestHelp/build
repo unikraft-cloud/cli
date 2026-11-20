@@ -229,6 +229,9 @@ $ unikraft builder list --help
 
 List builders.
 
+Each replica of the build service runs up to max-builds builds on a
+builder at once, so running can be higher than max-builds.
+
 Usage:
   unikraft builder list [<target> ...] [flags]
 
