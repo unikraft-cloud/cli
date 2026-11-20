@@ -64,6 +64,11 @@ func TestInstancePluginUnmarshalText(t *testing.T) {
 			want: cmd.InstancePlugin{Name: "logger", Image: "r:1", PullPolicy: new(platform.PullPolicyNever)},
 		},
 		{
+			name: "headers",
+			in:   "name=logger,image=r:1,headers.Authorization=Bearer x,headers.X-Foo=1",
+			want: cmd.InstancePlugin{Name: "logger", Image: "r:1", Headers: map[string]string{"Authorization": "Bearer x", "X-Foo": "1"}},
+		},
+		{
 			name:    "missing name is rejected",
 			in:      "image=plugins/logger:latest",
 			wantErr: "must specify name= for a plugin",
@@ -210,7 +215,15 @@ func TestInstanceCreateRejectsImageOptions(t *testing.T) {
 				"template":    {"my-template"},
 				"pull-policy": {"always"},
 			},
-			wantErr: "--pull-policy needs --image",
+			wantErr: "--pull-policy and --image-header need --image",
+		},
+		{
+			name: "image header without an image",
+			spec: map[string][]string{
+				"template":      {"my-template"},
+				"image-headers": {"X-Foo=1"},
+			},
+			wantErr: "--pull-policy and --image-header need --image",
 		},
 		{
 			name: "pull policy on a directory rom",
@@ -218,7 +231,15 @@ func TestInstanceCreateRejectsImageOptions(t *testing.T) {
 				"image": {"nginx:latest"},
 				"roms":  {"name=r,dir=./does-not-exist,pull-policy=always"},
 			},
-			wantErr: "pull-policy= needs image= in a ROM",
+			wantErr: "pull-policy= and headers= need image= in a ROM",
+		},
+		{
+			name: "headers on a directory rom",
+			spec: map[string][]string{
+				"image": {"nginx:latest"},
+				"roms":  {"name=r,dir=./does-not-exist,headers.X-Foo=1"},
+			},
+			wantErr: "pull-policy= and headers= need image= in a ROM",
 		},
 	}
 
@@ -254,19 +275,37 @@ func TestInstanceEditRejectsImageOptions(t *testing.T) {
 			name:    "pull policy without an image",
 			target:  cmd.Instance{},
 			spec:    map[string][]string{"pull-policy": {"always"}},
-			wantErr: "--pull-policy needs --image in the same edit",
+			wantErr: "--pull-policy and --image-header need --image in the same edit",
 		},
 		{
 			name:    "template pull policy without an image",
 			target:  cmd.InstanceTemplate{},
 			spec:    map[string][]string{"pull-policy": {"always"}},
-			wantErr: "--pull-policy needs --image in the same edit",
+			wantErr: "--pull-policy and --image-header need --image in the same edit",
+		},
+		{
+			name:    "image header without an image",
+			target:  cmd.Instance{},
+			spec:    map[string][]string{"image-headers": {"X-Foo=1"}},
+			wantErr: "--pull-policy and --image-header need --image in the same edit",
+		},
+		{
+			name:    "empty image headers without an image",
+			target:  cmd.Instance{},
+			spec:    map[string][]string{"image-headers": {"{}"}},
+			wantErr: "--pull-policy and --image-header need --image in the same edit",
 		},
 		{
 			name:    "pull policy on a directory rom",
 			target:  cmd.Instance{},
 			spec:    map[string][]string{"roms": {"name=r,dir=./does-not-exist,pull-policy=always"}},
-			wantErr: "pull-policy= needs image= in a ROM",
+			wantErr: "pull-policy= and headers= need image= in a ROM",
+		},
+		{
+			name:    "headers on a directory rom",
+			target:  cmd.Instance{},
+			spec:    map[string][]string{"roms": {"name=r,dir=./does-not-exist,headers.X-Foo=1"}},
+			wantErr: "pull-policy= and headers= need image= in a ROM",
 		},
 	}
 

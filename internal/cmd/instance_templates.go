@@ -48,10 +48,11 @@ type InstanceTemplate struct {
 
 	Autokill Autokill `field:",embed" mirror:"instance.template_autokill" create:"set" edit:"set" flag:"autokill" help:"Autokill options.\n  time: time since the template was last cloned before it is deleted, such as 24h, 0 disables" placeholder:"<key>=<value>" example:"time=24h"`
 
-	State      types.InstanceState    `mirror:"instance.state" field:",short" help:"Lifecycle state: stopped, starting, running, draining (finishing requests before a stop), stopping, standby (scaled to zero, woken by traffic), template, checkpoint or deleted."`
-	Image      types.ImageRef         `mirror:"instance.image" field:",short" edit:"set" flag:"image" help:"Image of the template, as an OCI reference or a full registry URL." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
-	PullPolicy *platform.PullPolicy   `mirror:"-" field:"pull-policy,invisible,valueless" edit:"set" flag:"pull-policy" help:"When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same edit." placeholder:"policy" example:"always,if_not_present,never"`
-	Type_      *platform.InstanceType `mirror:"instance.type" field:"type,long" help:"Virtual machine type.\n  micro: Firecracker microVM (default)\n  full: QEMU virtual machine with GPU support, needs a plan with full VM support and has no branching, checkpoints, vertical scaling, annotations or virtiofs volumes"`
+	State        types.InstanceState    `mirror:"instance.state" field:",short" help:"Lifecycle state: stopped, starting, running, draining (finishing requests before a stop), stopping, standby (scaled to zero, woken by traffic), template, checkpoint or deleted."`
+	Image        types.ImageRef         `mirror:"instance.image" field:",short" edit:"set" flag:"image" help:"Image of the template, as an OCI reference or a full registry URL." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
+	PullPolicy   *platform.PullPolicy   `mirror:"-" field:"pull-policy,invisible,valueless" edit:"set" flag:"pull-policy" help:"When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same edit. Each image edit replaces the pull policy and headers, so set both again." placeholder:"policy" example:"always,if_not_present,never"`
+	ImageHeaders map[string]string      `mirror:"-" field:"image-headers,invisible,valueless" edit:"set" flag:"image-header" sep:"none" mapsep:"none" help:"HTTP header sent when fetching the image, as KEY=value, up to 16. Needs image in the same edit. Each image edit replaces the pull policy and headers, so set both again." placeholder:"<key>=<value>" example:"Authorization=Bearer <token>"`
+	Type_        *platform.InstanceType `mirror:"instance.type" field:"type,long" help:"Virtual machine type.\n  micro: Firecracker microVM (default)\n  full: QEMU virtual machine with GPU support, needs a plan with full VM support and has no branching, checkpoints, vertical scaling, annotations or virtiofs volumes"`
 
 	Runtime struct {
 		Args InstanceArgs      `mirror:"instance.args" field:",short" help:"Command-line arguments passed to the instance at start."`

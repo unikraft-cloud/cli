@@ -9,7 +9,9 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1591,6 +1593,47 @@ cmd: ["cat", "/marker.txt"]
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + alwaysName})
 
 		r.Run(t, []string{"unikraft", "image", "delete", image})
+	})
+
+	t.Run("image-headers", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+
+		create := []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--image", "nginx:latest",
+			"--memory", "128",
+		}
+		edit := []string{
+			"unikraft", "instance", "edit", "test-" + instName,
+			"--output", "quiet",
+			"--image", "nginx:latest",
+		}
+		var flags []string
+		var keys string
+		for i := range 17 {
+			flags = append(flags, "--image-header", fmt.Sprintf("X-Unikraft-Test-%d=1", i))
+			keys += fmt.Sprintf(",headers.X-Unikraft-Test-%d=1", i)
+		}
+
+		for _, tooMany := range [][]string{
+			flags,
+			{"--rom", "name=r,image=nginx:latest" + keys},
+			{"--plugin", "name=p,image=nginx:latest" + keys},
+		} {
+			out := r.Run(t, slices.Concat(create, tooMany), integ.ExpectFail())
+			assert.Regexp(t, `more than 16 headers`, out)
+		}
+
+		r.Run(t, slices.Concat(create, []string{"--image-header", "X-Unikraft-Test=1"}))
+		r.Run(t, slices.Concat(edit, []string{"--image-header", "X-Unikraft-Test=2"}))
+		out := r.Run(t, slices.Concat(edit, flags), integ.ExpectFail())
+		assert.Regexp(t, `more than 16 headers`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
 
 	t.Run("replicas", func(t *testing.T) {

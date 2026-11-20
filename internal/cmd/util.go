@@ -189,25 +189,29 @@ func patchRequests[P ~string](fields []model.Field, specFor func(path string, op
 	return reqs, nil
 }
 
-// setImageOptions moves the pull policy in fields into the image patch of patches.
+// setImageOptions moves the pull policy and headers in fields into the image patch.
 func setImageOptions[P ~string](fields []model.Field, prop P, patches []patchReq[P]) ([]patchReq[P], error) {
 	var policy *platform.PullPolicy
 	if found := model.GetFieldByPath(fields, model.FieldPath{"pull-policy"}); len(found) > 0 && found[0].Edit != nil {
 		policy, _ = found[0].Edit.Set.(*platform.PullPolicy)
 	}
-	if policy == nil {
+	var headers map[string]string
+	if found := model.GetFieldByPath(fields, model.FieldPath{"image-headers"}); len(found) > 0 && found[0].Edit != nil {
+		headers, _ = found[0].Edit.Set.(map[string]string)
+	}
+	if policy == nil && headers == nil {
 		return patches, nil
 	}
 	i := slices.IndexFunc(patches, func(p patchReq[P]) bool {
 		return p.Prop == prop && p.Op == patchOpSet
 	})
 	if i < 0 {
-		return nil, fmt.Errorf("--pull-policy needs --image in the same edit")
+		return nil, fmt.Errorf("--pull-policy and --image-header need --image in the same edit")
 	}
 	url, ok := patches[i].Value.(string)
 	if !ok {
 		return nil, fmt.Errorf("unexpected image patch value %T", patches[i].Value)
 	}
-	patches[i].Value = imageSource(url, policy)
+	patches[i].Value = imageSource(url, policy, headers)
 	return patches, nil
 }

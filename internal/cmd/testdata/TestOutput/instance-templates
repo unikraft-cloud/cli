@@ -160,6 +160,13 @@ fra    my-template  template  nginx        128MiB  1      never
     }
   },
   {
+    "name": "image-headers",
+    "verbosity": "invisible",
+    "edit": {
+      "set": null
+    }
+  },
+  {
     "name": "type",
     "value": "micro",
     "verbosity": "long"

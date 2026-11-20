@@ -137,9 +137,12 @@ func TestImagePatchWireFormat(t *testing.T) {
 		want  string
 	}{
 		{
-			name: "image with a pull policy",
+			name: "image with a pull policy and headers",
 			value: func(t *testing.T) any {
-				fields := []model.Field{{Name: "pull-policy", Edit: &model.Patch{Set: new(platform.PullPolicyAlways)}}}
+				fields := []model.Field{
+					{Name: "pull-policy", Edit: &model.Patch{Set: new(platform.PullPolicyAlways)}},
+					{Name: "image-headers", Edit: &model.Patch{Set: map[string]string{"X-Foo": "1"}}},
+				}
 				patches := []patchReq[platform.MutableInstanceProperty]{{
 					Op:    patchOpSet,
 					Prop:  platform.MutableInstancePropertyImage,
@@ -150,27 +153,27 @@ func TestImagePatchWireFormat(t *testing.T) {
 				require.Len(t, patches, 1)
 				return patches[0].Value
 			},
-			want: `{"url":"nginx:latest","pull_policy":"always"}`,
+			want: `{"url":"nginx:latest","pull_policy":"always","headers":{"X-Foo":"1"}}`,
 		},
 		{
-			name: "rom with a pull policy",
+			name: "rom with a pull policy and headers",
 			value: func(t *testing.T) any {
-				roms := []*InstanceRom{{Name: "r", Image: "r:1", PullPolicy: new(platform.PullPolicyNever)}}
+				roms := []*InstanceRom{{Name: "r", Image: "r:1", PullPolicy: new(platform.PullPolicyNever), Headers: map[string]string{"X-Foo": "1"}}}
 				_, value, err := instancePatchSpec("roms", patchOpSet, roms)
 				require.NoError(t, err)
 				return value
 			},
-			want: `[{"name":"r","image":{"url":"r:1","pull_policy":"never"}}]`,
+			want: `[{"name":"r","image":{"url":"r:1","pull_policy":"never","headers":{"X-Foo":"1"}}}]`,
 		},
 		{
-			name: "plugin with a pull policy",
+			name: "plugin with a pull policy and headers",
 			value: func(t *testing.T) any {
-				plugins := []*InstancePlugin{{Name: "p", Image: "p:1", PullPolicy: new(platform.PullPolicyIfNotPresent)}}
+				plugins := []*InstancePlugin{{Name: "p", Image: "p:1", PullPolicy: new(platform.PullPolicyIfNotPresent), Headers: map[string]string{"X-Foo": "1"}}}
 				_, value, err := instancePatchSpec("plugins", patchOpSet, plugins)
 				require.NoError(t, err)
 				return value
 			},
-			want: `[{"name":"p","image":{"url":"p:1","pull_policy":"if_not_present"}}]`,
+			want: `[{"name":"p","image":{"url":"p:1","pull_policy":"if_not_present","headers":{"X-Foo":"1"}}}]`,
 		},
 	}
 	for _, tt := range tests {

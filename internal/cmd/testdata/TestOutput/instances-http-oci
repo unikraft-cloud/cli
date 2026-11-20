@@ -173,6 +173,16 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
     }
   },
   {
+    "name": "image-headers",
+    "verbosity": "invisible",
+    "create": {
+      "set": null
+    },
+    "edit": {
+      "set": null
+    }
+  },
+  {
     "name": "type",
     "value": null,
     "verbosity": "long",
@@ -385,6 +395,11 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
           "verbosity": "invisible"
         },
         {
+          "name": "headers",
+          "value": null,
+          "verbosity": "invisible"
+        },
+        {
           "name": "dir",
           "value": "",
           "verbosity": "invisible"
@@ -424,6 +439,11 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
         },
         {
           "name": "pull-policy",
+          "value": null,
+          "verbosity": "invisible"
+        },
+        {
+          "name": "headers",
           "value": null,
           "verbosity": "invisible"
         },

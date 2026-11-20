@@ -302,6 +302,16 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
     }
   },
   {
+    "name": "image-headers",
+    "verbosity": "invisible",
+    "create": {
+      "set": null
+    },
+    "edit": {
+      "set": null
+    }
+  },
+  {
     "name": "type",
     "value": "full",
     "verbosity": "long",
@@ -646,6 +656,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
             "verbosity": "invisible"
           },
           {
+            "name": "headers",
+            "value": null,
+            "verbosity": "invisible"
+          },
+          {
             "name": "dir",
             "value": "",
             "verbosity": "invisible"
@@ -674,6 +689,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
         },
         {
           "name": "pull-policy",
+          "value": null,
+          "verbosity": "invisible"
+        },
+        {
+          "name": "headers",
           "value": null,
           "verbosity": "invisible"
         },
@@ -734,6 +754,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
             "verbosity": "invisible"
           },
           {
+            "name": "headers",
+            "value": null,
+            "verbosity": "invisible"
+          },
+          {
             "name": "config",
             "value": {
               "timeout": 30
@@ -759,6 +784,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
         },
         {
           "name": "pull-policy",
+          "value": null,
+          "verbosity": "invisible"
+        },
+        {
+          "name": "headers",
           "value": null,
           "verbosity": "invisible"
         },

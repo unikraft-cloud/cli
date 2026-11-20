@@ -56,6 +56,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -65,10 +66,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.dir,
-  roms.*.at
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
   plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
-  plugins.*.config
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -150,8 +151,11 @@ Create flags:
           Image to deploy, as an OCI reference or a full registry URL. On create, required unless template, branch or checkpoint is given, and cannot be combined with them.
           [examples: nginx:latest, my-app:v1.2.3]
       --pull-policy=<policy>
-          When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same create or edit.
+          When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
           [examples: always, if_not_present, never]
+      --image-header=<key>=<value> ...
+          HTTP header sent when fetching the image, as KEY=value, up to 16. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
+          [example: Authorization=Bearer <token>]
       --type=<type>
           Virtual machine type.
             micro: Firecracker microVM (default)
@@ -188,11 +192,11 @@ Create flags:
   -v, --volume=[<name>]:<path>[:<options>] ...
           Volume to attach as NAME:/MOUNT[:ro], where the mount path is absolute and outside /uk. On create, leave NAME empty and add :size=SIZE, as in :/data:size=1GiB, to make a new volume with a generated name.
           [examples: my-vol:/data, cache:/tmp:ro, :/data:size=1GiB]
-      --rom=name=<name>,image=<ref>[,pull-policy=<policy>],at=<path> ...
-          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest. Add pull-policy=always|if_not_present|never to control when the image is pulled.
+      --rom=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>],at=<path> ...
+          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=my-rom,image=myuser/my-rom:latest,at=/rom0, name=mydata,dir=./mydata,at=/rom]
-      --plugin=name=<name>,image=<ref>[,pull-policy=<policy>][,config=<json>] ...
-          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance. Add pull-policy=always|if_not_present|never to control when the image is pulled.
+      --plugin=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>][,config=<json>] ...
+          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
       --network=<key>=<value> ...
           Network interface to attach, one per flag and up to 4. The first one is the primary interface. Needs the net_manager permission.
