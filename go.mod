@@ -55,9 +55,9 @@ require (
 	mvdan.cc/sh/v3 v3.14.1
 	sigs.k8s.io/yaml v1.6.0
 	unikraft.com/cloud/plugins/sandbox v0.0.0-20261110115830-def4e9d2e457
-	unikraft.com/cloud/sdk v0.4.1-staging.14
-	unikraft.com/cloud/sdk/build v0.0.0-20261112083743-f904b5bfc966
-	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261113085313-a2a9f94fc300
+	unikraft.com/cloud/sdk v0.4.6-staging.6
+	unikraft.com/cloud/sdk/build v0.4.6-staging.6
+	unikraft.com/cloud/sdk/plugins/sandbox v0.4.6-staging.6
 	unikraft.com/x/build v0.0.0-20261120101822-1135355f7e0d
 	unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/colors v0.0.0-20261111120215-5177d0f4c7b6
@@ -68,10 +68,10 @@ require (
 	unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/joinerrgroup v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/kingkong v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/kraftfile v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/log v0.0.0-20261113145058-65fc641f4af8
+	unikraft.com/x/kraftfile v0.0.0-20261120151658-ea11ec33af9a
+	unikraft.com/x/log v0.0.0-20261116145447-f4dbf6ae0056
 	unikraft.com/x/ptr v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/shell v0.0.0-20261113145058-65fc641f4af8
+	unikraft.com/x/shell v0.0.0-20261117090838-250b71577700
 	unikraft.com/x/signal v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/stdio v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/version v0.0.0-20261111120215-5177d0f4c7b6
