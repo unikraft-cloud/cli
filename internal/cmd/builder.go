@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/MakeNowJust/heredoc"
 	"github.com/docker/go-units"
 	buildapi "unikraft.com/cloud/sdk/build"
 	"unikraft.com/x/kingkong"
@@ -42,8 +43,8 @@ type Builder struct {
 	Metro     string         `field:",short" help:"Metro the builder runs in."`
 	IsDefault bool           `mirror:"status.default" field:"default,short" help:"Whether builds that name no builder run on it."`
 	Running   int            `mirror:"status.builds.#" field:",short" help:"Number of builds running on the builder."`
-	Waiting   int32          `mirror:"status.waiting_builds" field:",short" help:"Number of builds waiting for the builder, or for any builder of the pool for default."`
-	MaxBuilds int32          `mirror:"status.max_builds" field:",short" help:"Number of builds that run on the builder at once."`
+	Waiting   int32          `mirror:"status.waiting_builds" field:",short" help:"Number of builds that have not started: waiting for a build slot or for their client's session."`
+	MaxBuilds int32          `mirror:"status.max_builds" field:",short" help:"Number of builds that each replica of the build service runs on the builder at once."`
 	Images    []string       `field:",long" help:"Images that the running builds push."`
 	Instance  Link[Instance] `mirror:"status.instance" field:",long" help:"Instance the builder runs as, for its image, sizes and state."`
 
@@ -204,6 +205,17 @@ func (c *BuilderGetCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
 type BuilderListCmd struct {
 	cmd.ModelListCmd[Builder]
 	Remote string `env:"UNIKRAFT_BUILD_URL" placeholder:"url" help:"URL of the build service that manages the builders. Defaults to the build_url of the profile, or https://controlplane.unikraft.com."`
+}
+
+func (BuilderListCmd) Help() string {
+	return heredoc.Doc(`
+		List builders.
+
+		Each replica of the build service runs up to max-builds builds on a
+		builder at once, so running can be higher than max-builds. Waiting
+		counts the builds that have not started: those that wait for a build
+		slot and those that wait for their client's session.
+	`)
 }
 
 func (c *BuilderListCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
