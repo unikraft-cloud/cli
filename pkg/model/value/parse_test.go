@@ -187,6 +187,17 @@ func TestParseNestedPaths(t *testing.T) {
 		assert.False(t, *got.Ptr.Flag)
 	})
 
+	t.Run("map field merges dotted keys and the JSON form", func(t *testing.T) {
+		got, err := Parse[testStructCollections]([]string{`meta.a=1,meta={"b":"2"},meta.c=3`})
+		require.NoError(t, err)
+		assert.Equal(t, testStructCollections{Meta: map[string]string{"a": "1", "b": "2", "c": "3"}}, got)
+	})
+
+	t.Run("map field needs a key after the dot", func(t *testing.T) {
+		_, err := Parse[testStructCollections]([]string{"meta.=1"})
+		require.ErrorContains(t, err, "missing map key")
+	})
+
 	t.Run("unknown nested key reports the whole path", func(t *testing.T) {
 		_, err := Parse[testStructNested]([]string{"inner.bogus=1"})
 		require.ErrorContains(t, err, "unknown fields: [inner.bogus]")
