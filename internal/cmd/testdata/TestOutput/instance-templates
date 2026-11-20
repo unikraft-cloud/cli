@@ -147,7 +147,17 @@ fra    my-template  template  nginx        128MiB  1      never
         "key": "unikraft.io/official/nginx:latest"
       }
     ],
-    "verbosity": "short"
+    "verbosity": "short",
+    "edit": {
+      "set": "nginx"
+    }
+  },
+  {
+    "name": "pull-policy",
+    "verbosity": "invisible",
+    "edit": {
+      "set": null
+    }
   },
   {
     "name": "type",

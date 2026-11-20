@@ -1556,6 +1556,38 @@ cmd: ["cat", "/marker.txt"]
 		out = r.Run(t, []string{"unikraft", "instance", "logs", "test-" + alwaysName})
 		assert.Contains(t, out, "pull-policy-v2")
 		assert.NotContains(t, out, "pull-policy-v1")
+
+		require.NoError(t, fstest.Apply(
+			fstest.CreateDir("v3", 0o755),
+			fstest.CreateFile("v3/Dockerfile", []byte(`
+FROM busybox:latest
+RUN echo pull-policy-v3 > /marker.txt
+`), 0o644),
+			fstest.CreateFile("v3/Kraftfile", []byte(`
+spec: v0.7
+name: pull-policy-e2e
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+cmd: ["cat", "/marker.txt"]
+`), 0o644),
+		).Apply(dir))
+		r.Run(t, []string{"unikraft", "build", "v3", "--output", image}, integ.WithWorkDir(dir))
+
+		r.Run(t, []string{
+			"unikraft", "instance", "edit", "test-" + alwaysName,
+			"--output", "quiet",
+			"--image", image,
+			"--pull-policy", "always",
+		})
+		out = r.Run(t, []string{
+			"unikraft", "instance", "start",
+			"--follow",
+			"test-" + alwaysName,
+		}, integ.WithTimeout(60*time.Second))
+		assert.Contains(t, out, "pull-policy-v3")
+		assert.NotContains(t, out, "pull-policy-v2")
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + alwaysName})
 
 		r.Run(t, []string{"unikraft", "image", "delete", image})

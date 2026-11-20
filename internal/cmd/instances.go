@@ -117,7 +117,7 @@ type Instance struct {
 	State types.InstanceState `mirror:"instance.state" field:",short" edit:"set" help:"Lifecycle state: stopped, starting, running, draining (finishing requests before a stop), stopping, standby (scaled to zero, woken by traffic), template, checkpoint or deleted. Setting stopped on edit stops a running instance." example:"stopped"`
 
 	Image      types.ImageRef         `mirror:"instance.image" field:",short" create:"set" edit:"set" flag:"image" help:"Image to deploy, as an OCI reference or a full registry URL. On create, required unless template, branch or checkpoint is given, and cannot be combined with them." placeholder:"<name>:<tag>" example:"nginx:latest,my-app:v1.2.3"`
-	PullPolicy *platform.PullPolicy   `field:"pull-policy,invisible,valueless" create:"set" flag:"pull-policy" help:"When to pull the image relative to the node's cache: always, if_not_present or never." placeholder:"policy" example:"always,if_not_present,never"`
+	PullPolicy *platform.PullPolicy   `mirror:"-" field:"pull-policy,invisible,valueless" create:"set" edit:"set" flag:"pull-policy" help:"When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same create or edit." placeholder:"policy" example:"always,if_not_present,never"`
 	Type_      *platform.InstanceType `mirror:"instance.type" field:"type,long" create:"set" flag:"type" help:"Virtual machine type.\n  micro: Firecracker microVM (default)\n  full: QEMU virtual machine with GPU support, needs a plan with full VM support and has no branching, checkpoints, vertical scaling, annotations or virtiofs volumes" placeholder:"type" example:"micro,full"`
 
 	Runtime struct {
@@ -133,8 +133,8 @@ type Instance struct {
 
 	Service *InstanceService  `mirror:"instance.service_group" field:",embed" create:"set" flag:"service" help:"Service group to join, by name or UUID. Leave unset and give service.services or service.domains to create a group owned by the instance. Without any service the instance is reachable only privately." placeholder:"name"`
 	Volumes []*InstanceVolume `mirror:"instance.volumes" field:",embed" create:"set" edit:"add,del=strings" flag:"volume" short:"v" sep:"none" help:"Volume to attach as NAME:/MOUNT[:ro], where the mount path is absolute and outside /uk. On create, leave NAME empty and add :size=SIZE, as in :/data:size=1GiB, to make a new volume with a generated name." placeholder:"[<name>]:<path>[:<options>]" example:"my-vol:/data,cache:/tmp:ro,:/data:size=1GiB"`
-	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest." placeholder:"name=<name>,image=<ref>,at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
-	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance." placeholder:"name=<name>,image=<ref>[,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
+	Roms    []*InstanceRom    `mirror:"instance.roms" field:",embed" create:"set" edit:"set,add,del=strings" flag:"rom" sep:"none" help:"Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest. Add pull-policy=always|if_not_present|never to control when the image is pulled." placeholder:"name=<name>,image=<ref>[,pull-policy=<policy>],at=<path>" example:"name=my-rom\\,image=myuser/my-rom:latest\\,at=/rom0,name=mydata\\,dir=./mydata\\,at=/rom"`
+	Plugins []*InstancePlugin `mirror:"instance.plugins" field:",embed" create:"set" edit:"set,add,del=strings" flag:"plugin" sep:"none" help:"Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance. Add pull-policy=always|if_not_present|never to control when the image is pulled." placeholder:"name=<name>,image=<ref>[,pull-policy=<policy>][,config=<json>]" example:"name=sandbox\\,image=plugins/sandbox:latest,name=sandbox\\,image=plugins/sandbox:latest\\,config={\"persist_path\":\"/data\"}"`
 
 	PrivateFQDN string             `mirror:"instance.private_fqdn" field:"private-fqdn,long" help:"Private hostname, reachable only from your other instances in the metro."`
 	Networks    []*InstanceNetwork `mirror:"instance.network_interfaces" field:",embed" create:"set" flag:"network" sep:"none" help:"Network interface to attach, one per flag and up to 4. The first one is the primary interface. Needs the net_manager permission.\n  name: interface name, unique in the account. Set it on a relay, so that other instances can refer to it. While its clients run, the relay instance stops only with --force and cannot be deleted\n  relay.name: name of the interface, not of the instance, that gets all the traffic of this one. It must be a platform interface of another instance, with no relay of its own\n  relay.uuid: the same, by UUID\n  relay.dns: false sends DNS requests to the platform's DNS server instead of the relay (default true)\n  tap-name: host TAP device, to bring your own interface\n  ip: address in CIDR notation, needs tap-name\n  mac: unicast MAC address, needs tap-name\n  autoconfig: whether the platform configures the interface inside the guest" placeholder:"<key>=<value>" example:"name=my-relay,relay.name=my-relay,relay.name=my-relay\\,relay.dns=false,name=my-vpc\\,tap-name=tap0\\,ip=10.0.0.5/24"`
@@ -418,10 +418,11 @@ func (v *InstanceVolume) UnmarshalText(data []byte) error {
 //
 // name= may be omitted when at= is given; it is then derived from the mount path.
 type InstanceRom struct {
-	Name  string `name:"name" mirror:"name" json:"name,omitempty" field:",long" help:"ROM name of letters, digits, - and _, which appears as /dev/ukp_rom_NAME in the guest."`
-	Image string `name:"image" mirror:"image" json:"image,omitempty" field:",long" help:"Image the ROM is loaded from. Cannot be combined with dir."`
-	Dir   string `name:"dir" json:"-" field:"dir,invisible,long" help:"Local directory packed into the ROM instead of an image."`
-	At    string `name:"at" mirror:"at" json:"at,omitempty" field:",long" help:"Path the ROM is mounted at inside the instance. When omitted, the guest mounts the raw device itself."`
+	Name       string               `name:"name" mirror:"name" json:"name,omitempty" field:",long" help:"ROM name of letters, digits, - and _, which appears as /dev/ukp_rom_NAME in the guest."`
+	Image      string               `name:"image" mirror:"image" json:"image,omitempty" field:",long" help:"Image the ROM is loaded from. Cannot be combined with dir."`
+	PullPolicy *platform.PullPolicy `name:"pull-policy" mirror:"-" json:"pull-policy,omitempty" field:"pull-policy,invisible,long" help:"When to pull the image relative to the node's cache: always, if_not_present or never."`
+	Dir        string               `name:"dir" json:"-" field:"dir,invisible,long" help:"Local directory packed into the ROM instead of an image."`
+	At         string               `name:"at" mirror:"at" json:"at,omitempty" field:",long" help:"Path the ROM is mounted at inside the instance. When omitted, the guest mounts the raw device itself."`
 }
 
 func (r *InstanceRom) UnmarshalText(data []byte) error {
@@ -506,10 +507,11 @@ func (c PluginConfig) MarshalJSON() ([]byte, error) {
 //
 // rom= is accepted as a deprecated alias for image=.
 type InstancePlugin struct {
-	Name   string       `name:"name" mirror:"name" json:"name" field:",long" help:"Plugin name: up to 63 letters, digits, - and _. The plugin is mounted at /uk/plugins/NAME."`
-	Image  string       `name:"image" mirror:"image" json:"image" field:",long" help:"Image the plugin is loaded from. Its init program runs when the plugin starts."`
-	Rom    string       `name:"rom" mirror:"-" json:"rom,omitempty" field:"-"`
-	Config PluginConfig `name:"config" mirror:"config" json:"config,omitempty" field:",long" help:"JSON configuration passed to the plugin init program on stdin."`
+	Name       string               `name:"name" mirror:"name" json:"name" field:",long" help:"Plugin name: up to 63 letters, digits, - and _. The plugin is mounted at /uk/plugins/NAME."`
+	Image      string               `name:"image" mirror:"image" json:"image" field:",long" help:"Image the plugin is loaded from. Its init program runs when the plugin starts."`
+	PullPolicy *platform.PullPolicy `name:"pull-policy" mirror:"-" json:"pull-policy,omitempty" field:"pull-policy,invisible,long" help:"When to pull the image relative to the node's cache: always, if_not_present or never."`
+	Rom        string               `name:"rom" mirror:"-" json:"rom,omitempty" field:"-"`
+	Config     PluginConfig         `name:"config" mirror:"config" json:"config,omitempty" field:",long" help:"JSON configuration passed to the plugin init program on stdin."`
 }
 
 func (p *InstancePlugin) Validate() error {
@@ -554,6 +556,14 @@ func (p *InstancePlugin) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	return p.Validate()
+}
+
+// imageSource returns url as a plain reference, or as an image object when policy is set.
+func imageSource(url string, policy *platform.PullPolicy) platform.ImageSource {
+	if policy == nil {
+		return platform.ImageReference(url)
+	}
+	return platform.ImageSpec{Url: url, PullPolicy: policy}
 }
 
 // inlineFilesFromDir walks a local directory and returns its contents as
@@ -1006,6 +1016,10 @@ func (Instance) Edit(ctx context.Context, key string, fields []model.Field) erro
 	if err != nil {
 		return err
 	}
+	patches, err = setImageOptions(fields, platform.MutableInstancePropertyImage, patches)
+	if err != nil {
+		return err
+	}
 	g, err := multimetro.NewClient(ctx)
 	if err != nil {
 		return err
@@ -1194,6 +1208,9 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 		roms := value.([]*InstanceRom)
 		var reqRoms []map[string]any
 		for _, rom := range roms {
+			if rom.PullPolicy != nil && rom.Image == "" {
+				return zero, nil, fmt.Errorf("pull-policy= needs image= in a ROM")
+			}
 			if rom.Image == "" && rom.Dir == "" {
 				continue
 			}
@@ -1206,7 +1223,7 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 				}
 				reqRom["files"] = files
 			} else {
-				reqRom["image"] = rom.Image
+				reqRom["image"] = imageSource(rom.Image, rom.PullPolicy)
 			}
 			if rom.Name != "" {
 				reqRom["name"] = rom.Name
@@ -1230,7 +1247,7 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 
 			reqPlugin := map[string]any{
 				"name":  plugin.Name,
-				"image": plugin.Image,
+				"image": imageSource(plugin.Image, plugin.PullPolicy),
 			}
 			if plugin.Config != "" {
 				reqPlugin["config"] = jsontext.Value(plugin.Config)
@@ -1361,6 +1378,9 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 				if sources == 0 {
 					return nil, fmt.Errorf("must specify one of image= or dir= for a ROM")
 				}
+				if rom.PullPolicy != nil && rom.Image == "" {
+					return nil, fmt.Errorf("pull-policy= needs image= in a ROM")
+				}
 
 				var reqRom platform.CreateInstanceRequestRom
 				if rom.Dir != "" {
@@ -1370,7 +1390,7 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 					}
 					reqRom.Files = files
 				} else {
-					reqRom.Image = platform.ImageReference(rom.Image)
+					reqRom.Image = imageSource(rom.Image, rom.PullPolicy)
 				}
 				if rom.Name != "" {
 					reqRom.Name = rom.Name
@@ -1391,7 +1411,7 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 				}
 				reqPlugin := platform.CreateInstanceRequestPlugin{
 					Name:  plugin.Name,
-					Image: platform.ImageReference(plugin.Image),
+					Image: imageSource(plugin.Image, plugin.PullPolicy),
 				}
 				if plugin.Config != "" {
 					var config any = jsontext.Value(plugin.Config)
@@ -1530,12 +1550,11 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 		}
 	}
 
+	if pullPolicy != nil && imageURL == "" {
+		return nil, fmt.Errorf("--pull-policy needs --image")
+	}
 	if imageURL != "" {
-		if pullPolicy != nil {
-			req.Image = platform.ImageSpec{Url: imageURL, PullPolicy: pullPolicy}
-		} else {
-			req.Image = platform.ImageReference(imageURL)
-		}
+		req.Image = imageSource(imageURL, pullPolicy)
 	}
 
 	// Validate that exactly one of image, template, branch, or checkpoint is provided
@@ -1749,6 +1768,12 @@ func (Instance) Examples() map[cmd.CmdType][]kingkong.Example {
 				Commands: []string{
 					// "unikraft instance edit demo-instance --set resources.memory=256",
 					"unikraft instance edit demo-instance --memory 256",
+				},
+			},
+			{
+				Description: "Change the image and always pull it, even if the node has it cached",
+				Commands: []string{
+					"unikraft instance edit demo-instance --image my-app:v2 --pull-policy always",
 				},
 			},
 			{

@@ -296,6 +296,9 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
     "verbosity": "invisible",
     "create": {
       "set": null
+    },
+    "edit": {
+      "set": null
     }
   },
   {
@@ -638,6 +641,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
             "verbosity": "long"
           },
           {
+            "name": "pull-policy",
+            "value": null,
+            "verbosity": "invisible"
+          },
+          {
             "name": "dir",
             "value": "",
             "verbosity": "invisible"
@@ -663,6 +671,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
           "name": "image",
           "value": "",
           "verbosity": "long"
+        },
+        {
+          "name": "pull-policy",
+          "value": null,
+          "verbosity": "invisible"
         },
         {
           "name": "dir",
@@ -716,6 +729,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
             "verbosity": "long"
           },
           {
+            "name": "pull-policy",
+            "value": null,
+            "verbosity": "invisible"
+          },
+          {
             "name": "config",
             "value": {
               "timeout": 30
@@ -738,6 +756,11 @@ fra    my-instance  running  nginx  ["arg1", "arg2"]  256MiB  2      example.uni
           "name": "image",
           "value": "",
           "verbosity": "long"
+        },
+        {
+          "name": "pull-policy",
+          "value": null,
+          "verbosity": "invisible"
         },
         {
           "name": "config",

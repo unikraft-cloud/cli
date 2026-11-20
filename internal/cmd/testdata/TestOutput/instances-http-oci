@@ -167,6 +167,9 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
     "verbosity": "invisible",
     "create": {
       "set": null
+    },
+    "edit": {
+      "set": null
     }
   },
   {
@@ -377,6 +380,11 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
           "verbosity": "long"
         },
         {
+          "name": "pull-policy",
+          "value": null,
+          "verbosity": "invisible"
+        },
+        {
           "name": "dir",
           "value": "",
           "verbosity": "invisible"
@@ -413,6 +421,11 @@ fra    my-instance  running  https+oci://cdn.example.com/me/app/@sha256:43d3d758
           "name": "image",
           "value": "",
           "verbosity": "long"
+        },
+        {
+          "name": "pull-policy",
+          "value": null,
+          "verbosity": "invisible"
         },
         {
           "name": "config",
