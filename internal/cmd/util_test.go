@@ -6,6 +6,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -127,4 +128,59 @@ func TestResourcesWithoutAnOrganizationHaveNoLink(t *testing.T) {
 	fields, err := Volume{Metro: "fra", Name: "data"}.Fields(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, nameLink(fields))
+}
+
+func TestImagePatchWireFormat(t *testing.T) {
+	tests := []struct {
+		name  string
+		value func(t *testing.T) any
+		want  string
+	}{
+		{
+			name: "image with a pull policy and headers",
+			value: func(t *testing.T) any {
+				fields := []model.Field{
+					{Name: "pull-policy", Edit: &model.Patch{Set: new(platform.PullPolicyAlways)}},
+					{Name: "image-headers", Edit: &model.Patch{Set: map[string]string{"X-Foo": "1"}}},
+				}
+				patches := []patchReq[platform.MutableInstanceProperty]{{
+					Op:    patchOpSet,
+					Prop:  platform.MutableInstancePropertyImage,
+					Value: "nginx:latest",
+				}}
+				patches, err := setImageOptions(fields, platform.MutableInstancePropertyImage, patches)
+				require.NoError(t, err)
+				require.Len(t, patches, 1)
+				return patches[0].Value
+			},
+			want: `{"url":"nginx:latest","pull_policy":"always","headers":{"X-Foo":"1"}}`,
+		},
+		{
+			name: "rom with a pull policy and headers",
+			value: func(t *testing.T) any {
+				roms := []*InstanceRom{{Name: "r", Image: "r:1", PullPolicy: new(platform.PullPolicyNever), Headers: map[string]string{"X-Foo": "1"}}}
+				_, value, err := instancePatchSpec("roms", patchOpSet, roms)
+				require.NoError(t, err)
+				return value
+			},
+			want: `[{"name":"r","image":{"url":"r:1","pull_policy":"never","headers":{"X-Foo":"1"}}}]`,
+		},
+		{
+			name: "plugin with a pull policy and headers",
+			value: func(t *testing.T) any {
+				plugins := []*InstancePlugin{{Name: "p", Image: "p:1", PullPolicy: new(platform.PullPolicyIfNotPresent), Headers: map[string]string{"X-Foo": "1"}}}
+				_, value, err := instancePatchSpec("plugins", patchOpSet, plugins)
+				require.NoError(t, err)
+				return value
+			},
+			want: `[{"name":"p","image":{"url":"p:1","pull_policy":"if_not_present","headers":{"X-Foo":"1"}}}]`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := json.Marshal(tt.value(t))
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.want, string(got))
+		})
+	}
 }

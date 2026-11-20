@@ -7,6 +7,7 @@ package value
 
 import (
 	"encoding"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"reflect"
@@ -124,16 +125,41 @@ var (
 	renderer      = reflect.TypeFor[Renderer]()
 )
 
-// walkFields gives each leaf field of struct v with its dotted key.
-// Parse can then read the rendered nested fields back.
+// walkFields gives each leaf field of struct v with its dotted key, and each
+// map entry as one leaf. Parse can then read the rendered nested fields back.
 func walkFields(v reflect.Value, prefix string) iter.Seq2[string, reflect.Value] {
 	return func(yield func(string, reflect.Value) bool) {
 		for field := range namedFields(v) {
 			path := prefix + field.Name
-			if sub, ok := field.structValue(false); ok &&
-				!field.implements(renderer, stringer, textMarshaler) {
+			if field.implements(renderer, stringer, textMarshaler) {
+				if !yield(path, field.Value) {
+					return
+				}
+				continue
+			}
+			if sub, ok := field.structValue(false); ok {
 				for path, leaf := range walkFields(sub, path+".") {
 					if !yield(path, leaf) {
+						return
+					}
+				}
+				continue
+			}
+			if m := field.Value; m.Kind() == reflect.Map && m.Type().Key().Kind() == reflect.String {
+				if !dottable(m) {
+					if b, err := json.Marshal(m.Interface()); err == nil {
+						if !yield(path, reflect.ValueOf(string(b))) {
+							return
+						}
+						continue
+					}
+				}
+				keys := m.MapKeys()
+				slices.SortFunc(keys, func(a, b reflect.Value) int {
+					return strings.Compare(a.String(), b.String())
+				})
+				for _, key := range keys {
+					if !yield(path+"."+key.String(), m.MapIndex(key)) {
 						return
 					}
 				}
@@ -144,4 +170,19 @@ func walkFields(v reflect.Value, prefix string) iter.Seq2[string, reflect.Value]
 			}
 		}
 	}
+}
+
+// dottable reports if Parse reads back each entry of map m as one key.K=V pair.
+func dottable(m reflect.Value) bool {
+	for it := m.MapRange(); it.Next(); {
+		if strings.ContainsAny(it.Key().String(), ",=") {
+			return false
+		}
+		v, err := Render(it.Value().Interface(), RenderOpts{})
+		if err != nil || v == "" || v != strings.TrimSpace(v) ||
+			strings.Contains(v, ",") || strings.ContainsAny(v[:1], `{["`) {
+			return false
+		}
+	}
+	return true
 }

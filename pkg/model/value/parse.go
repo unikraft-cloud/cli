@@ -291,17 +291,42 @@ func parseReflect(input []string, value reflect.Value) error {
 
 var textUnmarshaler = reflect.TypeFor[encoding.TextUnmarshaler]()
 
-// assignField sets one key=value pair on struct s. A dotted key goes into the
-// named struct field. It reports if a field matched the key.
+// assignField sets one key=value pair on struct s. Dotted keys go into struct fields
+// and map entries, and map values merge. It reports if a field matched the key.
 func assignField(s reflect.Value, k, v string) (bool, error) {
 	head, rest, dotted := strings.Cut(k, ".")
 
 	for field := range namedFields(s) {
 		if k == field.Name {
-			return true, parseReflect([]string{v}, field.Value)
+			m := field.Value
+			if m.Kind() != reflect.Map || m.IsNil() {
+				return true, parseReflect([]string{v}, m)
+			}
+			parsed := reflect.New(m.Type()).Elem()
+			if err := parseReflect([]string{v}, parsed); err != nil {
+				return true, err
+			}
+			for entry := parsed.MapRange(); entry.Next(); {
+				m.SetMapIndex(entry.Key(), entry.Value())
+			}
+			return true, nil
 		}
 		if !dotted || head != field.Name || field.implements(textUnmarshaler) {
 			continue
+		}
+		if m := field.Value; m.Kind() == reflect.Map && m.Type().Key().Kind() == reflect.String {
+			if rest == "" {
+				return true, fmt.Errorf("missing map key in %q", k)
+			}
+			elem := reflect.New(m.Type().Elem()).Elem()
+			if err := parseReflect([]string{v}, elem); err != nil {
+				return true, err
+			}
+			if m.IsNil() {
+				m.Set(reflect.MakeMap(m.Type()))
+			}
+			m.SetMapIndex(reflect.ValueOf(rest).Convert(m.Type().Key()), elem)
+			return true, nil
 		}
 		if sub, ok := field.structValue(true); ok {
 			return assignField(sub, rest, v)
