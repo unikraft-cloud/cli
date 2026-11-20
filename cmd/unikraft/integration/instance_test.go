@@ -1464,7 +1464,7 @@ func TestInstances(t *testing.T) {
 			fstest.CreateDir("v1", 0o755),
 			fstest.CreateFile("v1/Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo pull-policy-v1 > /marker.txt
+RUN echo pull-policy-v1 `+imageTag+` > /marker.txt
 `), 0o644),
 			fstest.CreateFile("v1/Kraftfile", []byte(`
 spec: v0.7
@@ -1502,7 +1502,7 @@ cmd: ["cat", "/marker.txt"]
 			fstest.CreateDir("v2", 0o755),
 			fstest.CreateFile("v2/Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo pull-policy-v2 > /marker.txt
+RUN echo pull-policy-v2 `+imageTag+` > /marker.txt
 `), 0o644),
 			fstest.CreateFile("v2/Kraftfile", []byte(`
 spec: v0.7

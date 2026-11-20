@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -125,7 +126,11 @@ func (s *SharedImage) Build(t *testing.T, env *TestEnv) string {
 func (s *SharedImage) build(t *testing.T, env *TestEnv) (string, error) {
 	t.Helper()
 	ref := s.Ref(env, sharedImageTag)
-	if err := s.Image.Build(t, env, ref, WithNoPartition(), WithoutCancel()); err != nil {
+	// The label keeps the digest unique: image delete removes every tag of a digest.
+	img := s.Image
+	img.Files = maps.Clone(s.Files)
+	img.Files["Dockerfile"] += "\nLABEL unikraft-e2e=" + sharedImageTag + "\n"
+	if err := img.Build(t, env, ref, WithNoPartition(), WithoutCancel()); err != nil {
 		return "", err
 	}
 	registerImageConfig(env.Config, ref)

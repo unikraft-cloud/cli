@@ -114,7 +114,7 @@ roms:
 						require.NoError(t, fstest.Apply(
 							fstest.CreateFile("Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo "unikraft-e2e" > /etc/unikraft-e2e
+RUN echo "unikraft-e2e `+imageTag+`" > /etc/unikraft-e2e
 COPY <<EOF /entrypoint.sh
 #!/bin/sh
 echo "== BEGIN /etc/unikraft-e2e =="
@@ -229,7 +229,7 @@ RUN echo "wrong-context" > /etc/unikraft-e2e
 			fstest.CreateDir("proj", 0o755),
 			fstest.CreateFile("proj/Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo "right-context" > /etc/unikraft-e2e
+RUN echo "right-context `+imageTag+`" > /etc/unikraft-e2e
 CMD ["sh", "-c", "echo DOCKERFILE_CMD_USED"]
 `), 0o644),
 			fstest.CreateFile("proj/Kraftfile", []byte(`
@@ -275,7 +275,7 @@ cmd: ["sh", "-c", "cat /etc/unikraft-e2e && echo UNIKRAFT_E2E_OK"]
 		require.NoError(t, fstest.Apply(
 			fstest.CreateFile("Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo "unikraft-e2e" > /etc/unikraft-e2e
+RUN echo "unikraft-e2e `+imageTag+`" > /etc/unikraft-e2e
 CMD ["sh", "-c", "echo DOCKERFILE_CMD_USED"]
 `), 0o644),
 			fstest.CreateFile("Kraftfile", []byte(`
