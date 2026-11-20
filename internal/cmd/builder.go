@@ -43,7 +43,7 @@ type Builder struct {
 	Metro     string         `field:",short" help:"Metro the builder runs in."`
 	IsDefault bool           `mirror:"status.default" field:"default,short" help:"Whether builds that name no builder run on it."`
 	Running   int            `mirror:"status.builds.#" field:",short" help:"Number of builds running on the builder."`
-	Waiting   int32          `mirror:"status.waiting_builds" field:",short" help:"Number of builds waiting for the builder, or for any builder of the pool for default."`
+	Waiting   int32          `mirror:"status.waiting_builds" field:",short" help:"Number of builds that have not started: waiting for a build slot or for their client's session."`
 	MaxBuilds int32          `mirror:"status.max_builds" field:",short" help:"Number of builds that each replica of the build service runs on the builder at once."`
 	Images    []string       `field:",long" help:"Images that the running builds push."`
 	Instance  Link[Instance] `mirror:"status.instance" field:",long" help:"Instance the builder runs as, for its image, sizes and state."`
@@ -212,7 +212,9 @@ func (BuilderListCmd) Help() string {
 		List builders.
 
 		Each replica of the build service runs up to max-builds builds on a
-		builder at once, so running can be higher than max-builds.
+		builder at once, so running can be higher than max-builds. Waiting
+		counts the builds that have not started: those that wait for a build
+		slot and those that wait for their client's session.
 	`)
 }
 
