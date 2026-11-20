@@ -180,11 +180,12 @@ cmd: ["sh", "/entrypoint.sh"]
 				instName := uniq()
 				image := r.Profile.Organization + "/dockerfile-e2e:" + imageTag
 
+				// The tag in the Dockerfile keeps the digest unique: image delete removes every tag of a digest.
 				dir := t.TempDir()
 				require.NoError(t, fstest.Apply(
 					fstest.CreateFile("Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo "unikraft-e2e" > /etc/unikraft-e2e
+RUN echo "unikraft-e2e `+imageTag+`" > /etc/unikraft-e2e
 CMD ["sh", "-c", "cat /etc/unikraft-e2e && echo UNIKRAFT_E2E_OK"]
 `), 0o644),
 				).Apply(dir))
