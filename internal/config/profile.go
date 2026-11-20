@@ -82,13 +82,23 @@ type Profile struct {
 	ControlPlane string `json:"controlplane,omitempty" field:",long" help:"Control plane endpoint."`
 	// Insecure indicates whether to allow insecure connections to the control plane, skipping TLS verification.
 	Insecure bool `json:"controlplane_insecure,omitempty" field:",long" help:"Skip TLS verification when connecting to the control plane."`
-	// RegistryMirror is the endpoint that gets the requests for the Unikraft image registry.
-	RegistryMirror string `json:"registry_mirror,omitempty" field:",long" help:"Endpoint that serves requests for the Unikraft image registry."`
-	BuildURL       string `json:"build_url,omitempty" field:",long" help:"URL of the build service that remote builds and the builder commands use."`
+	// Registry is the configuration of the Unikraft image registry.
+	Registry Registry `json:"registry,omitzero" field:",long,embed" help:"Unikraft image registry settings."`
+	BuildURL string   `json:"build_url,omitempty" field:",long" help:"URL of the build service that remote builds and the builder commands use."`
 	// Metros is a static list of metros.
 	Metros []Metro `json:"metros,omitempty" field:",long,embed" help:"Metros of the profile."`
 	// MetroDefault is the default metro to use when creating resources.
 	MetroDefault string `json:"metro_default,omitempty" help:"Metro that create commands and unikraft api use when none is given. Without it, a profile with a single metro uses that one."`
+}
+
+// Registry is the Unikraft image registry configuration of a profile.
+type Registry struct {
+	// Host is the host of the Unikraft image registry.
+	Host string `json:"host,omitempty" field:",long" help:"Host of the Unikraft image registry. Login sets it from the control plane."`
+	// Mirror is the endpoint that gets the requests for the Unikraft image registry.
+	Mirror string `json:"mirror,omitempty" field:",long" help:"Endpoint that serves requests for the Unikraft image registry."`
+	// Insecure skips TLS verification when connecting to the Unikraft image registry.
+	Insecure bool `json:"insecure,omitempty" field:",long" help:"Skip TLS verification when connecting to the Unikraft image registry."`
 }
 
 func (p Profile) GetDefaultMetro() string {

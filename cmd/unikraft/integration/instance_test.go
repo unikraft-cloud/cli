@@ -9,7 +9,9 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1464,7 +1466,7 @@ func TestInstances(t *testing.T) {
 			fstest.CreateDir("v1", 0o755),
 			fstest.CreateFile("v1/Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo pull-policy-v1 > /marker.txt
+RUN echo pull-policy-v1 `+imageTag+` > /marker.txt
 `), 0o644),
 			fstest.CreateFile("v1/Kraftfile", []byte(`
 spec: v0.7
@@ -1502,7 +1504,7 @@ cmd: ["cat", "/marker.txt"]
 			fstest.CreateDir("v2", 0o755),
 			fstest.CreateFile("v2/Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo pull-policy-v2 > /marker.txt
+RUN echo pull-policy-v2 `+imageTag+` > /marker.txt
 `), 0o644),
 			fstest.CreateFile("v2/Kraftfile", []byte(`
 spec: v0.7
@@ -1556,9 +1558,82 @@ cmd: ["cat", "/marker.txt"]
 		out = r.Run(t, []string{"unikraft", "instance", "logs", "test-" + alwaysName})
 		assert.Contains(t, out, "pull-policy-v2")
 		assert.NotContains(t, out, "pull-policy-v1")
+
+		require.NoError(t, fstest.Apply(
+			fstest.CreateDir("v3", 0o755),
+			fstest.CreateFile("v3/Dockerfile", []byte(`
+FROM busybox:latest
+RUN echo pull-policy-v3 > /marker.txt
+`), 0o644),
+			fstest.CreateFile("v3/Kraftfile", []byte(`
+spec: v0.7
+name: pull-policy-e2e
+runtime: base-compat:latest
+rootfs:
+  format: erofs
+  source: ./Dockerfile
+cmd: ["cat", "/marker.txt"]
+`), 0o644),
+		).Apply(dir))
+		r.Run(t, []string{"unikraft", "build", "v3", "--output", image}, integ.WithWorkDir(dir))
+
+		r.Run(t, []string{
+			"unikraft", "instance", "edit", "test-" + alwaysName,
+			"--output", "quiet",
+			"--image", image,
+			"--pull-policy", "always",
+		})
+		out = r.Run(t, []string{
+			"unikraft", "instance", "start",
+			"--follow",
+			"test-" + alwaysName,
+		}, integ.WithTimeout(60*time.Second))
+		assert.Contains(t, out, "pull-policy-v3")
+		assert.NotContains(t, out, "pull-policy-v2")
 		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + alwaysName})
 
 		r.Run(t, []string{"unikraft", "image", "delete", image})
+	})
+
+	t.Run("image-headers", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		instName := uniq()
+
+		create := []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--name", "test-" + instName,
+			"--metro", r.MetroName,
+			"--image", "nginx:latest",
+			"--memory", "128",
+		}
+		edit := []string{
+			"unikraft", "instance", "edit", "test-" + instName,
+			"--output", "quiet",
+			"--image", "nginx:latest",
+		}
+		var flags []string
+		var keys string
+		for i := range 17 {
+			flags = append(flags, "--image-header", fmt.Sprintf("X-Unikraft-Test-%d=1", i))
+			keys += fmt.Sprintf(",headers.X-Unikraft-Test-%d=1", i)
+		}
+
+		for _, tooMany := range [][]string{
+			flags,
+			{"--rom", "name=r,image=nginx:latest" + keys},
+			{"--plugin", "name=p,image=nginx:latest" + keys},
+		} {
+			out := r.Run(t, slices.Concat(create, tooMany), integ.ExpectFail())
+			assert.Regexp(t, `more than 16 headers`, out)
+		}
+
+		r.Run(t, slices.Concat(create, []string{"--image-header", "X-Unikraft-Test=1"}))
+		r.Run(t, slices.Concat(edit, []string{"--image-header", "X-Unikraft-Test=2"}))
+		out := r.Run(t, slices.Concat(edit, flags), integ.ExpectFail())
+		assert.Regexp(t, `more than 16 headers`, out)
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
 
 	t.Run("replicas", func(t *testing.T) {

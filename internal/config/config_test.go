@@ -472,6 +472,43 @@ profiles:
 	assert.Equal(t, "index.was.unikraft.cloud", direct.Index().Host)
 }
 
+func TestCloudProfileRegistry(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "config.yaml")
+
+	input := strings.TrimSpace(`
+profile: default
+profiles:
+  default:
+    type: cloud
+    token: test-token
+    registry:
+      host: harbor.example:8083
+      mirror: https://console.example.com/proxy/registry
+      insecure: true
+  plain:
+    type: cloud
+    token: test-token
+`) + "\n"
+
+	err := os.WriteFile(path, []byte(input), 0o600)
+	require.NoError(t, err)
+
+	config, err := Load(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, Registry{
+		Host:     "harbor.example:8083",
+		Mirror:   "https://console.example.com/proxy/registry",
+		Insecure: true,
+	}, config.Profiles["default"].Registry)
+
+	require.NoError(t, config.Save())
+	saved, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(string(saved), "registry:"))
+}
+
 func TestDefaultConfigFilePath(t *testing.T) {
 	tests := []struct {
 		name     string

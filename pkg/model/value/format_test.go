@@ -119,6 +119,28 @@ func TestFormatNestedPaths(t *testing.T) {
 		assert.Equal(t, want, got, "rendered as %q", rendered)
 	})
 
+	for _, tt := range []struct {
+		name     string
+		meta     map[string]string
+		rendered string
+	}{
+		{"map entries render as dotted keys and round-trip", map[string]string{"b": "2", "a": "1"}, "meta.a=1, meta.b=2"},
+		{"map with a comma renders as JSON and round-trips", map[string]string{"a": "1,2", "b": "2"}, `meta={"a":"1,2","b":"2"}`},
+		{"map with an empty value renders as JSON and round-trips", map[string]string{"a": ""}, `meta={"a":""}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			want := testStructCollections{Meta: tt.meta}
+
+			rendered, err := Render(&want, RenderOpts{})
+			require.NoError(t, err)
+			assert.Equal(t, tt.rendered, rendered)
+
+			got, err := Parse[testStructCollections]([]string{rendered})
+			require.NoError(t, err)
+			assert.Equal(t, want, got)
+		})
+	}
+
 	t.Run("opacity follows MarshalText alone", func(t *testing.T) {
 		v := testStructNested{}
 		v.WriteTo.Raw = "opaque"

@@ -14,10 +14,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/url"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/tonistiigi/fsutil"
 	buildapi "unikraft.com/cloud/sdk/build"
+	"unikraft.com/x/build"
 	"unikraft.com/x/build/buildflags"
 	"unikraft.com/x/build/progress"
 	imagespec "unikraft.com/x/image-spec"
@@ -47,7 +47,7 @@ func (c *ImageBuildCmd) runRemote(ctx context.Context, cfg *config.Config, parti
 	if err != nil {
 		return err
 	}
-	c.Remote = new(cmp.Or(*c.Remote, profile.BuildURL, buildapi.DefaultServer))
+	c.Remote = new(cmp.Or(*c.Remote, os.Getenv("UNIKRAFT_BUILD_URL"), profile.BuildURL, buildapi.DefaultServer))
 
 	secrets, err := buildflags.ParseSecretSpecs(c.Secret)
 	if err != nil {
@@ -97,25 +97,29 @@ func followRemote(ctx context.Context, client *buildapi.Client, req buildapi.Cre
 	// A live display draws over a line logged after it starts.
 	disp, err := progress.NewDisplay(ctx, os.Stderr, progressui.AutoMode)
 	if err != nil {
-		return errors.Join(err, cancelRemote(ctx, client, b.ID))
+		cancelRemote(ctx, client, b.ID)
+		return err
 	}
+	cancel := false
 	defer func() {
 		if cerr := disp.Close(); err == nil {
 			err = cerr
+		}
+		if cancel {
+			cancelRemote(ctx, client, b.ID)
 		}
 	}()
 
 	if b.Session != nil {
 		if err := client.Attach(ctx, b.ID, s); err != nil {
-			return errors.Join(err, cancelRemote(ctx, client, b.ID))
+			cancel = true
+			return err
 		}
 	}
 
 	for ev, err := range client.Logs(ctx, b.ID) {
 		if err != nil {
-			if ctx.Err() != nil {
-				return errors.Join(err, cancelRemote(ctx, client, b.ID))
-			}
+			cancel = true
 			return err
 		}
 		if ev.SolveStatus != nil {
@@ -134,11 +138,14 @@ func followRemote(ctx context.Context, client *buildapi.Client, req buildapi.Cre
 }
 
 // cancelRemote cancels the remote build id, also once ctx has ended, waiting at most 10 seconds.
-func cancelRemote(ctx context.Context, client *buildapi.Client, id string) error {
+func cancelRemote(ctx context.Context, client *buildapi.Client, id string) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	_, err := client.CancelBuild(ctx, id)
-	return err
+	if _, err := client.CancelBuild(ctx, id); err != nil {
+		log.G(ctx).Warn().Err(err).Str("id", id).Msg("could not cancel build, it may still run")
+		return
+	}
+	log.G(ctx).Info().Str("id", id).Msg("cancelled build")
 }
 
 // remoteRequest returns the request for a remote build of c, and the directory its session serves.
@@ -148,12 +155,8 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 	}
 	// The service gets the profile's token, the project and its secrets.
 	if c.Remote != nil {
-		u, err := url.Parse(*c.Remote)
-		if err != nil {
+		if err := checkBuildURL(*c.Remote); err != nil {
 			return buildapi.CreateBuildRequest{}, "", err
-		}
-		if u.Scheme == "http" {
-			return buildapi.CreateBuildRequest{}, "", fmt.Errorf("the build service %s must be https", *c.Remote)
 		}
 	}
 	if c.Output == "" {
@@ -172,6 +175,9 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 	}
 
 	fi, err := os.Stat(c.Input)
+	if errors.Is(err, fs.ErrNotExist) {
+		return buildapi.CreateBuildRequest{}, "", fmt.Errorf("build input %q does not exist", c.Input)
+	}
 	if err != nil {
 		return buildapi.CreateBuildRequest{}, "", err
 	}
@@ -200,8 +206,7 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 	}
 	switch {
 	case name == "": // a directory without a Kraftfile builds its Dockerfile
-	case slices.Contains(strings.Split(name, "."), "Dockerfile"): // as x/build tells one
-
+	case build.IsDockerfile(name):
 		req.Contexts.Dockerfile = new(src.WithFilename(name))
 	default:
 		req.Kraftfile = buildapi.KraftfileFrom(src.WithFilename(name))
@@ -213,7 +218,9 @@ func (c *ImageBuildCmd) remoteRequest(secrets []*buildflags.Secret, ssh []*build
 			return buildapi.CreateBuildRequest{}, "", fmt.Errorf("invalid build-arg %q", arg)
 		}
 		if !ok {
-			val, _ = os.LookupEnv(key)
+			if val, ok = os.LookupEnv(key); !ok {
+				continue
+			}
 		}
 		if req.BuildArgs == nil {
 			req.BuildArgs = map[string]string{}

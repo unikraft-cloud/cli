@@ -23,6 +23,24 @@ import (
 	"unikraft.com/x/build/buildflags"
 )
 
+func TestRunRemoteBuildURL(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("profile: a\nprofiles:\n  a: {type: cloud, token: a, build_url: http://profile.invalid}\n"), 0o600))
+	cfg, err := loadConfig(path, "")
+	require.NoError(t, err)
+
+	run := func(remote string) error {
+		cmd := ImageBuildCmd{Remote: &remote, Output: "my-org/my-app:1"}
+		return cmd.runRemote(t.Context(), cfg, nil)
+	}
+
+	t.Setenv("UNIKRAFT_BUILD_URL", "")
+	require.ErrorContains(t, run(""), "http://profile.invalid")
+	t.Setenv("UNIKRAFT_BUILD_URL", "http://env.invalid")
+	require.ErrorContains(t, run(""), "http://env.invalid")
+	require.ErrorContains(t, run("http://flag.invalid"), "http://flag.invalid")
+}
+
 func TestRemoteRequest(t *testing.T) {
 	t.Parallel()
 
@@ -45,7 +63,7 @@ func TestRemoteRequest(t *testing.T) {
 			cmd: ImageBuildCmd{
 				Output:   "my-org/my-app:latest",
 				Arch:     []string{"arm64"},
-				BuildArg: []string{"VERSION=1.2.3"},
+				BuildArg: []string{"VERSION=1.2.3", "NOT_IN_THE_ENVIRONMENT"},
 				NoCache:  true,
 				Secret:   []string{"id=npm,src=/home/me/.npmrc"},
 				SSH:      []string{"default"},
@@ -69,6 +87,20 @@ func TestRemoteRequest(t *testing.T) {
 			cmd:   ImageBuildCmd{Output: "ghcr.io/acme/app:1"},
 			want: `{
 				"contexts": {"context": {"session": "context"}},
+				"no_cache": false,
+				"registries": {"*": {"session": true}},
+				"output": [{"image": "ghcr.io/acme/app:1"}]
+			}`,
+		},
+		"a Containerfile is built as a Dockerfile": {
+			files: []string{"Containerfile"},
+			input: "Containerfile",
+			cmd:   ImageBuildCmd{Output: "ghcr.io/acme/app:1"},
+			want: `{
+				"contexts": {
+					"context": {"session": "context"},
+					"dockerfile": {"session": "context", "filename": "Containerfile"}
+				},
 				"no_cache": false,
 				"registries": {"*": {"session": true}},
 				"output": [{"image": "ghcr.io/acme/app:1"}]
@@ -122,6 +154,14 @@ func TestRemoteRequest(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+
+	t.Run("names a missing input", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := ImageBuildCmd{Input: filepath.Join(t.TempDir(), "missing"), Output: "my-org/my-app:1"}
+		_, _, err := cmd.remoteRequest(nil, nil)
+		require.EqualError(t, err, fmt.Sprintf("build input %q does not exist", cmd.Input))
+	})
 }
 
 func TestFollowRemoteCancelsARefusedSession(t *testing.T) {
@@ -154,5 +194,38 @@ func TestFollowRemoteCancelsARefusedSession(t *testing.T) {
 	var apiErr *buildapi.APIError
 	require.ErrorAs(t, err, &apiErr)
 	assert.Equal(t, buildapi.ErrorCodeInvalid, apiErr.Code)
+	assert.Len(t, cancelled, 1)
+}
+
+func TestFollowRemoteCancelsALostProgressStream(t *testing.T) {
+	t.Parallel()
+
+	cancelled := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/builds":
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"id": "b1", "status": "waiting"}`)
+		case "/v1/builds/b1/logs":
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"error": {"code": "forbidden", "message": "no access"}}`)
+		case "/v1/builds/b1/cancel":
+			cancelled <- struct{}{}
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprint(w, `{"id": "b1", "status": "waiting"}`)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := buildapi.New(srv.URL)
+	require.NoError(t, err)
+	s, err := session.NewSession(t.Context(), "")
+	require.NoError(t, err)
+
+	err = followRemote(t.Context(), client, buildapi.CreateBuildRequest{}, s)
+	var apiErr *buildapi.APIError
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
 	assert.Len(t, cancelled, 1)
 }
