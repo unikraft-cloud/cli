@@ -597,8 +597,8 @@ unikraft.com/cloud/sdk/build v0.0.0-20261112083743-f904b5bfc966 h1:hJ3PzigJbcAwn
 unikraft.com/cloud/sdk/build v0.0.0-20261112083743-f904b5bfc966/go.mod h1:donDzooDSHxIveRqivrltY/k2BYf8P1usqxJsR9MlVA=
 unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261113085313-a2a9f94fc300 h1:Kd2UFcrIAzOBb6kHrfSpcKT/7I7eaKyjfkMidlbw/ls=
 unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261113085313-a2a9f94fc300/go.mod h1:IcBVuNwBfN5aZYT0tl17J/T0jwDUqhPQsuF5o8RMNzo=
-unikraft.com/x/build v0.0.0-20261118100745-28172ae5f28c h1:P1rdLOvLx6owNl9dM/Hb8TqCWtP8euREBr77OPfbcmg=
-unikraft.com/x/build v0.0.0-20261118100745-28172ae5f28c/go.mod h1:BequRft8Wleotb5Hps13DdQLyuCvmo/72Ydwz41+B8A=
+unikraft.com/x/build v0.0.0-20261120101822-1135355f7e0d h1:sTPtr5YO1Ye+xPHlnbYbocbPAD/uupFrc3UDhxJOEF8=
+unikraft.com/x/build v0.0.0-20261120101822-1135355f7e0d/go.mod h1:aRRxLJqi1sUh/dFCJ1Kan/6hcGeq14hLs50X6RlUnuM=
 unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6 h1:/7BTbMIFXN81vbpO3oB2Vh/97BBCpYIAJXP/z3d4qao=
 unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:wOWsRBT0lyV3uWHiQX3Tbr3bzwtfQmZN9SUnyKQNi38=
 unikraft.com/x/colors v0.0.0-20261111120215-5177d0f4c7b6 h1:HnCSAluQGFRfZ01FK6pjoK3sYWUjDYA9Rs9ZjTw7juM=
