@@ -572,7 +572,10 @@ func imageSource(url string, policy *platform.PullPolicy, headers map[string]str
 
 // inlineFilesFromDir walks a local directory and returns its contents as
 // base64-encoded InlineFile entries suitable for the platform API.
-func inlineFilesFromDir(dir string) ([]platform.InlineFile, error) {
+func inlineFilesFromDir(ctx context.Context, dir string) ([]platform.InlineFile, error) {
+	if hosted(ctx) {
+		return nil, errors.New("the server does not send its own files, use image=")
+	}
 	var files []platform.InlineFile
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -1016,7 +1019,9 @@ func (Instance) Edit(ctx context.Context, key string, fields []model.Field) erro
 		break
 	}
 
-	patches, err := patchRequests(fields, instancePatchSpec)
+	patches, err := patchRequests(fields, func(path string, op patchOp, value any) (platform.MutableInstanceProperty, any, error) {
+		return instancePatchSpec(ctx, path, op, value)
+	})
 	if err != nil {
 		return err
 	}
@@ -1148,7 +1153,7 @@ func (Instance) Edit(ctx context.Context, key string, fields []model.Field) erro
 	return nil
 }
 
-func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInstanceProperty, any, error) {
+func instancePatchSpec(ctx context.Context, path string, op patchOp, value any) (platform.MutableInstanceProperty, any, error) {
 	var zero platform.MutableInstanceProperty
 	switch path {
 	case "tags":
@@ -1221,7 +1226,7 @@ func instancePatchSpec(path string, op patchOp, value any) (platform.MutableInst
 
 			reqRom := map[string]any{}
 			if rom.Dir != "" {
-				files, err := inlineFilesFromDir(rom.Dir)
+				files, err := inlineFilesFromDir(ctx, rom.Dir)
 				if err != nil {
 					return zero, nil, fmt.Errorf("reading rom dir %q: %w", rom.Dir, err)
 				}
@@ -1391,7 +1396,7 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 
 				var reqRom platform.CreateInstanceRequestRom
 				if rom.Dir != "" {
-					files, err := inlineFilesFromDir(rom.Dir)
+					files, err := inlineFilesFromDir(ctx, rom.Dir)
 					if err != nil {
 						return nil, fmt.Errorf("reading rom dir %q: %w", rom.Dir, err)
 					}
