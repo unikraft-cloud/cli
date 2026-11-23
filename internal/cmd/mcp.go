@@ -237,6 +237,21 @@ func NewMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 	return srv, nil
 }
 
+// hostedKey marks the context of a tool call of a hosted server.
+type hostedKey struct{}
+
+// WithHosted returns ctx for a tool call of a server that runs for others, on
+// a machine that is not theirs. Its tools then refuse the inputs that read
+// the files of the server or reach addresses that the caller picks.
+func WithHosted(ctx context.Context) context.Context {
+	return context.WithValue(ctx, hostedKey{}, true)
+}
+
+func hosted(ctx context.Context) bool {
+	h, _ := ctx.Value(hostedKey{}).(bool)
+	return h
+}
+
 func reloadConfig(next sdk.MethodHandler) sdk.MethodHandler {
 	return func(ctx context.Context, method string, req sdk.Request) (sdk.Result, error) {
 		if _, ok := req.(*sdk.CallToolRequest); ok && config.G(ctx).Path != "" {

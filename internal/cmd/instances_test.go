@@ -323,6 +323,17 @@ func TestInstanceEditRejectsImageOptions(t *testing.T) {
 	}
 }
 
+func TestInstanceEditOfAHostedServerRefusesADirectoryRom(t *testing.T) {
+	t.Parallel()
+
+	fields, err := cmd.Instance{}.Fields(t.Context())
+	require.NoError(t, err)
+	patched, err := patch.PatchedFields(t.Context(), fields, patch.PatchSpec{Set: map[string][]string{"roms": {"name=r,dir=" + t.TempDir()}}})
+	require.NoError(t, err)
+
+	require.ErrorContains(t, cmd.Instance{}.Edit(cmd.WithHosted(t.Context()), "x", patched), "does not send its own files")
+}
+
 // TestInstanceCreateRejectsNetworks checks that create stops a bad --network
 // before it sends a request.
 func TestInstanceCreateRejectsNetworks(t *testing.T) {

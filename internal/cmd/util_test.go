@@ -159,7 +159,7 @@ func TestImagePatchWireFormat(t *testing.T) {
 			name: "rom with a pull policy and headers",
 			value: func(t *testing.T) any {
 				roms := []*InstanceRom{{Name: "r", Image: "r:1", PullPolicy: new(platform.PullPolicyNever), Headers: map[string]string{"X-Foo": "1"}}}
-				_, value, err := instancePatchSpec("roms", patchOpSet, roms)
+				_, value, err := instancePatchSpec(t.Context(), "roms", patchOpSet, roms)
 				require.NoError(t, err)
 				return value
 			},
@@ -169,7 +169,7 @@ func TestImagePatchWireFormat(t *testing.T) {
 			name: "plugin with a pull policy and headers",
 			value: func(t *testing.T) any {
 				plugins := []*InstancePlugin{{Name: "p", Image: "p:1", PullPolicy: new(platform.PullPolicyIfNotPresent), Headers: map[string]string{"X-Foo": "1"}}}
-				_, value, err := instancePatchSpec("plugins", patchOpSet, plugins)
+				_, value, err := instancePatchSpec(t.Context(), "plugins", patchOpSet, plugins)
 				require.NoError(t, err)
 				return value
 			},

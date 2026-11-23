@@ -143,7 +143,7 @@ func (Image) Get(ctx context.Context, keys []string) ([]model.Model, error) {
 	eg := joinerrgroup.Group{}
 	for i, key := range keys {
 		eg.Go(func() error {
-			src, err := imagespec.GuessLocation(key)
+			src, err := imageLocation(ctx, key)
 			if err != nil {
 				return fmt.Errorf("parsing image reference %q: %w", key, err)
 			}
@@ -212,7 +212,7 @@ func (Image) Delete(ctx context.Context, keys []string) error {
 	eg := joinerrgroup.Group{}
 	for i, key := range keys {
 		eg.Go(func() error {
-			uri, err := imagespec.GuessLocation(key)
+			uri, err := imageLocation(ctx, key)
 			if err != nil {
 				return fmt.Errorf("parsing image reference %q: %w", key, err)
 			}
@@ -228,6 +228,20 @@ func (Image) Delete(ctx context.Context, keys []string) error {
 		})
 	}
 	return errors.Join(eg.Wait(), imagesNotFound(keys, missing))
+}
+
+// imageLocation parses key as GuessLocation does. A hosted server takes only
+// registry references: the other locations are its own files, or addresses
+// that the caller picks. It does not look at its files to tell them apart.
+func imageLocation(ctx context.Context, key string) (*imagespec.Location, error) {
+	if !hosted(ctx) {
+		return imagespec.GuessLocation(key)
+	}
+	src, err := imagespec.ParseLocationDefault(key)
+	if err == nil && src.Scheme != schemes.OCI {
+		err = fmt.Errorf("the server takes only registry references, not %s", src.Scheme)
+	}
+	return src, err
 }
 
 // imagesNotFound returns one not-found error for every missing key, so that
