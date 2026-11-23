@@ -66,7 +66,18 @@ func TestTryAttachPluginWithoutTTY(t *testing.T) {
 		err := tryAttachPlugin(t.Context(), stdio, nil, instance, opts, cause)
 
 		require.ErrorIs(t, err, cause)
-		assert.Equal(t, cause.Error()+"\nhint: attach it with `unikraft instance edit fra/my-inst --plugin name=sandbox,image=plugins/sandbox:latest` while the instance is stopped", err.Error())
+		assert.Equal(t, cause.Error()+"\nhint: attach it with `unikraft instance edit fra/my-inst --plugin name=sandbox,image=plugins/sandbox:latest`, then restart it with `unikraft instance restart fra/my-inst`", err.Error())
+	})
+
+	t.Run("hint-stopped", func(t *testing.T) {
+		stopped := instance
+		stopped.State = types.InstanceState(platform.InstanceStateStopped)
+		stdio := xstdio.Stdio{Stdin: strings.NewReader("y\n"), Stdout: &bytes.Buffer{}}
+
+		err := tryAttachPlugin(t.Context(), stdio, nil, stopped, opts, cause)
+
+		require.ErrorIs(t, err, cause)
+		assert.Equal(t, cause.Error()+"\nhint: attach it with `unikraft instance edit fra/my-inst --plugin name=sandbox,image=plugins/sandbox:latest`, then start it with `unikraft instance start fra/my-inst`", err.Error())
 	})
 
 	t.Run("delete-on-stop", func(t *testing.T) {
