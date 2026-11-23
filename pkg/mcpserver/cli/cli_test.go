@@ -35,10 +35,11 @@ func TestNewServerFiles(t *testing.T) {
 	srv, err := New(t.Context(), mcpserver.Flags{})
 	require.NoError(t, err)
 	s := mcptest.ConnectServer(t, WithToken(t.Context(), "secret"), srv.MCP())
-	rom := `"name=r,dir=` + t.TempDir() + `,at=/r"`
+	rom, err := json.Marshal("name=r,dir=" + t.TempDir() + ",at=/r")
+	require.NoError(t, err)
 
 	for _, tc := range []struct{ tool, args, want string }{
-		{"instance_create", `{"set":{"image":"nginx:latest","metro":"fra","roms":[` + rom + `]}}`, "does not send its own files"},
+		{"instance_create", `{"set":{"image":"nginx:latest","metro":"fra","roms":[` + string(rom) + `]}}`, "does not send its own files"},
 		{"image_get", `{"keys":["http+oci://127.0.0.1:1/x:latest"]}`, "only registry references"},
 	} {
 		out, isErr, err := s.Call(t.Context(), tc.tool, json.RawMessage(tc.args))
