@@ -2881,7 +2881,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
   -w, --dir=<dir>
           Directory to start the shell in.
@@ -2951,7 +2951,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
   -w, --dir=<dir>
           Directory to execute the command from.
@@ -3022,7 +3022,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
       --force
           Overwrite the local file if it already exists.
@@ -3079,7 +3079,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
       --append
           Append to the remote file instead of overwriting it.
@@ -3139,7 +3139,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
       --force
           Overwrite the local file if it already exists.
