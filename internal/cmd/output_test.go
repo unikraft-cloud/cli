@@ -94,6 +94,7 @@ func TestOutput(t *testing.T) {
 	run("services", servicesOutputTests)
 	run("certificates", certificatesOutputTests)
 	run("images", imagesOutputTests)
+	run("image-cache", imageCacheOutputTests)
 	run("instances-http-oci", instancesHTTPOCIOutputTests)
 }
 
@@ -186,6 +187,18 @@ func instancesOutputTests(t *testing.T) {
 	exitCode := uint32(1)
 	sample.Stop.ExitCode = &exitCode
 	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
+
+	integ.Gild[model.Model](t, dumpResource, sample)
+}
+
+func imageCacheOutputTests(t *testing.T) {
+	sample := &cmd.ImageCache{
+		Digest:   digest.Digest("sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4"),
+		Active:   []string{"fra", "sfo"},
+		Pinned:   []string{"fra"},
+		Autokill: map[string]types.DurationMS{"fra": 86400000},
+	}
+	require.NoError(t, sample.Ref.UnmarshalText([]byte("docker.io/library/nginx:1.27")))
 
 	integ.Gild[model.Model](t, dumpResource, sample)
 }

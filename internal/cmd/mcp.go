@@ -35,6 +35,7 @@ const instanceEditNote = "Edits to tags, delete-lock, autokill, scale-to-zero an
 var mcpResourceTypes = []string{
 	"certificate",
 	"image",
+	"image_cache",
 	"instance",
 	"instance_checkpoint",
 	"instance_template",
@@ -45,6 +46,8 @@ var mcpResourceTypes = []string{
 	"volume",
 	"volume_template",
 }
+
+const imageCacheEditNote = "The key is the image reference as image_cache_list prints it. Add or delete a metro in pinned to pin or unpin the image there, and add or delete a metro in autokill to change when a pinned image is unpinned."
 
 const imageGetDescription = "Inspect images by reference, resolving each one from its registry, so public images such as nginx:latest work as well as your own. image_list only covers the images already in your account. Returns one JSON object per image."
 
@@ -227,6 +230,8 @@ func NewMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 		tools.AddListTool[ImageEntry](ctx),
 		tools.AddGetTool[Image](ctx, imageGetDescription),
 		tools.AddDeleteTool[Image](ctx),
+		tools.AddListTool[ImageCache](ctx),
+		tools.AddEditTool[ImageCache](ctx, modelmcp.WithEditNote(imageCacheEditNote)),
 		tools.AddListTool[Metro](ctx),
 		addProfileUseTool(ctx, tools, partition),
 		mcp.AddInstanceTools(tools, mcpInstanceCommands{}),

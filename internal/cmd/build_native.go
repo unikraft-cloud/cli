@@ -18,6 +18,8 @@ import (
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/session/auth/authprovider"
 	"github.com/moby/buildkit/util/progress/progressui"
+	"unikraft.com/cloud/sdk/platform"
+	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/build"
 	"unikraft.com/x/build/buildflags"
 	"unikraft.com/x/build/progress"
@@ -28,6 +30,7 @@ import (
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/images"
+	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/pkg/model"
 )
 
@@ -92,9 +95,49 @@ func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error 
 }
 
 func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
-	if c.Remote != nil {
-		return c.runRemote(ctx, cfg, partition)
+	var g *group.Group[multimetro.MetroClient]
+	var pins map[string]platform.PinImageRequestItem
+	if len(c.Pin) > 0 {
+		if c.Output == "" {
+			return errors.New("--pin needs --output, the image to push")
+		}
+		output, err := imagespec.GuessLocation(c.Output)
+		if err != nil {
+			return err
+		}
+		if output.Scheme != schemes.OCI {
+			return fmt.Errorf("--pin needs an image in a registry, not %s", output)
+		}
+		g, err = multimetro.NewClient(ctx)
+		if err != nil {
+			return err
+		}
+		if err := checkMetros(g.Names(), c.Pin); err != nil {
+			return err
+		}
+		pins, err = pinRequests(output.Path, c.Pin, 0)
+		if err != nil {
+			return err
+		}
 	}
+
+	var err error
+	if c.Remote != nil {
+		err = c.runRemote(ctx, cfg, partition)
+	} else {
+		err = c.runLocal(ctx, partition)
+	}
+	if err != nil || pins == nil {
+		return err
+	}
+	if err := imageCacheApply(ctx, g, pins, nil); err != nil {
+		return fmt.Errorf("pushed the image, but could not pin it: %w", err)
+	}
+	return nil
+}
+
+// runLocal builds on the local BuildKit and saves the image to c.Output.
+func (c *ImageBuildCmd) runLocal(ctx context.Context, partition *model.Partition) error {
 	if len(c.Metro) > 0 {
 		return errors.New("--metro applies only to a remote build, with --remote")
 	}

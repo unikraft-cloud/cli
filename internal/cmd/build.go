@@ -26,6 +26,8 @@ type ImageBuildCmd struct {
 
 	Remote *string  `env:"UNIKRAFT_BUILD_URL" type:"optional" placeholder:"url" help:"Build on the build service at this URL and push the image from there, instead of building locally. Defaults to the build_url of the profile, or https://controlplane.unikraft.com. Write a URL as --remote=<url>, because the flag does not take the next argument. Creates a builder with the default sizes if you have none. To set the sizes, use 'unikraft builder create'."`
 	Metro  []string `placeholder:"metro" help:"Metros that a remote build may run in, by name or API URL. Defaults to the build service's choice."`
+
+	Pin []string `placeholder:"metro" completion-predictor:"resource-key-metro" help:"After the push, pull the image on these metros and pin it in their node cache. Needs --output with an image in a registry."`
 }
 
 func (ImageBuildCmd) Examples() []kingkong.Example {
@@ -64,6 +66,12 @@ func (ImageBuildCmd) Examples() []kingkong.Example {
 			Description: "Build for arm64 and publish the image",
 			Commands: []string{
 				"unikraft image build . --arch arm64 --output my-org/my-app:latest",
+			},
+		},
+		{
+			Description: "Build, publish and pin the image on two metros",
+			Commands: []string{
+				"unikraft image build . --output my-org/my-app:latest --pin fra,sfo",
 			},
 		},
 		{
