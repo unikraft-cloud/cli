@@ -33,7 +33,7 @@ Resources:
   tunnel, port-forward
           Forward a local port to an unexposed instance.
   history
-          Show checkpoint history for an instance.
+          Show the lineage of an instance.
   shell, sh
           Open an interactive shell on a sandbox instance.
   exec
@@ -1517,6 +1517,8 @@ Templates:
           Create an instance template.
   edit
           Edit an instance template.
+  history
+          Show the lineage of an instance template.
 
 Fields:
   metro
@@ -1966,6 +1968,65 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
+$ unikraft instance template history --help
+
+Show the whole lineage tree of an instance template: every instance, template
+and checkpoint in it. A table draws the tree in its graph column: ◉ is the
+target, ● an instance, ○ a checkpoint, ◎ a template and ◌ a deleted instance.
+
+Usage:
+  unikraft instances template history <target> ... [flags]
+
+Arguments:
+  <target> ...
+          Target templates to show the lineage of.
+
+Examples:
+  # Show the lineage of a template
+  unikraft instance template history my-template
+
+  # Show the lineage with the UUID of each node
+  unikraft instance template history my-template -f +uuid
+
+Fields:
+  graph
+  metro
+  name
+  kind
+  state
+  created
+  uuid
+  parent
+  relation
+  target
+
+Flags:
+      --limit
+          Show at most this many nodes of each lineage: the newest ones and the target. 0 shows all.
+  -f, --field
+          Specify which fields to include in the output.
+  -o, --output
+          Output format. One of: kv, table, json, yaml, raw, quiet, template.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
 $ unikraft instance checkpoint --help
 
 Manage instance checkpoints.
@@ -1987,7 +2048,7 @@ Checkpoints:
   edit
           Edit an instance checkpoint.
   history
-          Show the history of a checkpoint.
+          Show the lineage of a checkpoint.
 
 Fields:
   metro
@@ -2480,20 +2541,39 @@ Global flags:
 
 $ unikraft instance checkpoint history --help
 
-Show the history of a checkpoint.
+Show the whole lineage tree of a checkpoint: every instance, template and
+checkpoint in it. A table draws the tree in its graph column: ◉ is the target, ●
+an instance, ○ a checkpoint, ◎ a template and ◌ a deleted instance.
 
 Usage:
   unikraft instances checkpoint history <target> ... [flags]
 
 Arguments:
   <target> ...
-          Target checkpoints to show history for.
+          Target checkpoints to show the lineage of.
 
 Examples:
-  # Show the history of a checkpoint
+  # Show the lineage of a checkpoint
   unikraft instance checkpoint history my-checkpoint
 
+  # Show the lineage with the UUID of each node
+  unikraft instance checkpoint history my-checkpoint -f +uuid
+
+Fields:
+  graph
+  metro
+  name
+  kind
+  state
+  created
+  uuid
+  parent
+  relation
+  target
+
 Flags:
+      --limit
+          Show at most this many nodes of each lineage: the newest ones and the target. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -2817,20 +2897,42 @@ Global flags:
 
 $ unikraft instance history --help
 
-Show checkpoint history for an instance.
+Show the whole lineage tree of an instance: every instance, template and
+checkpoint in it. A table draws the tree in its graph column: ◉ is the target, ●
+an instance, ○ a checkpoint, ◎ a template and ◌ a deleted instance.
 
 Usage:
   unikraft instances history <target> ... [flags]
 
 Arguments:
   <target> ...
-          Target instances to show history for.
+          Target instances to show the lineage of.
 
 Examples:
-  # Show the checkpoint history of an instance
+  # Show the lineage of an instance
   unikraft instance history my-instance
 
+  # Show the lineage with the UUID of each node
+  unikraft instance history my-instance -f +uuid
+
+  # Show the lineage as JSON
+  unikraft instance history my-instance -o json
+
+Fields:
+  graph
+  metro
+  name
+  kind
+  state
+  created
+  uuid
+  parent
+  relation
+  target
+
 Flags:
+      --limit
+          Show at most this many nodes of each lineage: the newest ones and the target. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output

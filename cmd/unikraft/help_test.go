@@ -113,6 +113,7 @@ func instancesHelpTests(t *testing.T, unikraftPath string) {
 		[]string{"unikraft", "instance", "template", "create", "--help"},
 		[]string{"unikraft", "instance", "template", "edit", "--help"},
 		[]string{"unikraft", "instance", "template", "delete", "--help"},
+		[]string{"unikraft", "instance", "template", "history", "--help"},
 		[]string{"unikraft", "instance", "checkpoint", "--help"},
 		[]string{"unikraft", "instance", "checkpoint", "get", "--help"},
 		[]string{"unikraft", "instance", "checkpoint", "list", "--help"},

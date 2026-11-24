@@ -24,6 +24,7 @@ import (
 	"unikraft.com/cli/internal/types"
 	"unikraft.com/cli/pkg/model"
 	"unikraft.com/cli/pkg/model/cmd"
+	xstdio "unikraft.com/x/stdio"
 )
 
 type InstanceTemplatesCmd struct {
@@ -32,8 +33,9 @@ type InstanceTemplatesCmd struct {
 	cmd.ListableModelCmd[InstanceTemplate]
 	cmd.BulkDeletableModelCmd[InstanceTemplate]
 
-	Create cmd.ModelCreateCmd[InstanceTemplate] `cmd:"" help:"Create an instance template."`
-	Edit   cmd.ModelEditCmd[InstanceTemplate]   `cmd:"" help:"Edit an instance template."`
+	Create  cmd.ModelCreateCmd[InstanceTemplate] `cmd:"" help:"Create an instance template."`
+	Edit    cmd.ModelEditCmd[InstanceTemplate]   `cmd:"" help:"Edit an instance template."`
+	History InstanceTemplateHistoryCmd           `cmd:"" help:"Show the lineage of an instance template."`
 }
 
 type InstanceTemplate struct {
@@ -494,4 +496,33 @@ func (InstanceTemplate) Examples() map[cmd.CmdType][]kingkong.Example {
 			},
 		},
 	}
+}
+
+// InstanceTemplateHistoryCmd shows the lineage of an instance template.
+type InstanceTemplateHistoryCmd struct {
+	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance-template" help:"Target templates to show the lineage of."`
+
+	InstanceHistoryOpts
+}
+
+func (cmd InstanceTemplateHistoryCmd) Help() string {
+	return "Show the whole lineage tree of an instance template: every instance, template and checkpoint in it." + lineageHelp
+}
+
+func (cmd InstanceTemplateHistoryCmd) Examples() []kingkong.Example {
+	return []kingkong.Example{
+		{
+			Description: "Show the lineage of a template",
+			Commands:    []string{"unikraft instance template history my-template"},
+		},
+		{
+			Description: "Show the lineage with the UUID of each node",
+			Commands:    []string{"unikraft instance template history my-template -f +uuid"},
+		},
+	}
+}
+
+func (c *InstanceTemplateHistoryCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
+	found, err := InstanceTemplate{}.Get(ctx, c.Targets)
+	return runInstanceHistory(ctx, stdio, c.InstanceHistoryOpts, c.Targets, found, err)
 }
