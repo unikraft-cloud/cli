@@ -36,6 +36,7 @@ type Options struct {
 type Server struct {
 	srv  *mcp.Server
 	opts Options
+	wrap func(http.Handler) http.Handler
 }
 
 func New(opts Options) (*Server, error) {
