@@ -50,6 +50,30 @@ func TestServe(t *testing.T) {
 	})
 }
 
+func TestServeWrap(t *testing.T) {
+	ctx := t.Context()
+	srv := newServer(t, Options{})
+	srv.Wrap(func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Wrapped", "yes")
+			h.ServeHTTP(w, r)
+		})
+	})
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	go func() { _ = srv.Serve(ctx, l) }()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+l.Addr().String()+healthPath, nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	assert.Equal(t, "yes", resp.Header.Get("X-Wrapped"))
+	assert.Equal(t, "ok\n", string(body))
+}
+
 func testServe(t *testing.T, opts Options, scheme string, client *http.Client) {
 	env := modelt.NewTestEnv()
 	env.Add(modelt.TestModel{ID: "1", Name: "a"})

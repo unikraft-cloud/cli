@@ -24,6 +24,7 @@ const HTTPPath = "/mcp"
 const (
 	healthPath        = "/healthz"
 	readHeaderTimeout = 10 * time.Second
+	idleTimeout       = time.Minute
 	shutdownTimeout   = 10 * time.Second
 )
 
@@ -47,13 +48,24 @@ func (s *Server) Handler() http.Handler {
 	return http.NewCrossOriginProtection().Handler(mux)
 }
 
-// Serve serves Handler on l until ctx is cancelled, then stops accepting and
-// drains in-flight calls for up to shutdownTimeout. It returns nil after a
-// clean shutdown.
+// Wrap makes Serve serve mw(Handler()), for a caller that serves more than
+// the protocol or checks each request first. A later call replaces mw.
+func (s *Server) Wrap(mw func(http.Handler) http.Handler) {
+	s.wrap = mw
+}
+
+// Serve serves Handler, wrapped by Wrap, on l until ctx is cancelled, then
+// stops accepting and drains in-flight calls for up to shutdownTimeout. It
+// returns nil after a clean shutdown.
 func (s *Server) Serve(ctx context.Context, l net.Listener) error {
+	h := s.Handler()
+	if s.wrap != nil {
+		h = s.wrap(h)
+	}
 	srv := &http.Server{
-		Handler:           s.Handler(),
+		Handler:           h,
 		ReadHeaderTimeout: readHeaderTimeout,
+		IdleTimeout:       idleTimeout,
 		BaseContext:       func(net.Listener) context.Context { return context.WithoutCancel(ctx) },
 	}
 
