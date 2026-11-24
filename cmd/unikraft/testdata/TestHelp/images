@@ -241,7 +241,7 @@ Usage:
 
 Arguments:
   <source>
-          Source image reference.
+          Source image reference. An archive must hold one image.
   <dest>
           Destination image reference.
 

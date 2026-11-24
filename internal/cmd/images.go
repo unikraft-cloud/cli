@@ -774,7 +774,7 @@ func (c *ImagesDeleteCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition
 }
 
 type ImagesCopyCmd struct {
-	Source string `arg:"" help:"Source image reference."`
+	Source string `arg:"" help:"Source image reference. An archive must hold one image."`
 	Dest   string `arg:"" help:"Destination image reference."`
 
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
@@ -831,19 +831,8 @@ func (cmd ImagesCopyCmd) Run(ctx context.Context, partition *model.Partition) er
 	if err != nil {
 		return fmt.Errorf("resolving source image: %w", err)
 	}
-	imgs, err := access.LoadAll(ctx, res, platforms.All)
-	if err != nil {
-		return fmt.Errorf("loading image from source: %w", err)
-	}
-	defer func() {
-		for _, img := range imgs {
-			img.Close()
-		}
-	}()
-
-	_, err = access.Save(ctx, dest, imgs...)
-	if err != nil {
-		return fmt.Errorf("saving image to destination: %w", err)
+	if _, err := access.Copy(ctx, res, dest, nil); err != nil {
+		return fmt.Errorf("copying image: %w", err)
 	}
 
 	if partition != nil && dest.Scheme == schemes.OCI {

@@ -8,6 +8,7 @@ package integration
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/containerd/continuity/fs/fstest"
@@ -42,6 +43,23 @@ func TestImages(t *testing.T) {
 		assert.Regexp(t, `kernel:`, out)
 		assert.Regexp(t, `kernel-dbg:`, out)
 		r.Run(t, []string{"unikraft", "image", "delete", imageFull})
+	})
+
+	t.Run("copy-generic", func(t *testing.T) {
+		r := runner(t, true, []string{staging, stable})
+		source := "docker.io/library/busybox:1.37"
+		// A local registry of a node takes no generic image, so the copy goes to an OCI layout.
+		layout := "oci-layout://" + filepath.Join(t.TempDir(), "busybox") + ":v1"
+
+		r.Run(t, []string{"unikraft", "image", "copy", source, layout})
+
+		// The copy keeps the digest of the index.
+		digest := regexp.MustCompile(`digest:\s+(sha256:[0-9a-f]{64})`)
+		want := digest.FindStringSubmatch(r.Run(t, []string{"unikraft", "image", "inspect", source}))
+		require.NotNil(t, want)
+		got := digest.FindStringSubmatch(r.Run(t, []string{"unikraft", "image", "inspect", layout}))
+		require.NotNil(t, got)
+		assert.Equal(t, want[1], got[1])
 	})
 
 	t.Run("list-namespace", func(t *testing.T) {
