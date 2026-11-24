@@ -11,5 +11,8 @@ permissions:
 jobs:
   bump-go:
     uses: unikraft-cloud/x/.github/workflows/bump-go.yaml@prod-staging
+    with:
+      gh_client_id: ${{ vars.TOOLING_APP_CLIENT_ID }}
     secrets:
       gh_pat: ${{ secrets.GH_PAT }}
+      gh_private_key: ${{ secrets.TOOLING_APP_PRIVATE_KEY }}

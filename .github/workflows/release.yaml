@@ -18,6 +18,9 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      APP_CLIENT_ID: ${{ vars.TOOLING_APP_CLIENT_ID }}
+      HAS_APP_PRIVATE_KEY: ${{ secrets.TOOLING_APP_PRIVATE_KEY != '' }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -50,12 +53,22 @@ jobs:
         restore-keys: |
           ${{ github.job }}-${{ runner.os }}-go-
 
+    - name: Mint a token of the GitHub App
+      id: app-token
+      if: env.APP_CLIENT_ID != '' && env.HAS_APP_PRIVATE_KEY == 'true'
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        client-id: ${{ vars.TOOLING_APP_CLIENT_ID }}
+        private-key: ${{ secrets.TOOLING_APP_PRIVATE_KEY }}
+        repositories: ${{ github.event.repository.name }}
+        permission-contents: write
+
     - name: Login to GitHub
       shell: bash
       run: |
         git config user.name "Unikraft Bot"
         git config user.email "monkey@unikraft.com"
-        git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}
+        git remote set-url origin https://x-access-token:${{ steps.app-token.outputs.token || secrets.GH_PAT }}@github.com/${{ github.repository }}
 
     - name: Install Nix tools
       shell: bash
@@ -135,7 +148,7 @@ jobs:
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
       env:
-        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_PAT }}
         GITHUB_TOKEN_UNIKRAFT: ${{ secrets.GH_MIRROR_PAT }}
         GORELEASER_PREVIOUS_TAG: ${{ github.ref == 'refs/heads/prod-stable' && steps.versions.outputs.last-stable || steps.versions.outputs.last-version }}
         GORELEASER_CURRENT_TAG: ${{ steps.versions.outputs.next-version }}

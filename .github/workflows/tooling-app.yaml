@@ -1,0 +1,27 @@
+name: tooling-app
+
+on:
+  schedule:
+    # Changing a secret doesn't trigger a run, so catch a swapped key here.
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [prod-staging]
+  pull_request:
+    branches: [prod-staging]
+    paths:
+      - .github/workflows/tooling-app.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  # The fingerprint names the key of this repository on the tooling App's page.
+  app-key:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: unikraft-cloud/x/.github/actions/check-key-fingerprint@prod-staging
+        with:
+          private-key: ${{ secrets.TOOLING_APP_PRIVATE_KEY }}
+          fingerprint: ${{ vars.TOOLING_APP_PRIVATE_KEY_FINGERPRINT }}
