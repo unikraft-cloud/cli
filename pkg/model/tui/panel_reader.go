@@ -29,11 +29,15 @@ const (
 // ReaderFunc is a function that returns a reader. Used for lazy initialization.
 type ReaderFunc func(ctx context.Context) (io.ReadCloser, error)
 
-// readerContentMsg is sent when new content is available from the reader
-type readerContentMsg struct{}
+// readerContentMsg is sent when new content is available from the reader.
+// A panel stack sends it to every panel, so panel tells which one it is for.
+type readerContentMsg struct {
+	panel *ReaderPanel
+}
 
-// readerReadyMsg is sent when the reader is ready
+// readerReadyMsg is sent when the reader of panel is ready.
 type readerReadyMsg struct {
+	panel  *ReaderPanel
 	reader io.ReadCloser
 	err    error
 }
@@ -108,6 +112,9 @@ func (p *ReaderPanel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return p, nil
 
 	case readerReadyMsg:
+		if msg.panel != p {
+			return p, nil
+		}
 		if msg.err != nil {
 			p.mu.Lock()
 			p.err = msg.err
@@ -123,6 +130,9 @@ func (p *ReaderPanel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return p, p.pollCmd()
 
 	case readerContentMsg:
+		if msg.panel != p {
+			return p, nil
+		}
 		p.mu.Lock()
 		newContent := p.buf.Len() != p.lastLen
 		p.lastLen = p.buf.Len()
@@ -251,13 +261,13 @@ func (p *ReaderPanel) Close() error {
 func (p *ReaderPanel) fetchReader() tea.Cmd {
 	return func() tea.Msg {
 		reader, err := p.readerFunc(p.ctx)
-		return readerReadyMsg{reader: reader, err: err}
+		return readerReadyMsg{panel: p, reader: reader, err: err}
 	}
 }
 
 func (p *ReaderPanel) pollCmd() tea.Cmd {
 	return tea.Tick(readerPollInterval, func(time.Time) tea.Msg {
-		return readerContentMsg{}
+		return readerContentMsg{panel: p}
 	})
 }
 
