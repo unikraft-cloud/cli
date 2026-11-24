@@ -50,6 +50,7 @@ type ReaderPanel struct {
 	reader     io.ReadCloser
 	readerFunc ReaderFunc
 	follow     bool
+	onFocus    bool
 
 	viewport viewport.Model
 	buf      bytes.Buffer
@@ -81,9 +82,19 @@ func NewReaderPanelFunc(ctx context.Context, title string, readerFunc ReaderFunc
 	}
 }
 
+// LoadOnFocus makes the panel call its ReaderFunc when it first gets the focus,
+// not when it starts. Use it for a reader that is expensive to get.
+func (p *ReaderPanel) LoadOnFocus() *ReaderPanel {
+	p.onFocus = true
+	return p
+}
+
 func (p *ReaderPanel) Init() tea.Cmd {
 	// If we have a readerFunc, fetch the reader lazily
 	if p.readerFunc != nil && !p.ready {
+		if p.onFocus {
+			return nil
+		}
 		return p.fetchReader()
 	}
 	// Otherwise start reading immediately
@@ -109,6 +120,10 @@ func (p *ReaderPanel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case uitui.PanelFocusMsg:
 		p.focused = msg.Focused
+		if p.onFocus && p.focused && p.readerFunc != nil && !p.ready {
+			p.onFocus = false
+			return p, p.fetchReader()
+		}
 		return p, nil
 
 	case readerReadyMsg:
@@ -188,8 +203,11 @@ func (p *ReaderPanel) View() tea.View {
 	}
 
 	if !p.ready {
-		body := styles.Hint.Render("Connecting...")
-		return tea.NewView(body)
+		hint := "Connecting..."
+		if p.onFocus {
+			hint = "Focus this panel to load."
+		}
+		return tea.NewView(styles.Hint.Render(hint))
 	}
 
 	p.mu.Lock()
