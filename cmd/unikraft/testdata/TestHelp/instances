@@ -601,12 +601,15 @@ Create flags:
           [examples: 0, 1]
       --service=<name>
           Service group to join, by name or UUID. Leave unset and give service.services or service.domains to create a group owned by the instance. Without any service the instance is reachable only privately.
-  -p, --publish=<src>:<dest>[/<handlers>] ...
-          Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.
+  -p, --publish=<src>:<dest>[/<options>][@<ip>] ...
+          Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.
             http: load balance per HTTP request instead of per TCP connection
             tls: terminate TLS at the platform
-            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect.
-          [examples: 443:8080/http+tls, 80:443/http+redirect]
+            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect
+            tcp: publish a TCP port, the default
+            udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10
+            @IP: public IP assigned to you on the group's node.
+          [examples: 443:8080/http+tls, 80:443/http+redirect, 53:53/udp@203.0.113.10]
       --domain=<fqdn> ...
           Domain for the group.
             myapp: a bare label becomes a subdomain of the metro
@@ -876,12 +879,15 @@ Create flags:
           [examples: 0, 1]
       --service=<name>
           Service group to join, by name or UUID. Leave unset and give service.services or service.domains to create a group owned by the instance. Without any service the instance is reachable only privately.
-  -p, --publish=<src>:<dest>[/<handlers>] ...
-          Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.
+  -p, --publish=<src>:<dest>[/<options>][@<ip>] ...
+          Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.
             http: load balance per HTTP request instead of per TCP connection
             tls: terminate TLS at the platform
-            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect.
-          [examples: 443:8080/http+tls, 80:443/http+redirect]
+            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect
+            tcp: publish a TCP port, the default
+            udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10
+            @IP: public IP assigned to you on the group's node.
+          [examples: 443:8080/http+tls, 80:443/http+redirect, 53:53/udp@203.0.113.10]
       --domain=<fqdn> ...
           Domain for the group.
             myapp: a bare label becomes a subdomain of the metro
@@ -1137,12 +1143,15 @@ Create flags:
           [examples: 0, 1]
       --service=<name>
           Service group to join, by name or UUID. Leave unset and give service.services or service.domains to create a group owned by the instance. Without any service the instance is reachable only privately.
-  -p, --publish=<src>:<dest>[/<handlers>] ...
-          Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.
+  -p, --publish=<src>:<dest>[/<options>][@<ip>] ...
+          Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.
             http: load balance per HTTP request instead of per TCP connection
             tls: terminate TLS at the platform
-            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect.
-          [examples: 443:8080/http+tls, 80:443/http+redirect]
+            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect
+            tcp: publish a TCP port, the default
+            udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10
+            @IP: public IP assigned to you on the group's node.
+          [examples: 443:8080/http+tls, 80:443/http+redirect, 53:53/udp@203.0.113.10]
       --domain=<fqdn> ...
           Domain for the group.
             myapp: a bare label becomes a subdomain of the metro

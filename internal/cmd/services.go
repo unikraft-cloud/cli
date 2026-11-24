@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/netip"
 	"slices"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/x/kingkong"
 	"unikraft.com/x/log"
+	"unikraft.com/x/ptr"
 
 	"unikraft.com/cli/internal/config"
 	"unikraft.com/cli/internal/mirror"
@@ -189,7 +191,7 @@ type ServiceGroup struct {
 		Link[Instance]
 	} `mirror:"service_group.instances" help:"Instances in the group."`
 
-	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del" flag:"service" sep:"none" help:"Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.\n  http: load balance per HTTP request instead of per TCP connection\n  tls: terminate TLS at the platform\n  redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect" placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls,80:443/http+redirect"`
+	Services []*Service `mirror:"service_group.services" field:",embed" create:"set,required" edit:"set,add,del" flag:"service" sep:"none" help:"Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.\n  http: load balance per HTTP request instead of per TCP connection\n  tls: terminate TLS at the platform\n  redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect\n  tcp: publish a TCP port, the default\n  udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10\n  @IP: public IP assigned to you on the group's node" placeholder:"<src>:<dest>[/<options>][@<ip>]" example:"443:8080/http+tls,80:443/http+redirect,53:53/udp@203.0.113.10"`
 
 	ServiceGroup platform.ServiceGroup `field:"-" json:"service_group"`
 
@@ -199,20 +201,40 @@ type ServiceGroup struct {
 type Service struct {
 	Source      uint32                       `mirror:"port" json:"source" field:",short" help:"Public port."`
 	Destination uint32                       `mirror:"destination_port" json:"destination" field:",short" help:"Port the instance listens on."`
+	Protocol    platform.ServiceProtocol     `mirror:"protocol" json:"protocol,omitempty" field:",short" help:"Transport protocol: tcp or udp."`
+	IP          string                       `mirror:"ip" json:"ip,omitempty" field:",short" help:"Public IP address the port listens on. Required for udp."`
 	Handlers    []platform.ConnectionHandler `mirror:"handlers" json:"handlers" field:",short" help:"Connection handlers: http, tls, redirect."`
 }
 
+// MarshalText writes SOURCE:DESTINATION[/OPTIONS][@IP]. It does not write
+// the default tcp protocol.
 func (s *Service) MarshalText() ([]byte, error) {
-	handlers := make([]string, len(s.Handlers))
-	for i, handler := range s.Handlers {
-		handlers[i] = string(handler)
+	var opts []string
+	if s.Protocol != "" && s.Protocol != platform.ServiceProtocolTcp {
+		opts = append(opts, string(s.Protocol))
 	}
-	return fmt.Appendf(
-		[]byte{}, "%d:%d/%s",
-		s.Source,
-		s.Destination,
-		strings.Join(handlers, "+"),
-	), nil
+	for _, handler := range s.Handlers {
+		opts = append(opts, string(handler))
+	}
+	text := fmt.Appendf(nil, "%d:%d", s.Source, s.Destination)
+	if len(opts) > 0 {
+		text = fmt.Appendf(text, "/%s", strings.Join(opts, "+"))
+	}
+	if s.IP != "" {
+		text = fmt.Appendf(text, "@%s", s.IP)
+	}
+	return text, nil
+}
+
+// request returns the API form of the service.
+func (s *Service) request() platform.Service {
+	return platform.Service{
+		Port:            s.Source,
+		DestinationPort: &s.Destination,
+		Protocol:        ptr.NilIfZero(s.Protocol),
+		Ip:              ptr.NilIfZero(s.IP),
+		Handlers:        s.Handlers,
+	}
 }
 
 // MarshalJSON outputs the struct form (not the short text form).
@@ -237,11 +259,19 @@ func (s *Service) UnmarshalJSON(data []byte) error {
 }
 
 func (s *Service) UnmarshalText(text []byte) error {
-	str := string(text)
-	ports, handlers, _ := strings.Cut(str, "/")
+	str, ip, hasIP := strings.Cut(string(text), "@")
+	if hasIP {
+		addr, err := netip.ParseAddr(ip)
+		if err != nil {
+			return fmt.Errorf("invalid IP address: %w", err)
+		}
+		s.IP = addr.String()
+	}
+
+	ports, opts, _ := strings.Cut(str, "/")
 	src, dest, ok := strings.Cut(ports, ":")
 	if !ok {
-		return fmt.Errorf("invalid service format, expected SOURCE:DESTINATION/HANDLERS")
+		return fmt.Errorf("invalid service format, expected SOURCE:DESTINATION[/OPTIONS][@IP]")
 	}
 
 	srcPort, err := strconv.Atoi(src)
@@ -256,9 +286,16 @@ func (s *Service) UnmarshalText(text []byte) error {
 	}
 	s.Destination = uint32(destPort)
 
-	if handlers != "" {
-		for handler := range strings.SplitSeq(handlers, "+") {
-			s.Handlers = append(s.Handlers, platform.ConnectionHandler(handler))
+	if opts != "" {
+		for opt := range strings.SplitSeq(opts, "+") {
+			if !strings.EqualFold(opt, "tcp") && !strings.EqualFold(opt, "udp") {
+				s.Handlers = append(s.Handlers, platform.ConnectionHandler(opt))
+				continue
+			}
+			if s.Protocol != "" {
+				return fmt.Errorf("protocol given more than once")
+			}
+			s.Protocol = platform.ServiceProtocol(strings.ToLower(opt))
 		}
 	}
 
@@ -490,11 +527,7 @@ func (ServiceGroup) Create(ctx context.Context, fields []model.Field) ([]model.M
 				}
 			case "services":
 				for _, svc := range field.Create.Set.([]*Service) {
-					req.Services = append(req.Services, platform.Service{
-						Port:            svc.Source,
-						DestinationPort: &svc.Destination,
-						Handlers:        svc.Handlers,
-					})
+					req.Services = append(req.Services, svc.request())
 				}
 			}
 		}
@@ -604,6 +637,15 @@ func (ServiceGroup) Examples() map[cmd.CmdType][]kingkong.Example {
 	--service 443:8080/tls+http`,
 				},
 			},
+			{
+				Description: "Create a service group with a UDP port on a dedicated IP",
+				Commands: []string{
+					`unikraft service create \
+	--name dns \
+	--metro fra \
+	--service 53:53/udp@203.0.113.10`,
+				},
+			},
 		},
 		cmd.CmdTypeEdit: {
 			{
@@ -664,11 +706,7 @@ func serviceGroupPatchSpec(path string, _ patchOp, value any) (platform.MutableS
 	case "services":
 		nvalue := []platform.Service{}
 		for _, svc := range value.([]*Service) {
-			nvalue = append(nvalue, platform.Service{
-				Port:            svc.Source,
-				DestinationPort: &svc.Destination,
-				Handlers:        svc.Handlers,
-			})
+			nvalue = append(nvalue, svc.request())
 		}
 		return platform.MutableServiceGroupPropertyServices, nvalue, nil
 	default:

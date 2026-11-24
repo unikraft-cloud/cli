@@ -324,12 +324,20 @@ func servicesOutputTests(t *testing.T) {
 			{
 				Source:      443,
 				Destination: 8080,
+				Protocol:    "tcp",
 				Handlers:    []platform.ConnectionHandler{"tls", "http"},
 			},
 			{
 				Source:      80,
 				Destination: 443,
+				Protocol:    "tcp",
 				Handlers:    []platform.ConnectionHandler{"http", "redirect"},
+			},
+			{
+				Source:      53,
+				Destination: 53,
+				Protocol:    "udp",
+				IP:          "203.0.113.10",
 			},
 		},
 		Domains: []cmd.Domain{

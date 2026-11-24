@@ -260,7 +260,7 @@ type InstanceGpu struct {
 
 type InstanceService struct {
 	Link[ServiceGroup]
-	Services  []*Service `mirror:"services" json:"services,omitempty" field:",invisible,valueless" create:"set" flag:"publish" short:"p" sep:"none" help:"Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.\n  http: load balance per HTTP request instead of per TCP connection\n  tls: terminate TLS at the platform\n  redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect" placeholder:"<src>:<dest>[/<handlers>]" example:"443:8080/http+tls,80:443/http+redirect"`
+	Services  []*Service `mirror:"services" json:"services,omitempty" field:",invisible,valueless" create:"set" flag:"publish" short:"p" sep:"none" help:"Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.\n  http: load balance per HTTP request instead of per TCP connection\n  tls: terminate TLS at the platform\n  redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect\n  tcp: publish a TCP port, the default\n  udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10\n  @IP: public IP assigned to you on the group's node" placeholder:"<src>:<dest>[/<options>][@<ip>]" example:"443:8080/http+tls,80:443/http+redirect,53:53/udp@203.0.113.10"`
 	Domains   []Domain   `mirror:"domains" json:"domains,omitempty" field:",short,embed" create:"set" flag:"domain" sep:"none" help:"Domain for the group.\n  myapp: a bare label becomes a subdomain of the metro\n  example.com: a dotted name is a custom domain, with a certificate issued automatically unless given as fqdn=example.com,certificate=my-cert" placeholder:"fqdn" example:"example.com,myapp"`
 	SoftLimit uint32     `json:"soft-limit,omitempty" field:"soft-limit,invisible,valueless" create:"set" help:"Concurrent requests per instance before the load balancer wakes a standby instance of the group. Between 1 and 65535, defaults to 1."`
 	HardLimit uint32     `json:"hard-limit,omitempty" field:"hard-limit,invisible,valueless" create:"set" help:"Maximum concurrent requests per instance. Between 1 and 65535, defaults to 65535, and at least the soft limit. Excess requests go to another instance or fail."`
@@ -1469,11 +1469,7 @@ func (Instance) Create(ctx context.Context, fields []model.Field) ([]model.Model
 					req.ServiceGroup = &platform.CreateInstanceRequestServiceGroup{}
 				}
 				for _, svc := range services {
-					req.ServiceGroup.Services = append(req.ServiceGroup.Services, platform.Service{
-						Port:            svc.Source,
-						DestinationPort: &svc.Destination,
-						Handlers:        svc.Handlers,
-					})
+					req.ServiceGroup.Services = append(req.ServiceGroup.Services, svc.request())
 				}
 			}
 		case "service.domains":
