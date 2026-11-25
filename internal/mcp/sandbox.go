@@ -6,6 +6,7 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
@@ -46,7 +47,7 @@ type sandboxExecArgs struct {
 	Dir       string            `json:"dir,omitzero" jsonschema:"Directory to run the command in."`
 	Env       map[string]string `json:"env,omitzero" jsonschema:"The whole environment the command sees, not an addition to it."`
 	Stdin     string            `json:"stdin,omitzero" jsonschema:"Text fed to the command's standard input."`
-	TimeoutMS int64             `json:"timeout_ms,omitzero" jsonschema:"Milliseconds to wait before the command is stopped. Defaults to the server's timeout."`
+	TimeoutMS int64             `json:"timeout_ms,omitzero" jsonschema:"Milliseconds to wait before the command is stopped: 5 minutes by default, and 30 minutes at most."`
 }
 
 type sandboxReadArgs struct {
@@ -63,6 +64,12 @@ type sandboxWriteArgs struct {
 }
 
 var errExecTimeout = errors.New("sandbox command timed out")
+
+// A command holds its tool call until it ends, thus each command has a time limit.
+const (
+	defaultExecTimeout = 5 * time.Minute
+	maxExecTimeout     = 30 * time.Minute
+)
 
 func AddSandboxTools(tools *modelmcp.Tools, commands SandboxCommands) error {
 	const key = "The sandbox instance: " + modelmcp.KeyFormat + "."
@@ -82,6 +89,8 @@ func AddSandboxTools(tools *modelmcp.Tools, commands SandboxCommands) error {
 		AnyOf:       []*jsonschema.Schema{{Type: "array", Items: &jsonschema.Schema{Type: "string"}}, {Type: "string"}},
 		Description: "The program and its arguments as an array of strings, or one string for the shell to interpret, so that pipes and redirections work.",
 	}
+	exec.Properties["timeout_ms"].Minimum = new(0.0)
+	exec.Properties["timeout_ms"].Maximum = new(float64(maxExecTimeout.Milliseconds()))
 	return errors.Join(
 		tools.AddTool("sandbox", &mcp.Tool{
 			Name:        "sandbox_read",
@@ -123,12 +132,9 @@ func AddSandboxTools(tools *modelmcp.Tools, commands SandboxCommands) error {
 			if len(opts.Args) == 0 && opts.Cmdline == "" {
 				return errors.New("invalid command: it is empty")
 			}
-			timeout := time.Duration(in.TimeoutMS) * time.Millisecond
-			if timeout > 0 {
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithTimeoutCause(ctx, timeout, errExecTimeout)
-				defer cancel()
-			}
+			timeout := cmp.Or(time.Duration(in.TimeoutMS)*time.Millisecond, defaultExecTimeout)
+			ctx, cancel := context.WithTimeoutCause(ctx, timeout, errExecTimeout)
+			defer cancel()
 			code, err := commands.Exec(ctx, stdio, in.Key, opts)
 			if errors.Is(context.Cause(ctx), errExecTimeout) {
 				return fmt.Errorf("command timed out after %s", timeout)

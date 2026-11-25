@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,10 @@ func (f *fakeSandbox) Exec(ctx context.Context, stdio xstdio.Stdio, instance str
 		return 0, ctx.Err()
 	case "boom":
 		return 0, errors.New("transport broke")
+	case "deadline":
+		deadline, _ := ctx.Deadline()
+		fmt.Fprint(stdio.Stdout, time.Until(deadline).Round(time.Minute))
+		return 0, nil
 	}
 	fmt.Fprint(stdio.Stdout, "out\n")
 	if opts.Cmdline == "false" {
@@ -84,6 +89,14 @@ func TestSandboxTools(t *testing.T) {
 	assert.True(t, res.IsError)
 	assert.Contains(t, mcptest.Text(res), "command timed out after 20ms")
 
+	res = mcptest.CallTool(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": "deadline"})
+	require.False(t, res.IsError, mcptest.Text(res))
+	assert.Equal(t, "5m0s", mcptest.Text(res))
+
+	res = mcptest.CallTool(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": "deadline", "timeout_ms": 30*60*1000 + 1})
+	assert.True(t, res.IsError)
+	assert.Contains(t, mcptest.Text(res), "validating /properties/timeout_ms")
+
 	res = mcptest.CallTool(t, ctx, session, "sandbox_exec", map[string]any{"key": "scratch", "command": 7})
 	assert.True(t, res.IsError)
 	assert.Contains(t, mcptest.Text(res), "validating /properties/command")
@@ -114,6 +127,7 @@ func TestSandboxTools(t *testing.T) {
 		`exec scratch args=[] cmdline="false" dir="" env=map[] stdin=""`,
 		`exec scratch args=[] cmdline="boom" dir="" env=map[] stdin=""`,
 		`exec scratch args=[] cmdline="sleep" dir="" env=map[] stdin=""`,
+		`exec scratch args=[] cmdline="deadline" dir="" env=map[] stdin=""`,
 		"read scratch /data/x",
 		"read scratch /data/bin",
 		`write scratch /data/y "hi\n" append=true parents=true`,
