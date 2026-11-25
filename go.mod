@@ -54,10 +54,10 @@ require (
 	gotest.tools/v3 v3.5.2
 	mvdan.cc/sh/v3 v3.14.1
 	sigs.k8s.io/yaml v1.6.0
-	unikraft.com/cloud/plugins/sandbox v0.0.0-20261110115830-def4e9d2e457
+	unikraft.com/cloud/plugins/sandbox v0.0.0-20261125131623-d66f7dd900a2
 	unikraft.com/cloud/sdk v0.4.6-staging.6
 	unikraft.com/cloud/sdk/build v0.4.6-staging.6
-	unikraft.com/cloud/sdk/plugins/sandbox v0.4.6-staging.6
+	unikraft.com/cloud/sdk/plugins/sandbox v0.4.6-staging.7
 	unikraft.com/x/build v0.0.0-20261120101822-1135355f7e0d
 	unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/colors v0.0.0-20261111120215-5177d0f4c7b6
