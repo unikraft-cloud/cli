@@ -114,7 +114,7 @@ func (c mcpSandboxCommands) ReadFile(ctx context.Context, instance, remote strin
 	if err != nil {
 		return nil, err
 	}
-	return target.ReadFile(ctx, remote)
+	return target.ReadFile(ctx, remote, modelmcp.MaxOutput)
 }
 
 func (c mcpSandboxCommands) WriteFile(ctx context.Context, instance, remote string, data []byte, opts mcp.SandboxWriteOptions) error {

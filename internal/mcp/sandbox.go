@@ -95,7 +95,7 @@ func AddSandboxTools(tools *modelmcp.Tools, commands SandboxCommands) error {
 		tools.AddTool("sandbox", &mcp.Tool{
 			Name:        "sandbox_read",
 			Title:       "Read sandbox file",
-			Description: "Read a text file from a running sandbox instance. Returns its content.",
+			Description: fmt.Sprintf("Read a text file of at most %d MiB from a running sandbox instance. Returns its content.", modelmcp.MaxOutput>>20),
 			InputSchema: read,
 			Annotations: modelmcp.ReadOnlyAnnotations(),
 		}, false, func(ctx context.Context, in sandboxReadArgs, stdio xstdio.Stdio) error {
