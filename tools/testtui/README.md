@@ -87,12 +87,14 @@ snapshot
 EOF
 ```
 
-Toggle help:
+Toggle help. A `key` returns before the screen has changed, so `wait` for
+what it puts there before a `snapshot`:
 
 ```sh
 cat <<'EOF' | go run ./tools/testtui
 snapshot
 key ?
+wait not contains("• ? help")   # the short help has gone
 snapshot
 EOF
 ```
@@ -127,7 +129,7 @@ Terminal B (keep a writer open on FD 3):
 exec 3>/tmp/testtui.pipe
 
 printf 'snapshot\n' >&3
-printf 'key ?\nsnapshot\n' >&3
+printf 'key ?\nwait not contains("• ? help")\nsnapshot\n' >&3
 ```
 
 If you need to send one-off commands from many short-lived processes (common for
@@ -139,7 +141,7 @@ tail -f /dev/null > /tmp/testtui.pipe &
 
 # Now you can send commands without keeping an FD open.
 printf 'snapshot\n' > /tmp/testtui.pipe
-printf 'key ?\nsnapshot\n' > /tmp/testtui.pipe
+printf 'key ?\nwait not contains("• ? help")\nsnapshot\n' > /tmp/testtui.pipe
 ```
 
 To stop the tool you can either kill it, or send `key ctrl+c` (the TUI quit

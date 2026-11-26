@@ -42,7 +42,7 @@ This tool runs the same TUI model as `unikraft tui` but accepts scripted command
 
 - Send keystrokes: `key enter`, `key ?`, `key ctrl+c`
 - Wait for content: `wait contains("Home")`, `wait not contains("Loading...")`
-- Capture snapshots: `snapshot` (prints current rendered view)
+- Capture snapshots: `snapshot` (prints the screen). A `key` returns before the screen has changed, so always `wait` for what it puts there before a `snapshot`.
 - Add delays: `sleep 150ms`
 
 Example workflow to reproduce TUI states:
@@ -52,7 +52,7 @@ cat <<'EOF' | go run ./tools/testtui instances
 wait not contains("Loading...")
 snapshot
 key enter
-wait not contains("Loading...")
+wait contains("instances > ") and not contains("Loading...")
 snapshot
 EOF
 ```
