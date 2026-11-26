@@ -64,7 +64,7 @@ require (
 	unikraft.com/x/filters v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/image-spec v0.0.0-20261124155313-85c0a0fe8c4e
+	unikraft.com/x/image-spec v0.0.0-20261126153242-530d86be259e
 	unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/joinerrgroup v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/kingkong v0.0.0-20261111120215-5177d0f4c7b6

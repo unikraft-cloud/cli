@@ -19,6 +19,7 @@ type ImageBuildCmd struct {
 	// similar to docker compose build
 	BuildArg []string `sep:"none" help:"Set build-time variables."`
 	NoCache  bool     `help:"Do not use cache when building the image."`
+	Compress bool     `help:"Compress the kernel and rootfs layers that the build makes with zstd. A kernel from a runtime keeps its published layer. Every node that runs the image needs an agent that pulls compressed layers."`
 	Secret   []string `sep:"none" help:"Secret to expose to the build (format: \"id=mysecret[,src=/local/secret]\")."`
 	SSH      []string `sep:"none" help:"SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")."`
 

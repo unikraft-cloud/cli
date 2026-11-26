@@ -92,6 +92,12 @@ func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error 
 }
 
 func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *model.Partition) error {
+	if c.Compress && c.Remote != nil {
+		return errors.New("--compress applies only to a local build")
+	}
+	if c.Compress && c.Output == "" {
+		return errors.New("--compress needs --output")
+	}
 	if c.Remote != nil {
 		return c.runRemote(ctx, cfg, partition)
 	}
@@ -168,6 +174,12 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 			opts = append(opts, images.WithInsecureRegistry(c.Insecure...))
 		} else {
 			opts = append(opts, images.WithInsecureRegistries())
+		}
+	}
+
+	if c.Compress {
+		for _, img := range imgs {
+			img.Compression = imagespec.CompressionZstd
 		}
 	}
 
