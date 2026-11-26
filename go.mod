@@ -58,13 +58,13 @@ require (
 	unikraft.com/cloud/sdk v0.4.6-staging.9
 	unikraft.com/cloud/sdk/build v0.4.6-staging.6
 	unikraft.com/cloud/sdk/plugins/sandbox v0.4.6-staging.7
-	unikraft.com/x/build v0.0.0-20261120101822-1135355f7e0d
+	unikraft.com/x/build v0.0.0-20261126162113-a81b5204c19b
 	unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/colors v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/filters v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/image-spec v0.0.0-20261124155313-85c0a0fe8c4e
+	unikraft.com/x/image-spec v0.0.0-20261126162113-a81b5204c19b
 	unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/joinerrgroup v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/kingkong v0.0.0-20261111120215-5177d0f4c7b6

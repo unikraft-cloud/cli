@@ -597,8 +597,8 @@ unikraft.com/cloud/sdk/build v0.4.6-staging.6 h1:sl5lpnu8FASorQASlE+tXOf6AddsUlg
 unikraft.com/cloud/sdk/build v0.4.6-staging.6/go.mod h1:Hc6vOMp7HnJmUAazNXwiz3ym3AYVMqyjkU/r9TexGRM=
 unikraft.com/cloud/sdk/plugins/sandbox v0.4.6-staging.7 h1:0emZQzXuijIXCYirW2w06voptUCozXNbVd0MS6JM8+Y=
 unikraft.com/cloud/sdk/plugins/sandbox v0.4.6-staging.7/go.mod h1:6VzCR9HrTVD1gNzKWMv1UMLyFqcHUS6caXq0vGDMqiQ=
-unikraft.com/x/build v0.0.0-20261120101822-1135355f7e0d h1:sTPtr5YO1Ye+xPHlnbYbocbPAD/uupFrc3UDhxJOEF8=
-unikraft.com/x/build v0.0.0-20261120101822-1135355f7e0d/go.mod h1:aRRxLJqi1sUh/dFCJ1Kan/6hcGeq14hLs50X6RlUnuM=
+unikraft.com/x/build v0.0.0-20261126162113-a81b5204c19b h1:zp4RrO4xx7RbU8iGN7YmgXKhueRa9Yg1v6YaOHvZH9Q=
+unikraft.com/x/build v0.0.0-20261126162113-a81b5204c19b/go.mod h1:aRRxLJqi1sUh/dFCJ1Kan/6hcGeq14hLs50X6RlUnuM=
 unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6 h1:/7BTbMIFXN81vbpO3oB2Vh/97BBCpYIAJXP/z3d4qao=
 unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:wOWsRBT0lyV3uWHiQX3Tbr3bzwtfQmZN9SUnyKQNi38=
 unikraft.com/x/colors v0.0.0-20261111120215-5177d0f4c7b6 h1:HnCSAluQGFRfZ01FK6pjoK3sYWUjDYA9Rs9ZjTw7juM=
@@ -611,8 +611,8 @@ unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6 h1:ZJ3Pzaej6zNGKQ6
 unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:A49h7MGEJpnhuqXONsNMI7OMHgz2HpD4o3UmJnrM8i4=
 unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6 h1:9XUQLejScr6+iKixqZFMPg+NmGYQJCc8O8BFjzcfpns=
 unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:Ottq5zN7Zuge2ySDoWllICAVudREPmCvv00d0FPx35w=
-unikraft.com/x/image-spec v0.0.0-20261124155313-85c0a0fe8c4e h1:hK775KBjbzrALPR4tZ6me5/30XhxxHjPUg/nqnAmpoM=
-unikraft.com/x/image-spec v0.0.0-20261124155313-85c0a0fe8c4e/go.mod h1:YIkqwG7NBIMVwPKm2GUB0eMp5DGpk5cVBVD4AGuWAJA=
+unikraft.com/x/image-spec v0.0.0-20261126162113-a81b5204c19b h1:uRIUKQSbm8bwO9pq/3X6dr/gCqp6wvtBNf5wUxZSXNA=
+unikraft.com/x/image-spec v0.0.0-20261126162113-a81b5204c19b/go.mod h1:YIkqwG7NBIMVwPKm2GUB0eMp5DGpk5cVBVD4AGuWAJA=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8 h1:R48wpvUv46CfArM0GdTKWxhDlkagFnRtAaFmRu45O7g=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8/go.mod h1:yUzpOnSm68CH1Ujou0bTEJimecGiAjyqfCPiRrFWQI4=
 unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6 h1:PGFwRBtzJzxgyuLb4uNk0Ucs3i1U/bY9tZmp/kB+bqs=

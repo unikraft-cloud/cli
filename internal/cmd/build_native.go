@@ -138,9 +138,9 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 		buildOpts.SSH = ssh
 	}
 
-	var imgs []*imagespec.Image
+	var built build.Built
 	err = buildWithProgress(ctx, func(b build.Builder) (err error) {
-		imgs, err = b.Build(ctx, buildOpts)
+		built, err = b.Build(ctx, buildOpts)
 		return err
 	})
 	if errors.Is(err, build.ErrNoRuntimeTarget) {
@@ -148,6 +148,8 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	} else if err != nil {
 		return err
 	}
+	// The packer pushes only to BuildOpts.Push, which is not set here.
+	imgs := built.Images
 	defer func() {
 		for _, img := range imgs {
 			img.Close()
