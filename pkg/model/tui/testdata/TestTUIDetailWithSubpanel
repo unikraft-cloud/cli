@@ -1,5 +1,5 @@
 === list ===
- tests                                                                          
+ tests
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │  ID        NAME   STATE    URL                                               │
 │  id-test1  test1  pending  https://example.com                               │
@@ -28,10 +28,10 @@
 │                                                                              │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
- enter open • r refresh • esc back • ? help • ctrl+c quit                       
+ enter open • r refresh • esc back • ? help • ctrl+c quit
 
 === detail (main focused) ===
- tests > test test1                                                             
+ tests > test test1
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │  Field      Value                                                            │
 │  id         id-test1                                                         │
@@ -60,10 +60,10 @@
 │                                                                              │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
- r refresh • esc back • ? help • ctrl+c quit                                    
+ r refresh • esc back • ? help • ctrl+c quit
 
 === detail (logs focused) ===
- tests > test test1                                                             
+ tests > test test1
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │  Field      Value                                                            │
 │  id         id-test1                                                         │
@@ -92,4 +92,4 @@
 │                                                                              │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
- esc back • ? help • ctrl+c quit                                                
+ esc back • ? help • ctrl+c quit

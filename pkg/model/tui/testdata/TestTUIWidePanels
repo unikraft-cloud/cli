@@ -1,5 +1,5 @@
 === list ===
- tests                                                                                                                                      
+ tests
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │  ID        NAME   STATE    URL                                                                                                           │
 │  id-test1  test1  pending  https://example.com                                                                                           │
@@ -16,10 +16,10 @@
 │                                                                                                                                          │
 │                                                                                                                                          │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
- enter open • r refresh • esc back • ? help • ctrl+c quit                                                                                   
+ enter open • r refresh • esc back • ? help • ctrl+c quit
 
 === list+detail ===
- tests > test test1                                                                                                                         
+ tests > test test1
 ╭─────────────────────────────────────────────────────╮ ╭──────────────────────────────────────────────────────────────────────────────────╮
 │  ID        NAME   STATE    URL                      │ │  Field      Value                                                                │
 │  id-test1  test1  pending  https://example.com      │ │  id         id-test1                                                             │
@@ -36,4 +36,4 @@
 │                                                     │ │      email  bob@example.com                                                      │
 │                                                     │ │                                                                                  │
 ╰─────────────────────────────────────────────────────╯ ╰──────────────────────────────────────────────────────────────────────────────────╯
- r refresh • esc back • ? help • ctrl+c quit                                                                                                
+ r refresh • esc back • ? help • ctrl+c quit

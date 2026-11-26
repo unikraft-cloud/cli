@@ -20,12 +20,13 @@ var (
 		Cell:     table.DefaultStyles().Cell,
 		Selected: tableSelectedStyle,
 	}
+
+	FocusedBorderColor = compat.AdaptiveColor{Light: colors.Blue400, Dark: colors.Slate400}
 )
 
 // Private color variables and styles used internally
 var (
 	borderColor        = compat.AdaptiveColor{Light: colors.Slate300, Dark: colors.Slate700}
-	focusedBorderColor = compat.AdaptiveColor{Light: colors.Blue400, Dark: colors.Slate400}
 	menuColor          = compat.AdaptiveColor{Light: colors.Slate600, Dark: colors.Slate400}
 	hintColor          = compat.AdaptiveColor{Light: colors.Slate500, Dark: colors.Slate500}
 	selectedRowBgColor = compat.AdaptiveColor{Light: colors.Slate100, Dark: colors.Slate800}
@@ -37,7 +38,7 @@ var (
 
 	panelFocusedStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(focusedBorderColor).
+				BorderForeground(FocusedBorderColor).
 				Padding(0, 1)
 
 	titleStyle = lipgloss.NewStyle().

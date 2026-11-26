@@ -15,8 +15,6 @@ import (
 	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/require"
 
-	integ "unikraft.com/cli/internal/integration"
-
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/lineage"
 
@@ -24,6 +22,7 @@ import (
 	"unikraft.com/cli/internal/types"
 	"unikraft.com/cli/pkg/model"
 	modelcmd "unikraft.com/cli/pkg/model/cmd"
+	"unikraft.com/x/integration/golden"
 )
 
 // sectionHeader returns a header line centered within 80 characters.
@@ -188,7 +187,7 @@ func instancesOutputTests(t *testing.T) {
 	sample.Stop.ExitCode = &exitCode
 	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }
 
 // Every other sample carries a registry reference, so nothing exercises how an
@@ -206,7 +205,7 @@ func instancesHTTPOCIOutputTests(t *testing.T) {
 		"https+oci://cdn.example.com/me/app/@sha256:"+
 			"43d3d758e6fba7d4734ac142cfdbf8aa786fcbbfd828017eecaadc5140a4b190")))
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }
 
 func instanceTemplatesOutputTests(t *testing.T) {
@@ -229,7 +228,7 @@ func instanceTemplatesOutputTests(t *testing.T) {
 	sample.Timing.TemplateTime = new(types.DurationUS(56000))
 	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }
 
 func instanceCheckpointsOutputTests(t *testing.T) {
@@ -260,7 +259,7 @@ func instanceCheckpointsOutputTests(t *testing.T) {
 	sample.Timing.CheckpointTime = new(types.DurationUS(78000))
 	require.NoError(t, sample.Image.UnmarshalText([]byte("nginx:latest")))
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }
 
 func instanceHistoryOutputTests(t *testing.T) {
@@ -277,7 +276,7 @@ func instanceHistoryOutputTests(t *testing.T) {
 		// as a wall-clock-relative string.
 	}
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }
 
 func volumesOutputTests(t *testing.T) {
@@ -300,7 +299,7 @@ func volumesOutputTests(t *testing.T) {
 		AccessMode:  new(types.AccessMode(platform.VolumeAccessModeRwo)),
 	}
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }
 
 func volumeTemplatesOutputTests(t *testing.T) {
@@ -315,7 +314,7 @@ func volumeTemplatesOutputTests(t *testing.T) {
 		Persistent: true,
 	}
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }
 
 func servicesOutputTests(t *testing.T) {
@@ -352,7 +351,7 @@ func servicesOutputTests(t *testing.T) {
 	sample.Limits.Soft = 5
 	sample.Limits.Hard = 50
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }
 
 func certificatesOutputTests(t *testing.T) {
@@ -367,7 +366,7 @@ func certificatesOutputTests(t *testing.T) {
 		State:        types.CertificateState(platform.CertificateStateValid),
 	}
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }
 
 func imagesOutputTests(t *testing.T) {
@@ -406,5 +405,5 @@ func imagesOutputTests(t *testing.T) {
 	require.NoError(t, sample.Ref.UnmarshalText([]byte("nginx:latest")))
 	require.NoError(t, sample.Config.Platform.UnmarshalText([]byte("linux/amd64")))
 
-	integ.Gild[model.Model](t, dumpResource, sample)
+	golden.Gild[model.Model](t, dumpResource, sample)
 }

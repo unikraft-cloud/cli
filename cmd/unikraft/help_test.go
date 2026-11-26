@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	integ "unikraft.com/cli/internal/integration"
+	"unikraft.com/x/integration/golden"
 )
 
 // TestHelp runs --help tests for all resource types.
@@ -69,7 +70,7 @@ func TestVersion(t *testing.T) {
 // Deterministic and offline.
 func generalHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft"},
 		[]string{"unikraft", "--help"},
 		[]string{"unikraft", "invalid"},
@@ -81,7 +82,7 @@ func generalHelpTests(t *testing.T, unikraftPath string) {
 
 func authHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "login", "--help"},
 		[]string{"unikraft", "logout", "--help"},
 		[]string{"unikraft", "profile", "--help"},
@@ -97,7 +98,7 @@ func authHelpTests(t *testing.T, unikraftPath string) {
 
 func instancesHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "instance", "--help"},
 		[]string{"unikraft", "instance", "get", "--help"},
 		[]string{"unikraft", "instance", "list", "--help"},
@@ -139,7 +140,7 @@ func instancesHelpTests(t *testing.T, unikraftPath string) {
 
 func volumesHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "volume", "--help"},
 		[]string{"unikraft", "volume", "get", "--help"},
 		[]string{"unikraft", "volume", "list", "--help"},
@@ -162,7 +163,7 @@ func volumesHelpTests(t *testing.T, unikraftPath string) {
 
 func servicesHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "service", "--help"},
 		[]string{"unikraft", "service", "get", "--help"},
 		[]string{"unikraft", "service", "list", "--help"},
@@ -175,7 +176,7 @@ func servicesHelpTests(t *testing.T, unikraftPath string) {
 
 func certificatesHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "certificate", "--help"},
 		[]string{"unikraft", "certificate", "get", "--help"},
 		[]string{"unikraft", "certificate", "list", "--help"},
@@ -188,7 +189,7 @@ func certificatesHelpTests(t *testing.T, unikraftPath string) {
 
 func imagesHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "image", "--help"},
 		[]string{"unikraft", "image", "build", "--help"},
 		[]string{"unikraft", "image", "get", "--help"},
@@ -199,7 +200,7 @@ func imagesHelpTests(t *testing.T, unikraftPath string) {
 
 func resourceHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "resource", "--help"},
 		[]string{"unikraft", "resource", "delete", "--help"},
 	)
@@ -207,7 +208,7 @@ func resourceHelpTests(t *testing.T, unikraftPath string) {
 
 func buildHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "build", "--help"},
 		[]string{"unikraft", "builder", "--help"},
 		[]string{"unikraft", "builder", "create", "--help"},
@@ -221,14 +222,14 @@ func buildHelpTests(t *testing.T, unikraftPath string) {
 
 func runHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "run", "--help"},
 	)
 }
 
 func configHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "config", "--help"},
 		[]string{"unikraft", "config", "get", "--help"},
 	)
@@ -236,14 +237,14 @@ func configHelpTests(t *testing.T, unikraftPath string) {
 
 func apiHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "api", "--help"},
 	)
 }
 
 func mcpHelpTests(t *testing.T, unikraftPath string) {
 	r := integ.NewTestEnv(t, unikraftPath)
-	integ.Gild(t, cli(r),
+	golden.Gild(t, cli(r),
 		[]string{"unikraft", "mcp", "--help"},
 	)
 }
