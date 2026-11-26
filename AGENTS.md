@@ -57,7 +57,7 @@ snapshot
 EOF
 ```
 
-Use `--output=json` for machine-readable events including snapshots and errors. See `tools/testtui/README.md` for full documentation including wait expressions, named pipes for long-lived sessions, and JSON output format.
+Use `--output=json` for machine-readable events including snapshots and errors. See `tools/testtui/README.md` for named pipes for long-lived sessions, and its link to the script language (wait expressions, keys, JSON output format). Tests of the TUI use the same kit from Go: `unikraft.com/x/integration/tuikit`.
 
 ## Advice
 

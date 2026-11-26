@@ -2,12 +2,12 @@
 
 `testtui` is a small, scriptable driver for the Unikraft Bubble Tea TUI.
 
-It runs the same model as `unikraft tui`, but instead of taking over your
-terminal it:
+It runs the same model as `unikraft tui`, but in a terminal emulator
+(`unikraft.com/x/integration/tuikit`) instead of taking over your terminal. It:
 
 - accepts a stream of simple commands (`key`, `sleep`, `wait`, `snapshot`)
-- executes them against the live TUI model
-- prints the current rendered view only when you ask for a `snapshot` (text mode)
+- executes them against the live TUI, as key presses in that terminal
+- prints the screen only when you ask for a `snapshot` (text mode)
 - can emit an ack event after every command (`--output=json`)
 
 This is useful for debugging TUI behavior, reproducing tricky UI states, and
@@ -48,116 +48,17 @@ Useful flags:
 - `--config` (or `UNIKRAFT_CONFIG`): path to the config file
 - `--profile` (or `UNIKRAFT_PROFILE`): select the active profile
 - `--output`: `text` (default) or `json`
-- `--color` / `--no-color`: force-enable or force-disable color output
 - `--width`, `--height`: snapshot dimensions (lines are truncated to fit)
 - `--wait-timeout`: default timeout for `wait ...`
-- `--wait-interval`: polling interval for `wait ...` (set to `0` for update-driven checks only)
 - `--script <path>`: read commands from a file (use `-` for stdin)
 - `--cmd <line>`: run a command line before the script (repeatable)
 
 ## Language
 
-Each line is one command. Whitespace is flexible.
-
-- Blank lines are ignored.
-- `#` starts a comment (either as a whole line, or after a command).
-
-### Commands
-
-```
-snapshot
-sleep <time.Duration>
-key <key>
-wait <expr>
-```
-
-`time.Duration` is parsed by Go (e.g. `150ms`, `2s`, `1m`).
-
-In `--output=text` (default):
-
-- `snapshot` prints the current view to stdout (ANSI is stripped).
-- other commands are silent.
-
-In `--output=json`:
-
-- every non-empty, non-comment line emits one JSON object on stdout
-- `snapshot` includes the view text in the JSON event (and errors include the last view)
-
-## JSON output
-
-With `--output=json`, stdout is newline-delimited JSON (JSONL): one object per
-executed line.
-
-Event shape:
-
-```json
-{
-  "seq": 1,
-  "line": 12,
-  "cmd": "wait contains(\"Home\")",
-  "kind": "wait",
-  "elapsed_ms": 123,
-  "snapshot": "... (only for snapshot) ...",
-  "error": "... (only on errors) ..."
-}
-```
-
-Notes:
-
-- `seq` increments per executed line (comments/blank lines do not emit events).
-- `line` is only set when reading from a script/stream (stdin or `--script`).
-- `snapshot` is present for the `snapshot` command.
-- On failures, the event includes `error` and `snapshot` (the last rendered view).
-
-### Wait expressions
-
-Atoms:
-
-- `contains("string")`
-
-Operators:
-
-- `not <expr>`
-- `<expr> and <expr>`
-- `<expr> or <expr>`
-- parentheses: `(<expr>)`
-
-Precedence is `not` > `and` > `or`.
-
-Strings use double quotes and Go-style escapes (`\"`, `\n`, `\\`, ...).
-
-Examples:
-
-```
-wait contains("Home > instances")
-wait not contains("Loading...")
-wait contains("alpha") and contains("bravo")
-wait (not contains("ERROR")) or contains("No results")
-```
-
-### Keys
-
-`key <key>` sends a Bubble Tea key press.
-
-Supported named keys:
-
-`enter`, `tab`, `backspace`, `esc`, `space`, `up`, `down`, `left`, `right`,
-`pgup`, `pgdown`, `home`, `end`, `insert`, `delete`.
-
-Modifiers are written with `+`:
-
-`ctrl+<key>`, `alt+<key>`, `shift+<key>`, `meta+<key>`, `super+<key>`, `hyper+<key>`.
-
-Examples:
-
-```
-key r
-key enter
-key tab
-key shift+tab
-key ctrl+c
-key ?
-```
+Each line is one command: `key`, `wait`, `sleep` or `snapshot`. The language,
+the wait expressions, the keys and the JSON events are documented with the
+code, in
+[`x/integration/tuikit/script`](https://github.com/unikraft-cloud/x/tree/prod-staging/integration/tuikit/script).
 
 ## Examples
 

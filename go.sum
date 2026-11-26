@@ -94,10 +94,14 @@ github.com/charmbracelet/x/exp/charmtone v0.0.0-20250603201427-c31516f43444 h1:I
 github.com/charmbracelet/x/exp/charmtone v0.0.0-20250603201427-c31516f43444/go.mod h1:T9jr8CzFpjhFVHjNjKwbAD7KwBNyFnj2pntAO7F2zw0=
 github.com/charmbracelet/x/exp/golden v0.0.0-20250806222409-83e3a29d542f h1:pk6gmGpCE7F3FcjaOEKYriCvpmIN4+6OS/RD0vm4uIA=
 github.com/charmbracelet/x/exp/golden v0.0.0-20250806222409-83e3a29d542f/go.mod h1:IfZAMTHB6XkZSeXUqriemErjAWCCzT0LwjKFYCZyw0I=
+github.com/charmbracelet/x/exp/ordered v0.1.0 h1:55/qLwjIh0gL0Vni+QAWk7T/qRVP6sBf+2agPBgnOFE=
+github.com/charmbracelet/x/exp/ordered v0.1.0/go.mod h1:5UHwmG+is5THxMyCJHNPCn2/ecI07aKNrW+LcResjJ8=
 github.com/charmbracelet/x/term v0.2.2 h1:xVRT/S2ZcKdhhOuSP4t5cLi5o+JxklsoEObBSgfgZRk=
 github.com/charmbracelet/x/term v0.2.2/go.mod h1:kF8CY5RddLWrsgVwpw4kAa6TESp6EB5y3uxGLeCqzAI=
 github.com/charmbracelet/x/termios v0.1.1 h1:o3Q2bT8eqzGnGPOYheoYS8eEleT5ZVNYNy8JawjaNZY=
 github.com/charmbracelet/x/termios v0.1.1/go.mod h1:rB7fnv1TgOPOyyKRJ9o+AsTU/vK5WHJ2ivHeut/Pcwo=
+github.com/charmbracelet/x/vt v0.1.0 h1:oVueL3dwH/DlY/z6R6XHA9PQ/w3LdCCq99600Vs48vA=
+github.com/charmbracelet/x/vt v0.1.0/go.mod h1:u1LOIABor9JqY54oZdktK3TCRrgzP6tzHrDYx1nd3wY=
 github.com/charmbracelet/x/windows v0.2.2 h1:IofanmuvaxnKHuV04sC0eBy/smG6kIKrWG2/jYn2GuM=
 github.com/charmbracelet/x/windows v0.2.2/go.mod h1:/8XtdKZzedat74NQFn0NGlGL4soHB0YQZrETF96h75k=
 github.com/clipperhouse/displaywidth v0.11.0 h1:lBc6kY44VFw+TDx4I8opi/EtL9m20WSEFgwIwO+UVM8=
@@ -615,6 +619,8 @@ unikraft.com/x/image-spec v0.0.0-20261126162113-a81b5204c19b h1:uRIUKQSbm8bwO9pq
 unikraft.com/x/image-spec v0.0.0-20261126162113-a81b5204c19b/go.mod h1:YIkqwG7NBIMVwPKm2GUB0eMp5DGpk5cVBVD4AGuWAJA=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8 h1:R48wpvUv46CfArM0GdTKWxhDlkagFnRtAaFmRu45O7g=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8/go.mod h1:yUzpOnSm68CH1Ujou0bTEJimecGiAjyqfCPiRrFWQI4=
+unikraft.com/x/integration/tuikit v0.0.0-20261126171723-1be4a7f471a3 h1:TFZNzwLY/DfaAvPuArGP6Ual8PaMUXVdAgQe5a1sheM=
+unikraft.com/x/integration/tuikit v0.0.0-20261126171723-1be4a7f471a3/go.mod h1:GDWbm7ngiUFPcH+FY2eNLtBlY2W3vfuDmH2s1O/iyNQ=
 unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6 h1:PGFwRBtzJzxgyuLb4uNk0Ucs3i1U/bY9tZmp/kB+bqs=
 unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6/go.mod h1:n0/TAaCU+7pFYrlxpUTuRap9i9WSoDBk+68N5bqxEFc=
 unikraft.com/x/joinerrgroup v0.0.0-20261111120215-5177d0f4c7b6 h1:AnGpM5eeQfP834ow4cRzv3927svlkS6pPYK79IB+FFg=
