@@ -619,6 +619,8 @@ unikraft.com/x/image-spec v0.0.0-20261126162113-a81b5204c19b h1:uRIUKQSbm8bwO9pq
 unikraft.com/x/image-spec v0.0.0-20261126162113-a81b5204c19b/go.mod h1:YIkqwG7NBIMVwPKm2GUB0eMp5DGpk5cVBVD4AGuWAJA=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8 h1:R48wpvUv46CfArM0GdTKWxhDlkagFnRtAaFmRu45O7g=
 unikraft.com/x/integration v0.0.0-20261029083025-f2d161e6abc8/go.mod h1:yUzpOnSm68CH1Ujou0bTEJimecGiAjyqfCPiRrFWQI4=
+unikraft.com/x/integration/golden v0.0.0-20261126173026-3484ba8c5311 h1:0VEhMWOir59ZrLkiE7Nx7UxE7a2saIoPoI1I+sZ03jw=
+unikraft.com/x/integration/golden v0.0.0-20261126173026-3484ba8c5311/go.mod h1:FIzlIgz6KXq+Ru6WF4+dw7hIAwLc/nELu4uNDahZQtk=
 unikraft.com/x/integration/tuikit v0.0.0-20261126171723-1be4a7f471a3 h1:TFZNzwLY/DfaAvPuArGP6Ual8PaMUXVdAgQe5a1sheM=
 unikraft.com/x/integration/tuikit v0.0.0-20261126171723-1be4a7f471a3/go.mod h1:GDWbm7ngiUFPcH+FY2eNLtBlY2W3vfuDmH2s1O/iyNQ=
 unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6 h1:PGFwRBtzJzxgyuLb4uNk0Ucs3i1U/bY9tZmp/kB+bqs=
