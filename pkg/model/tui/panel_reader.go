@@ -29,11 +29,15 @@ const (
 // ReaderFunc is a function that returns a reader. Used for lazy initialization.
 type ReaderFunc func(ctx context.Context) (io.ReadCloser, error)
 
-// readerContentMsg is sent when new content is available from the reader
-type readerContentMsg struct{}
+// readerContentMsg is sent when new content is available from the reader.
+// A panel stack sends it to every panel, so panel tells which one it is for.
+type readerContentMsg struct {
+	panel *ReaderPanel
+}
 
-// readerReadyMsg is sent when the reader is ready
+// readerReadyMsg is sent when the reader of panel is ready.
 type readerReadyMsg struct {
+	panel  *ReaderPanel
 	reader io.ReadCloser
 	err    error
 }
@@ -46,6 +50,7 @@ type ReaderPanel struct {
 	reader     io.ReadCloser
 	readerFunc ReaderFunc
 	follow     bool
+	onFocus    bool
 
 	viewport viewport.Model
 	buf      bytes.Buffer
@@ -77,9 +82,19 @@ func NewReaderPanelFunc(ctx context.Context, title string, readerFunc ReaderFunc
 	}
 }
 
+// LoadOnFocus makes the panel call its ReaderFunc when it first gets the focus,
+// not when it starts. Use it for a reader that is expensive to get.
+func (p *ReaderPanel) LoadOnFocus() *ReaderPanel {
+	p.onFocus = true
+	return p
+}
+
 func (p *ReaderPanel) Init() tea.Cmd {
 	// If we have a readerFunc, fetch the reader lazily
 	if p.readerFunc != nil && !p.ready {
+		if p.onFocus {
+			return nil
+		}
 		return p.fetchReader()
 	}
 	// Otherwise start reading immediately
@@ -105,9 +120,16 @@ func (p *ReaderPanel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case uitui.PanelFocusMsg:
 		p.focused = msg.Focused
+		if p.onFocus && p.focused && p.readerFunc != nil && !p.ready {
+			p.onFocus = false
+			return p, p.fetchReader()
+		}
 		return p, nil
 
 	case readerReadyMsg:
+		if msg.panel != p {
+			return p, nil
+		}
 		if msg.err != nil {
 			p.mu.Lock()
 			p.err = msg.err
@@ -123,6 +145,9 @@ func (p *ReaderPanel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return p, p.pollCmd()
 
 	case readerContentMsg:
+		if msg.panel != p {
+			return p, nil
+		}
 		p.mu.Lock()
 		newContent := p.buf.Len() != p.lastLen
 		p.lastLen = p.buf.Len()
@@ -178,8 +203,11 @@ func (p *ReaderPanel) View() tea.View {
 	}
 
 	if !p.ready {
-		body := styles.Hint.Render("Connecting...")
-		return tea.NewView(body)
+		hint := "Connecting..."
+		if p.onFocus {
+			hint = "Focus this panel to load."
+		}
+		return tea.NewView(styles.Hint.Render(hint))
 	}
 
 	p.mu.Lock()
@@ -251,13 +279,13 @@ func (p *ReaderPanel) Close() error {
 func (p *ReaderPanel) fetchReader() tea.Cmd {
 	return func() tea.Msg {
 		reader, err := p.readerFunc(p.ctx)
-		return readerReadyMsg{reader: reader, err: err}
+		return readerReadyMsg{panel: p, reader: reader, err: err}
 	}
 }
 
 func (p *ReaderPanel) pollCmd() tea.Cmd {
 	return tea.Tick(readerPollInterval, func(time.Time) tea.Msg {
-		return readerContentMsg{}
+		return readerContentMsg{panel: p}
 	})
 }
 

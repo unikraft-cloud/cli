@@ -60,7 +60,7 @@ type InstancesCmd struct {
 	Suspend InstancesSuspendCmd `cmd:"" help:"Suspend one or more instances."`
 	Restart InstancesRestartCmd `cmd:"" help:"Restart one or more instances."`
 	Tunnel  InstancesTunnelCmd  `cmd:"" aliases:"port-forward" help:"Forward a local port to an unexposed instance."`
-	History InstanceHistoryCmd  `cmd:"" help:"Show checkpoint history for an instance."`
+	History InstanceHistoryCmd  `cmd:"" help:"Show the lineage of an instance."`
 
 	Shell ShellSandboxInstanceCmd `cmd:"" aliases:"sh" help:"Open an interactive shell on a sandbox instance."`
 	Exec  ExecSandboxInstanceCmd  `cmd:"" help:"Execute a command on a sandbox instance."`
@@ -2126,33 +2126,37 @@ func (c *InstancesRestartCmd) Run(ctx context.Context, stdio xstdio.Stdio) error
 	return l.Copy(stdio.Stdout)
 }
 
-// InstanceHistoryCmd shows the checkpoint history for an instance.
+// InstanceHistoryCmd shows the lineage of an instance.
 type InstanceHistoryCmd struct {
-	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instances to show history for."`
+	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance" help:"Target instances to show the lineage of."`
 
-	cmd.FormatOpts
+	InstanceHistoryOpts
+}
+
+func (cmd InstanceHistoryCmd) Help() string {
+	return "Show the whole lineage tree of an instance: every instance, template and checkpoint in it." + lineageHelp
 }
 
 func (cmd InstanceHistoryCmd) Examples() []kingkong.Example {
 	return []kingkong.Example{
 		{
-			Description: "Show the checkpoint history of an instance",
+			Description: "Show the lineage of an instance",
 			Commands:    []string{"unikraft instance history my-instance"},
+		},
+		{
+			Description: "Show the lineage with the UUID of each node",
+			Commands:    []string{"unikraft instance history my-instance -f +uuid"},
+		},
+		{
+			Description: "Show the lineage as JSON",
+			Commands:    []string{"unikraft instance history my-instance -o json"},
 		},
 	}
 }
 
 func (c *InstanceHistoryCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
-	entries, err := getInstanceHistory(ctx, c.Targets, func(ctx context.Context, mc multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error) {
-		return mc.GetInstanceHistory(ctx, ids, platform.GetInstanceHistoryOpts{})
-	})
-	if err != nil && len(entries) == 0 {
-		return err
-	}
-	if printErr := renderInstanceHistory(ctx, stdio.Stdout, c.FormatOpts, entries); printErr != nil {
-		return errors.Join(err, printErr)
-	}
-	return err
+	found, err := Instance{}.Get(ctx, c.Targets)
+	return runInstanceHistory(ctx, stdio, c.InstanceHistoryOpts, c.Targets, found, err)
 }
 
 type StopOpts struct {

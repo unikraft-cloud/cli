@@ -18,6 +18,7 @@ import (
 	integ "unikraft.com/cli/internal/integration"
 
 	"unikraft.com/cloud/sdk/platform"
+	"unikraft.com/cloud/sdk/platform/lineage"
 
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/types"
@@ -264,12 +265,16 @@ func instanceCheckpointsOutputTests(t *testing.T) {
 
 func instanceHistoryOutputTests(t *testing.T) {
 	sample := cmd.InstanceHistoryEntry{
-		Metro:  "fra",
-		Target: "fra/my-instance",
-		Name:   "my-checkpoint",
-		UUID:   "f6a7b8c9-d0e1-2345-f012-3456789abcde",
-		// Created is left as the zero value so it renders deterministically
-		// ("never") instead of a wall-clock-relative string.
+		Metro:    "fra",
+		Name:     "my-fork",
+		Kind:     lineage.KindInstance,
+		State:    new(types.InstanceState(platform.InstanceStateRunning)),
+		UUID:     "f6a7b8c9-d0e1-2345-f012-3456789abcde",
+		Parent:   "my-checkpoint",
+		Relation: lineage.RelationForkedFrom,
+		Target:   "fra/my-fork",
+		// Created is left nil so it renders deterministically instead of
+		// as a wall-clock-relative string.
 	}
 
 	integ.Gild[model.Model](t, dumpResource, sample)

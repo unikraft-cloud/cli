@@ -110,6 +110,10 @@ func TestInstanceTemplates(t *testing.T) {
 		assert.Regexp(t, `state:\s+(stopping|stopped)\b`, out)
 		assert.Regexp(t, `memory:\s+128`, out)
 
+		// The lineage of the template lists the instance created from it.
+		out = r.Run(t, []string{"unikraft", "instance", "template", "history", templateName, "-o", "json", "-f", "name,relation"})
+		assert.Regexp(t, `"name": "test-from-template-`+instName+`",\s+"relation": "created-from"`, out)
+
 		r.Run(t, []string{"unikraft", "instance", "template", "delete", templateName})
 	})
 

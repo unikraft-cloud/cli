@@ -50,22 +50,37 @@ func TestInstanceCheckpoints(t *testing.T) {
 		out = r.Run(t, []string{"unikraft", "instance", "checkpoint", "inspect", checkpointName, "-f", "all"})
 		assert.Contains(t, out, "env-dev")
 
-		// The source instance's history lists its checkpoints.
+		r.Run(t, []string{
+			"unikraft", "instance", "create",
+			"--output", "quiet",
+			"--set", "name=test-" + instName + "-fork",
+			"--set", "metro=" + r.MetroName,
+			"--set", "autostart=false",
+			"--checkpoint", checkpointName,
+		})
+
+		// The default view draws the lineage of the source as a graph.
 		out = r.Run(t, []string{"unikraft", "instance", "history", "test-" + instName})
 		assert.Contains(t, out, checkpointName)
+		assert.Contains(t, out, "◉")
+		assert.Contains(t, out, "test-"+instName+"-fork")
 
-		// A checkpoint's own history (ancestor checkpoints) is empty for a
-		// freshly-created checkpoint; the command should still succeed and
-		// render the table header.
+		// The lineage of the checkpoint is the same tree.
 		out = r.Run(t, []string{"unikraft", "instance", "checkpoint", "history", checkpointName})
-		assert.Contains(t, out, "CREATED")
+		assert.Contains(t, out, "test-"+instName+"-fork")
+
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName + "-fork"})
+		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
+
+		// A checkpoint of a deleted instance hangs under a deleted node.
+		out = r.Run(t, []string{"unikraft", "instance", "checkpoint", "history", checkpointName})
+		assert.Contains(t, out, checkpointName)
+		assert.Contains(t, out, "deleted")
 
 		r.Run(t, []string{"unikraft", "instance", "checkpoint", "delete", checkpointName})
 
 		out = r.Run(t, []string{"unikraft", "instance", "checkpoint", "list", "--output", "quiet"})
 		assert.NotContains(t, out, checkpointName)
-
-		r.Run(t, []string{"unikraft", "instance", "delete", "test-" + instName})
 	})
 
 	t.Run("create-is-immediately-visible", func(t *testing.T) {

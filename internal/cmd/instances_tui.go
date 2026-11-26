@@ -8,18 +8,23 @@
 package cmd
 
 import (
+	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/rs/zerolog"
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
 	"unikraft.com/cloud/sdk/platform/logs"
+	"unikraft.com/x/log"
 
 	"unikraft.com/cli/internal/multimetro"
 	"unikraft.com/cli/pkg/model"
+	"unikraft.com/cli/pkg/model/cmd"
 	modeltui "unikraft.com/cli/pkg/model/tui"
 )
 
@@ -41,8 +46,30 @@ func (Instance) Subpanels(ctx context.Context, key string) []tea.Model {
 		return io.NopCloser(r), nil
 	}
 
+	// Logs on the terminal break the view, so the lineage is read without them.
+	historyFunc := func(ctx context.Context) (io.ReadCloser, error) {
+		nop := zerolog.Nop()
+		ctx = log.WithLogger(ctx, &nop)
+		found, err := Instance{}.Get(ctx, []string{key})
+		if len(found) == 0 {
+			return nil, cmp.Or(err, fmt.Errorf("instance %s not found", key))
+		}
+		inst := found[0].(Instance)
+		target := lineageTarget{key: inst.key, inst: inst.Instance}
+		lins, err := readInstanceLineages(ctx, []lineageTarget{target}, 0)
+		if err != nil {
+			return nil, err
+		}
+		var buf bytes.Buffer
+		if err := printLineageTables(ctx, &buf, cmd.Printer{Type: cmd.PrinterTypeTable}, nil, lins); err != nil {
+			return nil, err
+		}
+		return io.NopCloser(&buf), nil
+	}
+
 	return []tea.Model{
 		modeltui.NewReaderPanelFunc(ctx, "Logs", readerFunc, true),
+		modeltui.NewReaderPanelFunc(ctx, "History", historyFunc, false).LoadOnFocus(),
 	}
 }
 

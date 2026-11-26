@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,6 +41,26 @@ func (subpanelTestModel) Subpanels(ctx context.Context, key string) []tea.Model 
 		return io.NopCloser(strings.NewReader("sample logs\n")), nil
 	}
 	return []tea.Model{tui.NewReaderPanelFunc(ctx, "Logs", readerFunc, true)}
+}
+
+type lazySubpanelTestModel struct {
+	modelt.TestModel
+}
+
+var lazyLoads atomic.Int32
+
+func (lazySubpanelTestModel) Subpanels(ctx context.Context, key string) []tea.Model {
+	logs := func(ctx context.Context) (io.ReadCloser, error) {
+		return io.NopCloser(strings.NewReader("sample logs\n")), nil
+	}
+	history := func(ctx context.Context) (io.ReadCloser, error) {
+		lazyLoads.Add(1)
+		return io.NopCloser(strings.NewReader("sample history\n")), nil
+	}
+	return []tea.Model{
+		tui.NewReaderPanelFunc(ctx, "Logs", logs, true),
+		tui.NewReaderPanelFunc(ctx, "History", history, false).LoadOnFocus(),
+	}
 }
 
 func setupTestEnv() *modelt.TestEnv {
@@ -189,4 +210,36 @@ func TestTUIDetailWithSubpanel(t *testing.T) {
 	output += "\n"
 
 	golden.Assert(t, output, t.Name(), "\n"+output)
+}
+
+func TestTUIDetailWithLazySubpanel(t *testing.T) {
+	lazyLoads.Store(0)
+	env := setupTestEnv()
+	ctx := modelt.WithTestEnv(context.Background(), env)
+
+	registry := model.NewRegistry()
+	desc := registry.Register(lazySubpanelTestModel{}, lazySubpanelTestModel{})
+	m, err := tui.New(ctx, registry, tui.Home{}, desc.Name, "")
+	require.NoError(t, err)
+	runner := testkit.New(m, 80, 40)
+	defer runner.Stop()
+
+	_, err = runner.WaitUntilSnapshot(2*time.Second, 0, func(s string) bool {
+		return strings.Contains(s, "id-test1") && !strings.Contains(s, "Loading...")
+	})
+	require.NoErrorf(t, err, "wait failed: %v\n\nlast snapshot:\n%s", err, runner.Snapshot())
+
+	runner.PressKeys(tea.Key{Code: tea.KeyEnter})
+	_, err = runner.WaitUntilSnapshot(2*time.Second, 0, func(s string) bool {
+		return strings.Contains(s, "sample logs") && strings.Contains(s, "Focus this panel to load.")
+	})
+	require.NoErrorf(t, err, "wait failed: %v\n\nlast snapshot:\n%s", err, runner.Snapshot())
+	require.Zero(t, lazyLoads.Load(), "the panel loads only on focus")
+
+	runner.PressKeys(tea.Key{Code: tea.KeyTab}, tea.Key{Code: tea.KeyTab})
+	_, err = runner.WaitUntilSnapshot(2*time.Second, 0, func(s string) bool {
+		return strings.Contains(s, "sample logs") && strings.Contains(s, "sample history")
+	})
+	require.NoErrorf(t, err, "wait failed: %v\n\nlast snapshot:\n%s", err, runner.Snapshot())
+	require.EqualValues(t, 1, lazyLoads.Load())
 }
