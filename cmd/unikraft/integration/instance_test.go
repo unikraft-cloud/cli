@@ -78,7 +78,7 @@ func scriptArgs(t *testing.T, script string) string {
 	return "runtime.args=" + string(args)
 }
 
-const sandboxPluginRom = "plugins/sandbox:latest"
+const sandboxPluginRom = "plugins/sandbox:staging"
 
 // tunnelProxyUUIDs queries the platform directly (bypassing the CLI's
 // resource partition, which never tracks the tunnel command's internal proxy
