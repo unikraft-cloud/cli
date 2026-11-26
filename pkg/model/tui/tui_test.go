@@ -78,9 +78,11 @@ func TestTUIBasic(t *testing.T) {
 	listView := r.WaitNotMatch(t, "Loading...")
 
 	r.Press(t, "enter")
-	r.WaitMatch(t, "tests > test test1")
-	r.WaitMatch(t, "settings")
-	detailView := r.WaitMatch(t, "authors")
+	r.Line(0).WaitMatch(t, "tests > test test1")
+	detail := r.Heuristic(tuikit.Box{Match: "Field"})
+	detail.WaitMatch(t, "settings")
+	detail.WaitMatch(t, "authors")
+	detailView := r.Snapshot()
 
 	output := strings.Join([]string{
 		"=== list ===",
@@ -109,9 +111,11 @@ func TestTUIWidePanels(t *testing.T) {
 	listView := r.WaitNotMatch(t, "Loading...")
 
 	r.Press(t, "enter")
-	r.WaitMatch(t, "tests > test test1")
-	r.WaitMatch(t, "settings")
-	detailView := r.WaitMatch(t, "authors")
+	r.Line(0).WaitMatch(t, "tests > test test1")
+	detail := r.Heuristic(tuikit.Box{Match: "Field"})
+	detail.WaitMatch(t, "settings")
+	detail.WaitMatch(t, "authors")
+	detailView := r.Snapshot()
 
 	output := strings.Join([]string{
 		"=== list ===",
@@ -158,14 +162,15 @@ func TestTUIDetailWithSubpanel(t *testing.T) {
 	listView := r.WaitNotMatch(t, "Loading...")
 
 	r.Press(t, "enter")
-	r.WaitMatch(t, "tests > test test1")
-	r.WaitMatch(t, "Field")
-	r.WaitMatch(t, "sample logs")
+	r.Line(0).WaitMatch(t, "tests > test test1")
+	r.Heuristic(tuikit.Box{Match: "Field"}).WaitMatch(t, "id-test1")
+	r.Heuristic(tuikit.Box{Match: "sample logs"}).WaitNotMatch(t, "Loading...")
 	detailView := r.WaitNotMatch(t, "Loading...")
 
 	// The footer drops refresh once the logs have the focus.
 	r.Press(t, "tab")
-	logsView := r.WaitNotMatch(t, "r refresh")
+	r.Line(-1).WaitNotMatch(t, "r refresh")
+	logsView := r.Snapshot()
 
 	output := strings.Join([]string{
 		"=== list ===",
@@ -197,11 +202,12 @@ func TestTUIDetailWithLazySubpanel(t *testing.T) {
 	r.WaitNotMatch(t, "Loading...")
 
 	r.Press(t, "enter")
-	r.WaitMatch(t, "sample logs")
-	r.WaitMatch(t, "Focus this panel to load.")
+	r.Heuristic(tuikit.Box{Match: "sample logs"}).WaitExists(t)
+	r.Heuristic(tuikit.Box{Match: "Focus this panel to load."}).WaitExists(t)
 	require.Zero(t, lazyLoads.Load(), "the panel loads only on focus")
 
 	r.Press(t, "tab", "tab")
-	r.WaitMatch(t, "sample history")
+	history := r.Heuristic(tuikit.Box{Match: "sample history"})
+	history.WaitExists(t)
 	require.EqualValues(t, 1, lazyLoads.Load())
 }
