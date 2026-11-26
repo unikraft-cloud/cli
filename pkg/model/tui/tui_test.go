@@ -18,8 +18,10 @@ import (
 
 	"unikraft.com/cli/internal/cmd"
 	modelt "unikraft.com/cli/internal/model/testing"
+	"unikraft.com/cli/internal/tui/uitui"
 	"unikraft.com/cli/pkg/model"
 	tui "unikraft.com/cli/pkg/model/tui"
+	"unikraft.com/x/colors"
 	"unikraft.com/x/integration/tuikit"
 )
 
@@ -73,8 +75,7 @@ func TestTUIBasic(t *testing.T) {
 
 	r := tuikit.Start(t, m, tuikit.WithSize(80, 18))
 
-	r.WaitMatch(t, "id-test1")
-	r.WaitMatch(t, "id-test2")
+	r.WaitMatchRegexp(t, `(?s)id-test1.*id-test2`)
 	listView := r.WaitNotMatch(t, "Loading...")
 
 	r.Press(t, "enter")
@@ -106,8 +107,7 @@ func TestTUIWidePanels(t *testing.T) {
 
 	r := tuikit.Start(t, m, tuikit.WithSize(140, 18))
 
-	r.WaitMatch(t, "id-test1")
-	r.WaitMatch(t, "id-test2")
+	r.WaitMatchRegexp(t, `(?s)id-test1.*id-test2`)
 	listView := r.WaitNotMatch(t, "Loading...")
 
 	r.Press(t, "enter")
@@ -138,6 +138,12 @@ func TestTUIHomePanel(t *testing.T) {
 
 	view := r.WaitMatch(t, "c'_'o  .--'")
 
+	selected := tuikit.Style{Bold: new(true), Foreground: colors.Primary}
+	r.Match("certificates").WaitStyle(t, selected)
+	r.Press(t, "down")
+	r.Match("images").WaitStyle(t, selected)
+	r.Match("certificates").WaitStyle(t, tuikit.Style{Bold: new(false)})
+
 	output := strings.Join([]string{
 		"=== home ===",
 		view,
@@ -157,18 +163,23 @@ func TestTUIDetailWithSubpanel(t *testing.T) {
 	require.NoError(t, err)
 	r := tuikit.Start(t, m, tuikit.WithSize(80, 30))
 
-	r.WaitMatch(t, "id-test1")
-	r.WaitMatch(t, "id-test2")
+	r.WaitMatchRegexp(t, `(?s)id-test1.*id-test2`)
 	listView := r.WaitNotMatch(t, "Loading...")
+	r.Match("id-test1").WaitStyle(t, tuikit.Style{Bold: new(true)})
+	r.Match("id-test2").WaitStyle(t, tuikit.Style{Bold: new(false)})
 
 	r.Press(t, "enter")
 	r.Line(0).WaitMatch(t, "tests > test test1")
-	r.Heuristic(tuikit.Box{Match: "Field"}).WaitMatch(t, "id-test1")
-	r.Heuristic(tuikit.Box{Match: "sample logs"}).WaitNotMatch(t, "Loading...")
+	detail := r.Heuristic(tuikit.Box{Match: "Field"})
+	logs := r.Heuristic(tuikit.Box{Match: "sample logs"})
+	focused := tuikit.Style{Foreground: uitui.FocusedBorderColor}
+	detail.WaitMatch(t, "id-test1")
+	detail.Line(0).WaitStyle(t, focused)
+	logs.WaitNotMatch(t, "Loading...")
 	detailView := r.WaitNotMatch(t, "Loading...")
 
-	// The footer drops refresh once the logs have the focus.
 	r.Press(t, "tab")
+	logs.Line(0).WaitStyle(t, focused)
 	r.Line(-1).WaitNotMatch(t, "r refresh")
 	logsView := r.Snapshot()
 
@@ -209,5 +220,6 @@ func TestTUIDetailWithLazySubpanel(t *testing.T) {
 	r.Press(t, "tab", "tab")
 	history := r.Heuristic(tuikit.Box{Match: "sample history"})
 	history.WaitExists(t)
+	history.Line(0).WaitStyle(t, tuikit.Style{Foreground: uitui.FocusedBorderColor})
 	require.EqualValues(t, 1, lazyLoads.Load())
 }
