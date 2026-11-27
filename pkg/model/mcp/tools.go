@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -310,25 +311,51 @@ func destructiveAnnotations() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{DestructiveHint: new(true), IdempotentHint: true}
 }
 
+// MaxOutput is the size limit of the output of a tool call. A server keeps
+// the output of each call in memory until the call ends.
+const MaxOutput = 1 << 20
+
+var errOutputLimit = fmt.Errorf("the output is over %d MiB, and the rest is left out", MaxOutput>>20)
+
+// limitedBuffer keeps the first MaxOutput bytes, and refuses the rest.
+type limitedBuffer struct {
+	buf  bytes.Buffer
+	over bool
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	room := MaxOutput - b.buf.Len()
+	if len(p) <= room {
+		return b.buf.Write(p)
+	}
+	b.over = true
+	n, _ := b.buf.Write(p[:room])
+	return n, errOutputLimit
+}
+
 func (ts *Tools) capture(ctx context.Context, structured bool, run func(context.Context, xstdio.Stdio) error) *mcp.CallToolResult {
 	start := time.Now()
-	var out bytes.Buffer
+	var out limitedBuffer
 	err := run(ctx, xstdio.Stdio{Stdin: bytes.NewReader(nil), Stdout: &out, Stderr: ts.opts.Stderr})
+	// A command can ignore the error of a write, thus the buffer also gives it.
+	if out.over && !errors.Is(err, errOutputLimit) {
+		err = errors.Join(err, errOutputLimit)
+	}
 	msg := "tool call complete"
 	if err != nil {
 		msg = "tool call failed"
 	}
 	log.G(ctx).Debug().
 		Dur("took", time.Since(start)).
-		Int("output_bytes", out.Len()).
+		Int("output_bytes", out.buf.Len()).
 		Err(err).
 		Msg(msg)
 
 	res := &mcp.CallToolResult{Content: []mcp.Content{}}
-	if out.Len() > 0 {
-		res.Content = append(res.Content, &mcp.TextContent{Text: out.String()})
+	if out.buf.Len() > 0 {
+		res.Content = append(res.Content, &mcp.TextContent{Text: out.buf.String()})
 		var parsed any
-		if structured && json.Unmarshal(out.Bytes(), &parsed) == nil {
+		if structured && json.Unmarshal(out.buf.Bytes(), &parsed) == nil {
 			res.StructuredContent = map[string]any{"resources": parsed}
 		}
 	}

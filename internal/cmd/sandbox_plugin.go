@@ -31,7 +31,7 @@ const (
 	defaultPluginImage = "plugins/sandbox:latest"
 
 	startHint  = "%[1]s it with `unikraft instance %[1]s %[2]s`"
-	attachHint = "attach it with `unikraft instance edit %s --plugin name=%s,image=%s` while the instance is stopped"
+	attachHint = "attach it with `unikraft instance edit %s --plugin name=%s,image=%s`"
 )
 
 const (
@@ -47,7 +47,7 @@ var sandboxKongVars = kong.Vars{
 
 type SandboxPluginOpts struct {
 	PluginName  string `name:"plugin-name" default:"${sandbox_plugin}" help:"Name of the sandbox plugin to use." placeholder:"name"`
-	PluginImage string `name:"plugin-image" default:"${sandbox_plugin_image}" help:"Image of the sandbox plugin to attach when the instance has none." placeholder:"ref"`
+	PluginImage string `name:"plugin-image" default:"${sandbox_plugin_image}" help:"Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal." placeholder:"ref"`
 }
 
 func attachPlugin(ctx context.Context, stdio xstdio.Stdio, partition *model.Partition, instance Instance, opts SandboxPluginOpts) error {
@@ -105,14 +105,14 @@ func tryAttachPlugin(ctx context.Context, stdio xstdio.Stdio, partition *model.P
 	if slices.Contains(instance.Instance.Features, platform.InstanceFeatureDeleteOnStop) {
 		return fmt.Errorf("%w\nhint: the instance is deleted when it stops, so the plugin cannot be attached in place; recreate it with --plugin name=%s,image=%s", cause, plugin, image)
 	}
-	if !xio.IsTTYReader(stdio.Stdin) || !xio.IsTTY(stdio.Stdout) {
-		return fmt.Errorf("%w\nhint: %s", cause, fmt.Sprintf(attachHint, instance.Key().String(), plugin, image))
-	}
-
 	verb := "start"
 	if instance.State.IsRunning() {
 		verb = "restart"
 	}
+	if !xio.IsTTYReader(stdio.Stdin) || !xio.IsTTY(stdio.Stdout) {
+		return fmt.Errorf("%w\nhint: %s, then %s", cause, fmt.Sprintf(attachHint, instance.Key().String(), plugin, image), fmt.Sprintf(startHint, verb, instance.Key().String()))
+	}
+
 	question := fmt.Sprintf("instance %q has no plugin %q; attach %s", instance.Name, plugin, image)
 	options := []string{
 		"no",

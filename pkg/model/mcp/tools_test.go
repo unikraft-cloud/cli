@@ -24,6 +24,7 @@ import (
 	modelt "unikraft.com/cli/internal/model/testing"
 	"unikraft.com/cli/pkg/mcpserver/mcptest"
 	modelmcp "unikraft.com/cli/pkg/model/mcp"
+	xstdio "unikraft.com/x/stdio"
 )
 
 func newServer(t *testing.T, ctx context.Context, opts modelmcp.Options) *mcp.Server {
@@ -219,4 +220,30 @@ func TestCallLogging(t *testing.T) {
 	assert.Contains(t, out, `"tool":"test_create","took":`)
 	assert.Contains(t, out, `"error":"unknown fields: [nope]","message":"tool call failed"`)
 	assert.Contains(t, out, `"tool":"test_delete","error":"invalid arguments: validating root: required: missing properties: [\"keys\"]","message":"tool call rejected"`)
+}
+
+func TestCallOutputLimit(t *testing.T) {
+	ctx := t.Context()
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
+	type args struct {
+		IgnoreErrors bool `json:"ignore_errors"`
+	}
+	line := bytes.Repeat([]byte("yes\n"), 3000)
+	require.NoError(t, modelmcp.New(srv, modelmcp.Options{}).AddTool("test", &mcp.Tool{Name: "test_yes", Annotations: modelmcp.ReadOnlyAnnotations()}, false, func(_ context.Context, in args, stdio xstdio.Stdio) error {
+		for range 2 * modelmcp.MaxOutput / len(line) {
+			if _, err := stdio.Stdout.Write(line); err != nil && !in.IgnoreErrors {
+				return err
+			}
+		}
+		return nil
+	}))
+	session := mcptest.ConnectServer(t, ctx, srv)
+
+	for _, ignore := range []bool{false, true} {
+		res := mcptest.CallTool(t, ctx, session, "test_yes", map[string]any{"ignore_errors": ignore})
+		assert.True(t, res.IsError)
+		require.Len(t, res.Content, 2)
+		assert.Len(t, res.Content[0].(*mcp.TextContent).Text, modelmcp.MaxOutput)
+		assert.Equal(t, "the output is over 1 MiB, and the rest is left out", res.Content[1].(*mcp.TextContent).Text)
+	}
 }

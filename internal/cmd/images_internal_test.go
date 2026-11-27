@@ -27,3 +27,12 @@ func TestImagesNotFound(t *testing.T) {
 	}
 	assert.Equal(t, []string{"a", "c"}, keys)
 }
+
+func TestImageDeleteOfAHostedServerKeepsItsFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	err := Image{}.Delete(WithHosted(t.Context()), []string{"oci-layout://" + dir})
+
+	require.ErrorContains(t, err, "only registry references")
+	assert.DirExists(t, dir)
+}

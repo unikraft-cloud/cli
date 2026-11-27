@@ -13,8 +13,8 @@ import (
 
 type ImageBuildCmd struct {
 	Input  string   `arg:"" default:"." help:"Path to the project directory, Kraftfile, or Dockerfile. A directory without a Kraftfile is built from its Dockerfile."`
-	Output string   `short:"o" help:"Output destination"`
-	Arch   []string `help:"Only build the Kraftfile targets of these architectures. Defaults to every declared target, or x86_64 when only a runtime is declared. Required when the project declares no targets and no runtime, such as a bare Dockerfile." example:"x86_64,arm64"`
+	Output string   `short:"o" help:"Output destination. A remote build needs an image with a tag, such as my-org/my-app:latest."`
+	Arch   []string `help:"Only build the Kraftfile targets of these architectures. Defaults to every declared target, or x86_64 when only a runtime is declared. A local build requires it when the project declares no targets and no runtime, such as a bare Dockerfile. A remote build of such a project defaults to x86_64." example:"x86_64,arm64"`
 
 	// similar to docker compose build
 	BuildArg []string `sep:"none" help:"Set build-time variables."`
@@ -24,7 +24,7 @@ type ImageBuildCmd struct {
 
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 
-	Remote *string  `env:"UNIKRAFT_BUILD_URL" type:"optional" placeholder:"url" help:"Build on the build service at this URL and push the image from there, instead of building locally. Defaults to the build_url of the profile, or https://controlplane.unikraft.com. Creates a builder with the default sizes if you have none. To set the sizes, use 'unikraft builder create'."`
+	Remote *string  `env:"UNIKRAFT_BUILD_URL" type:"optional" placeholder:"url" help:"Build on the build service at this URL and push the image from there, instead of building locally. Defaults to the build_url of the profile, or https://controlplane.unikraft.com. Write a URL as --remote=<url>, because the flag does not take the next argument. Creates a builder with the default sizes if you have none. To set the sizes, use 'unikraft builder create'."`
 	Metro  []string `placeholder:"metro" help:"Metros that a remote build may run in, by name or API URL. Defaults to the build service's choice."`
 }
 

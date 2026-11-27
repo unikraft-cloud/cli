@@ -1,7 +1,7 @@
 remote:
   insecure: false
   offline: false
-  timeout: "5s"
+  timeout: "30s"
   cache-dir: ~/.cache/taskfiles
   cache-expiry: "24h"
   trusted-hosts:

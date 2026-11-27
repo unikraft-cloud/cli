@@ -6,14 +6,14 @@ tool github.com/caarlos0/svu/v3
 
 require (
 	charm.land/bubbles/v2 v2.2.1
-	charm.land/bubbletea/v2 v2.1.1
-	charm.land/lipgloss/v2 v2.0.6
+	charm.land/bubbletea/v2 v2.1.2
+	charm.land/lipgloss/v2 v2.1.2-0.20261126165533-22b09d7f3566
 	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/alecthomas/kong v1.17.0
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/charmbracelet/colorprofile v0.4.3
-	github.com/charmbracelet/x/ansi v0.11.9
+	github.com/charmbracelet/x/ansi v0.11.10
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/coder/websocket v1.8.15
 	github.com/containerd/containerd/v2 v2.4.2
@@ -23,7 +23,7 @@ require (
 	github.com/containerd/platforms v1.0.0-rc.5
 	github.com/cpuguy83/go-md2man/v2 v2.0.7
 	github.com/creack/pty v1.1.24
-	github.com/docker/cli v29.9.3+incompatible
+	github.com/docker/cli v29.10.0+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/ettle/strcase v0.2.0
 	github.com/go-json-experiment/json v1.27.2
@@ -38,14 +38,14 @@ require (
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/posener/complete v1.2.3
-	github.com/posthog/posthog-go v1.42.4
+	github.com/posthog/posthog-go v1.44.1
 	github.com/rs/zerolog v1.35.1
-	github.com/sergi/go-diff v1.4.0
+	github.com/sergi/go-diff v1.4.5
 	github.com/sirupsen/logrus v1.10.2
 	github.com/stretchr/testify v1.12.1
-	github.com/tidwall/gjson v1.20.2
+	github.com/tidwall/gjson v1.20.4
 	github.com/tonistiigi/fsutil v0.0.0-20261103125000-e075fd9305eb
-	github.com/unikraft/go-archivefs v0.0.0-20261106133356-c81ad57e55c4
+	github.com/unikraft/go-archivefs v0.0.0-20261124155100-7c53c03d86ce
 	golang.org/x/mod v0.43.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.50.0
@@ -54,24 +54,24 @@ require (
 	gotest.tools/v3 v3.5.2
 	mvdan.cc/sh/v3 v3.14.1
 	sigs.k8s.io/yaml v1.6.0
-	unikraft.com/cloud/plugins/sandbox v0.0.0-20261110115830-def4e9d2e457
-	unikraft.com/cloud/sdk v0.4.1-staging.14
-	unikraft.com/cloud/sdk/build v0.0.0-20261112083743-f904b5bfc966
-	unikraft.com/cloud/sdk/plugins/sandbox v0.0.0-20261113085313-a2a9f94fc300
-	unikraft.com/x/build v0.0.0-20261111120215-5177d0f4c7b6
+	unikraft.com/cloud/plugins/sandbox v0.0.0-20261125131623-d66f7dd900a2
+	unikraft.com/cloud/sdk v0.4.6-staging.9
+	unikraft.com/cloud/sdk/build v0.4.6-staging.6
+	unikraft.com/cloud/sdk/plugins/sandbox v0.4.6-staging.7
+	unikraft.com/x/build v0.0.0-20261126162113-a81b5204c19b
 	unikraft.com/x/buildkit v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/colors v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/filters v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/fingerprint v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/guesstermwidth v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/image-spec v0.0.0-20261111120215-5177d0f4c7b6
+	unikraft.com/x/image-spec v0.0.0-20261126162113-a81b5204c19b
 	unikraft.com/x/io v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/joinerrgroup v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/kingkong v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/kraftfile v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/log v0.0.0-20261111120215-5177d0f4c7b6
+	unikraft.com/x/kraftfile v0.0.0-20261120151658-ea11ec33af9a
+	unikraft.com/x/log v0.0.0-20261116145447-f4dbf6ae0056
 	unikraft.com/x/ptr v0.0.0-20261111120215-5177d0f4c7b6
-	unikraft.com/x/shell v0.0.0-20261113145058-65fc641f4af8
+	unikraft.com/x/shell v0.0.0-20261117090838-250b71577700
 	unikraft.com/x/signal v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/stdio v0.0.0-20261111120215-5177d0f4c7b6
 	unikraft.com/x/version v0.0.0-20261111120215-5177d0f4c7b6
@@ -83,7 +83,7 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
-	github.com/andybalholm/brotli v1.1.1 // indirect
+	github.com/andybalholm/brotli v1.3.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
@@ -131,10 +131,10 @@ require (
 	github.com/in-toto/in-toto-golang v0.11.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
-	github.com/klauspost/compress v1.20.3 // indirect
+	github.com/klauspost/compress v1.20.4 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -199,22 +199,19 @@ require (
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	go.yaml.in/yaml/v4 v4.0.0 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/term v0.47.0 // indirect
+	golang.org/x/term v0.48.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/grpc v1.85.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	tailscale.com v1.104.5 // indirect
+	unikraft.com/x/dockerfile v0.0.0-20261118100745-28172ae5f28c // indirect
 )
-
-// Use the fork with charmbracelet/lipgloss#746 until a release has it.
-// It stops the Windows hang at startup when stdin is redirected.
-replace charm.land/lipgloss/v2 => github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507
 
 // Use master with mvdan/sh#1433 until a release has it.
 // It resolves the instance's Unix paths as such on Windows.

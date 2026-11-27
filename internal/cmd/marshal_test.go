@@ -371,6 +371,30 @@ func TestEditPatches(t *testing.T) {
 			want: map[string]string{"services.set": "[443:8080/tls, 80:80/http]"},
 		},
 		{
+			name: "services add udp",
+			res:  cmd.ServiceGroup{},
+			spec: patch.PatchSpec{Add: map[string][]string{"services": {"53:53/udp@203.0.113.10"}}},
+			want: map[string]string{"services.add": "[53:53/udp@203.0.113.10]"},
+		},
+		{
+			name: "services set explicit tcp",
+			res:  cmd.ServiceGroup{},
+			spec: patch.PatchSpec{Set: map[string][]string{"services": {"443:8080/TCP+http+tls"}}},
+			want: map[string]string{"services.set": "[443:8080/http+tls]"},
+		},
+		{
+			name:    "services bad ip",
+			res:     cmd.ServiceGroup{},
+			spec:    patch.PatchSpec{Add: map[string][]string{"services": {"53:53/udp@nope"}}},
+			wantErr: "invalid IP address",
+		},
+		{
+			name:    "services two protocols",
+			res:     cmd.ServiceGroup{},
+			spec:    patch.PatchSpec{Add: map[string][]string{"services": {"53:53/udp+tcp@203.0.113.10"}}},
+			wantErr: "protocol given more than once",
+		},
+		{
 			name: "domains add with certificate",
 			res:  cmd.ServiceGroup{},
 			spec: patch.PatchSpec{Add: map[string][]string{"domains": {"fqdn=a.com,certificate=my-cert"}}},

@@ -114,7 +114,7 @@ roms:
 						require.NoError(t, fstest.Apply(
 							fstest.CreateFile("Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo "unikraft-e2e" > /etc/unikraft-e2e
+RUN echo "unikraft-e2e `+imageTag+`" > /etc/unikraft-e2e
 COPY <<EOF /entrypoint.sh
 #!/bin/sh
 echo "== BEGIN /etc/unikraft-e2e =="
@@ -180,11 +180,12 @@ cmd: ["sh", "/entrypoint.sh"]
 				instName := uniq()
 				image := r.Profile.Organization + "/dockerfile-e2e:" + imageTag
 
+				// The tag in the Dockerfile keeps the digest unique: image delete removes every tag of a digest.
 				dir := t.TempDir()
 				require.NoError(t, fstest.Apply(
 					fstest.CreateFile("Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo "unikraft-e2e" > /etc/unikraft-e2e
+RUN echo "unikraft-e2e `+imageTag+`" > /etc/unikraft-e2e
 CMD ["sh", "-c", "cat /etc/unikraft-e2e && echo UNIKRAFT_E2E_OK"]
 `), 0o644),
 				).Apply(dir))
@@ -228,7 +229,7 @@ RUN echo "wrong-context" > /etc/unikraft-e2e
 			fstest.CreateDir("proj", 0o755),
 			fstest.CreateFile("proj/Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo "right-context" > /etc/unikraft-e2e
+RUN echo "right-context `+imageTag+`" > /etc/unikraft-e2e
 CMD ["sh", "-c", "echo DOCKERFILE_CMD_USED"]
 `), 0o644),
 			fstest.CreateFile("proj/Kraftfile", []byte(`
@@ -274,7 +275,7 @@ cmd: ["sh", "-c", "cat /etc/unikraft-e2e && echo UNIKRAFT_E2E_OK"]
 		require.NoError(t, fstest.Apply(
 			fstest.CreateFile("Dockerfile", []byte(`
 FROM busybox:latest
-RUN echo "unikraft-e2e" > /etc/unikraft-e2e
+RUN echo "unikraft-e2e `+imageTag+`" > /etc/unikraft-e2e
 CMD ["sh", "-c", "echo DOCKERFILE_CMD_USED"]
 `), 0o644),
 			fstest.CreateFile("Kraftfile", []byte(`

@@ -17,6 +17,7 @@ import (
 	"unikraft.com/cli/internal/cmd"
 	"unikraft.com/cli/internal/mirror"
 	"unikraft.com/cli/internal/types"
+	"unikraft.com/cli/pkg/model"
 	"unikraft.com/cli/pkg/model/patch"
 )
 
@@ -56,6 +57,16 @@ func TestInstancePluginUnmarshalText(t *testing.T) {
 			name: "scalar config",
 			in:   "name=logger,image=r:1,config=5",
 			want: cmd.InstancePlugin{Name: "logger", Image: "r:1", Config: "5"},
+		},
+		{
+			name: "pull policy",
+			in:   "name=logger,image=r:1,pull-policy=never",
+			want: cmd.InstancePlugin{Name: "logger", Image: "r:1", PullPolicy: new(platform.PullPolicyNever)},
+		},
+		{
+			name: "headers",
+			in:   "name=logger,image=r:1,headers.Authorization=Bearer x,headers.X-Foo=1",
+			want: cmd.InstancePlugin{Name: "logger", Image: "r:1", Headers: map[string]string{"Authorization": "Bearer x", "X-Foo": "1"}},
 		},
 		{
 			name:    "missing name is rejected",
@@ -188,6 +199,139 @@ func TestInstanceRomName(t *testing.T) {
 			assert.Equal(t, tt.wantName, got.Name)
 		})
 	}
+}
+
+func TestInstanceCreateRejectsImageOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		spec    map[string][]string
+		wantErr string
+	}{
+		{
+			name: "pull policy without an image",
+			spec: map[string][]string{
+				"template":    {"my-template"},
+				"pull-policy": {"always"},
+			},
+			wantErr: "--pull-policy and --image-header need --image",
+		},
+		{
+			name: "image header without an image",
+			spec: map[string][]string{
+				"template":      {"my-template"},
+				"image-headers": {"X-Foo=1"},
+			},
+			wantErr: "--pull-policy and --image-header need --image",
+		},
+		{
+			name: "pull policy on a directory rom",
+			spec: map[string][]string{
+				"image": {"nginx:latest"},
+				"roms":  {"name=r,dir=./does-not-exist,pull-policy=always"},
+			},
+			wantErr: "pull-policy= and headers= need image= in a ROM",
+		},
+		{
+			name: "headers on a directory rom",
+			spec: map[string][]string{
+				"image": {"nginx:latest"},
+				"roms":  {"name=r,dir=./does-not-exist,headers.X-Foo=1"},
+			},
+			wantErr: "pull-policy= and headers= need image= in a ROM",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fields, err := cmd.Instance{}.Fields(t.Context())
+			require.NoError(t, err)
+
+			patched, err := patch.PatchedFields(t.Context(), fields, patch.PatchSpec{
+				Create: true,
+				Set:    tt.spec,
+			})
+			require.NoError(t, err)
+
+			_, err = cmd.Instance{}.Create(t.Context(), patched)
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestInstanceEditRejectsImageOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		target  model.EditableModel
+		spec    map[string][]string
+		wantErr string
+	}{
+		{
+			name:    "pull policy without an image",
+			target:  cmd.Instance{},
+			spec:    map[string][]string{"pull-policy": {"always"}},
+			wantErr: "--pull-policy and --image-header need --image in the same edit",
+		},
+		{
+			name:    "template pull policy without an image",
+			target:  cmd.InstanceTemplate{},
+			spec:    map[string][]string{"pull-policy": {"always"}},
+			wantErr: "--pull-policy and --image-header need --image in the same edit",
+		},
+		{
+			name:    "image header without an image",
+			target:  cmd.Instance{},
+			spec:    map[string][]string{"image-headers": {"X-Foo=1"}},
+			wantErr: "--pull-policy and --image-header need --image in the same edit",
+		},
+		{
+			name:    "empty image headers without an image",
+			target:  cmd.Instance{},
+			spec:    map[string][]string{"image-headers": {"{}"}},
+			wantErr: "--pull-policy and --image-header need --image in the same edit",
+		},
+		{
+			name:    "pull policy on a directory rom",
+			target:  cmd.Instance{},
+			spec:    map[string][]string{"roms": {"name=r,dir=./does-not-exist,pull-policy=always"}},
+			wantErr: "pull-policy= and headers= need image= in a ROM",
+		},
+		{
+			name:    "headers on a directory rom",
+			target:  cmd.Instance{},
+			spec:    map[string][]string{"roms": {"name=r,dir=./does-not-exist,headers.X-Foo=1"}},
+			wantErr: "pull-policy= and headers= need image= in a ROM",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fields, err := tt.target.Fields(t.Context())
+			require.NoError(t, err)
+			patched, err := patch.PatchedFields(t.Context(), fields, patch.PatchSpec{Set: tt.spec})
+			require.NoError(t, err)
+
+			require.ErrorContains(t, tt.target.Edit(t.Context(), "x", patched), tt.wantErr)
+		})
+	}
+}
+
+func TestInstanceEditOfAHostedServerRefusesADirectoryRom(t *testing.T) {
+	t.Parallel()
+
+	fields, err := cmd.Instance{}.Fields(t.Context())
+	require.NoError(t, err)
+	patched, err := patch.PatchedFields(t.Context(), fields, patch.PatchSpec{Set: map[string][]string{"roms": {"name=r,dir=" + t.TempDir()}}})
+	require.NoError(t, err)
+
+	require.ErrorContains(t, cmd.Instance{}.Edit(cmd.WithHosted(t.Context()), "x", patched), "does not send its own files")
 }
 
 // TestInstanceCreateRejectsNetworks checks that create stops a bad --network

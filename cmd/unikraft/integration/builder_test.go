@@ -38,7 +38,7 @@ func TestBuilder(t *testing.T) {
 	assert.Regexp(t, `(?m)^instance: +.*name=remote-builder-default\b`, out)
 
 	out = r.Run(t, []string{"unikraft", "builder", "list"}, env)
-	assert.Regexp(t, `(?m)^default +true +`, out)
+	assert.Regexp(t, `(?m)^default +\S+ +true +`, out)
 
 	out = r.Run(t, []string{"unikraft", "builder", "du"}, env)
 	assert.Regexp(t, `(?m)^Reclaimable: +\S+\nTotal: +\S+$`, out)

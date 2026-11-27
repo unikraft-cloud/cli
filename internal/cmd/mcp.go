@@ -155,7 +155,7 @@ func (c *MCPCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.P
 	if err := c.Check(); err != nil {
 		return err
 	}
-	srv, err := newMCPServer(ctx, stdio.Stderr, partition, *c)
+	srv, err := NewMCPServer(ctx, stdio.Stderr, partition, *c)
 	if err != nil {
 		return err
 	}
@@ -163,7 +163,9 @@ func (c *MCPCmd) Run(ctx context.Context, stdio xstdio.Stdio, partition *model.P
 	return c.Serve(ctx, srv)
 }
 
-func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partition, c MCPCmd) (*mcpserver.Server, error) {
+// NewMCPServer returns the server of unikraft mcp. pkg/mcpserver/cli serves
+// it to other programs.
+func NewMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partition, c MCPCmd) (*mcpserver.Server, error) {
 	if err := checkResources(c.Resources); err != nil {
 		return nil, err
 	}
@@ -235,9 +237,24 @@ func newMCPServer(ctx context.Context, stderr io.Writer, partition *model.Partit
 	return srv, nil
 }
 
+// hostedKey marks the context of a tool call of a hosted server.
+type hostedKey struct{}
+
+// WithHosted returns ctx for a tool call of a server that runs for others, on
+// a machine that is not theirs. Its tools then refuse the inputs that read
+// the files of the server or reach addresses that the caller picks.
+func WithHosted(ctx context.Context) context.Context {
+	return context.WithValue(ctx, hostedKey{}, true)
+}
+
+func hosted(ctx context.Context) bool {
+	h, _ := ctx.Value(hostedKey{}).(bool)
+	return h
+}
+
 func reloadConfig(next sdk.MethodHandler) sdk.MethodHandler {
 	return func(ctx context.Context, method string, req sdk.Request) (sdk.Result, error) {
-		if _, ok := req.(*sdk.CallToolRequest); ok {
+		if _, ok := req.(*sdk.CallToolRequest); ok && config.G(ctx).Path != "" {
 			started := config.G(ctx)
 			profile, _ := started.OverriddenCurrentProfile()
 			cfg, err := loadConfig(started.Path, profile)

@@ -33,7 +33,7 @@ Resources:
   tunnel, port-forward
           Forward a local port to an unexposed instance.
   history
-          Show checkpoint history for an instance.
+          Show the lineage of an instance.
   shell, sh
           Open an interactive shell on a sandbox instance.
   exec
@@ -63,6 +63,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -72,8 +73,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -144,6 +147,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -153,8 +157,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -233,6 +239,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -242,8 +249,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -326,6 +335,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -335,8 +345,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -469,6 +481,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -478,8 +491,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -559,8 +574,11 @@ Create flags:
           Image to deploy, as an OCI reference or a full registry URL. On create, required unless template, branch or checkpoint is given, and cannot be combined with them.
           [examples: nginx:latest, my-app:v1.2.3]
       --pull-policy=<policy>
-          When to pull the image relative to the node's cache: always, if_not_present or never.
+          When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
           [examples: always, if_not_present, never]
+      --image-header=<key>=<value> ...
+          HTTP header sent when fetching the image, as KEY=value, up to 16. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
+          [example: Authorization=Bearer <token>]
       --type=<type>
           Virtual machine type.
             micro: Firecracker microVM (default)
@@ -583,12 +601,15 @@ Create flags:
           [examples: 0, 1]
       --service=<name>
           Service group to join, by name or UUID. Leave unset and give service.services or service.domains to create a group owned by the instance. Without any service the instance is reachable only privately.
-  -p, --publish=<src>:<dest>[/<handlers>] ...
-          Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.
+  -p, --publish=<src>:<dest>[/<options>][@<ip>] ...
+          Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.
             http: load balance per HTTP request instead of per TCP connection
             tls: terminate TLS at the platform
-            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect.
-          [examples: 443:8080/http+tls, 80:443/http+redirect]
+            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect
+            tcp: publish a TCP port, the default
+            udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10
+            @IP: public IP assigned to you on the group's node.
+          [examples: 443:8080/http+tls, 80:443/http+redirect, 53:53/udp@203.0.113.10]
       --domain=<fqdn> ...
           Domain for the group.
             myapp: a bare label becomes a subdomain of the metro
@@ -597,11 +618,11 @@ Create flags:
   -v, --volume=[<name>]:<path>[:<options>] ...
           Volume to attach as NAME:/MOUNT[:ro], where the mount path is absolute and outside /uk. On create, leave NAME empty and add :size=SIZE, as in :/data:size=1GiB, to make a new volume with a generated name.
           [examples: my-vol:/data, cache:/tmp:ro, :/data:size=1GiB]
-      --rom=name=<name>,image=<ref>,at=<path> ...
-          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest.
+      --rom=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>],at=<path> ...
+          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=my-rom,image=myuser/my-rom:latest,at=/rom0, name=mydata,dir=./mydata,at=/rom]
-      --plugin=name=<name>,image=<ref>[,config=<json>] ...
-          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance.
+      --plugin=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>][,config=<json>] ...
+          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
       --network=<key>=<value> ...
           Network interface to attach, one per flag and up to 4. The first one is the primary interface. Needs the net_manager permission.
@@ -738,6 +759,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -747,8 +769,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -828,8 +852,11 @@ Create flags:
           Image to deploy, as an OCI reference or a full registry URL. On create, required unless template, branch or checkpoint is given, and cannot be combined with them.
           [examples: nginx:latest, my-app:v1.2.3]
       --pull-policy=<policy>
-          When to pull the image relative to the node's cache: always, if_not_present or never.
+          When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
           [examples: always, if_not_present, never]
+      --image-header=<key>=<value> ...
+          HTTP header sent when fetching the image, as KEY=value, up to 16. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
+          [example: Authorization=Bearer <token>]
       --type=<type>
           Virtual machine type.
             micro: Firecracker microVM (default)
@@ -852,12 +879,15 @@ Create flags:
           [examples: 0, 1]
       --service=<name>
           Service group to join, by name or UUID. Leave unset and give service.services or service.domains to create a group owned by the instance. Without any service the instance is reachable only privately.
-  -p, --publish=<src>:<dest>[/<handlers>] ...
-          Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.
+  -p, --publish=<src>:<dest>[/<options>][@<ip>] ...
+          Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.
             http: load balance per HTTP request instead of per TCP connection
             tls: terminate TLS at the platform
-            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect.
-          [examples: 443:8080/http+tls, 80:443/http+redirect]
+            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect
+            tcp: publish a TCP port, the default
+            udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10
+            @IP: public IP assigned to you on the group's node.
+          [examples: 443:8080/http+tls, 80:443/http+redirect, 53:53/udp@203.0.113.10]
       --domain=<fqdn> ...
           Domain for the group.
             myapp: a bare label becomes a subdomain of the metro
@@ -866,11 +896,11 @@ Create flags:
   -v, --volume=[<name>]:<path>[:<options>] ...
           Volume to attach as NAME:/MOUNT[:ro], where the mount path is absolute and outside /uk. On create, leave NAME empty and add :size=SIZE, as in :/data:size=1GiB, to make a new volume with a generated name.
           [examples: my-vol:/data, cache:/tmp:ro, :/data:size=1GiB]
-      --rom=name=<name>,image=<ref>,at=<path> ...
-          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest.
+      --rom=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>],at=<path> ...
+          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=my-rom,image=myuser/my-rom:latest,at=/rom0, name=mydata,dir=./mydata,at=/rom]
-      --plugin=name=<name>,image=<ref>[,config=<json>] ...
-          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance.
+      --plugin=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>][,config=<json>] ...
+          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
       --network=<key>=<value> ...
           Network interface to attach, one per flag and up to 4. The first one is the primary interface. Needs the net_manager permission.
@@ -991,6 +1021,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -1000,8 +1031,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -1083,8 +1116,11 @@ Create flags:
           Image to deploy, as an OCI reference or a full registry URL. On create, required unless template, branch or checkpoint is given, and cannot be combined with them.
           [examples: nginx:latest, my-app:v1.2.3]
       --pull-policy=<policy>
-          When to pull the image relative to the node's cache: always, if_not_present or never.
+          When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
           [examples: always, if_not_present, never]
+      --image-header=<key>=<value> ...
+          HTTP header sent when fetching the image, as KEY=value, up to 16. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
+          [example: Authorization=Bearer <token>]
       --type=<type>
           Virtual machine type.
             micro: Firecracker microVM (default)
@@ -1107,12 +1143,15 @@ Create flags:
           [examples: 0, 1]
       --service=<name>
           Service group to join, by name or UUID. Leave unset and give service.services or service.domains to create a group owned by the instance. Without any service the instance is reachable only privately.
-  -p, --publish=<src>:<dest>[/<handlers>] ...
-          Published port as SOURCE:DESTINATION[/HANDLERS], with handlers joined by +. Port 80 must use http, port 443 http+tls, and any other port tls only.
+  -p, --publish=<src>:<dest>[/<options>][@<ip>] ...
+          Published port as SOURCE:DESTINATION[/OPTIONS][@IP], with options joined by +. TCP port 80 must use http, port 443 http+tls, and any other port tls only. UDP ports take no handlers and need an IP.
             http: load balance per HTTP request instead of per TCP connection
             tls: terminate TLS at the platform
-            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect.
-          [examples: 443:8080/http+tls, 80:443/http+redirect]
+            redirect: redirect HTTP on port 80 to HTTPS, as in 80:443/http+redirect
+            tcp: publish a TCP port, the default
+            udp: publish a UDP port instead of TCP, as in 53:53/udp@203.0.113.10
+            @IP: public IP assigned to you on the group's node.
+          [examples: 443:8080/http+tls, 80:443/http+redirect, 53:53/udp@203.0.113.10]
       --domain=<fqdn> ...
           Domain for the group.
             myapp: a bare label becomes a subdomain of the metro
@@ -1121,11 +1160,11 @@ Create flags:
   -v, --volume=[<name>]:<path>[:<options>] ...
           Volume to attach as NAME:/MOUNT[:ro], where the mount path is absolute and outside /uk. On create, leave NAME empty and add :size=SIZE, as in :/data:size=1GiB, to make a new volume with a generated name.
           [examples: my-vol:/data, cache:/tmp:ro, :/data:size=1GiB]
-      --rom=name=<name>,image=<ref>,at=<path> ...
-          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest.
+      --rom=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>],at=<path> ...
+          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=my-rom,image=myuser/my-rom:latest,at=/rom0, name=mydata,dir=./mydata,at=/rom]
-      --plugin=name=<name>,image=<ref>[,config=<json>] ...
-          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance.
+      --plugin=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>][,config=<json>] ...
+          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
       --network=<key>=<value> ...
           Network interface to attach, one per flag and up to 4. The first one is the primary interface. Needs the net_manager permission.
@@ -1202,6 +1241,9 @@ Examples:
   # Resize instance memory
   unikraft instance edit demo-instance --memory 256
 
+  # Change the image and always pull it, even if the node has it cached
+  unikraft instance edit demo-instance --image my-app:v2 --pull-policy always
+
   # Attach a ROM image to an instance
   unikraft instance edit demo-instance \
   	  --set roms=name=my-rom,image=myuser/my-rom:latest,at=/rom0
@@ -1229,6 +1271,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -1238,8 +1281,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -1315,6 +1360,12 @@ Edit flags:
       --image=<name>:<tag>
           Image to deploy, as an OCI reference or a full registry URL. On create, required unless template, branch or checkpoint is given, and cannot be combined with them.
           [examples: nginx:latest, my-app:v1.2.3]
+      --pull-policy=<policy>
+          When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
+          [examples: always, if_not_present, never]
+      --image-header=<key>=<value> ...
+          HTTP header sent when fetching the image, as KEY=value, up to 16. Needs image in the same create or edit. Each image edit replaces the pull policy and headers, so set both again.
+          [example: Authorization=Bearer <token>]
       --args=<arg>
           Command-line arguments passed to the instance at start.
           [example: --port=8080]
@@ -1327,11 +1378,11 @@ Edit flags:
       --vcpus=<n>
           Number of vCPUs, within the range the plan allows (see quotas.limits.vcpus on the metro). Defaults to 1 on create.
           [examples: 1, 2, 4]
-      --rom=name=<name>,image=<ref>,at=<path> ...
-          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest.
+      --rom=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>],at=<path> ...
+          Read-only ROM device from an image or a local directory. The name uses letters, digits, - and _, and appears as /dev/ukp_rom_NAME in the guest. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=my-rom,image=myuser/my-rom:latest,at=/rom0, name=mydata,dir=./mydata,at=/rom]
-      --plugin=name=<name>,image=<ref>[,config=<json>] ...
-          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance.
+      --plugin=name=<name>,image=<ref>[,pull-policy=<policy>][,headers.<key>=<value>][,config=<json>] ...
+          Plugin loaded from an image, with an optional JSON config passed to it on start. Up to 8 per instance. Add pull-policy=always|if_not_present|never to control when the image is pulled. Add headers.KEY=value for each HTTP header sent when fetching the image; for a value with a comma, use headers={"KEY":"a,b"}.
           [examples: name=sandbox,image=plugins/sandbox:latest, name=sandbox,image=plugins/sandbox:latest,config={"persist_path":"/data"}]
       --scale-to-zero=<key>=<value>
           Scale-to-zero options. Traffic through a service or to the private IP wakes the instance.
@@ -1376,6 +1427,7 @@ Fields:
   state
   image
   pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus, resources.gpus
@@ -1385,8 +1437,10 @@ Fields:
   service.soft-limit, service.hard-limit
   volumes, volumes.*, volumes.*.name, volumes.*.uuid, volumes.*.at,
   volumes.*.readonly, volumes.*.size
-  roms, roms.*, roms.*.name, roms.*.image, roms.*.dir, roms.*.at
-  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.config
+  roms, roms.*, roms.*.name, roms.*.image, roms.*.pull-policy, roms.*.headers,
+  roms.*.dir, roms.*.at
+  plugins, plugins.*, plugins.*.name, plugins.*.image, plugins.*.pull-policy,
+  plugins.*.headers, plugins.*.config
   private-fqdn
   networks, networks.*, networks.*.name, networks.*.uuid, networks.*.private-ip,
   networks.*.mac, networks.*.tap-name, networks.*.relay, networks.*.relay.name,
@@ -1463,6 +1517,8 @@ Templates:
           Create an instance template.
   edit
           Edit an instance template.
+  history
+          Show the lineage of an instance template.
 
 Fields:
   metro
@@ -1475,6 +1531,8 @@ Fields:
   autokill, autokill.time
   state
   image
+  pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus
@@ -1533,6 +1591,8 @@ Fields:
   autokill, autokill.time
   state
   image
+  pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus
@@ -1599,6 +1659,8 @@ Fields:
   autokill, autokill.time
   state
   image
+  pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus
@@ -1673,6 +1735,8 @@ Fields:
   autokill, autokill.time
   state
   image
+  pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus
@@ -1742,6 +1806,10 @@ Examples:
   # Update template tags
   unikraft instance template edit demo-template --set tags=env-dev
 
+  # Change the template image and always pull it
+  unikraft instance template edit demo-template --image my-app:v2 --pull-policy
+  always
+
 Fields:
   metro
   name
@@ -1753,6 +1821,8 @@ Fields:
   autokill, autokill.time
   state
   image
+  pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus
@@ -1815,6 +1885,15 @@ Edit flags:
           Autokill options.
             time: time since the template was last cloned before it is deleted, such as 24h, 0 disables.
           [example: time=24h]
+      --image=<name>:<tag>
+          Image of the template, as an OCI reference or a full registry URL.
+          [examples: nginx:latest, my-app:v1.2.3]
+      --pull-policy=<policy>
+          When to pull the image relative to the node's cache: always, if_not_present or never. Needs image in the same edit. Each image edit replaces the pull policy and headers, so set both again.
+          [examples: always, if_not_present, never]
+      --image-header=<key>=<value> ...
+          HTTP header sent when fetching the image, as KEY=value, up to 16. Needs image in the same edit. Each image edit replaces the pull policy and headers, so set both again.
+          [example: Authorization=Bearer <token>]
 
 $ unikraft instance template delete --help
 
@@ -1842,6 +1921,8 @@ Fields:
   autokill, autokill.time
   state
   image
+  pull-policy
+  image-headers
   type
   runtime, runtime.args, runtime.env
   resources, resources.memory, resources.vcpus
@@ -1887,6 +1968,65 @@ Global flags:
       --timeout=<duration> ($UNIKRAFT_TIMEOUT)
           Set a deadline for the command (e.g. 30s, 5m, 1h).
 
+$ unikraft instance template history --help
+
+Show the whole lineage tree of an instance template: every instance, template
+and checkpoint in it. A table draws the tree in its graph column: ◉ is the
+target, ● an instance, ○ a checkpoint, ◎ a template and ◌ a deleted instance.
+
+Usage:
+  unikraft instances template history <target> ... [flags]
+
+Arguments:
+  <target> ...
+          Target templates to show the lineage of.
+
+Examples:
+  # Show the lineage of a template
+  unikraft instance template history my-template
+
+  # Show the lineage with the UUID of each node
+  unikraft instance template history my-template -f +uuid
+
+Fields:
+  graph
+  metro
+  name
+  kind
+  state
+  created
+  uuid
+  parent
+  relation
+  target
+
+Flags:
+      --limit
+          Show at most this many nodes of each lineage: the newest ones and the target. 0 shows all.
+  -f, --field
+          Specify which fields to include in the output.
+  -o, --output
+          Output format. One of: kv, table, json, yaml, raw, quiet, template.
+
+Global flags:
+  -h, --help
+          Show context-sensitive help.
+      --config=<file> ($UNIKRAFT_CONFIG)
+          Path to the configuration file.
+      --log-level=<level> ($UNIKRAFT_LOG_LEVEL)
+          Set the logging level.
+          [default: info, choices: trace, debug, info, warn, error, fatal]
+      --log-type=<type> ($UNIKRAFT_LOG_TYPE)
+          Set the log type.
+          [default: text, choices: text, json]
+      --profile=<name> ($UNIKRAFT_PROFILE)
+          Set the current profile.
+      --[no-]telemetry ($UNIKRAFT_TELEMETRY)
+          Toggle usage analytics.
+          [default: true]
+      --timeout=<duration> ($UNIKRAFT_TIMEOUT)
+          Set a deadline for the command (e.g. 30s, 5m, 1h).
+
 $ unikraft instance checkpoint --help
 
 Manage instance checkpoints.
@@ -1908,7 +2048,7 @@ Checkpoints:
   edit
           Edit an instance checkpoint.
   history
-          Show the history of a checkpoint.
+          Show the lineage of a checkpoint.
 
 Fields:
   metro
@@ -2401,20 +2541,39 @@ Global flags:
 
 $ unikraft instance checkpoint history --help
 
-Show the history of a checkpoint.
+Show the whole lineage tree of a checkpoint: every instance, template and
+checkpoint in it. A table draws the tree in its graph column: ◉ is the target, ●
+an instance, ○ a checkpoint, ◎ a template and ◌ a deleted instance.
 
 Usage:
   unikraft instances checkpoint history <target> ... [flags]
 
 Arguments:
   <target> ...
-          Target checkpoints to show history for.
+          Target checkpoints to show the lineage of.
 
 Examples:
-  # Show the history of a checkpoint
+  # Show the lineage of a checkpoint
   unikraft instance checkpoint history my-checkpoint
 
+  # Show the lineage with the UUID of each node
+  unikraft instance checkpoint history my-checkpoint -f +uuid
+
+Fields:
+  graph
+  metro
+  name
+  kind
+  state
+  created
+  uuid
+  parent
+  relation
+  target
+
 Flags:
+      --limit
+          Show at most this many nodes of each lineage: the newest ones and the target. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -2738,20 +2897,42 @@ Global flags:
 
 $ unikraft instance history --help
 
-Show checkpoint history for an instance.
+Show the whole lineage tree of an instance: every instance, template and
+checkpoint in it. A table draws the tree in its graph column: ◉ is the target, ●
+an instance, ○ a checkpoint, ◎ a template and ◌ a deleted instance.
 
 Usage:
   unikraft instances history <target> ... [flags]
 
 Arguments:
   <target> ...
-          Target instances to show history for.
+          Target instances to show the lineage of.
 
 Examples:
-  # Show the checkpoint history of an instance
+  # Show the lineage of an instance
   unikraft instance history my-instance
 
+  # Show the lineage with the UUID of each node
+  unikraft instance history my-instance -f +uuid
+
+  # Show the lineage as JSON
+  unikraft instance history my-instance -o json
+
+Fields:
+  graph
+  metro
+  name
+  kind
+  state
+  created
+  uuid
+  parent
+  relation
+  target
+
 Flags:
+      --limit
+          Show at most this many nodes of each lineage: the newest ones and the target. 0 shows all.
   -f, --field
           Specify which fields to include in the output.
   -o, --output
@@ -2811,7 +2992,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
   -w, --dir=<dir>
           Directory to start the shell in.
@@ -2881,7 +3062,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
   -w, --dir=<dir>
           Directory to execute the command from.
@@ -2952,7 +3133,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
       --force
           Overwrite the local file if it already exists.
@@ -3009,7 +3190,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
       --append
           Append to the remote file instead of overwriting it.
@@ -3069,7 +3250,7 @@ Flags:
           Name of the sandbox plugin to use.
           [default: sandbox]
       --plugin-image=<ref>
-          Image of the sandbox plugin to attach when the instance has none.
+          Image of the sandbox plugin to attach when the instance has none. It asks first, so it only attaches from a terminal.
           [default: plugins/sandbox:latest]
       --force
           Overwrite the local file if it already exists.

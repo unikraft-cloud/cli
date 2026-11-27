@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 
 	"unikraft.com/cloud/sdk/platform"
 	"unikraft.com/cloud/sdk/platform/group"
@@ -37,7 +36,7 @@ type InstanceCheckpointsCmd struct {
 
 	Create  cmd.ModelCreateCmd[InstanceCheckpoint] `cmd:"" help:"Create a checkpoint from an instance."`
 	Edit    cmd.ModelEditCmd[InstanceCheckpoint]   `cmd:"" help:"Edit an instance checkpoint."`
-	History InstanceCheckpointHistoryCmd           `cmd:"" help:"Show the history of a checkpoint."`
+	History InstanceCheckpointHistoryCmd           `cmd:"" help:"Show the lineage of a checkpoint."`
 }
 
 type InstanceCheckpoint struct {
@@ -478,117 +477,31 @@ func (InstanceCheckpoint) Examples() map[cmd.CmdType][]kingkong.Example {
 	}
 }
 
-// InstanceHistoryEntry represents a single checkpoint in the history of an
-// instance or checkpoint. It models one row of history output as a resource so
-// that it can be rendered through the standard printer framework.
-type InstanceHistoryEntry struct {
-	Metro   LinkName[Metro]    `field:"metro,short" json:"metro" help:"Metro the checkpoint is in."`
-	Target  string             `field:",short" json:"target" help:"Instance or checkpoint the history was requested for."`
-	Name    string             `field:",short" json:"name" help:"Checkpoint name."`
-	UUID    string             `field:",long" json:"uuid" help:"Unique identifier assigned at creation."`
-	Created types.RelativeTime `field:"created,short" json:"created" help:"Creation time."`
-
-	key multimetro.Key
-}
-
-func (InstanceHistoryEntry) Type() model.Type {
-	return model.Type{
-		Name:  "instance-history-entry",
-		Names: "instance-history-entries",
-	}
-}
-
-func (i InstanceHistoryEntry) Key() model.Key {
-	return i.key
-}
-
-func (i InstanceHistoryEntry) Raw() any {
-	return i
-}
-
-func (i InstanceHistoryEntry) Fields(ctx context.Context) ([]model.Field, error) {
-	return model.FieldsFromStruct(i)
-}
-
-// getInstanceHistory fetches checkpoint history entries for the given targets
-// using the provided fetch function (either the instance or checkpoint history
-// endpoint) and flattens them into InstanceHistoryEntry rows.
-func getInstanceHistory(ctx context.Context, targets []string, fetch func(ctx context.Context, c multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error)) ([]model.Model, error) {
-	keys := multimetro.ParseKeys(targets)
-
-	g, err := multimetro.NewClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return group.CollectRefsSlices(ctx, g, keys.Refs(), func(ctx context.Context, c multimetro.MetroClient, refs group.Refs) ([]model.Model, group.Refs, error) {
-		log.G(ctx).Trace().Msg("getting checkpoint history")
-		resp, err := fetch(ctx, c, refs.NameOrUUIDs())
-		if err != nil && !platform.ErrorContainsOnly(err, platform.APIHTTPErrorNotFound) {
-			return nil, nil, err
-		}
-		var found []group.Ref
-		var results []model.Model
-		if resp == nil || resp.Data == nil {
-			return nil, nil, nil
-		}
-		for _, inst := range resp.Data.Instances {
-			if inst.Status == nil || *inst.Status != platform.ResponseStatusSuccess {
-				continue
-			}
-			found = append(found, group.Ref{
-				Metro: c.Metro.Name,
-				Name:  inst.Name,
-				UUID:  inst.Uuid,
-			})
-			target := multimetro.Key{Metro: c.Metro.Name, Name: inst.Name, UUID: inst.Uuid}
-			for _, entry := range inst.History {
-				results = append(results, InstanceHistoryEntry{
-					Metro:   LinkName[Metro](c.Metro.Name),
-					Target:  target.String(),
-					Name:    entry.Name,
-					UUID:    entry.Uuid,
-					Created: types.RelativeTime(entry.CreatedAt),
-					key:     multimetro.Key{Metro: c.Metro.Name, Name: entry.Name, UUID: entry.Uuid},
-				})
-			}
-		}
-		return results, found, nil
-	})
-}
-
-// renderInstanceHistory prints history entries through the printer framework.
-func renderInstanceHistory(ctx context.Context, out io.Writer, opts cmd.FormatOpts, entries []model.Model) error {
-	return opts.Output.
-		WithDefault(cmd.PrinterTypeTable).
-		Print(ctx, out, opts.Field, InstanceHistoryEntry{}, entries...)
-}
-
-// InstanceCheckpointHistoryCmd shows the checkpoint history for a checkpoint.
+// InstanceCheckpointHistoryCmd shows the lineage of a checkpoint.
 type InstanceCheckpointHistoryCmd struct {
-	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance-checkpoint" help:"Target checkpoints to show history for."`
+	Targets []string `arg:"" name:"target" completion-predictor:"resource-key-instance-checkpoint" help:"Target checkpoints to show the lineage of."`
 
-	cmd.FormatOpts
+	InstanceHistoryOpts
+}
+
+func (cmd InstanceCheckpointHistoryCmd) Help() string {
+	return "Show the whole lineage tree of a checkpoint: every instance, template and checkpoint in it." + lineageHelp
 }
 
 func (cmd InstanceCheckpointHistoryCmd) Examples() []kingkong.Example {
 	return []kingkong.Example{
 		{
-			Description: "Show the history of a checkpoint",
+			Description: "Show the lineage of a checkpoint",
 			Commands:    []string{"unikraft instance checkpoint history my-checkpoint"},
+		},
+		{
+			Description: "Show the lineage with the UUID of each node",
+			Commands:    []string{"unikraft instance checkpoint history my-checkpoint -f +uuid"},
 		},
 	}
 }
 
 func (c *InstanceCheckpointHistoryCmd) Run(ctx context.Context, stdio xstdio.Stdio) error {
-	entries, err := getInstanceHistory(ctx, c.Targets, func(ctx context.Context, mc multimetro.MetroClient, ids []platform.NameOrUUID) (*platform.Response[platform.GetCheckpointHistoryResponseData], error) {
-		return mc.GetCheckpointHistory(ctx, ids, platform.GetCheckpointHistoryOpts{})
-	})
-	if err != nil && len(entries) == 0 {
-		return err
-	}
-	if printErr := renderInstanceHistory(ctx, stdio.Stdout, c.FormatOpts, entries); printErr != nil {
-		return errors.Join(err, printErr)
-	}
-	return err
+	found, err := InstanceCheckpoint{}.Get(ctx, c.Targets)
+	return runInstanceHistory(ctx, stdio, c.InstanceHistoryOpts, c.Targets, found, err)
 }

@@ -6,6 +6,10 @@
 package integration
 
 import (
+	"fmt"
+	"math/rand/v2"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -141,6 +145,59 @@ func TestServices(t *testing.T) {
 		assert.NotRegexp(t, `source:\s+8443`, out)
 
 		r.Run(t, []string{"unikraft", "service", "delete", "test-" + svcName})
+	})
+
+	t.Run("udp", func(t *testing.T) {
+		r := runner(t, true, []string{staging})
+
+		out := r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--metro", r.MetroName,
+			"--service", "53:53/udp",
+		}, integ.ExpectFail())
+		assert.Contains(t, out, "UDP services must have an IP address configured")
+	})
+
+	t.Run("udp-ip", func(t *testing.T) {
+		ip := os.Getenv("UNIKRAFT_X_TEST_UDP_IP")
+		if ip == "" {
+			t.Skip("udp test requires UNIKRAFT_X_TEST_UDP_IP")
+		}
+		r := runner(t, true, []string{staging})
+		svcName := "test-" + uniq()
+		port := 20000 + rand.IntN(40000)
+		udpSvc := fmt.Sprintf("%d:%d/udp@%s", port, port, ip)
+		tcpSvc := fmt.Sprintf("%d:8080/tls@%s", port, ip)
+		udpOut := fmt.Sprintf(`source:\s+%d\s+destination:\s+%d\s+protocol:\s+udp\s+ip:\s+%s`, port, port, regexp.QuoteMeta(ip))
+		tcpOut := fmt.Sprintf(`source:\s+%d\s+destination:\s+8080\s+protocol:\s+tcp\s+ip:\s+%s`, port, regexp.QuoteMeta(ip))
+
+		out := r.Run(t, []string{
+			"unikraft", "service", "create",
+			"--name", svcName,
+			"--metro", r.MetroName,
+			"--service", udpSvc,
+		})
+		assert.Regexp(t, udpOut, out)
+
+		r.Run(t, []string{
+			"unikraft", "service", "edit", svcName,
+			"--output", "quiet",
+			"--add", "services=" + tcpSvc,
+		})
+		out = r.Run(t, []string{"unikraft", "service", "inspect", svcName})
+		assert.Regexp(t, udpOut, out)
+		assert.Regexp(t, tcpOut, out)
+
+		r.Run(t, []string{
+			"unikraft", "service", "edit", svcName,
+			"--output", "quiet",
+			"--del", "services=" + udpSvc,
+		})
+		out = r.Run(t, []string{"unikraft", "service", "inspect", svcName})
+		assert.NotRegexp(t, udpOut, out)
+		assert.Regexp(t, tcpOut, out)
+
+		r.Run(t, []string{"unikraft", "service", "delete", svcName})
 	})
 
 	t.Run("delete-drain", func(t *testing.T) {

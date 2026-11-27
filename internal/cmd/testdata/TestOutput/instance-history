@@ -1,22 +1,36 @@
 ====================================== kv ======================================
-metro:  fra
-target: fra/my-instance
-name:   my-checkpoint
-uuid:   f6a7b8c9-d0e1-2345-f012-3456789abcde
+metro:    fra
+name:     my-fork
+kind:     instance
+state:    running
+uuid:     f6a7b8c9-d0e1-2345-f012-3456789abcde
+parent:   my-checkpoint
+relation: forked-from
+target:   fra/my-fork
 
 ==================================== kv-all ====================================
-metro:   fra
-target:  fra/my-instance
-name:    my-checkpoint
-uuid:    f6a7b8c9-d0e1-2345-f012-3456789abcde
-created: never
+graph:
+metro:    fra
+name:     my-fork
+kind:     instance
+state:    running
+created:
+uuid:     f6a7b8c9-d0e1-2345-f012-3456789abcde
+parent:   my-checkpoint
+relation: forked-from
+target:   fra/my-fork
 
 ==================================== table =====================================
-METRO  TARGET           NAME           CREATED
-fra    fra/my-instance  my-checkpoint  never
+GRAPH  NAME     STATE    CREATED
+       my-fork  running
 
 ==================================== debug =====================================
 [
+  {
+    "name": "graph",
+    "value": "",
+    "verbosity": "short"
+  },
   {
     "name": "metro",
     "value": "fra",
@@ -26,16 +40,26 @@ fra    fra/my-instance  my-checkpoint  never
         "key": "fra"
       }
     ],
-    "verbosity": "short"
-  },
-  {
-    "name": "target",
-    "value": "fra/my-instance",
-    "verbosity": "short"
+    "verbosity": "long"
   },
   {
     "name": "name",
-    "value": "my-checkpoint",
+    "value": "my-fork",
+    "verbosity": "short"
+  },
+  {
+    "name": "kind",
+    "value": "instance",
+    "verbosity": "long"
+  },
+  {
+    "name": "state",
+    "value": "running",
+    "verbosity": "short"
+  },
+  {
+    "name": "created",
+    "value": null,
     "verbosity": "short"
   },
   {
@@ -44,8 +68,18 @@ fra    fra/my-instance  my-checkpoint  never
     "verbosity": "long"
   },
   {
-    "name": "created",
-    "value": "never",
-    "verbosity": "short"
+    "name": "parent",
+    "value": "my-checkpoint",
+    "verbosity": "long"
+  },
+  {
+    "name": "relation",
+    "value": "forked-from",
+    "verbosity": "long"
+  },
+  {
+    "name": "target",
+    "value": "fra/my-fork",
+    "verbosity": "long"
   }
 ]
