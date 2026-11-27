@@ -38,7 +38,7 @@ func TestMCP(t *testing.T) {
 			"metro":            r.MetroName,
 			"image":            image,
 			"runtime.args":     "tail -f /dev/null",
-			"plugins":          []string{"name=" + sandboxPlugin + ",rom=" + sandboxPluginRom},
+			"plugins":          []string{"name=" + sandboxPlugin + ",rom=" + sandboxPluginRom + ",pull-policy=always"},
 			"resources.memory": "512MiB",
 			"resources.vcpus":  1,
 		}})

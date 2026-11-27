@@ -40,7 +40,7 @@ func newSandboxInstance(t *testing.T, r *integ.TestEnv) string {
 		"--metro", r.MetroName,
 		"--image", image,
 		"--args", "tail -f /dev/null",
-		"--plugin", "name=" + sandboxPlugin + ",rom=" + sandboxPluginRom,
+		"--plugin", "name=" + sandboxPlugin + ",rom=" + sandboxPluginRom + ",pull-policy=always",
 		"--memory", "512",
 		"--vcpus", "1",
 		"--autostart",
