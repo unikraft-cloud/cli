@@ -17,10 +17,11 @@ type ImageBuildCmd struct {
 	Arch   []string `help:"Only build the Kraftfile targets of these architectures. Defaults to every declared target, or x86_64 when only a runtime is declared. A local build requires it when the project declares no targets and no runtime, such as a bare Dockerfile. A remote build of such a project defaults to x86_64." example:"x86_64,arm64"`
 
 	// similar to docker compose build
-	BuildArg []string `sep:"none" help:"Set build-time variables."`
-	NoCache  bool     `help:"Do not use cache when building the image."`
-	Secret   []string `sep:"none" help:"Secret to expose to the build (format: \"id=mysecret[,src=/local/secret]\")."`
-	SSH      []string `sep:"none" help:"SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")."`
+	BuildArg     []string `sep:"none" help:"Set build-time variables."`
+	BuildContext []string `sep:"none" help:"Set additional build contexts (format: name=path|url)."`
+	NoCache      bool     `help:"Do not use cache when building the image."`
+	Secret       []string `sep:"none" help:"Secret to expose to the build (format: \"id=mysecret[,src=/local/secret]\")."`
+	SSH          []string `sep:"none" help:"SSH agent socket or keys to expose to the build (format: \"default|<id>[=<socket>|<key>[,<key>]]\")."`
 
 	Insecure []string `help:"Allow insecure (HTTP/unverified TLS) connections to registries. Specify hostnames to restrict, or omit to apply to all." type:"optional"`
 

@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	dockerconfig "github.com/docker/cli/cli/config"
 	"github.com/moby/buildkit/client"
@@ -77,6 +79,42 @@ func authAttachable(ctx context.Context) (session.Attachable, error) {
 	}), nil
 }
 
+func resolveBuildContext(source string) (build.Source, error) {
+	switch {
+	case strings.HasPrefix(source, "docker-image://"),
+		strings.HasPrefix(source, "https://"),
+		strings.HasPrefix(source, "http://"),
+		strings.HasPrefix(source, "git://"),
+		strings.HasPrefix(source, "ssh://"):
+
+		return build.FrontendSource{
+			Ref: source,
+		}, nil
+
+	case strings.Contains(source, "://"):
+		return nil, fmt.Errorf("unsupported build context source %q", source)
+	}
+
+	// Resolve local directory to an absolute path.
+	dir, err := filepath.Abs(source)
+	if err != nil {
+		return nil, fmt.Errorf("resolving path %q: %w", source, err)
+	}
+
+	info, err := os.Stat(dir)
+	if err != nil {
+		return nil, fmt.Errorf("accessing context directory %q: %w", source, err)
+	}
+
+	if !info.IsDir() {
+		return nil, fmt.Errorf("build context %q is not a directory", source)
+	}
+
+	return build.LocalSource{
+		Dir: dir,
+	}, nil
+}
+
 // buildWithProgress runs fn on a builder that draws its progress to stderr,
 // and returns once the display has finished drawing.
 func buildWithProgress(ctx context.Context, fn func(build.Builder) error) error {
@@ -102,6 +140,24 @@ func (c *ImageBuildCmd) Run(ctx context.Context, cfg *config.Config, partition *
 	buildOpts, err := build.LoadBuildOpts(ctx, c.Input)
 	if err != nil {
 		return err
+	}
+
+	contexts, err := buildflags.ParseContextNames(c.BuildContext)
+	if err != nil {
+		return err
+	}
+
+	if len(contexts) > 0 {
+		buildOpts.Contexts = make(map[string]build.Source, len(contexts))
+
+		for name, source := range contexts {
+			resolved, err := resolveBuildContext(source)
+			if err != nil {
+				return fmt.Errorf("resolving build context %q: %w", name, err)
+			}
+
+			buildOpts.Contexts[name] = resolved
+		}
 	}
 
 	arches := make([]string, 0, len(c.Arch))
