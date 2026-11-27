@@ -7,7 +7,7 @@ tool github.com/caarlos0/svu/v3
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.2
-	charm.land/lipgloss/v2 v2.0.6
+	charm.land/lipgloss/v2 v2.1.2-0.20261126165533-22b09d7f3566
 	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/alecthomas/kong v1.17.0
@@ -212,10 +212,6 @@ require (
 	tailscale.com v1.104.5 // indirect
 	unikraft.com/x/dockerfile v0.0.0-20261118100745-28172ae5f28c // indirect
 )
-
-// Use the fork with charmbracelet/lipgloss#746 until a release has it.
-// It stops the Windows hang at startup when stdin is redirected.
-replace charm.land/lipgloss/v2 => github.com/unikraft-cloud/lipgloss/v2 v2.0.0-20260921145830-9a285e5dd507
 
 // Use master with mvdan/sh#1433 until a release has it.
 // It resolves the instance's Unix paths as such on Windows.
